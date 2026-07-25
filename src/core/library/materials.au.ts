@@ -1,0 +1,264 @@
+/**
+ * Australian material library seed.
+ *
+ * Sheet sizes, thicknesses and substrates here are the real local standards — 3600×1800 and
+ * 2400×1200 stock, 2440×1220 for imported product, 16/18/25mm, melamine-faced particleboard
+ * as the carcass default and MDF as the door substrate. None of that is a localisation pass
+ * over a US default; it is the baseline.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────────────────
+ * PRICING IS INDICATIVE. Every record below carries `indicativePricing: true`, and costing
+ * surfaces that flag on any quote it touches. Replace these with your actual trade prices
+ * before quoting a real job — the decor names and sheet sizes are right, the dollars are
+ * ballpark only.
+ * ─────────────────────────────────────────────────────────────────────────────────────────
+ */
+
+import { mm } from '../units.ts';
+import type { EdgeBandMaterial, MaterialLibrary, SheetMaterial, SheetSize } from '../model/material.ts';
+
+const sheet = (length: number, width: number, priceExGst: number): SheetSize => ({
+  length: mm(length),
+  width: mm(width),
+  priceExGst,
+});
+
+/** AU standard sheet footprint. */
+const AU_LARGE = (price: number) => sheet(3600, 1800, price);
+const AU_STANDARD = (price: number) => sheet(2400, 1200, price);
+/** Imported product runs to the metric-imperial 2440×1220. */
+const IMPORTED = (price: number) => sheet(2440, 1220, price);
+
+export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
+  // ── Carcass: melamine-faced particleboard, double sided ────────────────────────────────
+  {
+    id: 'poly-classic-white-16',
+    brand: 'Polytec',
+    decor: 'Classic White',
+    substrate: 'MFPB',
+    thickness: mm(16),
+    grain: 'none',
+    decorFaces: 2,
+    sheets: [AU_LARGE(10_500), AU_STANDARD(4_900)],
+    indicativePricing: true,
+  },
+  {
+    id: 'poly-classic-white-18',
+    brand: 'Polytec',
+    decor: 'Classic White',
+    substrate: 'MFPB',
+    thickness: mm(18),
+    grain: 'none',
+    decorFaces: 2,
+    sheets: [AU_LARGE(11_800), AU_STANDARD(5_500)],
+    indicativePricing: true,
+  },
+  {
+    id: 'poly-snowdrift-16',
+    brand: 'Polytec',
+    decor: 'Snowdrift',
+    substrate: 'MFPB',
+    thickness: mm(16),
+    grain: 'none',
+    decorFaces: 2,
+    sheets: [AU_LARGE(11_200)],
+    indicativePricing: true,
+  },
+  {
+    id: 'poly-sepia-oak-16',
+    brand: 'Polytec',
+    decor: 'Sepia Oak',
+    substrate: 'MFPB',
+    thickness: mm(16),
+    grain: 'length',
+    decorFaces: 2,
+    sheets: [AU_LARGE(15_400)],
+    indicativePricing: true,
+  },
+  {
+    id: 'poly-notaio-walnut-16',
+    brand: 'Polytec',
+    decor: 'Notaio Walnut',
+    substrate: 'MFPB',
+    thickness: mm(16),
+    grain: 'length',
+    decorFaces: 2,
+    sheets: [AU_LARGE(15_400)],
+    indicativePricing: true,
+  },
+  {
+    id: 'lam-polar-white-16',
+    brand: 'Laminex',
+    decor: 'Polar White',
+    substrate: 'MFPB',
+    thickness: mm(16),
+    grain: 'none',
+    decorFaces: 2,
+    sheets: [AU_LARGE(10_800), AU_STANDARD(5_100)],
+    indicativePricing: true,
+  },
+  {
+    id: 'lam-parchment-16',
+    brand: 'Laminex',
+    decor: 'Parchment',
+    substrate: 'MFPB',
+    thickness: mm(16),
+    grain: 'none',
+    decorFaces: 2,
+    sheets: [AU_LARGE(11_000)],
+    indicativePricing: true,
+  },
+
+  // ── Wet-area carcass: HMR ──────────────────────────────────────────────────────────────
+  {
+    id: 'poly-classic-white-hmr-16',
+    brand: 'Polytec',
+    decor: 'Classic White (HMR)',
+    substrate: 'HMR-MFPB',
+    thickness: mm(16),
+    grain: 'none',
+    decorFaces: 2,
+    sheets: [AU_LARGE(14_200)],
+    indicativePricing: true,
+  },
+  {
+    id: 'poly-classic-white-hmr-18',
+    brand: 'Polytec',
+    decor: 'Classic White (HMR)',
+    substrate: 'HMR-MFPB',
+    thickness: mm(18),
+    grain: 'none',
+    decorFaces: 2,
+    sheets: [AU_LARGE(15_600)],
+    indicativePricing: true,
+  },
+
+  // ── Doors and panels: MDF ──────────────────────────────────────────────────────────────
+  {
+    id: 'mdf-raw-18',
+    brand: 'Generic',
+    decor: 'Raw MDF',
+    substrate: 'MDF',
+    thickness: mm(18),
+    grain: 'none',
+    decorFaces: 2,
+    sheets: [AU_LARGE(9_600), AU_STANDARD(4_400)],
+    indicativePricing: true,
+  },
+  {
+    id: 'mdf-raw-25',
+    brand: 'Generic',
+    decor: 'Raw MDF',
+    substrate: 'MDF',
+    thickness: mm(25),
+    grain: 'none',
+    decorFaces: 2,
+    sheets: [AU_LARGE(14_500)],
+    indicativePricing: true,
+  },
+  {
+    id: 'mdf-hmr-18',
+    brand: 'Generic',
+    decor: 'HMR MDF',
+    substrate: 'HMR-MDF',
+    thickness: mm(18),
+    grain: 'none',
+    decorFaces: 2,
+    sheets: [AU_LARGE(13_200)],
+    indicativePricing: true,
+  },
+  {
+    id: 'poly-classic-white-door-18',
+    brand: 'Polytec',
+    decor: 'Classic White',
+    substrate: 'MDF',
+    thickness: mm(18),
+    grain: 'none',
+    decorFaces: 2,
+    sheets: [AU_LARGE(16_800)],
+    indicativePricing: true,
+  },
+
+  // ── Imported product on the 2440×1220 footprint ────────────────────────────────────────
+  {
+    id: 'ply-birch-18',
+    brand: 'Imported',
+    decor: 'Birch Plywood',
+    substrate: 'plywood',
+    thickness: mm(18),
+    grain: 'length',
+    decorFaces: 2,
+    sheets: [IMPORTED(13_500)],
+    indicativePricing: true,
+  },
+
+  // ── Backs ──────────────────────────────────────────────────────────────────────────────
+  {
+    id: 'poly-classic-white-back-16',
+    brand: 'Polytec',
+    decor: 'Classic White (back)',
+    substrate: 'MFPB',
+    thickness: mm(16),
+    grain: 'none',
+    decorFaces: 2,
+    sheets: [AU_LARGE(10_500)],
+    indicativePricing: true,
+  },
+];
+
+export const AU_EDGE_BANDS: readonly EdgeBandMaterial[] = [
+  {
+    id: 'eb-classic-white-1mm',
+    brand: 'Polytec',
+    decor: 'Classic White',
+    thickness: mm(1),
+    width: mm(22),
+    pricePerMetreExGst: 55,
+    indicativePricing: true,
+  },
+  {
+    id: 'eb-classic-white-2mm',
+    brand: 'Polytec',
+    decor: 'Classic White',
+    thickness: mm(2),
+    width: mm(22),
+    pricePerMetreExGst: 95,
+    indicativePricing: true,
+  },
+  {
+    id: 'eb-sepia-oak-1mm',
+    brand: 'Polytec',
+    decor: 'Sepia Oak',
+    thickness: mm(1),
+    width: mm(22),
+    pricePerMetreExGst: 130,
+    indicativePricing: true,
+  },
+  {
+    id: 'eb-notaio-walnut-1mm',
+    brand: 'Polytec',
+    decor: 'Notaio Walnut',
+    thickness: mm(1),
+    width: mm(22),
+    pricePerMetreExGst: 130,
+    indicativePricing: true,
+  },
+  {
+    id: 'eb-polar-white-1mm',
+    brand: 'Laminex',
+    decor: 'Polar White',
+    thickness: mm(1),
+    width: mm(22),
+    pricePerMetreExGst: 58,
+    indicativePricing: true,
+  },
+];
+
+export const AU_MATERIAL_LIBRARY: MaterialLibrary = {
+  sheets: AU_SHEET_MATERIALS,
+  edgeBands: AU_EDGE_BANDS,
+};
+
+/** True when any material a quote depends on is still carrying placeholder pricing. */
+export const hasIndicativePricing = (lib: MaterialLibrary): boolean =>
+  lib.sheets.some((s) => s.indicativePricing) || lib.edgeBands.some((e) => e.indicativePricing);
