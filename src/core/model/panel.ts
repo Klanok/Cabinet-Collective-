@@ -31,6 +31,7 @@ export type PanelRole =
   | 'door'
   | 'drawer-front'
   | 'false-front'
+  | 'lid'
   | 'kick'
   | 'filler'
   | 'end-panel';

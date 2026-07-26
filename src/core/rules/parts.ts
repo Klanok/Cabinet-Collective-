@@ -240,3 +240,98 @@ export const kickPanel = (ctx: RuleContext): PartInstance => {
     note: 'Band top edge only',
   };
 };
+
+/**
+ * Vertical dividers, evenly spaced through the interior.
+ *
+ * `count` dividers make `count + 1` bays. Each divider runs the full interior height and the
+ * full horizontal depth, housed between the bottom and whatever closes the top.
+ */
+export const dividers = (ctx: RuleContext, count: number): PartInstance[] => {
+  if (count <= 0) return [];
+  return Array.from({ length: count }, (_, i) => {
+    // Bays are equal, so divider i sits on the (i+1)th division of the interior width.
+    const centreX = ctx.t + (ctx.interiorWidth * (i + 1)) / (count + 1);
+    return {
+      name: count === 1 ? 'Divider' : `Divider ${i + 1}`,
+      role: 'divider' as const,
+      profile: rectProfile(ctx.interiorHeight, ctx.horizontalDepth),
+      placement: placement(v3(mm(centreX - ctx.t / 2), ctx.t, ctx.interiorBackZ), '+Y', '+Z'),
+      material: 'carcass' as const,
+      bandedDirections: BAND_FRONT,
+      grain: 'length-along-grain' as const,
+      note: 'Grain vertical',
+    };
+  });
+};
+
+/** Clear width of one bay, once the dividers have taken their thickness out of the interior. */
+export const bayWidth = (ctx: RuleContext, dividerCount: number): Mm =>
+  mm((ctx.interiorWidth - dividerCount * ctx.t) / (dividerCount + 1));
+
+/**
+ * Shelves within each bay — the pigeon-hole case.
+ *
+ * With no dividers this is the same as a plain run of adjustable shelves. With dividers it
+ * produces `shelfCount × (dividerCount + 1)` short shelves on a grid, which is what a pigeon
+ * hole unit actually is.
+ */
+export const bayShelves = (
+  ctx: RuleContext,
+  shelfCount: number,
+  dividerCount: number,
+): PartInstance[] => {
+  if (shelfCount <= 0) return [];
+  if (dividerCount <= 0) return adjustableShelves(ctx, shelfCount);
+
+  const c = ctx.construction;
+  const bays = dividerCount + 1;
+  const width = mm(bayWidth(ctx, dividerCount) - c.shelfSideClearance);
+  const depth = mm(ctx.horizontalDepth - c.shelfSetback);
+  const openingBottom = ctx.t;
+  const openingHeight = ctx.interiorHeight;
+
+  const parts: PartInstance[] = [];
+  for (let level = 0; level < shelfCount; level++) {
+    const centreY = openingBottom + (openingHeight * (level + 1)) / (shelfCount + 1);
+    for (let bay = 0; bay < bays; bay++) {
+      // Left edge of this bay: the interior start, plus the bays and dividers before it.
+      const bayLeft = ctx.t + bay * (bayWidth(ctx, dividerCount) + ctx.t);
+      parts.push({
+        name: shelfCount === 1 ? `Shelf bay ${bay + 1}` : `Shelf ${level + 1} bay ${bay + 1}`,
+        role: 'shelf-adjustable',
+        profile: rectProfile(width, depth),
+        placement: placement(
+          v3(mm(bayLeft + c.shelfSideClearance / 2), mm(centreY - ctx.t / 2), mm(ctx.D - c.shelfSetback)),
+          '+X',
+          '-Z',
+        ),
+        material: 'carcass',
+        bandedDirections: BAND_FRONT,
+        grain: 'any',
+      });
+    }
+  }
+  return parts;
+};
+
+/**
+ * A lid sitting on top of the carcass rather than housed in it — a banquette seat.
+ *
+ * Overhangs the carcass on the front and both ends, and is banded all round because every
+ * edge of it is seen and sat on.
+ */
+export const lidPanel = (ctx: RuleContext, overhang: Mm): PartInstance => {
+  const o = Math.max(0, overhang);
+  return {
+    name: 'Lid',
+    role: 'lid',
+    profile: rectProfile(mm(ctx.W + 2 * o), mm(ctx.D + o)),
+    // Sits on top of the carcass, overhanging the ends and the front but not the back wall.
+    placement: placement(v3(mm(-o), ctx.H, mm(ctx.D + o)), '+X', '-Z'),
+    material: 'door',
+    bandedDirections: BAND_ALL,
+    grain: 'length-along-grain',
+    note: 'Sits on the carcass — not housed',
+  };
+};

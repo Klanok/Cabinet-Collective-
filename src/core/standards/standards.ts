@@ -14,6 +14,7 @@
 import type { MaterialLibrary } from '../model/material.ts';
 import type { ConstructionMethod } from '../model/construction.ts';
 import type { Project, ProjectDefaults, ProjectSettings } from '../model/project.ts';
+import type { SavedCabinetType } from './savedTypes.ts';
 import { DEFAULT_CONSTRUCTIONS } from '../model/construction.ts';
 import { AU_MATERIAL_LIBRARY } from '../library/materials.au.ts';
 import { AU_DEFAULT_SETTINGS, AU_PROJECT_DEFAULTS } from '../library/defaults.au.ts';
@@ -34,6 +35,12 @@ export interface ShopStandards {
   readonly settings: ProjectSettings;
   /** The price list. */
   readonly materials: MaterialLibrary;
+  /**
+   * Reusable cabinet recipes. Unlike the rest of the standards these are *not* snapshotted
+   * into a job — a job records the cabinets you placed, not the catalogue you picked them
+   * from, so adding a type later makes it available everywhere at once.
+   */
+  readonly savedTypes: readonly SavedCabinetType[];
 }
 
 /** The shipped starting point. Australian conventions, as everything else here is. */
@@ -45,6 +52,7 @@ export const AU_SHOP_STANDARDS: ShopStandards = {
   defaults: AU_PROJECT_DEFAULTS,
   settings: AU_DEFAULT_SETTINGS,
   materials: AU_MATERIAL_LIBRARY,
+  savedTypes: [],
 };
 
 /**
@@ -88,6 +96,9 @@ export const standardsFromProject = (
   defaults: project.defaults,
   settings: project.settings,
   materials: project.materials,
+  // Saved types belong to the catalogue, not to any one job, so promoting a job's setup
+  // leaves them alone.
+  savedTypes: previous?.savedTypes ?? [],
 });
 
 /** True when a job's settings still match the standards it came from. */
@@ -170,9 +181,14 @@ export const migrateStandards = (raw: unknown): ShopStandards => {
   if (typeof raw !== 'object' || raw === null) {
     throw new Error('migrateStandards: standards data is not an object');
   }
-  const version = (raw as { version?: unknown }).version;
-  if (version === CURRENT_STANDARDS_VERSION) return raw as ShopStandards;
-  throw new Error(
-    `migrateStandards: version ${String(version)} is not supported (current is ${CURRENT_STANDARDS_VERSION})`,
-  );
+  const data = raw as Record<string, unknown>;
+  const version = data.version;
+  if (version !== CURRENT_STANDARDS_VERSION) {
+    throw new Error(
+      `migrateStandards: version ${String(version)} is not supported (current is ${CURRENT_STANDARDS_VERSION})`,
+    );
+  }
+  // Saved types arrived after the first standards were written, so fill them in rather than
+  // rejecting a file that is otherwise current.
+  return { ...(data as unknown as ShopStandards), savedTypes: (data.savedTypes as never) ?? [] };
 };

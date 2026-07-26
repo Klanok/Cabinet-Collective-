@@ -22,6 +22,12 @@ import {
   standardsFromProject,
 } from '../../core/standards/standards.ts';
 import {
+  type SavedCabinetType,
+  removeSavedType,
+  savedTypeFromCabinet,
+  upsertSavedType,
+} from '../../core/standards/savedTypes.ts';
+import {
   createCabinet,
   createEmptyProject,
   createSampleKitchen,
@@ -55,6 +61,12 @@ export interface ProjectStore {
   resetToStandards: () => void;
   updateStandards: (patch: Partial<ShopStandards>) => void;
 
+  /** Save a placed cabinet as a reusable type. */
+  saveCabinetAsType: (cabinetId: string, name: string, note?: string) => void;
+  /** Place a new cabinet from a saved type. */
+  addFromSavedType: (typeId: string) => void;
+  deleteSavedType: (typeId: string) => void;
+
   newProject: (name: string) => void;
   loadSampleKitchen: () => void;
   replaceProject: (project: Project) => void;
@@ -73,6 +85,7 @@ const NAME_PREFIX: Record<CabinetTypeId, string> = {
   wall: 'W',
   tall: 'T',
   'drawer-bank': 'D',
+  custom: 'C',
 };
 
 const nextName = (project: Project, typeId: CabinetTypeId): string => {
@@ -199,6 +212,56 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     ),
 
   updateRoom: (room) => set((state) => persist(touchProject({ ...state.project, room }))),
+
+  saveCabinetAsType: (cabinetId, name, note) =>
+    set((state) => {
+      const cabinet = state.project.cabinets.find((c) => c.id === cabinetId);
+      if (!cabinet || !name.trim()) return {};
+      const saved: SavedCabinetType = savedTypeFromCabinet(cabinet, name.trim(), note);
+      const standards: ShopStandards = {
+        ...state.standards,
+        savedTypes: upsertSavedType(state.standards.savedTypes, saved),
+        updatedAt: new Date().toISOString(),
+      };
+      return { standards, storageError: saveStandards(standards) ?? null };
+    }),
+
+  addFromSavedType: (typeId) =>
+    set((state) => {
+      const saved = state.standards.savedTypes.find((t) => t.id === typeId);
+      if (!saved) return {};
+      const cabinet = createCabinet(
+        {
+          typeId: saved.typeId,
+          name: nextName(state.project, saved.typeId),
+          width: saved.width,
+          height: saved.height,
+          depth: saved.depth,
+          x: nextFreeX(state.project, saved.typeId),
+          options: saved.options,
+        },
+        state.project.defaults,
+        state.project.constructions,
+      );
+      // The recipe's material overrides come across too; everything else follows the job.
+      const placed = { ...cabinet, materials: { ...saved.materials } };
+      return {
+        ...persist(
+          touchProject({ ...state.project, cabinets: [...state.project.cabinets, placed] }),
+        ),
+        selectedCabinetId: placed.id,
+      };
+    }),
+
+  deleteSavedType: (typeId) =>
+    set((state) => {
+      const standards: ShopStandards = {
+        ...state.standards,
+        savedTypes: removeSavedType(state.standards.savedTypes, typeId),
+        updatedAt: new Date().toISOString(),
+      };
+      return { standards, storageError: saveStandards(standards) ?? null };
+    }),
 
   saveAsStandards: (name) =>
     set((state) => {

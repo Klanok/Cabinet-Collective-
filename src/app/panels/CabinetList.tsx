@@ -1,5 +1,6 @@
 import { CABINET_TYPE_LABELS, type CabinetTypeId } from '../../core/model/cabinet.ts';
 import type { BuiltCabinet } from '../../core/rules/build.ts';
+import type { SavedCabinetType } from '../../core/standards/savedTypes.ts';
 
 interface Props {
   built: readonly BuiltCabinet[];
@@ -7,9 +8,21 @@ interface Props {
   onSelect: (id: string) => void;
   onAdd: (typeId: CabinetTypeId) => void;
   onRemove: (id: string) => void;
+  savedTypes: readonly SavedCabinetType[];
+  onAddSaved: (typeId: string) => void;
+  onDeleteSaved: (typeId: string) => void;
 }
 
-export function CabinetList({ built, selectedId, onSelect, onAdd, onRemove }: Props) {
+export function CabinetList({
+  built,
+  selectedId,
+  onSelect,
+  onAdd,
+  onRemove,
+  savedTypes,
+  onAddSaved,
+  onDeleteSaved,
+}: Props) {
   return (
     <section className="panel">
       <header className="panel-head">
@@ -18,12 +31,37 @@ export function CabinetList({ built, selectedId, onSelect, onAdd, onRemove }: Pr
       </header>
 
       <div className="add-row">
-        {(['base', 'wall', 'tall', 'drawer-bank'] as const).map((t) => (
+        {(['base', 'wall', 'tall', 'drawer-bank', 'custom'] as const).map((t) => (
           <button key={t} className="btn" onClick={() => onAdd(t)}>
             + {CABINET_TYPE_LABELS[t]}
           </button>
         ))}
       </div>
+
+      {savedTypes.length > 0 && (
+        <div className="saved-types">
+          <div className="saved-types-head">My types</div>
+          {savedTypes.map((t) => (
+            <div key={t.id} className="saved-type">
+              <button className="saved-type-add" onClick={() => onAddSaved(t.id)} title={t.note}>
+                + {t.name}
+                <em>
+                  {t.width} × {t.height} × {t.depth}
+                </em>
+              </button>
+              <button
+                className="icon-btn"
+                title="Forget this type"
+                onClick={() => {
+                  if (window.confirm(`Forget the saved type "${t.name}"?`)) onDeleteSaved(t.id);
+                }}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       <ul className="cabinet-list">
         {built.map(({ cabinet, panels, warnings }) => (

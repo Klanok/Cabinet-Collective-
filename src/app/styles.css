@@ -813,3 +813,60 @@ tbody td {
 .viewport-toggle input {
   accent-color: var(--accent);
 }
+
+/* ── Saved cabinet types ─────────────────────────────────────────────────── */
+
+.saved-types {
+  margin: 4px 0 12px;
+  padding: 8px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.saved-types-head {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.saved-type {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.saved-type-add {
+  flex: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  text-align: left;
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.saved-type-add:hover {
+  background: var(--bg-raised);
+  color: var(--accent);
+}
+
+.saved-type-add em {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.btn.full {
+  width: 100%;
+}

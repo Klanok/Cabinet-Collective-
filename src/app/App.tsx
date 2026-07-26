@@ -43,6 +43,9 @@ export default function App() {
   const resetToStandards = useProjectStore((s) => s.resetToStandards);
   const replaceProject = useProjectStore((s) => s.replaceProject);
   const updateRoom = useProjectStore((s) => s.updateRoom);
+  const saveCabinetAsType = useProjectStore((s) => s.saveCabinetAsType);
+  const addFromSavedType = useProjectStore((s) => s.addFromSavedType);
+  const deleteSavedType = useProjectStore((s) => s.deleteSavedType);
   const newProject = useProjectStore((s) => s.newProject);
 
   const [tab, setTab] = useState<Tab>('cutlist');
@@ -135,12 +138,16 @@ export default function App() {
             onSelect={select}
             onAdd={addCabinet}
             onRemove={removeCabinet}
+            savedTypes={standards.savedTypes}
+            onAddSaved={addFromSavedType}
+            onDeleteSaved={deleteSavedType}
           />
           <Inspector
             built={selected}
             project={project}
             onUpdate={updateCabinet}
             onUpdateOptions={updateOptions}
+            onSaveAsType={saveCabinetAsType}
           />
         </aside>
 

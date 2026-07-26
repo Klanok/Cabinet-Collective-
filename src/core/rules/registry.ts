@@ -12,12 +12,14 @@ import { BASE_CABINET_SPEC } from './specs/baseCabinet.ts';
 import { WALL_CABINET_SPEC } from './specs/wallCabinet.ts';
 import { DRAWER_BANK_SPEC } from './specs/drawerBank.ts';
 import { TALL_CABINET_SPEC } from './specs/tallCabinet.ts';
+import { CUSTOM_CABINET_SPEC } from './specs/customCabinet.ts';
 
 export const CABINET_SPECS: Readonly<Record<CabinetTypeId, CabinetSpec>> = {
   base: BASE_CABINET_SPEC,
   wall: WALL_CABINET_SPEC,
   'drawer-bank': DRAWER_BANK_SPEC,
   tall: TALL_CABINET_SPEC,
+  custom: CUSTOM_CABINET_SPEC,
 };
 
 export const getSpec = (typeId: CabinetTypeId): CabinetSpec => {

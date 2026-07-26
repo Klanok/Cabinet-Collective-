@@ -10,7 +10,7 @@ import type { Mm } from '../units.ts';
 import type { CabinetPlacement } from '../geom/placement.ts';
 
 /** Identifies which declarative spec builds this cabinet. */
-export type CabinetTypeId = 'base' | 'wall' | 'drawer-bank' | 'tall';
+export type CabinetTypeId = 'base' | 'wall' | 'drawer-bank' | 'tall' | 'custom';
 
 /** Which way a door swings, described by the side its hinges are on, facing the cabinet. */
 export type DoorSwing = 'left' | 'right';
@@ -35,6 +35,26 @@ export interface CabinetOptions {
    * and lower bank. Unset means one full-height door per column.
    */
   readonly doorSplitHeight?: Mm;
+
+  /*
+   * Custom cabinets only. These turn the fixed part list of an archetype into a choice, which
+   * is what lets one spec cover a banquette base, a pigeon-hole unit and whatever the next
+   * job turns out to need.
+   */
+
+  /** What closes the top: a full panel, a pair of rails, or nothing. */
+  readonly topStyle?: 'panel' | 'rails' | 'open';
+  /** Whether the carcass has a back at all — open shelving units often don't. */
+  readonly hasBack?: boolean;
+  /** Vertical dividers, evenly spaced. N dividers make N+1 bays. */
+  readonly dividerCount?: number;
+  /**
+   * A hinged or loose top, sitting on the carcass rather than housed in it — the seat of a
+   * banquette base.
+   */
+  readonly hasLid?: boolean;
+  /** How far the lid overhangs the carcass on each exposed side. */
+  readonly lidOverhang?: Mm;
 }
 
 export interface CabinetMaterials {
@@ -69,6 +89,7 @@ export const CABINET_TYPE_LABELS: Record<CabinetTypeId, string> = {
   wall: 'Wall',
   'drawer-bank': 'Drawer bank',
   tall: 'Tall',
+  custom: 'Custom',
 };
 
 /**

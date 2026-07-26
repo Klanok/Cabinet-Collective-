@@ -9,14 +9,20 @@ cutlist, and costing that handles GST properly — all driven from one versioned
 ```bash
 npm install
 npm run dev       # the app
-npm test          # 141 tests
+npm test          # 160 tests
 npm run report    # cutlist + costing for the sample kitchen, in the terminal
 ```
 
 ## What it does today
 
-Lay out base, wall, tall and drawer-bank cabinets along a run, inside a room you can size to
-the real space. Every part — sides,
+Lay out base, wall, tall, drawer-bank and custom cabinets along a run, inside a room you can
+size to the real space.
+
+The **custom** cabinet is the same carcass with its part list chosen rather than fixed — top
+panel, rails or open; back or none; shelves; vertical dividers; a lid; drawers or doors.
+Between them those options cover a banquette base, a pigeon-hole unit and open shelving
+without a bespoke cabinet type for each. Configure one, hit **Save as a cabinet type**, and
+it's available in every job from then on. Every part — sides,
 bottoms, top rails, backs, shelves, doors, drawer fronts, kicks — is derived from three
 driving dimensions plus a construction method. Change a width, a drawer count or the carcass
 thickness and the parts, the cutlist and the cost all move together, because there is only
@@ -108,7 +114,7 @@ builders, which is the test of whether that's actually true.
 
 ## Verification
 
-141 tests, and the ones that matter are hand-calculated rather than snapshot:
+160 tests, and the ones that matter are hand-calculated rather than snapshot:
 
 - Every part size for the reference 900×720×560 base cabinet, worked out longhand in the test
   file header and asserted individually.
@@ -134,7 +140,7 @@ builders, which is the test of whether that's actually true.
 | 1 | Data model, coordinate convention, rule engine, geometry, viewport, costing | **done** |
 | 2 | Hardware/joinery rules (Blum first), full cutlist/BOM export | next |
 | — | Drawing an arbitrary room plan (L-shaped, bulkheads, windows) | not started |
-| — | Fully custom cabinets — scope still to be agreed | not started |
+| — | Curved parts — arc-capable profiles, then radiused shelving and radiused ends | agreed, not started |
 | 3 | Guillotine nesting for sheet goods, offcut tracking | |
 | 4 | CAM feature layer — drilling, grooving, profiling | |
 | 5 | One post-processor + simulation/backplot | |

@@ -16,6 +16,7 @@ interface Props {
   project: Project;
   onUpdate: (id: string, patch: Partial<Cabinet>) => void;
   onUpdateOptions: (id: string, patch: Cabinet['options']) => void;
+  onSaveAsType: (cabinetId: string, name: string) => void;
 }
 
 /**
@@ -93,7 +94,7 @@ function NumberField({
   );
 }
 
-export function Inspector({ built, project, onUpdate, onUpdateOptions }: Props) {
+export function Inspector({ built, project, onUpdate, onUpdateOptions, onSaveAsType }: Props) {
   if (!built) {
     return (
       <section className="panel">
@@ -110,6 +111,7 @@ export function Inspector({ built, project, onUpdate, onUpdateOptions }: Props) 
   const isDrawerBank = cabinet.typeId === 'drawer-bank';
   const isWall = cabinet.typeId === 'wall';
   const isTall = cabinet.typeId === 'tall';
+  const isCustom = cabinet.typeId === 'custom';
 
   const sheetOptions = project.materials.sheets.map((m) => ({
     id: m.id,
@@ -230,6 +232,75 @@ export function Inspector({ built, project, onUpdate, onUpdateOptions }: Props) 
           </>
         )}
 
+        {isCustom && (
+          <>
+            <label className="field">
+              <span>Top</span>
+              <div className="field-input">
+                <select
+                  value={cabinet.options.topStyle ?? 'panel'}
+                  onChange={(e) =>
+                    onUpdateOptions(cabinet.id, {
+                      topStyle: e.target.value as 'panel' | 'rails' | 'open',
+                    })
+                  }
+                >
+                  <option value="panel">Full panel</option>
+                  <option value="rails">Rails</option>
+                  <option value="open">Open</option>
+                </select>
+              </div>
+            </label>
+            <label className="field field-check">
+              <input
+                type="checkbox"
+                checked={cabinet.options.hasBack !== false}
+                onChange={(e) => onUpdateOptions(cabinet.id, { hasBack: e.target.checked })}
+              />
+              <span>Back panel</span>
+            </label>
+            <NumberField
+              label="Vertical dividers"
+              value={cabinet.options.dividerCount ?? 0}
+              min={0}
+              max={12}
+              suffix=""
+              onChange={(n) => onUpdateOptions(cabinet.id, { dividerCount: Math.round(n) })}
+            />
+            <NumberField
+              label="Drawers"
+              value={cabinet.options.drawerCount ?? 0}
+              min={0}
+              max={8}
+              suffix=""
+              onChange={(n) =>
+                onUpdateOptions(cabinet.id, {
+                  drawerCount: Math.round(n),
+                  drawerFrontHeights: undefined,
+                })
+              }
+            />
+            <label className="field field-check">
+              <input
+                type="checkbox"
+                checked={cabinet.options.hasLid === true}
+                onChange={(e) => onUpdateOptions(cabinet.id, { hasLid: e.target.checked })}
+              />
+              <span>Lid / seat top</span>
+            </label>
+            {cabinet.options.hasLid && (
+              <NumberField
+                label="Lid overhang"
+                value={cabinet.options.lidOverhang ?? 20}
+                min={0}
+                max={200}
+                step={5}
+                onChange={(n) => onUpdateOptions(cabinet.id, { lidOverhang: mm(n) })}
+              />
+            )}
+          </>
+        )}
+
         {isTall && (
           <NumberField
             label="Door split height"
@@ -279,6 +350,23 @@ export function Inspector({ built, project, onUpdate, onUpdateOptions }: Props) 
           ))}
         </ul>
       )}
+
+      <div className="subhead">Reuse</div>
+      <button
+        className="btn full"
+        onClick={() => {
+          const name = window.prompt(
+            'Save this cabinet as a reusable type. What would you call it?',
+            cabinet.name,
+          );
+          if (name?.trim()) onSaveAsType(cabinet.id, name.trim());
+        }}
+      >
+        Save as a cabinet type
+      </button>
+      <p className="note subtle">
+        Saves the size and configuration, not where it sits. Available in every job from then on.
+      </p>
 
       <div className="subhead">Finish</div>
       <div className="fields">
