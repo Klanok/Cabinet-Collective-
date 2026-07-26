@@ -24,6 +24,7 @@ import {
 } from '../../core/standards/doorStyles.ts';
 import { styleFront } from '../../core/rules/frontStyle.ts';
 import { NumberRow, SelectRow, TextRow } from './fields.tsx';
+import { useAsk } from './ask.tsx';
 
 const KIND_LABELS: Record<DoorStyleKind, string> = {
   slab: 'Plain slab — nothing machined',
@@ -107,6 +108,7 @@ export function DoorStyleEditor({
   onChangeDefault,
   scope,
 }: Props) {
+  const ask = useAsk();
   // Open on the style actually in use, not on whatever sorts first — that is the one you came
   // here to look at.
   const [activeId, setActiveId] = useState(defaultStyleId);
@@ -117,10 +119,11 @@ export function DoorStyleEditor({
     onChangeStyles(upsertDoorStyle(styles, { ...active, ...patch }));
   };
 
-  const add = (kind: DoorStyleKind) => {
-    const name = window.prompt(
-      'What would you call this style? Clients see this name.',
+  const add = async (kind: DoorStyleKind) => {
+    const name = await ask.prompt(
+      'What would you call this style? This is the name a client sees.',
       kind === 'shaker' ? 'Shaker' : 'V-groove',
+      { confirmLabel: 'Create style' },
     );
     if (!name?.trim()) return;
     const created = newDoorStyle(kind, name.trim());
@@ -297,16 +300,15 @@ export function DoorStyleEditor({
 
               <div className="modal-actions">
                 <button
-                  className="btn"
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        `Delete "${active.name}"? Any cabinet using it falls back to a plain slab.`,
-                      )
-                    ) {
-                      onChangeStyles(removeDoorStyle(styles, active.id));
-                      setActiveId(PLAIN_SLAB_STYLE.id);
-                    }
+                  className="btn danger"
+                  onClick={async () => {
+                    const go = await ask.confirm(
+                      `Delete the door style "${active.name}"?\n\nAny cabinet using it falls back to a plain slab.`,
+                      { confirmLabel: 'Delete style', danger: true },
+                    );
+                    if (!go) return;
+                    onChangeStyles(removeDoorStyle(styles, active.id));
+                    setActiveId(PLAIN_SLAB_STYLE.id);
                   }}
                 >
                   Delete this style

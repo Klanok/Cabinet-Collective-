@@ -12,6 +12,7 @@ import { type WallAnchor, wallAnchorOf } from '../../core/project/wallPlacement.
 import { sheetLabel } from './MaterialPicker.tsx';
 import type { BuiltCabinet } from '../../core/rules/build.ts';
 import { getSpec } from '../../core/rules/registry.ts';
+import { useAsk } from './ask.tsx';
 
 interface Props {
   built: BuiltCabinet | null;
@@ -227,6 +228,9 @@ export function Inspector({
   onSaveAsType,
   onPlaceOnWall,
 }: Props) {
+  // Before the early return below — a hook can't sit behind a condition.
+  const ask = useAsk();
+
   if (!built) {
     return (
       <section className="panel">
@@ -471,10 +475,11 @@ export function Inspector({
       <div className="subhead">Reuse</div>
       <button
         className="btn full"
-        onClick={() => {
-          const name = window.prompt(
+        onClick={async () => {
+          const name = await ask.prompt(
             'Save this cabinet as a reusable type. What would you call it?',
             cabinet.name,
+            { confirmLabel: 'Save type' },
           );
           if (name?.trim()) onSaveAsType(cabinet.id, name.trim());
         }}

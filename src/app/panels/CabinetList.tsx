@@ -1,6 +1,7 @@
 import { CABINET_TYPE_LABELS, type CabinetTypeId } from '../../core/model/cabinet.ts';
 import type { BuiltCabinet } from '../../core/rules/build.ts';
 import type { SavedCabinetType } from '../../core/standards/savedTypes.ts';
+import { useAsk } from './ask.tsx';
 
 interface Props {
   built: readonly BuiltCabinet[];
@@ -23,6 +24,8 @@ export function CabinetList({
   onAddSaved,
   onDeleteSaved,
 }: Props) {
+  const ask = useAsk();
+
   return (
     <section className="panel">
       <header className="panel-head">
@@ -52,8 +55,12 @@ export function CabinetList({
               <button
                 className="icon-btn"
                 title="Forget this type"
-                onClick={() => {
-                  if (window.confirm(`Forget the saved type "${t.name}"?`)) onDeleteSaved(t.id);
+                onClick={async () => {
+                  const go = await ask.confirm(
+                    `Forget the saved cabinet type "${t.name}"?\n\nCabinets already placed from it are not affected.`,
+                    { confirmLabel: 'Forget type', danger: true },
+                  );
+                  if (go) onDeleteSaved(t.id);
                 }}
               >
                 ×

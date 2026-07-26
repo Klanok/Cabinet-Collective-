@@ -108,6 +108,15 @@ snapshotted into a job like the materials are, because it decides how a part is 
 resolved in `rules/build.ts` rather than in the part builders, because fronts are produced in
 four places and a style wired into three of them is a kitchen with one plain door in it.
 
+**The app asks its own questions — never `window.confirm`, `window.prompt` or a `<form>`
+submit.** All three are **silently ignored** in a sandboxed frame that hasn't been granted
+`allow-modals` / `allow-forms`: no dialog, no error, the call just returns as though the user had
+cancelled. Every button built on one becomes a button that does nothing, which is the worst
+failure available to a control that throws away a room somebody measured. `panels/ask.tsx` is the
+replacement and keeps the same shape (`await ask.confirm(...)`, `null` on cancel), so reaching
+for the native call is never worth it. This was found by running the built app inside a
+sandboxed frame — which is worth doing before shipping a build anywhere it might be embedded.
+
 **A cutter's cross-section is the cutter's business.** A flat-bottomed groove is a width and a
 depth; a V-groove is not — its shape *is* the bit's shape. So `ToolProfile` carries the section
 and `cutWidthAtDepth` derives the width, rather than a width sitting beside a named cutter free
@@ -257,6 +266,12 @@ against it, turned the right way round.
   Down the return leg of an L, touching cabinets share an X entirely, and the old code would
   have called them one cabinet in the same place.
 
+**Since added:** a wall can be appended at **any angle**, not just a square corner — type the
+turn, or take one of the presets. The model always allowed it (`setWallBearing` takes any
+bearing); it was the drawing controls that only offered ±90° and straight on. An angled wall
+usually leaves the plan open until the walls after it catch up, which `reclose` correctly
+declines to paper over.
+
 **Not done, and deliberately so:** wall openings (doors, windows), bulkheads, out-of-square
 walls and scribes. Wall *height* is already per wall, so a bulkhead has somewhere to live when
 it earns its keep. Walls are still drawn as single planes in 3D rather than solids — you can
@@ -392,6 +407,17 @@ speculatively.
 
 ### 5.4 Smaller things noted but not done
 
+- **Cabinets snap to a wall but not to each other.** Dragging one within ~50mm of a neighbour
+  should butt it against that neighbour's end, the way it already goes flush to a wall. Asked
+  for from the bench: it is how a run actually gets laid out, and it removes the last reason to
+  type an X. The snapping already in `project/wallPlacement.ts` is the place for it, and it
+  should test the cabinet's *ends along its own run axis* rather than world X — the same lesson
+  the benchtop run-finder had to learn.
+- **Changing the front material doesn't change the colour on screen.** `PanelMesh` colours a
+  part by its *role*, so every door renders the same off-white whatever decor is chosen.
+  `SheetMaterial` has a decor name but no colour to render, so the fix is a hex on the material
+  and a viewport that prefers it over the role colour. Worth doing — it is most of what makes
+  the 3D view worth showing a client, and a routed door style barely reads on white.
 - Cabinets can be dragged but not rotated with the mouse; yaw is typed, or set by snapping to
   a wall.
 - The custom cabinet excludes itself from benchtop runs — a banquette shouldn't get one, but
@@ -400,9 +426,65 @@ speculatively.
 - A corner where two runs meet at 90° leaves whatever gap the cabinet sizes leave; there is no
   corner cabinet type and no check that the two runs don't foul each other's doors. Worth a
   look once the hardware rules exist, since door swing is what actually decides it.
-- Benchtops still render as one slab per run. Two runs meeting in a corner draw as two slabs
-  butted together rather than one mitred top, which is fine to look at and wrong to cut from —
-  it matters when benchtops start being costed.
+### 5.5 Benchtops should be their own unit, not something derived from the cabinets
+
+**Raised from the bench, and agreed.** Today `project/benchtop.ts` finds runs of touching
+bench-height cabinets and the viewport draws a slab over each. That was the right amount of
+work for making the 3D view read, and it is the wrong model for anything past that.
+
+**It is already producing wrong tops, not just incomplete ones.** A gap between cabinets breaks
+the run — which is correct for a fridge and wrong for a dishwasher: the top runs straight over
+an integrated dishwasher, and over a bin unit, and over most under-bench appliances. There is no
+way to tell those apart from cabinet geometry alone, because the difference isn't geometric.
+
+**What a benchtop has that no cabinet can imply:** front and end overhangs, a breakfast-bar
+overhang on one side only, waterfall ends, mitred corners, where the joins go (decided by slab
+size and by what is least visible, not by where cabinets happen to meet), sink and hob cutouts,
+tap holes, drainer grooves, upstands, and a material that may differ along the same run.
+
+**And it is usually a different transaction.** Stone is templated on site *after* the cabinets
+are installed and bought in per square metre with cutouts and edge profiling charged separately
+and a minimum. That is a purchase-order line, not a part the rule engine cuts from a sheet. A
+shop-made top — laminated MDF, timber — *is* a cut part. The model needs to hold both, and which
+one it is should be a property of the top.
+
+**Recommendation: make it a first-class object, generated once and then owned.**
+`Project.benchtops` beside `Project.cabinets`, with a "generate from this run" action that reads
+the current run-finder and produces an editable top. Overhangs, joins and cutouts are then
+edited on the benchtop itself.
+
+This deliberately breaks the rule in section 2 that derived things are never stored — and it
+should. A panel is derived from a cabinet every time because nothing else decides it. A benchtop
+*stops* being derived the moment somebody sets a 40mm overhang on one end, and pretending
+otherwise would mean keying overrides on a run identity that changes the moment a cabinet moves.
+Keep the run-finder as the **generator**, not as the definition; if it records which cabinets it
+came from, that is for a "regenerate" button and nothing else should read it.
+
+Costing follows once it exists: per m² for the material, plus cutouts, plus edge treatment.
+
+### 5.6 A separate ladder kick
+
+**Asked for from the bench. No deadline attached — it just needs to be on the list.**
+
+A ladder base rather than the per-cabinet kick panel that exists now: a frame standing on the
+floor that a run of cabinets sits on, with the kick face applied to the front of it.
+
+As specified:
+
+- **Ribs run to the floor** — the cross-members are the full kick height, and they are what the
+  whole thing stands and gets levelled on.
+- **Front and back rails are 10mm short**, so they hang clear of the floor and the frame beds
+  down on the ribs alone. On a floor that is never flat, that is the difference between packing
+  three ribs and fighting a rail that rocks.
+- **The face is cut 10mm higher than the ribs**, left long to be planed in on site. My reading
+  is that the extra sits at the **floor** end as a scribe allowance — worth confirming before
+  anyone builds it, since cutting it at the wrong end is a whole run of kick faces.
+
+**Note it is a run-level object, the same shape of problem as 5.5.** A ladder base runs under
+several cabinets; it is not a part of any one of them. `CabinetOptions.hasKick` already exists
+and is already documented as "false for a run on a continuous plinth" — so the per-cabinet
+switch is in place and what's missing is the thing it defers to. Worth doing after 5.5, or
+alongside it, because both want the same answer to "what owns a thing that spans a run?"
 
 ---
 
