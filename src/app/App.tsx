@@ -18,6 +18,8 @@ import { CabinetList } from './panels/CabinetList.tsx';
 import { Inspector } from './panels/Inspector.tsx';
 import { CostPanel } from './panels/CostPanel.tsx';
 import { CutlistPanel } from './panels/CutlistPanel.tsx';
+import { SettingsModal } from './panels/SettingsModal.tsx';
+import { exportProjectFile, importProjectFile } from './store/persistence.ts';
 
 type Tab = 'cutlist' | 'cost';
 
@@ -32,7 +34,18 @@ export default function App() {
   const updateSettings = useProjectStore((s) => s.updateSettings);
   const loadSampleKitchen = useProjectStore((s) => s.loadSampleKitchen);
 
+  const standards = useProjectStore((s) => s.standards);
+  const storageError = useProjectStore((s) => s.storageError);
+  const updateConstruction = useProjectStore((s) => s.updateConstruction);
+  const updateDefaults = useProjectStore((s) => s.updateDefaults);
+  const updateStandards = useProjectStore((s) => s.updateStandards);
+  const saveAsStandards = useProjectStore((s) => s.saveAsStandards);
+  const resetToStandards = useProjectStore((s) => s.resetToStandards);
+  const replaceProject = useProjectStore((s) => s.replaceProject);
+  const newProject = useProjectStore((s) => s.newProject);
+
   const [tab, setTab] = useState<Tab>('cutlist');
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const built = useMemo(() => buildProject(project), [project]);
   const cost = useMemo(() => costProject(project), [project]);
@@ -61,11 +74,42 @@ export default function App() {
             <span className="muted">Total</span>
             <strong>{formatAud(cost.totalIncGst)}</strong>
           </div>
-          <button className="btn" onClick={loadSampleKitchen}>
-            Reset sample
+          <button className="btn" onClick={() => setSettingsOpen(true)}>
+            Settings
           </button>
+          <div className="menu">
+            <button className="btn">Job ▾</button>
+            <div className="menu-items">
+              <button onClick={() => newProject('New job')}>New empty job</button>
+              <button onClick={loadSampleKitchen}>Load sample kitchen</button>
+              <button onClick={() => exportProjectFile(project)}>Save to file…</button>
+              <label>
+                Open from file…
+                <input
+                  type="file"
+                  accept="application/json"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    try {
+                      replaceProject(await importProjectFile(file));
+                    } catch (err) {
+                      alert(`Could not open that file: ${err instanceof Error ? err.message : err}`);
+                    }
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+            </div>
+          </div>
         </div>
       </header>
+
+      {storageError && (
+        <div className="issue-bar">
+          <span className="issue">Couldn't save to this browser: {storageError}</span>
+        </div>
+      )}
 
       {layoutIssues.length > 0 && (
         <div className="issue-bar">
@@ -127,6 +171,20 @@ export default function App() {
           )}
         </aside>
       </div>
+
+      {settingsOpen && (
+        <SettingsModal
+          project={project}
+          standards={standards}
+          onClose={() => setSettingsOpen(false)}
+          onUpdateConstruction={updateConstruction}
+          onUpdateSettings={updateSettings}
+          onUpdateDefaults={updateDefaults}
+          onUpdateStandards={updateStandards}
+          onSaveAsStandards={saveAsStandards}
+          onResetToStandards={resetToStandards}
+        />
+      )}
     </div>
   );
 }

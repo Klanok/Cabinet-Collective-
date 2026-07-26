@@ -9,7 +9,7 @@ cutlist, and costing that handles GST properly — all driven from one versioned
 ```bash
 npm install
 npm run dev       # the app
-npm test          # 108 tests
+npm test          # 122 tests
 npm run report    # cutlist + costing for the sample kitchen, in the terminal
 ```
 
@@ -23,6 +23,27 @@ one copy of each part in the system.
 
 The sample kitchen is a 3000mm base run with 2400mm of wall cabinets over it: 7 cabinets,
 63 parts, 29 cutlist lines, ~$1,800 on the seeded rates.
+
+## Settings: your shop's numbers, per job
+
+Every joinery number — carcass and back thickness, kick height and setback, top rail depth,
+the gap between fronts, the reveal at a cabinet edge, shelf setback and clearance, System 32
+pitch — is editable, along with standard cabinet sizes, margin, labour rates and the GST
+context. **Settings** in the top bar.
+
+There are two scopes, and the distinction is deliberate:
+
+- **This job** — what this kitchen is built to. Changing it affects nothing else.
+- **Shop standards** — what *new* jobs start from. Changing it affects nothing already created.
+
+A job takes a **copy** of the standards when it's created, never a reference. So changing your
+standard kick height next year can't reach back and re-price or re-cut a kitchen you quoted
+this year — a job is a record of what was agreed. Where a job has drifted from your standards,
+the settings screen lists exactly how, and you can either pull it back into line or promote it
+to become the new standard.
+
+Everything saves to the browser automatically. **Job ▾** also gives you save-to-file and
+open-from-file, so a job can live outside the browser.
 
 ## Australian defaults, not a localisation pass
 
@@ -79,7 +100,7 @@ builders, which is the test of whether that's actually true.
 
 ## Verification
 
-108 tests, and the ones that matter are hand-calculated rather than snapshot:
+122 tests, and the ones that matter are hand-calculated rather than snapshot:
 
 - Every part size for the reference 900×720×560 base cabinet, worked out longhand in the test
   file header and asserted individually.
@@ -91,6 +112,9 @@ builders, which is the test of whether that's actually true.
   per-panel rounding.
 - The full kitchen run: 63 parts, no warnings, everything inside the room, cabinets butted
   without gaps or overlaps.
+- That a job and the shop standards stay isolated: editing one never touches the other, two
+  jobs from the same standards stay independent, and a shop building to an 18mm carcass on a
+  100mm kick gets parts and placements to match.
 
 ## Roadmap
 

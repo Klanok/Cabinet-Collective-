@@ -4,16 +4,20 @@
 
 import { type Mm, mm } from '../units.ts';
 import type { Cabinet, CabinetOptions, CabinetTypeId } from '../model/cabinet.ts';
-import { DEFAULT_CONSTRUCTIONS, findConstruction } from '../model/construction.ts';
-import { CURRENT_SCHEMA_VERSION, type Project } from '../model/project.ts';
+import {
+  type ConstructionMethod,
+  DEFAULT_CONSTRUCTIONS,
+  findConstruction,
+} from '../model/construction.ts';
+import {
+  CURRENT_SCHEMA_VERSION,
+  type Project,
+  type ProjectDefaults,
+} from '../model/project.ts';
 import { rectangularRoom } from '../model/room.ts';
 import { v3 } from '../geom/vec.ts';
-import { AU_MATERIAL_LIBRARY } from '../library/materials.au.ts';
-import {
-  AU_DEFAULT_SETTINGS,
-  AU_PROJECT_DEFAULTS,
-  AU_WALL_MOUNT_HEIGHT,
-} from '../library/defaults.au.ts';
+import { AU_PROJECT_DEFAULTS } from '../library/defaults.au.ts';
+import { AU_SHOP_STANDARDS, type ShopStandards, snapshotOf } from '../standards/standards.ts';
 import { getSpec } from '../rules/registry.ts';
 
 let counter = 0;
@@ -43,20 +47,30 @@ export interface NewCabinetArgs {
 /**
  * Natural height above the floor for a cabinet's carcass origin.
  *
- * A base cabinet's carcass sits on top of its kick, and a wall cabinet hangs at the standard
+ * A base cabinet's carcass sits on top of its kick, and a wall cabinet hangs at the job's
  * mount height — so the caller places cabinets by type rather than by remembering offsets.
+ *
+ * Both numbers come from the job, not from the shipped Australian defaults. A job built to a
+ * 100mm kick has to place its cabinets at 100mm, or every carcass in it sits 50mm proud of
+ * where the drawing says.
  */
 export const naturalAnchorY = (
   typeId: CabinetTypeId,
   constructionId: string,
   options: CabinetOptions,
+  constructions: readonly ConstructionMethod[] = DEFAULT_CONSTRUCTIONS,
+  defaults: ProjectDefaults = AU_PROJECT_DEFAULTS,
 ): Mm => {
-  if (typeId === 'wall') return AU_WALL_MOUNT_HEIGHT;
-  const construction = findConstruction(DEFAULT_CONSTRUCTIONS, constructionId);
+  if (typeId === 'wall') return defaults.wallCabinetMountHeight;
+  const construction = findConstruction(constructions, constructionId);
   return options.hasKick === false ? mm(0) : construction.kickHeight;
 };
 
-export const createCabinet = (args: NewCabinetArgs, defaults = AU_PROJECT_DEFAULTS): Cabinet => {
+export const createCabinet = (
+  args: NewCabinetArgs,
+  defaults = AU_PROJECT_DEFAULTS,
+  constructions: readonly ConstructionMethod[] = DEFAULT_CONSTRUCTIONS,
+): Cabinet => {
   const constructionId = args.constructionId ?? defaults.constructionId;
   const spec = getSpec(args.typeId);
   const options = { ...spec.defaultOptions, ...args.options };
@@ -76,7 +90,11 @@ export const createCabinet = (args: NewCabinetArgs, defaults = AU_PROJECT_DEFAUL
     height,
     depth,
     placement: {
-      anchor: v3(args.x, args.y ?? naturalAnchorY(args.typeId, constructionId, options), args.z ?? 0),
+      anchor: v3(
+        args.x,
+        args.y ?? naturalAnchorY(args.typeId, constructionId, options, constructions, defaults),
+        args.z ?? 0,
+      ),
       yawDeg: args.yawDeg ?? 0,
     },
     options,
@@ -84,7 +102,17 @@ export const createCabinet = (args: NewCabinetArgs, defaults = AU_PROJECT_DEFAUL
   };
 };
 
-export const createEmptyProject = (name: string, client?: string): Project => {
+/**
+ * Start a job.
+ *
+ * The job takes a *copy* of the shop standards, not a reference to them. Changing your
+ * standards later must never reach back and alter a job you have already quoted or cut.
+ */
+export const createEmptyProject = (
+  name: string,
+  client?: string,
+  standards: ShopStandards = AU_SHOP_STANDARDS,
+): Project => {
   const now = new Date().toISOString();
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,
@@ -95,10 +123,7 @@ export const createEmptyProject = (name: string, client?: string): Project => {
     updatedAt: now,
     room: rectangularRoom(nextId('room'), 'Kitchen', mm(4200), mm(3600), mm(2400)),
     cabinets: [],
-    materials: AU_MATERIAL_LIBRARY,
-    constructions: DEFAULT_CONSTRUCTIONS,
-    settings: AU_DEFAULT_SETTINGS,
-    defaults: AU_PROJECT_DEFAULTS,
+    ...snapshotOf(standards),
   };
 };
 
@@ -109,18 +134,21 @@ export const createEmptyProject = (name: string, client?: string): Project => {
  * with 2400mm of wall cabinets over it. Widths are the ones actually ordered, not round
  * numbers chosen to make the arithmetic tidy.
  */
-export const createSampleKitchen = (): Project => {
-  const base = createEmptyProject('Sample kitchen', 'Demo');
+export const createSampleKitchen = (standards: ShopStandards = AU_SHOP_STANDARDS): Project => {
+  const base = createEmptyProject('Sample kitchen', 'Demo', standards);
+  // Cabinets are built against the job's own standards, so a shop with a 100mm kick gets a
+  // sample kitchen on a 100mm kick.
+  const make = (args: NewCabinetArgs) => createCabinet(args, base.defaults, base.constructions);
 
   const cabinets: Cabinet[] = [
-    createCabinet({ typeId: 'base', name: 'B1 Sink base', width: mm(900), x: mm(0), options: { doorCount: 2, shelfCount: 0 } }),
-    createCabinet({ typeId: 'drawer-bank', name: 'D1 Pot drawers', width: mm(600), x: mm(900), options: { drawerCount: 3 } }),
-    createCabinet({ typeId: 'base', name: 'B2 Bin cupboard', width: mm(600), x: mm(1500), options: { doorCount: 1, shelfCount: 0 } }),
-    createCabinet({ typeId: 'base', name: 'B3 Pantry base', width: mm(900), x: mm(2100), options: { doorCount: 2, shelfCount: 1 } }),
+    make({ typeId: 'base', name: 'B1 Sink base', width: mm(900), x: mm(0), options: { doorCount: 2, shelfCount: 0 } }),
+    make({ typeId: 'drawer-bank', name: 'D1 Pot drawers', width: mm(600), x: mm(900), options: { drawerCount: 3 } }),
+    make({ typeId: 'base', name: 'B2 Bin cupboard', width: mm(600), x: mm(1500), options: { doorCount: 1, shelfCount: 0 } }),
+    make({ typeId: 'base', name: 'B3 Pantry base', width: mm(900), x: mm(2100), options: { doorCount: 2, shelfCount: 1 } }),
 
-    createCabinet({ typeId: 'wall', name: 'W1', width: mm(900), x: mm(0) }),
-    createCabinet({ typeId: 'wall', name: 'W2', width: mm(600), x: mm(900), options: { doorCount: 1 } }),
-    createCabinet({ typeId: 'wall', name: 'W3', width: mm(900), x: mm(1500) }),
+    make({ typeId: 'wall', name: 'W1', width: mm(900), x: mm(0) }),
+    make({ typeId: 'wall', name: 'W2', width: mm(600), x: mm(900), options: { doorCount: 1 } }),
+    make({ typeId: 'wall', name: 'W3', width: mm(900), x: mm(1500) }),
   ];
 
   return {
