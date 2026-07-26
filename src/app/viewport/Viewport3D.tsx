@@ -7,16 +7,19 @@
  */
 
 import { Suspense, useMemo } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { Canvas, type ThreeEvent } from '@react-three/fiber';
 import { Grid, OrbitControls } from '@react-three/drei';
 import type { BuiltCabinet } from '../../core/rules/build.ts';
 import type { Project } from '../../core/model/project.ts';
 import { findSheet } from '../../core/model/material.ts';
-import { AU_BENCHTOP_HEIGHT } from '../../core/library/defaults.au.ts';
+import { AU_BENCHTOP_THICKNESS } from '../../core/library/defaults.au.ts';
+import { benchtopRuns } from '../../core/project/benchtop.ts';
 import { PanelMesh } from './PanelMesh.tsx';
 import { RoomShell } from './RoomShell.tsx';
 import { FlyControls } from './FlyControls.tsx';
 import { cabinetMatrix } from './transforms.ts';
+import { useCabinetDrag } from './useCabinetDrag.ts';
+import type { Mm } from '../../core/units.ts';
 
 /** Millimetres → scene units. The model never leaves mm; only the render is scaled. */
 const MM_TO_SCENE = 0.001;
@@ -27,6 +30,7 @@ interface Props {
   selectedCabinetId: string | null;
   onSelect: (id: string | null) => void;
   showWalls: boolean;
+  onMoveCabinet: (cabinetId: string, x: Mm, z: Mm) => void;
 }
 
 function CabinetGroup({
@@ -34,11 +38,13 @@ function CabinetGroup({
   project,
   selected,
   onSelect,
+  onGrab,
 }: {
   built: BuiltCabinet;
   project: Project;
   selected: boolean;
   onSelect: () => void;
+  onGrab: (cabinet: BuiltCabinet['cabinet'], event: ThreeEvent<PointerEvent>) => void;
 }) {
   const matrix = useMemo(() => cabinetMatrix(built.cabinet.placement), [built.cabinet.placement]);
 
@@ -51,37 +57,58 @@ function CabinetGroup({
           thickness={findSheet(project.materials, panel.materialId).thickness}
           selected={selected}
           onSelect={onSelect}
+          onGrab={(e) => onGrab(built.cabinet, e)}
         />
       ))}
     </group>
   );
 }
 
-/** A slab standing in for the benchtop, so the elevation reads correctly. */
-function Benchtop({ built }: { built: readonly BuiltCabinet[] }) {
-  const bases = built.filter((b) => b.cabinet.typeId !== 'wall');
-  if (bases.length === 0) return null;
-
-  const minX = Math.min(...bases.map((b) => b.cabinet.placement.anchor.x));
-  const maxX = Math.max(...bases.map((b) => b.cabinet.placement.anchor.x + b.cabinet.width));
-  const depth = Math.max(...bases.map((b) => b.cabinet.depth)) + 40; // slight overhang
-  const width = maxX - minX;
+/**
+ * Benchtop slabs, one per run of touching bench-height cabinets.
+ *
+ * The run-finding is in the model (project/benchtop.ts), not here — a tall cabinet carrying
+ * no top, and a top not floating over a gap, are facts about the job rather than about how it
+ * is drawn.
+ */
+function Benchtops({ project }: { project: Project }) {
+  const runs = useMemo(() => benchtopRuns(project), [project]);
+  const overhang = 20;
+  const thickness = AU_BENCHTOP_THICKNESS;
 
   return (
-    <mesh position={[minX + width / 2, AU_BENCHTOP_HEIGHT - 15, depth / 2]} receiveShadow>
-      <boxGeometry args={[width, 30, depth]} />
-      <meshStandardMaterial color="#3f4248" roughness={0.55} />
-    </mesh>
+    <>
+      {runs.map((run) => (
+        <mesh
+          key={run.cabinetIds.join('+')}
+          position={[
+            run.startX + run.length / 2,
+            run.carcassTopY + thickness / 2,
+            run.backZ + (run.carcassDepth + overhang) / 2,
+          ]}
+          receiveShadow
+          castShadow
+        >
+          <boxGeometry args={[run.length, thickness, run.carcassDepth + overhang]} />
+          <meshStandardMaterial color="#3f4248" roughness={0.55} />
+        </mesh>
+      ))}
+    </>
   );
 }
 
-export function Viewport3D({ built, project, selectedCabinetId, onSelect, showWalls }: Props) {
+function Scene({
+  built,
+  project,
+  selectedCabinetId,
+  onSelect,
+  showWalls,
+  onMoveCabinet,
+}: Props) {
+  const { begin, dragging } = useCabinetDrag({ onMove: onMoveCabinet, sceneScale: MM_TO_SCENE });
+
   return (
-    <Canvas
-      shadows
-      camera={{ position: [3.4, 2.3, 6.2], fov: 42, near: 0.05, far: 100 }}
-      onPointerMissed={() => onSelect(null)}
-    >
+    <>
       <color attach="background" args={['#1b1d21']} />
       <hemisphereLight intensity={0.75} groundColor="#33373d" />
       <directionalLight
@@ -95,7 +122,7 @@ export function Viewport3D({ built, project, selectedCabinetId, onSelect, showWa
       <Suspense fallback={null}>
         <group scale={MM_TO_SCENE}>
           <RoomShell room={project.room} showWalls={showWalls} />
-          <Benchtop built={built} />
+          <Benchtops project={project} />
           {built.map((b) => (
             <CabinetGroup
               key={b.cabinet.id}
@@ -103,6 +130,10 @@ export function Viewport3D({ built, project, selectedCabinetId, onSelect, showWa
               project={project}
               selected={b.cabinet.id === selectedCabinetId}
               onSelect={() => onSelect(b.cabinet.id)}
+              onGrab={(cabinet, e) => {
+                onSelect(cabinet.id);
+                begin(cabinet, e);
+              }}
             />
           ))}
         </group>
@@ -118,8 +149,26 @@ export function Viewport3D({ built, project, selectedCabinetId, onSelect, showWa
         infiniteGrid
         position={[0, 0, 0]}
       />
-      <OrbitControls makeDefault target={[1.5, 1.05, 0.2]} maxPolarAngle={Math.PI / 2.05} />
+      <OrbitControls
+        makeDefault
+        target={[1.5, 1.05, 0.2]}
+        maxPolarAngle={Math.PI / 2.05}
+        enabled={!dragging}
+      />
       <FlyControls />
+    </>
+  );
+}
+
+export function Viewport3D(props: Props) {
+  const { onSelect } = props;
+  return (
+    <Canvas
+      shadows
+      camera={{ position: [3.4, 2.3, 6.2], fov: 42, near: 0.05, far: 100 }}
+      onPointerMissed={() => onSelect(null)}
+    >
+      <Scene {...props} />
     </Canvas>
   );
 }

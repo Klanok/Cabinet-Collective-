@@ -12,7 +12,7 @@ import type { ConstructionMethod } from './construction.ts';
 import type { MaterialLibrary } from './material.ts';
 import type { Room } from './room.ts';
 
-export const CURRENT_SCHEMA_VERSION = 2 as const;
+export const CURRENT_SCHEMA_VERSION = 3 as const;
 
 /**
  * GST treatment. These are genuinely different arithmetic, not a display toggle:
@@ -154,6 +154,34 @@ const migrateV1toV2 = (raw: Record<string, unknown>): Record<string, unknown> =>
 };
 
 /**
+ * v2 → v3.
+ *
+ * v2 carried one `revealTopBottom` for both ends of a front. That is wrong for a base
+ * cabinet, where the door is normally flush with the bottom of the carcass and carries its
+ * reveal only at the top, under the benchtop.
+ *
+ * The old value carries into both, so a migrated job still cuts as it did. Choosing the new
+ * flush-bottom default is then a deliberate edit, not something that happens to a saved job
+ * behind your back.
+ */
+const migrateV2toV3 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const constructions = (raw.constructions as Record<string, unknown>[] | undefined) ?? [];
+  return {
+    ...raw,
+    schemaVersion: 3,
+    constructions: constructions.map((c) => {
+      const { revealTopBottom, ...rest } = c;
+      const reveal = typeof revealTopBottom === 'number' ? revealTopBottom : 1.5;
+      return {
+        ...rest,
+        revealTop: rest.revealTop ?? reveal,
+        revealBottom: rest.revealBottom ?? reveal,
+      };
+    }),
+  };
+};
+
+/**
  * Load a project from stored JSON, migrating older schema versions forward.
  *
  * Migrations run in sequence, so a v1 file loaded after several schema changes still arrives
@@ -175,6 +203,7 @@ export const migrateProject = (raw: unknown): Project => {
   }
 
   if (data.schemaVersion === 1) data = migrateV1toV2(data);
+  if (data.schemaVersion === 2) data = migrateV2toV3(data);
 
   if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`migrateProject: could not migrate schema version ${String(version)}`);

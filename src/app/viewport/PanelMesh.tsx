@@ -8,6 +8,7 @@
 
 import { useMemo } from 'react';
 import { BufferAttribute, BufferGeometry, type Matrix4 } from 'three';
+import type { ThreeEvent } from '@react-three/fiber';
 import type { Panel } from '../../core/model/panel.ts';
 import type { Mm } from '../../core/units.ts';
 import { extrudeProfile } from '../../core/geom/extrude.ts';
@@ -32,9 +33,11 @@ interface Props {
   thickness: Mm;
   selected: boolean;
   onSelect: () => void;
+  /** Pointer-down on the panel — the start of a possible drag of its whole cabinet. */
+  onGrab: (event: ThreeEvent<PointerEvent>) => void;
 }
 
-export function PanelMesh({ panel, thickness, selected, onSelect }: Props) {
+export function PanelMesh({ panel, thickness, selected, onSelect, onGrab }: Props) {
   const geometry = useMemo(() => {
     const mesh = extrudeProfile(panel.profile, thickness);
     const g = new BufferGeometry();
@@ -61,6 +64,7 @@ export function PanelMesh({ panel, thickness, selected, onSelect }: Props) {
           e.stopPropagation();
           onSelect();
         }}
+        onPointerDown={onGrab}
       >
         <meshStandardMaterial
           color={colour}

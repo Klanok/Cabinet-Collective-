@@ -30,7 +30,8 @@ const withReveals = (
   ...base,
   constructions: base.constructions.map((c) => ({
     ...c,
-    revealTopBottom: mm(revealTopBottom),
+    revealTop: mm(revealTopBottom),
+    revealBottom: mm(revealTopBottom),
     revealSides: mm(revealSides),
     gapBetweenDoors: mm(gapBetweenDoors),
     gapBetweenDrawers: mm(gapBetweenDrawers),
@@ -156,9 +157,9 @@ describe('tall cabinets', () => {
 
     const lower = occupies(byName(panels, 'Door lower L'), project);
     const upper = occupies(byName(panels, 'Door upper L'), project);
-    // Break at 1200 with a 3mm gap, half either side.
-    expect(lower.y).toEqual([1.5, 1198.5]);
-    expect(upper.y).toEqual([1201.5, 2068.5]);
+    // Flush at the bottom, break at 1200 with a 3mm gap half either side, 3mm at the top.
+    expect(lower.y).toEqual([0, 1198.5]);
+    expect(upper.y).toEqual([1201.5, 2067]);
     expect(upper.y[0] - lower.y[1]).toBe(3);
   });
 
@@ -255,8 +256,10 @@ describe('migrating a job saved before reveals were split', () => {
       ...current,
       schemaVersion: 1,
       constructions: current.constructions.map((c) => {
-        const { revealTopBottom, revealSides, gapBetweenDoors, gapBetweenDrawers, ...rest } = c;
-        void revealTopBottom;
+        const { revealTop, revealBottom, revealSides, gapBetweenDoors, gapBetweenDrawers, ...rest } =
+          c;
+        void revealTop;
+        void revealBottom;
         void revealSides;
         void gapBetweenDoors;
         void gapBetweenDrawers;
@@ -279,8 +282,9 @@ describe('migrating a job saved before reveals were split', () => {
     const migrated = migrateProject(JSON.parse(JSON.stringify(v1Job())));
     const c = migrated.constructions[0]!;
 
-    expect(migrated.schemaVersion).toBe(2);
-    expect(c.revealTopBottom).toBe(1.5);
+    expect(migrated.schemaVersion).toBe(3);
+    expect(c.revealTop).toBe(1.5);
+    expect(c.revealBottom).toBe(1.5);
     expect(c.revealSides).toBe(1.5);
     expect(c.gapBetweenDoors).toBe(3);
     expect(c.gapBetweenDrawers).toBe(3);

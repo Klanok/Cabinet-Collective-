@@ -31,10 +31,12 @@ export const AU_TALL_CARCASS_DEPTH = mm(560);
 
 export const AU_PROJECT_DEFAULTS: ProjectDefaults = {
   constructionId: 'frameless-32-16',
-  carcassMaterialId: 'poly-classic-white-16',
-  backMaterialId: 'poly-classic-white-back-16',
+  // Carcass and back are board specs — white HMR particleboard is the shop standard.
+  // Only the doors carry a decor, because only they are seen.
+  carcassMaterialId: 'hmr-white-16',
+  backMaterialId: 'hmr-white-16',
   doorMaterialId: 'poly-classic-white-door-18',
-  edgeBandId: 'eb-classic-white-1mm',
+  edgeBandId: 'eb-white-1mm',
   baseCabinetHeight: AU_BASE_CARCASS_HEIGHT,
   baseCabinetDepth: AU_BASE_CARCASS_DEPTH,
   wallCabinetHeight: AU_WALL_CARCASS_HEIGHT,

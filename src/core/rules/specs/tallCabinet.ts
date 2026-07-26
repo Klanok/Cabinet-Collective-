@@ -44,7 +44,8 @@ const tallDoors = (ctx: RuleContext): PartInstance[] => {
   if (!split || split <= 0 || split >= ctx.H) return doors(ctx, count);
 
   const c = ctx.construction;
-  const rTB = c.revealTopBottom;
+  const rTop = c.revealTop;
+  const rBot = c.revealBottom;
   const rS = c.revealSides;
   const width =
     count === 1 ? mm(ctx.W - 2 * rS) : mm((ctx.W - 2 * rS - c.gapBetweenDoors) / 2);
@@ -53,8 +54,8 @@ const tallDoors = (ctx: RuleContext): PartInstance[] => {
   // top reveal. The break itself takes a gap, half either side of the split line.
   const halfGap = c.gapBetweenDrawers / 2;
   const banks: { name: string; y: Mm; height: Mm }[] = [
-    { name: 'lower', y: rTB, height: mm(split - rTB - halfGap) },
-    { name: 'upper', y: mm(split + halfGap), height: mm(ctx.H - rTB - split - halfGap) },
+    { name: 'lower', y: rBot, height: mm(split - rBot - halfGap) },
+    { name: 'upper', y: mm(split + halfGap), height: mm(ctx.H - rTop - split - halfGap) },
   ];
 
   const parts: PartInstance[] = [];
@@ -104,7 +105,7 @@ export const TALL_CABINET_SPEC: CabinetSpec = {
       );
     }
     const split = ctx.options.doorSplitHeight;
-    if (split && (split <= ctx.construction.revealTopBottom || split >= ctx.H)) {
+    if (split && (split <= ctx.construction.revealBottom || split >= ctx.H)) {
       problems.push(`Door split at ${split}mm falls outside the ${ctx.H}mm carcass.`);
     }
     return problems;

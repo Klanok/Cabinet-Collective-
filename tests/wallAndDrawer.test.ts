@@ -3,7 +3,7 @@
  *
  * Wall reference:   900 W × 720 H × 300 D → side depth 300 − 16 = 284, interior width 868.
  * Drawer reference: 600 W × 720 H × 560 D, three drawers.
- *     front height available   720 − 2×1.5 reveal          = 717
+ *     front height available   720 − 3 top − 0 bottom      = 717
  *     less two 3mm gaps                                    = 711
  *     ÷ 3                                                  = 237 each
  *     front width              600 − 2×1.5                 = 597
@@ -138,16 +138,17 @@ describe('drawer bank', () => {
     }
   });
 
-  it('stacks the fronts bottom-first with 3mm between them and 1.5mm at each end', () => {
+  it('stacks the fronts bottom-first, flush at the bottom with the reveal at the top', () => {
     const { panels } = drawers({ drawerCount: 3 });
     const y = (n: string) => occupies(byName(panels, n), project).y;
 
-    expect(y('Drawer front 1')).toEqual([1.5, 238.5]);
-    expect(y('Drawer front 2')).toEqual([241.5, 478.5]);
-    expect(y('Drawer front 3')).toEqual([481.5, 718.5]);
+    expect(y('Drawer front 1')).toEqual([0, 237]);
+    expect(y('Drawer front 2')).toEqual([240, 477]);
+    expect(y('Drawer front 3')).toEqual([480, 717]);
 
     expect(y('Drawer front 2')[0] - y('Drawer front 1')[1]).toBe(3);
-    expect(720 - y('Drawer front 3')[1]).toBe(1.5);
+    expect(y('Drawer front 1')[0]).toBe(0); // flush with the carcass bottom
+    expect(720 - y('Drawer front 3')[1]).toBe(3); // reveal at the top
   });
 
   it('sits the fronts proud of the carcass face', () => {
@@ -161,8 +162,8 @@ describe('drawer bank', () => {
     const { panels } = drawers({ drawerFrontHeights: [mm(277), mm(217), mm(217)] });
     expect(size(byName(panels, 'Drawer front 1'))).toEqual([597, 277]);
     expect(size(byName(panels, 'Drawer front 2'))).toEqual([597, 217]);
-    // 1.5 + 277 + 3 + 217 + 3 = 501.5, and the top front finishes at 718.5.
-    expect(occupies(byName(panels, 'Drawer front 3'), project).y).toEqual([501.5, 718.5]);
+    // 0 + 277 + 3 + 217 + 3 = 500, and the top front finishes at 717.
+    expect(occupies(byName(panels, 'Drawer front 3'), project).y).toEqual([500, 717]);
     expect(drawers({ drawerFrontHeights: [mm(277), mm(217), mm(217)] }).warnings).toEqual([]);
   });
 

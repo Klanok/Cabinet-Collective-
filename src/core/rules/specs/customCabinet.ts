@@ -56,7 +56,7 @@ const frontParts = (ctx: RuleContext): PartInstance[] => {
       explicit && explicit.length > 0
         ? [...explicit]
         : equalDrawerFronts(
-            mm(ctx.H - 2 * ctx.construction.revealTopBottom),
+            mm(ctx.H - ctx.construction.revealTop - ctx.construction.revealBottom),
             drawerCount,
             ctx.construction.gapBetweenDrawers,
           );

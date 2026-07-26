@@ -9,7 +9,10 @@
  *   interior height   720 − 2×16               = 688
  *   shelf             868 − 2 clearance        = 866  ×  544 − 10 setback = 534
  *   door width        (900 − 2×1.5 − 3) ÷ 2    = 447
- *   door height       720 − 2×1.5              = 717
+ *   door height       720 − 3 top − 0 bottom   = 717
+ *
+ * Note the reveals are not symmetrical: the door is flush with the bottom of the carcass and
+ * carries its 3mm reveal at the top, under the benchtop. That is how a base cabinet is hung.
  */
 
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -187,8 +190,11 @@ describe('base cabinet placement', () => {
     const left = occupies(byName(panels, 'Door L'), project);
     const right = occupies(byName(panels, 'Door R'), project);
 
-    expect(left).toEqual({ x: [1.5, 448.5], y: [1.5, 718.5], z: [560, 578] });
-    expect(right).toEqual({ x: [451.5, 898.5], y: [1.5, 718.5], z: [560, 578] });
+    // Flush at the bottom, 3mm reveal at the top.
+    expect(left).toEqual({ x: [1.5, 448.5], y: [0, 717], z: [560, 578] });
+    expect(right).toEqual({ x: [451.5, 898.5], y: [0, 717], z: [560, 578] });
+    expect(left.y[0]).toBe(0);
+    expect(720 - left.y[1]).toBe(3);
 
     expect(right.x[0] - left.x[1]).toBe(3); // gap between the pair
     expect(left.x[0]).toBe(1.5); // reveal at the outer edge
@@ -212,8 +218,8 @@ describe('base cabinet edge banding', () => {
     // Both sides are banded on the edge facing the front. Because the sides are mirrored,
     // that is a different named edge on each — which is exactly the handedness a cutlist
     // has to get right.
-    expect(byName(panels, 'Side L').edgeBanding).toEqual({ L2: 'eb-classic-white-1mm' });
-    expect(byName(panels, 'Side R').edgeBanding).toEqual({ L1: 'eb-classic-white-1mm' });
+    expect(byName(panels, 'Side L').edgeBanding).toEqual({ L2: 'eb-white-1mm' });
+    expect(byName(panels, 'Side R').edgeBanding).toEqual({ L1: 'eb-white-1mm' });
   });
 
   it('bands all four edges of a door', () => {

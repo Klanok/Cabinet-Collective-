@@ -33,7 +33,7 @@ export const resolveFrontHeights = (ctx: RuleContext): Mm[] => {
   if (explicit && explicit.length > 0) return [...explicit];
 
   const count = ctx.options.drawerCount ?? 4;
-  const opening = mm(ctx.H - 2 * ctx.construction.revealTopBottom);
+  const opening = mm(ctx.H - ctx.construction.revealTop - ctx.construction.revealBottom);
   return equalDrawerFronts(opening, count, ctx.construction.gapBetweenDrawers);
 };
 
@@ -55,7 +55,10 @@ export const DRAWER_BANK_SPEC: CabinetSpec = {
     if (heights && heights.length > 0) {
       const gaps = ctx.construction.gapBetweenDrawers * (heights.length - 1);
       const used =
-        heights.reduce((a, b) => a + b, 0) + gaps + 2 * ctx.construction.revealTopBottom;
+        heights.reduce((a, b) => a + b, 0) +
+        gaps +
+        ctx.construction.revealTop +
+        ctx.construction.revealBottom;
       if (used > ctx.H + 0.5) {
         problems.push(
           `Drawer fronts total ${used}mm but the carcass is only ${ctx.H}mm — fronts will not fit.`,

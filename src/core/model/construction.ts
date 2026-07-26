@@ -49,8 +49,16 @@ export interface ConstructionMethod {
    * produces doors that are wrong on both axes.
    */
 
-  /** Reveal at the top and bottom edges of a front, each. */
-  readonly revealTopBottom: Mm;
+  /**
+   * Reveal at the top edge of a front.
+   *
+   * Kept separate from the bottom because on a base cabinet they are not the same: the door
+   * is normally flush with the bottom of the carcass and carries its reveal only at the top,
+   * under the benchtop.
+   */
+  readonly revealTop: Mm;
+  /** Reveal at the bottom edge of a front. Commonly zero — flush with the carcass. */
+  readonly revealBottom: Mm;
   /** Reveal at the left and right edges of a front, each. */
   readonly revealSides: Mm;
   /** Gap between two doors sitting side by side — reads as a vertical line. */
@@ -84,7 +92,8 @@ export const FRAMELESS_32_16MM: ConstructionMethod = {
   kickHeight: mm(150),
   kickSetback: mm(50),
   stretcherWidth: mm(100),
-  revealTopBottom: mm(1.5),
+  revealTop: mm(3),
+  revealBottom: mm(0),
   revealSides: mm(1.5),
   gapBetweenDoors: mm(3),
   gapBetweenDrawers: mm(3),

@@ -166,8 +166,9 @@ describe('cost breakdown', () => {
     const c = costProject(project);
     const costs = c.byMaterial.map((m) => m.cost);
     expect([...costs].sort((a, b) => b - a)).toEqual(costs);
+    // Carcass and back share one board spec; only the fronts carry a decor.
     expect(c.byMaterial.map((m) => m.materialId).sort()).toEqual(
-      ['poly-classic-white-16', 'poly-classic-white-back-16', 'poly-classic-white-door-18'].sort(),
+      ['hmr-white-16', 'poly-classic-white-door-18'].sort(),
     );
   });
 

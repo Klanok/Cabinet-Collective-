@@ -9,7 +9,7 @@ cutlist, and costing that handles GST properly — all driven from one versioned
 ```bash
 npm install
 npm run dev       # the app
-npm test          # 160 tests
+npm test          # 169 tests
 npm run report    # cutlist + costing for the sample kitchen, in the terminal
 ```
 
@@ -40,7 +40,9 @@ Reveals and gaps are split by **where they physically are** rather than being ca
 "horizontal" and "vertical" — those are read both ways in the trade, and getting it backwards
 produces doors wrong on both axes:
 
-- Reveal — top and bottom
+- Reveal — top
+- Reveal — bottom (commonly zero: a base cabinet door is flush with the carcass bottom and
+  carries its reveal only at the top, under the benchtop)
 - Reveal — left and right
 - Gap between doors (side by side)
 - Gap between drawer fronts (stacked)
@@ -66,8 +68,9 @@ open-from-file, so a job can live outside the browser.
   around. Face-frame would be an additional construction method, not the default.
 - **Sheet sizes**: 3600×1800 and 2400×1200, with 2440×1220 for imported product.
 - **Thicknesses**: 16 / 18 / 25mm.
-- **Substrates**: melamine-faced particleboard as the carcass default, HMR for wet areas,
-  MDF for doors and panels.
+- **Substrates**: white HMR particleboard as the carcass default. A carcass is specified as a
+  *board*, not a finish — nobody orders a carcass in a decor name. Decors are for doors,
+  panels and any carcass genuinely on show.
 - **Dimensions**: 720mm base carcass on a 150mm kick (870 to benchtop underside, 900
   finished), 560mm base depth, 300mm wall depth, wall cabinets hung at 1500mm for a 600mm
   splashback.
@@ -114,7 +117,7 @@ builders, which is the test of whether that's actually true.
 
 ## Verification
 
-160 tests, and the ones that matter are hand-calculated rather than snapshot:
+169 tests, and the ones that matter are hand-calculated rather than snapshot:
 
 - Every part size for the reference 900×720×560 base cabinet, worked out longhand in the test
   file header and asserted individually.

@@ -54,6 +54,8 @@ export interface ProjectStore {
   updateConstruction: (id: string, patch: Partial<ConstructionMethod>) => void;
   updateDefaults: (patch: Partial<ProjectDefaults>) => void;
   updateRoom: (room: Room) => void;
+  /** Move a cabinet on the floor plane — height is never changed by dragging. */
+  moveCabinet: (id: string, x: Mm, z: Mm) => void;
 
   /** Make this job's current setup the shop standard for everything after it. */
   saveAsStandards: (name: string) => void;
@@ -212,6 +214,20 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     ),
 
   updateRoom: (room) => set((state) => persist(touchProject({ ...state.project, room }))),
+
+  moveCabinet: (id, x, z) =>
+    set((state) =>
+      persist(
+        touchProject({
+          ...state.project,
+          cabinets: state.project.cabinets.map((c) =>
+            c.id === id
+              ? { ...c, placement: { ...c.placement, anchor: { ...c.placement.anchor, x, z } } }
+              : c,
+          ),
+        }),
+      ),
+    ),
 
   saveCabinetAsType: (cabinetId, name, note) =>
     set((state) => {

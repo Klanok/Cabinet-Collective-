@@ -30,7 +30,49 @@ const AU_STANDARD = (price: number) => sheet(2400, 1200, price);
 const IMPORTED = (price: number) => sheet(2440, 1220, price);
 
 export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
-  // ── Carcass: melamine-faced particleboard, double sided ────────────────────────────────
+  /*
+   * ── Carcass board ────────────────────────────────────────────────────────────────────
+   *
+   * A carcass is specified as a *board*, not as a finish. Nobody orders a carcass in a decor
+   * name — they order white HMR particleboard, and the decor question only arises for the
+   * parts that are seen. These are the defaults; the branded decors below are for doors,
+   * panels and any carcass that is genuinely on show.
+   */
+  {
+    id: 'hmr-white-16',
+    brand: 'Generic',
+    decor: 'White HMR particleboard',
+    substrate: 'HMR-MFPB',
+    thickness: mm(16),
+    grain: 'none',
+    decorFaces: 2,
+    sheets: [AU_LARGE(13_800), AU_STANDARD(6_300)],
+    indicativePricing: true,
+  },
+  {
+    id: 'hmr-white-18',
+    brand: 'Generic',
+    decor: 'White HMR particleboard',
+    substrate: 'HMR-MFPB',
+    thickness: mm(18),
+    grain: 'none',
+    decorFaces: 2,
+    sheets: [AU_LARGE(15_200)],
+    indicativePricing: true,
+  },
+  {
+    id: 'mfpb-white-16',
+    brand: 'Generic',
+    decor: 'White particleboard (standard)',
+    substrate: 'MFPB',
+    thickness: mm(16),
+    grain: 'none',
+    decorFaces: 2,
+    sheets: [AU_LARGE(10_200), AU_STANDARD(4_800)],
+    indicativePricing: true,
+  },
+
+  // ── Decor melamine, for doors, panels and carcasses that are on show ──────────────────
   {
     id: 'poly-classic-white-16',
     brand: 'Polytec',
@@ -207,6 +249,15 @@ export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
 ];
 
 export const AU_EDGE_BANDS: readonly EdgeBandMaterial[] = [
+  {
+    id: 'eb-white-1mm',
+    brand: 'Generic',
+    decor: 'White',
+    thickness: mm(1),
+    width: mm(22),
+    pricePerMetreExGst: 52,
+    indicativePricing: true,
+  },
   {
     id: 'eb-classic-white-1mm',
     brand: 'Polytec',

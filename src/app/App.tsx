@@ -43,6 +43,7 @@ export default function App() {
   const resetToStandards = useProjectStore((s) => s.resetToStandards);
   const replaceProject = useProjectStore((s) => s.replaceProject);
   const updateRoom = useProjectStore((s) => s.updateRoom);
+  const moveCabinet = useProjectStore((s) => s.moveCabinet);
   const saveCabinetAsType = useProjectStore((s) => s.saveCabinetAsType);
   const addFromSavedType = useProjectStore((s) => s.addFromSavedType);
   const deleteSavedType = useProjectStore((s) => s.deleteSavedType);
@@ -158,6 +159,7 @@ export default function App() {
             selectedCabinetId={selectedCabinetId}
             onSelect={select}
             showWalls={showWalls}
+            onMoveCabinet={moveCabinet}
           />
           <label className="viewport-toggle">
             <input
@@ -169,7 +171,7 @@ export default function App() {
           </label>
           <div className="viewport-hint muted">
             Drag to orbit · scroll to zoom · <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move,{' '}
-            <kbd>Q</kbd><kbd>E</kbd> down/up, <kbd>Shift</kbd> faster · click a cabinet to select
+            <kbd>Q</kbd><kbd>E</kbd> down/up, <kbd>Shift</kbd> faster · click to select, drag to move
           </div>
         </main>
 

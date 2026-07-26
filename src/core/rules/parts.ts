@@ -166,10 +166,11 @@ export const adjustableShelves = (ctx: RuleContext, count: number): PartInstance
  */
 export const doors = (ctx: RuleContext, count: 0 | 1 | 2): PartInstance[] => {
   if (count === 0) return [];
-  const rTB = ctx.construction.revealTopBottom;
+  const rTop = ctx.construction.revealTop;
+  const rBot = ctx.construction.revealBottom;
   const rS = ctx.construction.revealSides;
   const gap = ctx.construction.gapBetweenDoors;
-  const height = mm(ctx.H - 2 * rTB);
+  const height = mm(ctx.H - rTop - rBot);
   const width = count === 1 ? mm(ctx.W - 2 * rS) : mm((ctx.W - 2 * rS - gap) / 2);
 
   // u = +Y (length runs up the door), v = −X → thickness direction +Z, facing out of the
@@ -178,7 +179,7 @@ export const doors = (ctx: RuleContext, count: 0 | 1 | 2): PartInstance[] => {
     name,
     role: 'door',
     profile: rectProfile(height, width),
-    placement: placement(v3(rightEdgeX, rTB, ctx.D), '+Y', '-X'),
+    placement: placement(v3(rightEdgeX, rBot, ctx.D), '+Y', '-X'),
     material: 'door',
     bandedDirections: BAND_ALL,
     grain: 'length-along-grain',
@@ -199,12 +200,12 @@ export const doors = (ctx: RuleContext, count: 0 | 1 | 2): PartInstance[] => {
  * Phase 2 hardware rule sets.
  */
 export const drawerFronts = (ctx: RuleContext, heights: readonly Mm[]): PartInstance[] => {
-  const rTB = ctx.construction.revealTopBottom;
+  const rBot = ctx.construction.revealBottom;
   const rS = ctx.construction.revealSides;
   const gap = ctx.construction.gapBetweenDrawers;
   const width = mm(ctx.W - 2 * rS);
 
-  let y = rTB;
+  let y = rBot;
   return heights.map((h, i) => {
     const instance: PartInstance = {
       name: `Drawer front ${i + 1}`,
