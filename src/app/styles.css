@@ -776,3 +776,40 @@ tbody td {
   line-height: 1.5;
   color: var(--warn);
 }
+
+/* Wide dropdowns for material names, which are long. */
+.setting-input select.wide {
+  min-width: 280px;
+}
+
+.viewport-hint kbd {
+  display: inline-block;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 0 4px;
+  font-family: var(--mono);
+  font-size: 10px;
+  margin: 0 1px;
+}
+
+.viewport-toggle {
+  position: absolute;
+  right: 12px;
+  top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: rgba(22, 24, 28, 0.75);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 4px 9px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.viewport-toggle input {
+  accent-color: var(--accent);
+}

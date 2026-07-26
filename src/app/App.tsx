@@ -42,10 +42,12 @@ export default function App() {
   const saveAsStandards = useProjectStore((s) => s.saveAsStandards);
   const resetToStandards = useProjectStore((s) => s.resetToStandards);
   const replaceProject = useProjectStore((s) => s.replaceProject);
+  const updateRoom = useProjectStore((s) => s.updateRoom);
   const newProject = useProjectStore((s) => s.newProject);
 
   const [tab, setTab] = useState<Tab>('cutlist');
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [showWalls, setShowWalls] = useState(true);
 
   const built = useMemo(() => buildProject(project), [project]);
   const cost = useMemo(() => costProject(project), [project]);
@@ -134,7 +136,12 @@ export default function App() {
             onAdd={addCabinet}
             onRemove={removeCabinet}
           />
-          <Inspector built={selected} onUpdate={updateCabinet} onUpdateOptions={updateOptions} />
+          <Inspector
+            built={selected}
+            project={project}
+            onUpdate={updateCabinet}
+            onUpdateOptions={updateOptions}
+          />
         </aside>
 
         <main className="viewport">
@@ -143,9 +150,19 @@ export default function App() {
             project={project}
             selectedCabinetId={selectedCabinetId}
             onSelect={select}
+            showWalls={showWalls}
           />
+          <label className="viewport-toggle">
+            <input
+              type="checkbox"
+              checked={showWalls}
+              onChange={(e) => setShowWalls(e.target.checked)}
+            />
+            Walls
+          </label>
           <div className="viewport-hint muted">
-            Drag to orbit · scroll to zoom · click a cabinet to select
+            Drag to orbit · scroll to zoom · <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move,{' '}
+            <kbd>Q</kbd><kbd>E</kbd> down/up, <kbd>Shift</kbd> faster · click a cabinet to select
           </div>
         </main>
 
@@ -183,6 +200,7 @@ export default function App() {
           onUpdateStandards={updateStandards}
           onSaveAsStandards={saveAsStandards}
           onResetToStandards={resetToStandards}
+          onUpdateRoom={updateRoom}
         />
       )}
     </div>

@@ -62,8 +62,14 @@ export interface CostBreakdown {
   readonly labourMinutes: number;
   readonly labourCost: Cents;
 
+  readonly installHours: number;
+  readonly installCost: Cents;
+
   readonly totalCost: Cents;
   readonly marginAmount: Cents;
+  /** Cost plus margin, before the flat charges that aren't marked up. */
+  readonly subtotalExGst: Cents;
+  readonly deliveryFee: Cents;
   readonly sellExGst: Cents;
   readonly gst: Cents;
   readonly totalIncGst: Cents;
@@ -202,9 +208,20 @@ export const costProject = (project: Project): CostBreakdown => {
   // input credit to claim on your own time.
   const labourCost = roundCents((labourMinutes / 60) * settings.labour.ratePerHourExGst * 100);
 
-  const totalCost = materialCost + labourCost;
+  // Install is its own subtotal. Until there is a real per-cabinet install model, its hours
+  // mirror the shop hours — rough, but visible and easy to override per job.
+  const installHours =
+    settings.labour.installHoursMode === 'fixed'
+      ? settings.labour.installFixedHours
+      : labourMinutes / 60;
+  const installCost = roundCents(installHours * settings.labour.installRatePerHourExGst * 100);
+
+  const totalCost = materialCost + labourCost + installCost;
   const marginAmount = roundCents(totalCost * (settings.marginPercent / 100));
-  const sellExGst = totalCost + marginAmount;
+  const subtotalExGst = totalCost + marginAmount;
+  // Delivery is a flat charge passed on, not a cost being sold on, so it sits outside margin.
+  const deliveryFee = roundCents(settings.deliveryFeeExGst * 100);
+  const sellExGst = subtotalExGst + deliveryFee;
   const gst = gstOnSale(sellExGst, mode);
 
   const byMaterial = summariseMaterials(panelCosts, library, wastage);
@@ -217,8 +234,12 @@ export const costProject = (project: Project): CostBreakdown => {
     materialCost,
     labourMinutes,
     labourCost,
+    installHours,
+    installCost,
     totalCost,
     marginAmount,
+    subtotalExGst,
+    deliveryFee,
     sellExGst,
     gst,
     totalIncGst: sellExGst + gst,

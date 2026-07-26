@@ -156,8 +156,9 @@ describe('the run costs out', () => {
     expect(c.warnings).toEqual([]);
 
     expect(c.materialCost).toBe(c.sheetCost + c.edgeBandCost);
-    expect(c.totalCost).toBe(c.materialCost + c.labourCost);
-    expect(c.sellExGst).toBe(c.totalCost + c.marginAmount);
+    expect(c.totalCost).toBe(c.materialCost + c.labourCost + c.installCost);
+    expect(c.subtotalExGst).toBe(c.totalCost + c.marginAmount);
+    expect(c.sellExGst).toBe(c.subtotalExGst + c.deliveryFee);
     expect(c.totalIncGst).toBe(c.sellExGst + c.gst);
   });
 
@@ -167,7 +168,7 @@ describe('the run costs out', () => {
     // Carcasses and fronts only — no hardware, benchtop, appliances or installation, all of
     // which arrive in later phases. Around $1,800 on the seeded rates.
     expect(sell).toBeGreaterThan(1_200);
-    expect(sell).toBeLessThan(6_000);
+    expect(sell).toBeLessThan(10_000);
   });
 
   it('splits cost sensibly between material and labour', () => {

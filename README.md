@@ -9,13 +9,14 @@ cutlist, and costing that handles GST properly — all driven from one versioned
 ```bash
 npm install
 npm run dev       # the app
-npm test          # 122 tests
+npm test          # 141 tests
 npm run report    # cutlist + costing for the sample kitchen, in the terminal
 ```
 
 ## What it does today
 
-Lay out base cabinets, wall cabinets and drawer banks along a run. Every part — sides,
+Lay out base, wall, tall and drawer-bank cabinets along a run, inside a room you can size to
+the real space. Every part — sides,
 bottoms, top rails, backs, shelves, doors, drawer fronts, kicks — is derived from three
 driving dimensions plus a construction method. Change a width, a drawer count or the carcass
 thickness and the parts, the cutlist and the cost all move together, because there is only
@@ -26,10 +27,17 @@ The sample kitchen is a 3000mm base run with 2400mm of wall cabinets over it: 7 
 
 ## Settings: your shop's numbers, per job
 
-Every joinery number — carcass and back thickness, kick height and setback, top rail depth,
-the gap between fronts, the reveal at a cabinet edge, shelf setback and clearance, System 32
-pitch — is editable, along with standard cabinet sizes, margin, labour rates and the GST
-context. **Settings** in the top bar.
+Every joinery number is editable, along with materials, standard cabinet sizes, room size,
+margin, labour rates, install, delivery and the GST context. **Settings** in the top bar.
+
+Reveals and gaps are split by **where they physically are** rather than being called
+"horizontal" and "vertical" — those are read both ways in the trade, and getting it backwards
+produces doors wrong on both axes:
+
+- Reveal — top and bottom
+- Reveal — left and right
+- Gap between doors (side by side)
+- Gap between drawer fronts (stacked)
 
 There are two scopes, and the distinction is deliberate:
 
@@ -100,7 +108,7 @@ builders, which is the test of whether that's actually true.
 
 ## Verification
 
-122 tests, and the ones that matter are hand-calculated rather than snapshot:
+141 tests, and the ones that matter are hand-calculated rather than snapshot:
 
 - Every part size for the reference 900×720×560 base cabinet, worked out longhand in the test
   file header and asserted individually.
@@ -110,6 +118,9 @@ builders, which is the test of whether that's actually true.
   apart with 1.5mm at each outer edge.
 - Both GST contexts, including that the material cost ratio between them is 1.1 within
   per-panel rounding.
+- That each reveal applies to the edge it names — swapping which one is large swaps which door
+  dimension shrinks.
+- That a job saved before reveals were split still cuts identically after migration.
 - The full kitchen run: 63 parts, no warnings, everything inside the room, cabinets butted
   without gaps or overlaps.
 - That a job and the shop standards stay isolated: editing one never touches the other, two
@@ -122,6 +133,8 @@ builders, which is the test of whether that's actually true.
 |---|---|---|
 | 1 | Data model, coordinate convention, rule engine, geometry, viewport, costing | **done** |
 | 2 | Hardware/joinery rules (Blum first), full cutlist/BOM export | next |
+| — | Drawing an arbitrary room plan (L-shaped, bulkheads, windows) | not started |
+| — | Fully custom cabinets — scope still to be agreed | not started |
 | 3 | Guillotine nesting for sheet goods, offcut tracking | |
 | 4 | CAM feature layer — drilling, grooving, profiling | |
 | 5 | One post-processor + simulation/backplot | |

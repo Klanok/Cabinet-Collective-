@@ -25,6 +25,9 @@ export const AU_SPLASHBACK_HEIGHT = mm(600);
 export const AU_WALL_CARCASS_HEIGHT = mm(720);
 export const AU_WALL_CARCASS_DEPTH = mm(300);
 export const AU_WALL_MOUNT_HEIGHT = mm(1500);
+/** Tall carcass height, set so its top lands level with the wall cabinets at 2220. */
+export const AU_TALL_CARCASS_HEIGHT = mm(2070);
+export const AU_TALL_CARCASS_DEPTH = mm(560);
 
 export const AU_PROJECT_DEFAULTS: ProjectDefaults = {
   constructionId: 'frameless-32-16',
@@ -37,6 +40,8 @@ export const AU_PROJECT_DEFAULTS: ProjectDefaults = {
   wallCabinetHeight: AU_WALL_CARCASS_HEIGHT,
   wallCabinetDepth: AU_WALL_CARCASS_DEPTH,
   wallCabinetMountHeight: AU_WALL_MOUNT_HEIGHT,
+  tallCabinetHeight: AU_TALL_CARCASS_HEIGHT,
+  tallCabinetDepth: AU_TALL_CARCASS_DEPTH,
 };
 
 /**
@@ -48,10 +53,14 @@ export const AU_DEFAULT_SETTINGS: ProjectSettings = {
   entityName: '',
   marginPercent: 35,
   sheetWastageFactor: 0.15,
+  deliveryFeeExGst: 0,
   labour: {
     ratePerHourExGst: 85,
     minutesPerPanel: 4,
     minutesPerBandedEdge: 1.5,
     minutesPerCabinet: 25,
+    installRatePerHourExGst: 85,
+    installHoursMode: 'mirror-manufacturing',
+    installFixedHours: 0,
   },
 };

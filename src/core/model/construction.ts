@@ -42,10 +42,21 @@ export interface ConstructionMethod {
   /** Depth (front-to-back size) of the top rails on a base cabinet. */
   readonly stretcherWidth: Mm;
 
-  /** Gap between two adjacent fronts on the same cabinet. */
-  readonly frontGap: Mm;
-  /** Reveal between a front and the outer edge of its carcass, per side. */
-  readonly frontReveal: Mm;
+  /*
+   * Reveals and gaps are split by *where they physically are*, not by calling them
+   * "horizontal" and "vertical" — those terms are read both ways in the trade (the direction
+   * the gap is measured in, or the direction the gap line runs) and getting it backwards
+   * produces doors that are wrong on both axes.
+   */
+
+  /** Reveal at the top and bottom edges of a front, each. */
+  readonly revealTopBottom: Mm;
+  /** Reveal at the left and right edges of a front, each. */
+  readonly revealSides: Mm;
+  /** Gap between two doors sitting side by side — reads as a vertical line. */
+  readonly gapBetweenDoors: Mm;
+  /** Gap between stacked drawer fronts — reads as a horizontal line. */
+  readonly gapBetweenDrawers: Mm;
 
   /** How much shallower an adjustable shelf is than the opening. */
   readonly shelfSetback: Mm;
@@ -73,8 +84,10 @@ export const FRAMELESS_32_16MM: ConstructionMethod = {
   kickHeight: mm(150),
   kickSetback: mm(50),
   stretcherWidth: mm(100),
-  frontGap: mm(3),
-  frontReveal: mm(1.5),
+  revealTopBottom: mm(1.5),
+  revealSides: mm(1.5),
+  gapBetweenDoors: mm(3),
+  gapBetweenDrawers: mm(3),
   shelfSetback: mm(10),
   shelfSideClearance: mm(2),
   systemPitch: mm(32),

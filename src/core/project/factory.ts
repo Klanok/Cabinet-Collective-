@@ -75,11 +75,21 @@ export const createCabinet = (
   const spec = getSpec(args.typeId);
   const options = { ...spec.defaultOptions, ...args.options };
 
-  const height =
-    args.height ??
-    (args.typeId === 'wall' ? defaults.wallCabinetHeight : defaults.baseCabinetHeight);
-  const depth =
-    args.depth ?? (args.typeId === 'wall' ? defaults.wallCabinetDepth : defaults.baseCabinetDepth);
+  const naturalHeight =
+    args.typeId === 'wall'
+      ? defaults.wallCabinetHeight
+      : args.typeId === 'tall'
+        ? defaults.tallCabinetHeight
+        : defaults.baseCabinetHeight;
+  const naturalDepth =
+    args.typeId === 'wall'
+      ? defaults.wallCabinetDepth
+      : args.typeId === 'tall'
+        ? defaults.tallCabinetDepth
+        : defaults.baseCabinetDepth;
+
+  const height = args.height ?? naturalHeight;
+  const depth = args.depth ?? naturalDepth;
 
   return {
     id: nextId(args.typeId),

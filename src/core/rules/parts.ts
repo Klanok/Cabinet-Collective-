@@ -166,10 +166,11 @@ export const adjustableShelves = (ctx: RuleContext, count: number): PartInstance
  */
 export const doors = (ctx: RuleContext, count: 0 | 1 | 2): PartInstance[] => {
   if (count === 0) return [];
-  const r = ctx.construction.frontReveal;
-  const gap = ctx.construction.frontGap;
-  const height = mm(ctx.H - 2 * r);
-  const width = count === 1 ? mm(ctx.W - 2 * r) : mm((ctx.W - 2 * r - gap) / 2);
+  const rTB = ctx.construction.revealTopBottom;
+  const rS = ctx.construction.revealSides;
+  const gap = ctx.construction.gapBetweenDoors;
+  const height = mm(ctx.H - 2 * rTB);
+  const width = count === 1 ? mm(ctx.W - 2 * rS) : mm((ctx.W - 2 * rS - gap) / 2);
 
   // u = +Y (length runs up the door), v = −X → thickness direction +Z, facing out of the
   // cabinet. The A-face is therefore the show face.
@@ -177,15 +178,15 @@ export const doors = (ctx: RuleContext, count: 0 | 1 | 2): PartInstance[] => {
     name,
     role: 'door',
     profile: rectProfile(height, width),
-    placement: placement(v3(rightEdgeX, r, ctx.D), '+Y', '-X'),
+    placement: placement(v3(rightEdgeX, rTB, ctx.D), '+Y', '-X'),
     material: 'door',
     bandedDirections: BAND_ALL,
     grain: 'length-along-grain',
     note: 'Grain vertical',
   });
 
-  if (count === 1) return [make('Door', mm(r + width))];
-  return [make('Door L', mm(r + width)), make('Door R', mm(ctx.W - r))];
+  if (count === 1) return [make('Door', mm(rS + width))];
+  return [make('Door L', mm(rS + width)), make('Door R', mm(ctx.W - rS))];
 };
 
 /**
@@ -198,17 +199,18 @@ export const doors = (ctx: RuleContext, count: 0 | 1 | 2): PartInstance[] => {
  * Phase 2 hardware rule sets.
  */
 export const drawerFronts = (ctx: RuleContext, heights: readonly Mm[]): PartInstance[] => {
-  const r = ctx.construction.frontReveal;
-  const gap = ctx.construction.frontGap;
-  const width = mm(ctx.W - 2 * r);
+  const rTB = ctx.construction.revealTopBottom;
+  const rS = ctx.construction.revealSides;
+  const gap = ctx.construction.gapBetweenDrawers;
+  const width = mm(ctx.W - 2 * rS);
 
-  let y = r;
+  let y = rTB;
   return heights.map((h, i) => {
     const instance: PartInstance = {
       name: `Drawer front ${i + 1}`,
       role: 'drawer-front',
       profile: rectProfile(width, h),
-      placement: placement(v3(r, mm(y), ctx.D), '+X', '+Y'),
+      placement: placement(v3(rS, mm(y), ctx.D), '+X', '+Y'),
       material: 'door',
       bandedDirections: BAND_ALL,
       grain: 'length-along-grain',

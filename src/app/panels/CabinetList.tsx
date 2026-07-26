@@ -18,7 +18,7 @@ export function CabinetList({ built, selectedId, onSelect, onAdd, onRemove }: Pr
       </header>
 
       <div className="add-row">
-        {(['base', 'wall', 'drawer-bank'] as const).map((t) => (
+        {(['base', 'wall', 'tall', 'drawer-bank'] as const).map((t) => (
           <button key={t} className="btn" onClick={() => onAdd(t)}>
             + {CABINET_TYPE_LABELS[t]}
           </button>

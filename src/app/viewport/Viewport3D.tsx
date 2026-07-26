@@ -14,6 +14,8 @@ import type { Project } from '../../core/model/project.ts';
 import { findSheet } from '../../core/model/material.ts';
 import { AU_BENCHTOP_HEIGHT } from '../../core/library/defaults.au.ts';
 import { PanelMesh } from './PanelMesh.tsx';
+import { RoomShell } from './RoomShell.tsx';
+import { FlyControls } from './FlyControls.tsx';
 import { cabinetMatrix } from './transforms.ts';
 
 /** Millimetres → scene units. The model never leaves mm; only the render is scaled. */
@@ -24,6 +26,7 @@ interface Props {
   project: Project;
   selectedCabinetId: string | null;
   onSelect: (id: string | null) => void;
+  showWalls: boolean;
 }
 
 function CabinetGroup({
@@ -72,7 +75,7 @@ function Benchtop({ built }: { built: readonly BuiltCabinet[] }) {
   );
 }
 
-export function Viewport3D({ built, project, selectedCabinetId, onSelect }: Props) {
+export function Viewport3D({ built, project, selectedCabinetId, onSelect, showWalls }: Props) {
   return (
     <Canvas
       shadows
@@ -80,10 +83,10 @@ export function Viewport3D({ built, project, selectedCabinetId, onSelect }: Prop
       onPointerMissed={() => onSelect(null)}
     >
       <color attach="background" args={['#1b1d21']} />
-      <hemisphereLight intensity={0.55} groundColor="#2a2d33" />
+      <hemisphereLight intensity={0.75} groundColor="#33373d" />
       <directionalLight
         position={[4, 6, 5]}
-        intensity={1.6}
+        intensity={1.5}
         castShadow
         shadow-mapSize={[2048, 2048]}
       />
@@ -91,6 +94,7 @@ export function Viewport3D({ built, project, selectedCabinetId, onSelect }: Prop
 
       <Suspense fallback={null}>
         <group scale={MM_TO_SCENE}>
+          <RoomShell room={project.room} showWalls={showWalls} />
           <Benchtop built={built} />
           {built.map((b) => (
             <CabinetGroup
@@ -115,6 +119,7 @@ export function Viewport3D({ built, project, selectedCabinetId, onSelect }: Prop
         position={[0, 0, 0]}
       />
       <OrbitControls makeDefault target={[1.5, 1.05, 0.2]} maxPolarAngle={Math.PI / 2.05} />
+      <FlyControls />
     </Canvas>
   );
 }

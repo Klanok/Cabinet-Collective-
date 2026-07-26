@@ -35,7 +35,7 @@ const customStandards = (): ShopStandards => ({
   name: 'Test shop',
   constructions: AU_SHOP_STANDARDS.constructions.map((c) =>
     c.id === 'frameless-32-16'
-      ? { ...c, carcassThickness: mm(18), kickHeight: mm(100), frontGap: mm(4) }
+      ? { ...c, carcassThickness: mm(18), kickHeight: mm(100), gapBetweenDoors: mm(4) }
       : c,
   ),
   defaults: { ...AU_SHOP_STANDARDS.defaults, baseCabinetHeight: mm(750) },
@@ -51,7 +51,7 @@ describe('a job starts from the standards', () => {
 
     expect(construction.carcassThickness).toBe(18);
     expect(construction.kickHeight).toBe(100);
-    expect(construction.frontGap).toBe(4);
+    expect(construction.gapBetweenDoors).toBe(4);
     expect(project.defaults.baseCabinetHeight).toBe(750);
     expect(project.settings.marginPercent).toBe(50);
   });

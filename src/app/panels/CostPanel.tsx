@@ -53,6 +53,13 @@ export function CostPanel({ cost, settings, onUpdateSettings }: Props) {
         </label>
       </div>
 
+      {settings.labour.installHoursMode === 'mirror-manufacturing' && (
+        <p className="note subtle">
+          Install hours currently mirror manufacturing hours. Set your own figure under
+          Settings → Costing when you know it.
+        </p>
+      )}
+
       {settings.gstMode === 'not-registered' && (
         <p className="note">
           GST on materials can't be claimed back, so it's costed in. Nothing is charged on the
@@ -94,11 +101,17 @@ export function CostPanel({ cost, settings, onUpdateSettings }: Props) {
         <Row label="Edge banding" value={formatAud(cost.edgeBandCost)} />
         <Row label="Material" value={formatAud(cost.materialCost)} />
         <Row
-          label={`Labour (${(cost.labourMinutes / 60).toFixed(1)} h)`}
+          label={`Manufacturing (${(cost.labourMinutes / 60).toFixed(1)} h)`}
           value={formatAud(cost.labourCost)}
+        />
+        <Row
+          label={`Install (${cost.installHours.toFixed(1)} h)`}
+          value={formatAud(cost.installCost)}
         />
         <Row label="Total cost" value={formatAud(cost.totalCost)} strong />
         <Row label={`Margin @ ${settings.marginPercent}%`} value={formatAud(cost.marginAmount)} />
+        <Row label="Subtotal (ex GST)" value={formatAud(cost.subtotalExGst)} />
+        {cost.deliveryFee > 0 && <Row label="Delivery" value={formatAud(cost.deliveryFee)} />}
         <Row label="Sell (ex GST)" value={formatAud(cost.sellExGst)} />
         <Row label="GST" value={formatAud(cost.gst)} />
         <Row label="Total" value={formatAud(cost.totalIncGst)} strong />

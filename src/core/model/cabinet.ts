@@ -10,7 +10,7 @@ import type { Mm } from '../units.ts';
 import type { CabinetPlacement } from '../geom/placement.ts';
 
 /** Identifies which declarative spec builds this cabinet. */
-export type CabinetTypeId = 'base' | 'wall' | 'drawer-bank';
+export type CabinetTypeId = 'base' | 'wall' | 'drawer-bank' | 'tall';
 
 /** Which way a door swings, described by the side its hinges are on, facing the cabinet. */
 export type DoorSwing = 'left' | 'right';
@@ -30,6 +30,11 @@ export interface CabinetOptions {
   readonly drawerCount?: number;
   /** Whether this cabinet sits on its own kick. False for a run on a continuous plinth. */
   readonly hasKick?: boolean;
+  /**
+   * Tall cabinets only. Height above the carcass bottom where the doors break into an upper
+   * and lower bank. Unset means one full-height door per column.
+   */
+  readonly doorSplitHeight?: Mm;
 }
 
 export interface CabinetMaterials {
@@ -63,6 +68,7 @@ export const CABINET_TYPE_LABELS: Record<CabinetTypeId, string> = {
   base: 'Base',
   wall: 'Wall',
   'drawer-bank': 'Drawer bank',
+  tall: 'Tall',
 };
 
 /**

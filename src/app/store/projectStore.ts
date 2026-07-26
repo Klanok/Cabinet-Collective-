@@ -14,6 +14,7 @@ import { type Mm, mm } from '../../core/units.ts';
 import type { Cabinet, CabinetOptions, CabinetTypeId } from '../../core/model/cabinet.ts';
 import type { ConstructionMethod } from '../../core/model/construction.ts';
 import type { Project, ProjectDefaults, ProjectSettings } from '../../core/model/project.ts';
+import type { Room } from '../../core/model/room.ts';
 import { touchProject } from '../../core/model/project.ts';
 import {
   type ShopStandards,
@@ -46,6 +47,7 @@ export interface ProjectStore {
   /** Edit one construction method on *this job only*. */
   updateConstruction: (id: string, patch: Partial<ConstructionMethod>) => void;
   updateDefaults: (patch: Partial<ProjectDefaults>) => void;
+  updateRoom: (room: Room) => void;
 
   /** Make this job's current setup the shop standard for everything after it. */
   saveAsStandards: (name: string) => void;
@@ -66,8 +68,15 @@ const nextFreeX = (project: Project, typeId: CabinetTypeId): Mm => {
   return mm(Math.max(...siblings.map((c) => c.placement.anchor.x + c.width)));
 };
 
+const NAME_PREFIX: Record<CabinetTypeId, string> = {
+  base: 'B',
+  wall: 'W',
+  tall: 'T',
+  'drawer-bank': 'D',
+};
+
 const nextName = (project: Project, typeId: CabinetTypeId): string => {
-  const prefix = typeId === 'wall' ? 'W' : typeId === 'drawer-bank' ? 'D' : 'B';
+  const prefix = NAME_PREFIX[typeId];
   const used = project.cabinets.filter((c) => c.name.startsWith(prefix)).length;
   return `${prefix}${used + 1}`;
 };
@@ -95,7 +104,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         {
           typeId,
           name: nextName(state.project, typeId),
-          width: mm(typeId === 'drawer-bank' ? 600 : 900),
+          width: mm(typeId === 'drawer-bank' || typeId === 'tall' ? 600 : 900),
           x: nextFreeX(state.project, typeId),
         },
         state.project.defaults,
@@ -188,6 +197,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         touchProject({ ...state.project, defaults: { ...state.project.defaults, ...patch } }),
       ),
     ),
+
+  updateRoom: (room) => set((state) => persist(touchProject({ ...state.project, room }))),
 
   saveAsStandards: (name) =>
     set((state) => {

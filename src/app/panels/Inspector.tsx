@@ -6,13 +6,53 @@
 import { mm } from '../../core/units.ts';
 import type { Cabinet } from '../../core/model/cabinet.ts';
 import { panelExtent } from '../../core/model/panel.ts';
+import type { Project } from '../../core/model/project.ts';
+import { sheetLabel } from './MaterialPicker.tsx';
 import type { BuiltCabinet } from '../../core/rules/build.ts';
 import { getSpec } from '../../core/rules/registry.ts';
 
 interface Props {
   built: BuiltCabinet | null;
+  project: Project;
   onUpdate: (id: string, patch: Partial<Cabinet>) => void;
   onUpdateOptions: (id: string, patch: Cabinet['options']) => void;
+}
+
+/**
+ * Per-cabinet material override. "Same as job default" is the first option and the usual
+ * answer — an override is for the odd sink base in HMR, not the general case.
+ */
+function OverridePicker({
+  label,
+  options,
+  value,
+  defaultLabel,
+  onChange,
+}: {
+  label: string;
+  options: { id: string; label: string }[];
+  value: string | undefined;
+  defaultLabel: string;
+  onChange: (id: string | undefined) => void;
+}) {
+  return (
+    <label className="field">
+      <span>{label}</span>
+      <div className="field-input">
+        <select
+          value={value ?? ''}
+          onChange={(e) => onChange(e.target.value || undefined)}
+        >
+          <option value="">Default — {defaultLabel}</option>
+          {options.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </div>
+    </label>
+  );
 }
 
 function NumberField({
@@ -53,7 +93,7 @@ function NumberField({
   );
 }
 
-export function Inspector({ built, onUpdate, onUpdateOptions }: Props) {
+export function Inspector({ built, project, onUpdate, onUpdateOptions }: Props) {
   if (!built) {
     return (
       <section className="panel">
@@ -69,6 +109,23 @@ export function Inspector({ built, onUpdate, onUpdateOptions }: Props) {
   const spec = getSpec(cabinet.typeId);
   const isDrawerBank = cabinet.typeId === 'drawer-bank';
   const isWall = cabinet.typeId === 'wall';
+  const isTall = cabinet.typeId === 'tall';
+
+  const sheetOptions = project.materials.sheets.map((m) => ({
+    id: m.id,
+    label: sheetLabel(m),
+  }));
+  const bandOptions = project.materials.edgeBands.map((b) => ({
+    id: b.id,
+    label: `${b.brand} ${b.decor} — ${b.thickness}mm`,
+  }));
+  const nameOfSheet = (id: string) =>
+    project.materials.sheets.find((m) => m.id === id)?.decor ?? id;
+  const nameOfBand = (id: string) =>
+    project.materials.edgeBands.find((b) => b.id === id)?.decor ?? id;
+
+  const setMaterial = (patch: Partial<Cabinet['materials']>) =>
+    onUpdate(cabinet.id, { materials: { ...cabinet.materials, ...patch } });
 
   return (
     <section className="panel">
@@ -173,6 +230,19 @@ export function Inspector({ built, onUpdate, onUpdateOptions }: Props) {
           </>
         )}
 
+        {isTall && (
+          <NumberField
+            label="Door split height"
+            value={cabinet.options.doorSplitHeight ?? 0}
+            min={0}
+            max={cabinet.height}
+            step={10}
+            onChange={(n) =>
+              onUpdateOptions(cabinet.id, { doorSplitHeight: n > 0 ? mm(n) : undefined })
+            }
+          />
+        )}
+
         {isDrawerBank && (
           <NumberField
             label="Drawers"
@@ -209,6 +279,38 @@ export function Inspector({ built, onUpdate, onUpdateOptions }: Props) {
           ))}
         </ul>
       )}
+
+      <div className="subhead">Finish</div>
+      <div className="fields">
+        <OverridePicker
+          label="Carcass"
+          options={sheetOptions}
+          value={cabinet.materials.carcass}
+          defaultLabel={nameOfSheet(project.defaults.carcassMaterialId)}
+          onChange={(carcass) => setMaterial({ carcass })}
+        />
+        <OverridePicker
+          label="Back"
+          options={sheetOptions}
+          value={cabinet.materials.back}
+          defaultLabel={nameOfSheet(project.defaults.backMaterialId)}
+          onChange={(back) => setMaterial({ back })}
+        />
+        <OverridePicker
+          label="Fronts"
+          options={sheetOptions}
+          value={cabinet.materials.door}
+          defaultLabel={nameOfSheet(project.defaults.doorMaterialId)}
+          onChange={(door) => setMaterial({ door })}
+        />
+        <OverridePicker
+          label="Edging"
+          options={bandOptions}
+          value={cabinet.materials.edgeBand}
+          defaultLabel={nameOfBand(project.defaults.edgeBandId)}
+          onChange={(edgeBand) => setMaterial({ edgeBand })}
+        />
+      </div>
 
       <div className="subhead">Parts</div>
       <table className="parts-table">

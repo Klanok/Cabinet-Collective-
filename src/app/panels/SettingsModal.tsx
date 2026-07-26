@@ -11,9 +11,12 @@
  */
 
 import { useState } from 'react';
-import { mm } from '../../core/units.ts';
+import { type Mm, mm } from '../../core/units.ts';
+import { type Room, rectangularRoom, wallLength } from '../../core/model/room.ts';
 import type { ConstructionMethod } from '../../core/model/construction.ts';
 import type { GstMode, Project, ProjectDefaults, ProjectSettings } from '../../core/model/project.ts';
+import type { MaterialLibrary } from '../../core/model/material.ts';
+import { EdgeBandPicker, SheetPicker } from './MaterialPicker.tsx';
 import {
   type ShopStandards,
   differencesFromStandards,
@@ -33,6 +36,7 @@ interface Props {
   onUpdateStandards: (patch: Partial<ShopStandards>) => void;
   onSaveAsStandards: (name: string) => void;
   onResetToStandards: () => void;
+  onUpdateRoom: (room: Room) => void;
 }
 
 /** The joinery numbers, in the order you'd actually think about them. */
@@ -49,8 +53,10 @@ const CONSTRUCTION_FIELDS: {
   { key: 'kickHeight', hint: 'Floor to underside of carcass', min: 0, max: 400, step: 5 },
   { key: 'kickSetback', hint: 'How far the kick sits behind the door face', min: 0, max: 200, step: 5 },
   { key: 'stretcherWidth', hint: 'Front-to-back size of the top rails', min: 30, max: 300, step: 5 },
-  { key: 'frontGap', hint: 'Between two doors or drawer fronts', min: 0, max: 20, step: 0.5 },
-  { key: 'frontReveal', hint: 'Between a front and the cabinet edge', min: 0, max: 20, step: 0.5 },
+  { key: 'revealTopBottom', hint: 'At the top and bottom edge of a front', min: 0, max: 20, step: 0.5 },
+  { key: 'revealSides', hint: 'At the left and right edge of a front', min: 0, max: 20, step: 0.5 },
+  { key: 'gapBetweenDoors', hint: 'Between two doors side by side', min: 0, max: 20, step: 0.5 },
+  { key: 'gapBetweenDrawers', hint: 'Between stacked drawer fronts', min: 0, max: 20, step: 0.5 },
   { key: 'shelfSetback', hint: 'How much shallower a shelf is than the opening', min: 0, max: 60 },
   { key: 'shelfSideClearance', hint: 'Total side play so a shelf lifts out', min: 0, max: 20, step: 0.5 },
   { key: 'systemPitch', hint: 'System 32 hole spacing', min: 8, max: 64 },
@@ -203,6 +209,116 @@ function DefaultsEditor({
         step={10}
         onChange={(n) => onChange({ wallCabinetMountHeight: mm(n) })}
       />
+      <NumberRow
+        label="Tall cabinet height"
+        hint="Pantry or oven tower carcass"
+        value={defaults.tallCabinetHeight}
+        step={10}
+        onChange={(n) => onChange({ tallCabinetHeight: mm(n) })}
+      />
+      <NumberRow
+        label="Tall cabinet depth"
+        value={defaults.tallCabinetDepth}
+        step={10}
+        onChange={(n) => onChange({ tallCabinetDepth: mm(n) })}
+      />
+    </>
+  );
+}
+
+function MaterialsEditor({
+  library,
+  defaults,
+  onChange,
+}: {
+  library: MaterialLibrary;
+  defaults: ProjectDefaults;
+  onChange: (patch: Partial<ProjectDefaults>) => void;
+}) {
+  return (
+    <>
+      <SheetPicker
+        label="Carcass"
+        hint="Sides, bottoms, tops, shelves, rails"
+        library={library}
+        value={defaults.carcassMaterialId}
+        onChange={(carcassMaterialId) => onChange({ carcassMaterialId })}
+      />
+      <SheetPicker
+        label="Back"
+        library={library}
+        value={defaults.backMaterialId}
+        onChange={(backMaterialId) => onChange({ backMaterialId })}
+      />
+      <SheetPicker
+        label="Doors and drawer fronts"
+        library={library}
+        value={defaults.doorMaterialId}
+        onChange={(doorMaterialId) => onChange({ doorMaterialId })}
+      />
+      <EdgeBandPicker
+        label="Edge banding"
+        hint="Must be at least as wide as the panel is thick"
+        library={library}
+        value={defaults.edgeBandId}
+        onChange={(edgeBandId) => onChange({ edgeBandId })}
+      />
+      <p className="note subtle">
+        These are the defaults for new cabinets. Any single cabinet can override them in the
+        Inspector.
+      </p>
+    </>
+  );
+}
+
+/**
+ * Room size. Phase 1 keeps the room a rectangle — enough to check a run against the space it
+ * has to fit. Drawing an arbitrary plan (an L-shaped kitchen, a bulkhead, a window) is a
+ * bigger piece of work and is called out as such rather than half-built here.
+ */
+function RoomEditor({ room, onChange }: { room: Room; onChange: (room: Room) => void }) {
+  const width = room.walls[0] ? wallLength(room.walls[0]) : mm(0);
+  const depth = room.walls[1] ? wallLength(room.walls[1]) : mm(0);
+  const thickness = room.walls[0]?.thickness ?? mm(90);
+
+  const resize = (w: Mm, d: Mm, h: Mm, t: Mm) =>
+    onChange({ ...rectangularRoom(room.id, room.name, w, d, h, t), name: room.name });
+
+  return (
+    <>
+      <NumberRow
+        label="Room width"
+        hint="Along the wall the run sits against"
+        value={width}
+        min={500}
+        step={50}
+        onChange={(n) => resize(mm(n), depth, room.ceilingHeight, thickness)}
+      />
+      <NumberRow
+        label="Room depth"
+        value={depth}
+        min={500}
+        step={50}
+        onChange={(n) => resize(width, mm(n), room.ceilingHeight, thickness)}
+      />
+      <NumberRow
+        label="Ceiling height"
+        value={room.ceilingHeight}
+        min={2000}
+        step={50}
+        onChange={(n) => resize(width, depth, mm(n), thickness)}
+      />
+      <NumberRow
+        label="Wall thickness"
+        value={thickness}
+        min={10}
+        step={10}
+        onChange={(n) => resize(width, depth, room.ceilingHeight, mm(n))}
+      />
+      <p className="note subtle">
+        The room is a rectangle for now. Drawing an arbitrary plan — an L-shaped kitchen, a
+        bulkhead, a window — is a larger piece of work still to come.
+      </p>
     </>
   );
 }
@@ -299,6 +415,63 @@ function CostingEditor({
         step={5}
         onChange={(n) => onChange({ labour: { ...settings.labour, minutesPerCabinet: n } })}
       />
+
+      <div className="subhead">Install</div>
+
+      <div className="setting-row">
+        <div className="setting-label">
+          <span>Install hours</span>
+          <em>Mirroring the shop hours is a rough first pass — set your own when you know it</em>
+        </div>
+        <div className="setting-input">
+          <select
+            value={settings.labour.installHoursMode}
+            onChange={(e) =>
+              onChange({
+                labour: {
+                  ...settings.labour,
+                  installHoursMode: e.target.value as 'mirror-manufacturing' | 'fixed',
+                },
+              })
+            }
+          >
+            <option value="mirror-manufacturing">Same as manufacturing</option>
+            <option value="fixed">A set number of hours</option>
+          </select>
+        </div>
+      </div>
+
+      {settings.labour.installHoursMode === 'fixed' && (
+        <NumberRow
+          label="Install hours"
+          value={settings.labour.installFixedHours}
+          suffix="h"
+          min={0}
+          step={0.5}
+          onChange={(n) => onChange({ labour: { ...settings.labour, installFixedHours: n } })}
+        />
+      )}
+
+      <NumberRow
+        label="Install rate"
+        hint="On site — usually differs from the shop rate"
+        value={settings.labour.installRatePerHourExGst}
+        suffix="$/h"
+        min={0}
+        step={5}
+        onChange={(n) => onChange({ labour: { ...settings.labour, installRatePerHourExGst: n } })}
+      />
+
+      <div className="subhead">Delivery</div>
+      <NumberRow
+        label="Delivery fee"
+        hint="Flat charge, added after margin rather than marked up"
+        value={settings.deliveryFeeExGst}
+        suffix="$"
+        min={0}
+        step={25}
+        onChange={(n) => onChange({ deliveryFeeExGst: n })}
+      />
     </>
   );
 }
@@ -313,9 +486,12 @@ export function SettingsModal({
   onUpdateStandards,
   onSaveAsStandards,
   onResetToStandards,
+  onUpdateRoom,
 }: Props) {
   const [scope, setScope] = useState<Scope>('job');
-  const [section, setSection] = useState<'construction' | 'sizes' | 'costing'>('construction');
+  const [section, setSection] = useState<
+    'construction' | 'materials' | 'sizes' | 'room' | 'costing'
+  >('construction');
   const [standardsName, setStandardsName] = useState(standards.name);
 
   const inSync = matchesStandards(project, standards);
@@ -370,11 +546,25 @@ export function SettingsModal({
             Joinery
           </button>
           <button
+            className={`seg-btn${section === 'materials' ? ' is-active' : ''}`}
+            onClick={() => setSection('materials')}
+          >
+            Materials
+          </button>
+          <button
             className={`seg-btn${section === 'sizes' ? ' is-active' : ''}`}
             onClick={() => setSection('sizes')}
           >
             Standard sizes
           </button>
+          {!editingStandards && (
+            <button
+              className={`seg-btn${section === 'room' ? ' is-active' : ''}`}
+              onClick={() => setSection('room')}
+            >
+              Room
+            </button>
+          )}
           <button
             className={`seg-btn${section === 'costing' ? ' is-active' : ''}`}
             onClick={() => setSection('costing')}
@@ -399,6 +589,18 @@ export function SettingsModal({
             />
           )}
 
+          {section === 'materials' && (
+            <MaterialsEditor
+              library={source.materials}
+              defaults={source.defaults}
+              onChange={(patch) =>
+                editingStandards
+                  ? onUpdateStandards({ defaults: { ...standards.defaults, ...patch } })
+                  : onUpdateDefaults(patch)
+              }
+            />
+          )}
+
           {section === 'sizes' && (
             <DefaultsEditor
               defaults={source.defaults}
@@ -408,6 +610,10 @@ export function SettingsModal({
                   : onUpdateDefaults(patch)
               }
             />
+          )}
+
+          {section === 'room' && !editingStandards && (
+            <RoomEditor room={project.room} onChange={onUpdateRoom} />
           )}
 
           {section === 'costing' && (

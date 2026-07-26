@@ -134,8 +134,9 @@ describe('cost breakdown', () => {
 
     expect(c.materialCost).toBe(c.sheetCost + c.edgeBandCost);
     expect(c.materialCost).toBe(panelSum);
-    expect(c.totalCost).toBe(c.materialCost + c.labourCost);
-    expect(c.sellExGst).toBe(c.totalCost + c.marginAmount);
+    expect(c.totalCost).toBe(c.materialCost + c.labourCost + c.installCost);
+    expect(c.subtotalExGst).toBe(c.totalCost + c.marginAmount);
+    expect(c.sellExGst).toBe(c.subtotalExGst + c.deliveryFee);
     expect(c.totalIncGst).toBe(c.sellExGst + c.gst);
   });
 
