@@ -209,14 +209,20 @@ builders, which is the test of whether that's actually true.
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | Data model, coordinate convention, rule engine, geometry, viewport, costing | **done** |
-| 2 | Hardware/joinery rules (Blum first), full cutlist/BOM export | next |
-| — | Drawing an arbitrary room plan (L-shaped, bulkheads, windows) | not started |
-| — | Nominal vs actual board thickness (16 vs 16.3mm) | agreed, not started |
-| — | Drawing room walls — L-shaped plans | agreed, not started |
-| — | Curved parts — arc-capable profiles, then radiused shelving and radiused ends | agreed, not started |
-| 3 | Guillotine nesting for sheet goods, offcut tracking | |
-| 4 | CAM feature layer — drilling, grooving, profiling | |
-| 5 | One post-processor + simulation/backplot | |
-| 6+ | Free-form CNC nesting, more post-processors, more hardware rule sets | |
+| — | Drawing the room plan — any shape, typed wall lengths, walls at any angle | **done** |
+| — | Nominal vs actual board thickness (16 vs 16.3mm) | **done** |
+| — | Door styles — shaker and V-groove as machining, saved and costed | **done**; toolpaths in 4 |
+| — | Curved parts — arc-capable profiles, then radiused shelving and radiused ends | **next** |
+| 2 | Hardware/joinery rules (Blum first), full cutlist/BOM export | not started |
+| — | Benchtops as their own unit, rather than derived from the cabinets under them | not started |
+| — | A separate ladder kick under a run, rather than a kick per cabinet | not started |
+| — | Wall openings — bulkheads, windows, out-of-square walls and scribes | not started |
+| 3 | Guillotine nesting for sheet goods, offcut tracking | not started |
+| 4 | CAM feature layer — drilling, grooving, profiling | not started |
+| 5 | One post-processor + simulation/backplot | not started |
+| 6+ | Free-form CNC nesting, more post-processors, more hardware rule sets | not started |
+
+Material pricing is still indicative — the decor names and sheet sizes are real, the dollars are
+placeholders. Load your trade pricing before quoting from this.
 
 Simulation is a hard gate before any G-code goes near real material.
