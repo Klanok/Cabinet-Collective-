@@ -11,7 +11,7 @@ import { Canvas, type ThreeEvent } from '@react-three/fiber';
 import { Grid, OrbitControls } from '@react-three/drei';
 import type { BuiltCabinet } from '../../core/rules/build.ts';
 import type { Project } from '../../core/model/project.ts';
-import { findSheet } from '../../core/model/material.ts';
+import { actualThicknessOf, findSheet } from '../../core/model/material.ts';
 import { AU_BENCHTOP_THICKNESS } from '../../core/library/defaults.au.ts';
 import { benchtopRuns } from '../../core/project/benchtop.ts';
 import { yawCosSin } from '../../core/geom/placement.ts';
@@ -65,7 +65,7 @@ function CabinetGroup({
         <PanelMesh
           key={panel.id}
           panel={panel}
-          thickness={findSheet(project.materials, panel.materialId).thickness}
+          thickness={actualThicknessOf(findSheet(project.materials, panel.materialId))}
           selected={selected}
           onSelect={onSelect}
           onGrab={(e) => onGrab(built.cabinet, e)}

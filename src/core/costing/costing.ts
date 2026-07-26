@@ -13,6 +13,7 @@ import { type Cents, type Mm2, mm2ToM2, mmToM, roundCents } from '../units.ts';
 import {
   type MaterialLibrary,
   type SheetMaterial,
+  actualThicknessOf,
   bestValueSheet,
   findEdgeBand,
   findSheet,
@@ -129,10 +130,14 @@ const costPanel = (
   if (bandIds.size > 0) {
     // All edges of one panel use the same band in Phase 1, so the first id governs the rate.
     const band = findEdgeBand(library, [...bandIds][0]!);
-    if (band.width < material.thickness) {
+    // Measured against what the board really is, not what it is called — a 22mm band over a
+    // nominal 16mm board that runs 16.3 still covers it, but the sums have to be done on the
+    // edge that exists.
+    const edge = actualThicknessOf(material);
+    if (band.width < edge) {
       warnings.push(
         `Edge band "${band.decor}" is ${band.width}mm wide but "${panel.name}" is ` +
-          `${material.thickness}mm thick — the band will not cover the edge.`,
+          `${edge}mm thick — the band will not cover the edge.`,
       );
     }
     edgeBandCost = effectiveCost(bandM * band.pricePerMetreExGst, mode);

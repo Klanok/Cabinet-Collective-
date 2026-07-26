@@ -13,6 +13,7 @@ import {
   horizontalDepth,
   sideDepth,
 } from '../model/construction.ts';
+import { type MaterialLibrary, actualThicknessOf, findSheet } from '../model/material.ts';
 
 /** The resolved material ids for one cabinet, defaults already applied. */
 export interface ResolvedMaterials {
@@ -21,6 +22,30 @@ export interface ResolvedMaterials {
   readonly door: string;
   readonly edgeBand: string;
 }
+
+/**
+ * The thicknesses a cabinet is actually built from.
+ *
+ * These come from the **boards**, not from the construction method. A construction method
+ * declares the nominal board it is designed around — "frameless 32mm, 16mm carcass" — but the
+ * arithmetic has to follow the sheet that will really be cut, because that is the thing the
+ * parts have to fit between. Nominal 16mm melamine measures about 16.3, and a bottom panel
+ * calculated at 16 is 0.6mm too wide to go in.
+ */
+export interface BuildThicknesses {
+  readonly carcass: Mm;
+  readonly back: Mm;
+  readonly door: Mm;
+}
+
+export const thicknessesFor = (
+  materials: ResolvedMaterials,
+  library: MaterialLibrary,
+): BuildThicknesses => ({
+  carcass: actualThicknessOf(findSheet(library, materials.carcass)),
+  back: actualThicknessOf(findSheet(library, materials.back)),
+  door: actualThicknessOf(findSheet(library, materials.door)),
+});
 
 export interface RuleContext {
   readonly cabinet: Cabinet;
@@ -33,7 +58,10 @@ export interface RuleContext {
   readonly H: Mm;
   readonly D: Mm;
 
-  /** Carcass, back and door thicknesses. */
+  /**
+   * Carcass, back and door thicknesses — **as the boards really measure**, not as they are
+   * named. See `BuildThicknesses`.
+   */
   readonly t: Mm;
   readonly tb: Mm;
   readonly td: Mm;
@@ -54,9 +82,10 @@ export const buildContext = (
   cabinet: Cabinet,
   construction: ConstructionMethod,
   materials: ResolvedMaterials,
+  thicknesses: BuildThicknesses,
 ): RuleContext => {
-  const t = construction.carcassThickness;
-  const tb = construction.backThickness;
+  const t = thicknesses.carcass;
+  const tb = thicknesses.back;
   const { width: W, height: H, depth: D } = cabinet;
 
   return {
@@ -69,14 +98,44 @@ export const buildContext = (
     D,
     t,
     tb,
-    td: construction.doorThickness,
+    td: thicknesses.door,
     interiorWidth: mm(W - 2 * t),
     interiorHeight: mm(H - 2 * t),
-    sideDepth: sideDepth(construction, D),
-    horizontalDepth: horizontalDepth(construction, D),
+    sideDepth: sideDepth(construction, D, tb),
+    horizontalDepth: horizontalDepth(D, tb),
     // Under both back styles the back occupies z ∈ [0, tb], so the interior starts at tb.
     interiorBackZ: tb,
   };
+};
+
+/**
+ * A cabinet whose boards aren't the ones its construction method is built around.
+ *
+ * The parts follow the board, because that is what has to fit. But building an 18mm carcass to
+ * a method written for 16mm is nearly always a mistake in the material picker rather than an
+ * intention, and it changes every part in the cabinet — so it gets said out loud.
+ *
+ * Compared on the **nominal** figures: a 16mm board measuring 16.3 is not a mismatch, it is
+ * the whole point.
+ */
+export const checkThicknessAgainstMethod = (
+  construction: ConstructionMethod,
+  materials: ResolvedMaterials,
+  library: MaterialLibrary,
+): string[] => {
+  const problems: string[] = [];
+  const check = (slot: 'carcass' | 'back' | 'door', nominal: Mm, label: string) => {
+    const sheet = findSheet(library, materials[slot]);
+    if (Math.abs(sheet.thickness - nominal) > 0.001) {
+      problems.push(
+        `${label} is ${sheet.decor} at ${sheet.thickness}mm, but "${construction.name}" is built around ${nominal}mm.`,
+      );
+    }
+  };
+  check('carcass', construction.carcassThickness, 'Carcass');
+  check('back', construction.backThickness, 'Back');
+  check('door', construction.doorThickness, 'Fronts');
+  return problems;
 };
 
 /** Validate driving dimensions before any parts get built. */

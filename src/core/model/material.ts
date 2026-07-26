@@ -37,7 +37,26 @@ export interface SheetMaterial {
   /** The decor name as it appears on a supplier order. */
   readonly decor: string;
   readonly substrate: SubstrateKind;
+  /**
+   * The **nominal** thickness — what the board is called, ordered and invoiced as. "16mm".
+   *
+   * This is a name, not a measurement. It groups the cutlist, labels the sheet order and sorts
+   * the sheet schedule. Nothing is calculated from it.
+   */
   readonly thickness: Mm;
+  /**
+   * What the board actually measures, when that differs from what it is called.
+   *
+   * Nominal 16mm melamine particleboard runs about 16.3mm. Every part that fits *between* two
+   * boards depends on the real figure: a bottom panel is `W − 2 × thickness`, so calculating
+   * it at 16 makes it 0.6mm too wide to fit between the sides. The same applies to grooves,
+   * dados and rebates, and Phase 3's nesting and Phase 4's CAM both need the real number too.
+   *
+   * Unset means "it measures what it says", which is what every material ships as — adopting
+   * a real figure is a deliberate, per-material edit rather than something that happens to a
+   * saved job behind your back. Read it through `actualThicknessOf`, never directly.
+   */
+  readonly actualThickness?: Mm;
   readonly grain: GrainDirection;
   /** How many faces carry the decor. Single-sided stock constrains which face is the A-face. */
   readonly decorFaces: 1 | 2;
@@ -67,6 +86,18 @@ export interface MaterialLibrary {
   readonly sheets: readonly SheetMaterial[];
   readonly edgeBands: readonly EdgeBandMaterial[];
 }
+
+/**
+ * What this board really measures — the number everything dimensional works from.
+ *
+ * Falls back to the nominal figure, so a material that has never been measured behaves exactly
+ * as it always did.
+ */
+export const actualThicknessOf = (m: SheetMaterial): Mm => m.actualThickness ?? m.thickness;
+
+/** True when the board doesn't measure what it's called, and the difference is worth saying. */
+export const isOversize = (m: SheetMaterial): boolean =>
+  Math.abs(actualThicknessOf(m) - m.thickness) > 0.001;
 
 export const findSheet = (lib: MaterialLibrary, id: string): SheetMaterial => {
   const found = lib.sheets.find((s) => s.id === id);

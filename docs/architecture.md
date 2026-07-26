@@ -20,7 +20,7 @@ src/core/                        pure model layer
     placement.ts                 part → cabinet → world, and back
   model/
     feature.ts                   parametric machining intent (the Phase 4 interface)
-    material.ts                  sheet goods, edge banding, grain
+    material.ts                  sheet goods, edge banding, grain, nominal vs actual thickness
     panel.ts                     Panel — the single source of truth for a part
     cabinet.ts                   a placed cabinet: driving dimensions and options
     construction.ts              construction methods as data (frameless 32mm)
@@ -77,8 +77,13 @@ engine, the viewport or costing. Base, wall and drawer-bank already share their 
 builders, which is the test of whether the abstraction is real.
 
 **`ConstructionMethod`** (`model/construction.ts`) holds the dimensional conventions as data.
-Changing the carcass from 16mm to 18mm resizes every dependent part with no code change; so
-does switching the back from applied to inset. Both are covered by tests.
+Switching the back from applied to inset resizes every dependent part with no code change, and
+so does changing the kick, the reveals or the shelf clearances.
+
+What it does *not* decide is how thick the boards are. Its three thickness fields declare the
+nominal board the method is built around — "frameless 32mm, 16mm carcass" — and are checked
+against the board a cabinet actually uses; the arithmetic follows the **sheet**, because that
+is the thing a part has to fit between. See below.
 
 **`Room`** (`model/room.ts`) is a list of wall segments in the order you walk them, and always
 was — `rectangularRoom` is one constructor for it, not the shape of the data. Drawing an
@@ -87,7 +92,7 @@ weight: a wall's stored line is its **inside face** (so a cabinet against it sit
 that line), and walls run so the **room is on the left**, which makes the inward normal the
 left normal with no per-wall "which side is in?" flag to get wrong.
 
-## Two decisions worth knowing about
+## Decisions worth knowing about
 
 **Edge banding is expressed directionally.** A spec says "band the edge facing the front of
 the cabinet", not "band edge L2". Which named edge that resolves to depends on the panel's
@@ -105,6 +110,19 @@ the corner" is *computed* from the anchor and yaw every time it is shown (`wallA
 stored alongside them. So there is no wall reference to go stale when a wall is renamed,
 redrawn or deleted, and a cabinet dragged onto a different wall reports the new one without
 anything having to be kept in step. `placeAgainstWall` is the same conversion run backwards.
+
+**A board has two thicknesses and they do different jobs.** `SheetMaterial.thickness` is the
+**nominal** — what the board is called, ordered and invoiced as, and what groups and sorts the
+cutlist. `actualThickness` is what it **measures**: nominal 16mm melamine runs about 16.3, and
+a bottom panel cut at `W − 2×16` is 0.6mm too wide to go between the sides. Everything
+dimensional reads it through `actualThicknessOf`, which falls back to nominal, so a board that
+has never been measured behaves exactly as it always did.
+
+This is why the rule engine takes `t`, `tb` and `td` from the resolved *materials*
+(`thicknessesFor` in `rules/context.ts`) rather than from the construction method. There used
+to be two numbers for one fact — the method's and the sheet's — free to disagree, and picking
+an 18mm board on a 16mm method cut the parts for 16 and drew them at 18. Now there is one, and
+the mismatch is reported rather than silently resolved.
 
 ## Where later phases attach
 

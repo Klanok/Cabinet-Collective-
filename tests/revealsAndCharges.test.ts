@@ -5,7 +5,7 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import { mm } from '../src/core/units.ts';
-import { migrateProject } from '../src/core/model/project.ts';
+import { CURRENT_SCHEMA_VERSION, migrateProject } from '../src/core/model/project.ts';
 import { buildCabinet } from '../src/core/rules/build.ts';
 import { costProject } from '../src/core/costing/costing.ts';
 import {
@@ -282,7 +282,8 @@ describe('migrating a job saved before reveals were split', () => {
     const migrated = migrateProject(JSON.parse(JSON.stringify(v1Job())));
     const c = migrated.constructions[0]!;
 
-    expect(migrated.schemaVersion).toBe(3);
+    // Migrations run in sequence, so a v1 file arrives at whatever the current schema is.
+    expect(migrated.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
     expect(c.revealTop).toBe(1.5);
     expect(c.revealBottom).toBe(1.5);
     expect(c.revealSides).toBe(1.5);

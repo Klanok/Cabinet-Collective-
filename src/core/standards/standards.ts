@@ -11,7 +11,7 @@
  * visible as such.
  */
 
-import type { MaterialLibrary } from '../model/material.ts';
+import { type MaterialLibrary, actualThicknessOf } from '../model/material.ts';
 import type { ConstructionMethod } from '../model/construction.ts';
 import type { Project, ProjectDefaults, ProjectSettings } from '../model/project.ts';
 import type { SavedCabinetType } from './savedTypes.ts';
@@ -137,6 +137,34 @@ export const differencesFromStandards = (
     }
   }
 
+  /*
+   * The boards themselves.
+   *
+   * Both halves matter and neither used to be reported: *which* board a job defaults to, and
+   * what that board has been measured at. A job cut to 16.3mm stock against a standard that
+   * still says 16 has genuinely drifted — that is the difference between a part fitting and
+   * not — so it has to appear here rather than only registering as a silent "not in sync".
+   */
+  for (const [key, label] of Object.entries(DEFAULT_LABELS) as [keyof ProjectDefaults, string][]) {
+    const jobValue = project.defaults[key];
+    const standardValue = standards.defaults[key];
+    if (jobValue !== standardValue) {
+      notes.push(`${label} is ${String(jobValue)}, standard is ${String(standardValue)}.`);
+    }
+  }
+
+  for (const standardSheet of standards.materials.sheets) {
+    const jobSheet = project.materials.sheets.find((s) => s.id === standardSheet.id);
+    if (!jobSheet) continue;
+    const jobActual = actualThicknessOf(jobSheet);
+    const standardActual = actualThicknessOf(standardSheet);
+    if (jobActual !== standardActual) {
+      notes.push(
+        `${standardSheet.decor} ${standardSheet.thickness}mm is cut at ${jobActual}mm, standard is ${standardActual}mm.`,
+      );
+    }
+  }
+
   if (project.settings.marginPercent !== standards.settings.marginPercent) {
     notes.push(
       `Margin is ${project.settings.marginPercent}%, standard is ${standards.settings.marginPercent}%.`,
@@ -152,6 +180,22 @@ export const differencesFromStandards = (
   }
 
   return notes;
+};
+
+/** Plain-English names for the job defaults, used when listing drift from the standards. */
+const DEFAULT_LABELS: Partial<Record<keyof ProjectDefaults, string>> = {
+  carcassMaterialId: 'Carcass board',
+  backMaterialId: 'Back board',
+  doorMaterialId: 'Front board',
+  edgeBandId: 'Edge banding',
+  constructionId: 'Construction method',
+  baseCabinetHeight: 'Base cabinet height',
+  baseCabinetDepth: 'Base cabinet depth',
+  wallCabinetHeight: 'Wall cabinet height',
+  wallCabinetDepth: 'Wall cabinet depth',
+  wallCabinetMountHeight: 'Wall cabinet mount height',
+  tallCabinetHeight: 'Tall cabinet height',
+  tallCabinetDepth: 'Tall cabinet depth',
 };
 
 /** Plain-English names for the construction numbers, used in the UI and in diffs. */

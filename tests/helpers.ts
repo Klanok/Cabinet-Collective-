@@ -1,6 +1,6 @@
 import { type Mm } from '../src/core/units.ts';
 import { type Panel, panelExtent } from '../src/core/model/panel.ts';
-import { findSheet } from '../src/core/model/material.ts';
+import { actualThicknessOf, findSheet } from '../src/core/model/material.ts';
 import { partToCabinet } from '../src/core/geom/placement.ts';
 import { v3 } from '../src/core/geom/vec.ts';
 import type { Project } from '../src/core/model/project.ts';
@@ -19,7 +19,7 @@ export interface Occupancy {
  * the placement testable.
  */
 export const occupies = (panel: Panel, project: Project): Occupancy => {
-  const thickness = findSheet(project.materials, panel.materialId).thickness;
+  const thickness = actualThicknessOf(findSheet(project.materials, panel.materialId));
   const { length, width } = panelExtent(panel);
   const corners = [
     v3(0, 0, 0),

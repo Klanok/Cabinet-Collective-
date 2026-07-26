@@ -26,10 +26,16 @@ import {
 } from '../src/core/project/factory.ts';
 import { buildCabinet, buildProject } from '../src/core/rules/build.ts';
 import { costProject } from '../src/core/costing/costing.ts';
+import { buildCutlist } from '../src/core/cutlist/cutlist.ts';
 import type { Project } from '../src/core/model/project.ts';
 import { byName, size } from './helpers.ts';
 
-/** Standards for a shop that builds to an 18mm carcass on a 100mm kick with 4mm gaps. */
+/**
+ * Standards for a shop that builds to an 18mm carcass on a 100mm kick with 4mm gaps.
+ *
+ * Note it takes both halves to say "18mm carcass": the method declares the nominal it is built
+ * around, and the default carcass board is the 18mm sheet. Parts are cut to the board.
+ */
 const customStandards = (): ShopStandards => ({
   ...AU_SHOP_STANDARDS,
   name: 'Test shop',
@@ -38,7 +44,11 @@ const customStandards = (): ShopStandards => ({
       ? { ...c, carcassThickness: mm(18), kickHeight: mm(100), gapBetweenDoors: mm(4) }
       : c,
   ),
-  defaults: { ...AU_SHOP_STANDARDS.defaults, baseCabinetHeight: mm(750) },
+  defaults: {
+    ...AU_SHOP_STANDARDS.defaults,
+    baseCabinetHeight: mm(750),
+    carcassMaterialId: 'hmr-white-18',
+  },
   settings: { ...AU_SHOP_STANDARDS.settings, marginPercent: 50 },
 });
 
@@ -65,9 +75,8 @@ describe('a job starts from the standards', () => {
     );
     const { panels } = buildCabinet(cabinet, project);
 
-    // Carcass thickness and back thickness are separate settings — this shop runs an 18mm
-    // carcass against a 16mm back. Interior width 900 − 2×18 = 864; the horizontals stop short
-    // of the 16mm back, so their depth is 560 − 16 = 544.
+    // This shop runs an 18mm carcass board against a 16mm back board. Interior width is
+    // 900 − 2×18 = 864; the horizontals stop short of the 16mm back, so 560 − 16 = 544.
     expect(size(byName(panels, 'Bottom'))).toEqual([864, 544]);
     // 4mm gap instead of 3: (900 − 3 − 4) ÷ 2 = 446.5.
     expect(size(byName(panels, 'Door L'))).toEqual([717, 446.5]);
@@ -216,11 +225,11 @@ describe('settings reach all the way through to cost', () => {
     expect(costProject(dearer).sellExGst).toBeGreaterThan(costProject(base).sellExGst);
   });
 
-  it('changes every part when the carcass thickness changes on the job', () => {
+  it('changes every part when the carcass board changes on the job', () => {
     const base = createSampleKitchen();
     const thicker: Project = {
       ...base,
-      constructions: base.constructions.map((c) => ({ ...c, carcassThickness: mm(18) })),
+      defaults: { ...base.defaults, carcassMaterialId: 'hmr-white-18' },
     };
     const before = buildProject(base).flatMap((b) => b.panels).length;
     const after = buildProject(thicker).flatMap((b) => b.panels).length;
@@ -228,5 +237,23 @@ describe('settings reach all the way through to cost', () => {
     // Same number of parts, different sizes — and a different cost.
     expect(after).toBe(before);
     expect(costProject(thicker).materialCost).not.toBe(costProject(base).materialCost);
+  });
+
+  it('changes every part when a board is measured rather than trusted', () => {
+    // Nothing about the job changes except the truth about the board: 16mm stock measuring
+    // 16.3. Every part that fits between two boards moves, and the cost moves with it.
+    const base = createSampleKitchen();
+    const measured: Project = {
+      ...base,
+      materials: {
+        ...base.materials,
+        sheets: base.materials.sheets.map((s) =>
+          s.id === base.defaults.carcassMaterialId ? { ...s, actualThickness: mm(16.3) } : s,
+        ),
+      },
+    };
+    expect(costProject(measured).materialCost).not.toBe(costProject(base).materialCost);
+    // Still ordered as 16mm board — the cutlist groups by what you buy, not what it measures.
+    expect(buildCutlist(measured).some((l) => l.materialLabel.includes('16mm'))).toBe(true);
   });
 });

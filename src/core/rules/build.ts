@@ -9,7 +9,13 @@ import type { Cabinet } from '../model/cabinet.ts';
 import { findConstruction } from '../model/construction.ts';
 import type { Panel } from '../model/panel.ts';
 import type { Project } from '../model/project.ts';
-import { type ResolvedMaterials, buildContext, validateContext } from './context.ts';
+import {
+  type ResolvedMaterials,
+  buildContext,
+  checkThicknessAgainstMethod,
+  thicknessesFor,
+  validateContext,
+} from './context.ts';
 import { getSpec } from './registry.ts';
 import { type MaterialSlot, type PartInstance, resolveBanding } from './spec.ts';
 
@@ -70,9 +76,14 @@ export const buildCabinet = (cabinet: Cabinet, project: Project): BuiltCabinet =
     ...cabinet,
     options: { ...spec.defaultOptions, ...cabinet.options },
   };
-  const ctx = buildContext(merged, construction, materials);
+  const thicknesses = thicknessesFor(materials, project.materials);
+  const ctx = buildContext(merged, construction, materials, thicknesses);
 
-  const warnings = [...validateContext(ctx), ...(spec.validate?.(ctx) ?? [])];
+  const warnings = [
+    ...validateContext(ctx),
+    ...checkThicknessAgainstMethod(construction, materials, project.materials),
+    ...(spec.validate?.(ctx) ?? []),
+  ];
 
   // A cabinet whose driving dimensions don't work can't produce meaningful parts. Report and
   // stop rather than emitting negative-sized panels that look plausible in a cutlist.

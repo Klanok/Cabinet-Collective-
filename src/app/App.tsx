@@ -40,6 +40,7 @@ export default function App() {
   const storageError = useProjectStore((s) => s.storageError);
   const updateConstruction = useProjectStore((s) => s.updateConstruction);
   const updateDefaults = useProjectStore((s) => s.updateDefaults);
+  const updateSheet = useProjectStore((s) => s.updateSheet);
   const updateStandards = useProjectStore((s) => s.updateStandards);
   const saveAsStandards = useProjectStore((s) => s.saveAsStandards);
   const resetToStandards = useProjectStore((s) => s.resetToStandards);
@@ -248,6 +249,7 @@ export default function App() {
           onUpdateConstruction={updateConstruction}
           onUpdateSettings={updateSettings}
           onUpdateDefaults={updateDefaults}
+          onUpdateSheet={updateSheet}
           onUpdateStandards={updateStandards}
           onSaveAsStandards={saveAsStandards}
           onResetToStandards={resetToStandards}

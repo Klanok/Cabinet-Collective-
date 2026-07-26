@@ -9,7 +9,7 @@ cutlist, and costing that handles GST properly — all driven from one versioned
 ```bash
 npm install
 npm run dev       # the app
-npm test          # 216 tests
+npm test          # 236 tests
 npm run report    # cutlist + costing for the sample kitchen, in the terminal
 ```
 
@@ -47,6 +47,25 @@ Name your walls what you call them on site — "sink wall", "window wall" — be
 are what you pick from when you place a cabinet. In the Inspector a cabinet says where it
 stands the way you'd say it: **against the sink wall, 600 along, no gap behind**. Drag one near
 a wall in the 3D view and it parks flush and square against it, turned the right way round.
+
+## What the board measures, not what it's called
+
+Nominal 16mm melamine runs about 16.3. Anything that has to fit *between* two boards depends on
+the real figure — a bottom panel cut at 900 − 2×16 is 0.6mm too wide to go in.
+
+So a board carries both numbers. **16mm** is its name: what you order, what the supplier
+invoices, what the cutlist groups and sorts by. **16.3** is what it measures, and that's what
+the parts are cut to.
+
+Nothing is measured for you. Every board starts as "it measures what it says", so a job cuts
+exactly as it always did until you say otherwise under **Settings → Materials → what the boards
+really measure** — which lists only the boards this job uses. Entering a figure moves every part
+made from that board, so it's yours to enter, and a job you've already quoted or cut keeps the
+sizes it was quoted and cut to.
+
+Carcass thickness therefore follows the board you pick, not a number typed under Joinery. If a
+cabinet's board isn't the one its construction method is built around, the Inspector says so
+rather than quietly disagreeing with itself.
 
 ## Settings: your shop's numbers, per job
 

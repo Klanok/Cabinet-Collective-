@@ -13,6 +13,7 @@ import { create } from 'zustand';
 import { type Mm, mm } from '../../core/units.ts';
 import type { Cabinet, CabinetOptions, CabinetTypeId } from '../../core/model/cabinet.ts';
 import type { ConstructionMethod } from '../../core/model/construction.ts';
+import type { SheetMaterial } from '../../core/model/material.ts';
 import type { Project, ProjectDefaults, ProjectSettings } from '../../core/model/project.ts';
 import type { Room } from '../../core/model/room.ts';
 import { touchProject } from '../../core/model/project.ts';
@@ -54,6 +55,8 @@ export interface ProjectStore {
   /** Edit one construction method on *this job only*. */
   updateConstruction: (id: string, patch: Partial<ConstructionMethod>) => void;
   updateDefaults: (patch: Partial<ProjectDefaults>) => void;
+  /** Edit one sheet material on *this job only* — chiefly what the board really measures. */
+  updateSheet: (id: string, patch: Partial<SheetMaterial>) => void;
   updateRoom: (room: Room) => void;
   /**
    * Move a cabinet on the floor plane, optionally turning it. Height is never changed by
@@ -216,6 +219,21 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     set((state) =>
       persist(
         touchProject({ ...state.project, defaults: { ...state.project.defaults, ...patch } }),
+      ),
+    ),
+
+  updateSheet: (id, patch) =>
+    set((state) =>
+      persist(
+        touchProject({
+          ...state.project,
+          materials: {
+            ...state.project.materials,
+            sheets: state.project.materials.sheets.map((s) =>
+              s.id === id ? { ...s, ...patch } : s,
+            ),
+          },
+        }),
       ),
     ),
 

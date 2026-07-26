@@ -16,13 +16,14 @@ Read alongside:
 cutlist against how he would hand-write it for a real cabinet and confirmed it tracks with no
 obvious errors.
 
-**Room drawing (was §4.2) is done.** You can trace a plan with typed wall lengths and stand
-cabinets against any wall in it. Details in §4.2 below.
+**Room drawing (was §4.2) is done** — trace a plan with typed wall lengths and stand cabinets
+against any wall in it. **Board thickness (was §4.1) is done** — a board can be told what it
+really measures, and parts are cut to that. Details in §4.1 and §4.2 below.
 
 ```
 npm install
 npm run dev       # the app
-npm test          # 216 tests
+npm test          # 236 tests
 npm run build
 npm run report    # cutlist + costing for the sample kitchen, in the terminal
 ```
@@ -39,6 +40,7 @@ model, rule engine, costing and cutlist all run and test in Node.
 | Rule engine — specs as data over a construction method | base, wall, tall, drawer-bank, custom |
 | Panel features (the Phase 4 CAM interface) | Types defined, barely populated |
 | Costing — GST both contexts, install, delivery | Working, on placeholder pricing |
+| Nominal vs actual board thickness | Working, off until you measure a board |
 | Cutlist — grouped lines | Working, no CSV/PDF export yet |
 | Shop standards + per-job settings | Working, persisted to browser |
 | Saved cabinet types | Working |
@@ -81,7 +83,7 @@ materials.
 
 **Migrations must never quietly change anyone's parts.** Both existing migrations carry old
 values forward so a saved job cuts exactly as it did; adopting a new default is then a
-deliberate edit. Schema is at **v3**; migrations run in sequence in `model/project.ts`.
+deliberate edit. Schema is at **v4**; migrations run in sequence in `model/project.ts`.
 
 **A room is a list of wall segments walked in order, and always was.** `rectangularRoom` is
 one constructor for that list, not the shape of the data — which is why drawing arbitrary
@@ -131,27 +133,52 @@ real trade pricing has not been loaded yet.
 
 ## 4. Open items, in the order I'd do them
 
-§4.2 is finished; it is kept below as the record of what was built and why. The next one to
-pick up is **4.1**, then 4.3 or 4.4.
+§4.1 and §4.2 are finished; both are kept below as the record of what was built and why. The
+next one to pick up is **4.3** or **4.4**.
 
-### 4.1 Nominal vs actual board thickness — do this first, it's small
-
-Raised by the user and **not yet implemented.**
+### 4.1 Nominal vs actual board thickness — **done**
 
 > "Carcass board is generally entered into real world nesting as 16.3mm thick as that is the
 > closest to reality."
 
-Nominal 16mm board measures about 16.3mm. Today `SheetMaterial.thickness` is used both as the
-name of the board *and* as the number the rule engine calculates with, so a bottom panel comes
-out as `W − 2×16` when reality is `W − 2×16.3` — 0.6mm too wide to fit between the sides.
+A sheet now carries two thicknesses doing two different jobs. `thickness` is the **nominal** —
+what the board is called, ordered and invoiced as, and what groups and sorts the cutlist.
+`actualThickness` is what it **measures**, and it is what every part is calculated from.
 
-**Suggested shape:** keep `thickness` as the nominal figure used for naming and ordering, add
-`actualThickness` (defaulting to nominal), and have the rule engine, grooves and dados use
-`actualThickness`. Nesting and CAM will need the actual figure too.
+**It ships off.** Every material says "it measures what it says", so a job cuts exactly as it
+always did until somebody deliberately enters a figure — which is the only honest default,
+because entering one moves every part in every cabinet made from that board. Settings →
+Materials → *What the boards really measure* lists just the boards this job uses. Entering
+16.3 on the sample kitchen takes a bottom panel from 868 to 867.4; the cutlist still says
+16mm, because that is still what you order.
 
-**Warn the user before doing it:** this changes every part size by a fraction of a millimetre,
-which invalidates the cutlist he has just verified against 16mm arithmetic. It should be his
-call whether to switch, and per-material.
+**The part that needed deciding, and how it went.** The thickness that drove part sizes used to
+be `ConstructionMethod.carcassThickness`, while `SheetMaterial.thickness` drove the 3D render
+and the cutlist. Two numbers for one fact, free to disagree — pick an 18mm board on the 16mm
+method and the parts were cut for 16 and drawn at 18. Splitting nominal from actual forced the
+issue, and the board won: **the sheet that will really be cut decides the arithmetic**, because
+that is the thing a part has to fit between.
+
+So the construction method's three thickness fields no longer size anything. They now declare
+the nominal board the method is built around, and are checked against the board a cabinet
+actually uses — mismatches show in the Inspector as *"Carcass is White HMR particleboard at
+18mm, but 'Frameless 32mm — 16mm carcass' is built around 16mm."* A 16mm board measuring 16.3
+is deliberately **not** a mismatch; that is the whole point of the split.
+
+**Consequence worth knowing:** changing carcass thickness is now done by choosing the board,
+not by typing a number under Joinery. If any saved job used the 18mm method with 16mm boards
+(or the reverse), its parts now follow the board — and it says so on screen instead of
+silently disagreeing with itself.
+
+**Still to decide:** whether those three construction fields should exist at all, or whether a
+construction method should simply not have an opinion about board thickness. Leaving them as a
+declared-and-checked intent is the conservative choice; deleting them would collapse the two
+shipped methods into one and is a bigger, user-visible call.
+
+The schema moved to **v4**. The migration writes `actualThickness = thickness` on every
+material, so nothing moves. The version was bumped rather than letting the field default,
+specifically so an **older build refuses** a job whose boards have been measured instead of
+quietly cutting every part 0.6mm too big.
 
 ### 4.2 Drawing room walls — **done**
 

@@ -30,6 +30,12 @@ export interface ConstructionMethod {
   readonly name: string;
   readonly family: ConstructionFamily;
 
+  /*
+   * The **nominal** boards this method is designed around — "we build 16mm carcasses with
+   * 18mm doors". These name the method and are checked against the boards a cabinet actually
+   * uses, but they are not what parts are calculated from: that has to be the real measured
+   * thickness of the sheet being cut, which lives on the material. See `rules/context.ts`.
+   */
   readonly carcassThickness: Mm;
   readonly backThickness: Mm;
   readonly doorThickness: Mm;
@@ -126,13 +132,19 @@ export const findConstruction = (
   return found;
 };
 
+/*
+ * The back thickness is passed in rather than read off the method, because what a part has to
+ * fit around is the board that will really be cut — see `rules/context.ts`. The method's own
+ * `backThickness` is the nominal it is designed around, which is a different question.
+ */
+
 /**
  * Front-to-back depth of the carcass horizontals (bottom, top, stretchers), which stop short
  * of the back panel under both back styles.
  */
-export const horizontalDepth = (c: ConstructionMethod, cabinetDepth: Mm): Mm =>
-  mm(cabinetDepth - c.backThickness);
+export const horizontalDepth = (cabinetDepth: Mm, backThickness: Mm): Mm =>
+  mm(cabinetDepth - backThickness);
 
 /** Front-to-back depth of a side panel — the one dimension the back style actually changes. */
-export const sideDepth = (c: ConstructionMethod, cabinetDepth: Mm): Mm =>
-  c.backStyle === 'applied' ? mm(cabinetDepth - c.backThickness) : cabinetDepth;
+export const sideDepth = (c: ConstructionMethod, cabinetDepth: Mm, backThickness: Mm): Mm =>
+  c.backStyle === 'applied' ? mm(cabinetDepth - backThickness) : cabinetDepth;

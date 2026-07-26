@@ -276,7 +276,18 @@ describe('base cabinet options', () => {
 });
 
 describe('construction method drives the parts, not the spec', () => {
-  it('rebuilds every dependent part when the carcass thickness changes', () => {
+  it('rebuilds every dependent part when the carcass board changes', () => {
+    // Parts follow the board that will actually be cut, so switching to 18mm sheet is what
+    // resizes them: interior width 900 − 36 = 864, side depth 560 − 18 = 542.
+    const eighteen: Project = {
+      ...project,
+      defaults: {
+        ...project.defaults,
+        carcassMaterialId: 'hmr-white-18',
+        backMaterialId: 'hmr-white-18',
+      },
+      cabinets: [],
+    };
     const cabinet = createCabinet({
       typeId: 'base',
       name: 'B1',
@@ -286,13 +297,95 @@ describe('construction method drives the parts, not the spec', () => {
       x: mm(0),
       constructionId: 'frameless-32-18',
     });
-    const { panels } = buildCabinet(cabinet, project);
+    const { panels } = buildCabinet(cabinet, eighteen);
 
-    // 18mm carcass and 18mm back: interior width 900 − 36 = 864, side depth 560 − 18 = 542.
     expect(size(byName(panels, 'Side L'))).toEqual([720, 542]);
     expect(size(byName(panels, 'Bottom'))).toEqual([864, 542]);
     // Doors are unaffected — they are sized from the carcass face, not its thickness.
     expect(size(byName(panels, 'Door L'))).toEqual([717, 447]);
+  });
+
+  it('cuts to what the board measures, not to what it is called', () => {
+    /*
+     * The one this whole distinction exists for. Nominal 16mm melamine measures about 16.3,
+     * and a part that fits *between* two boards has to be cut to the real figure:
+     *
+     *   interior width   900 − 2 × 16.3 = 867.4      (was 868 at nominal — 0.6 too wide)
+     *   side depth       560 − 16.3     = 543.7
+     *   interior height  720 − 2 × 16.3 = 687.4
+     *
+     * The board is still ordered, labelled and grouped as 16mm — that is its name.
+     */
+    const measured: Project = {
+      ...project,
+      materials: {
+        ...project.materials,
+        sheets: project.materials.sheets.map((s) =>
+          s.id === 'hmr-white-16' ? { ...s, actualThickness: mm(16.3) } : s,
+        ),
+      },
+      cabinets: [],
+    };
+    const cabinet = createCabinet({
+      typeId: 'base',
+      name: 'B1',
+      width: REFERENCE.W,
+      height: REFERENCE.H,
+      depth: REFERENCE.D,
+      x: mm(0),
+    });
+    const { panels } = buildCabinet(cabinet, measured);
+
+    expect(size(byName(panels, 'Bottom'))).toEqual([867.4, 543.7]);
+    expect(size(byName(panels, 'Side L'))).toEqual([720, 543.7]);
+    // The back covers the carcass face, so it is untouched by how thick the board is.
+    expect(size(byName(panels, 'Back'))).toEqual([900, 720]);
+    // So are the doors — they sit on the front, they don't fit between anything.
+    expect(size(byName(panels, 'Door L'))).toEqual([717, 447]);
+  });
+
+  it('says so when the board is not the one the method is built around', () => {
+    // Parts follow the board either way, but an 18mm carcass on a 16mm method is nearly
+    // always a slip in the material picker, and it changes every part in the cabinet.
+    const mixed: Project = {
+      ...project,
+      defaults: { ...project.defaults, carcassMaterialId: 'hmr-white-18' },
+      cabinets: [],
+    };
+    const cabinet = createCabinet({
+      typeId: 'base',
+      name: 'B1',
+      width: REFERENCE.W,
+      height: REFERENCE.H,
+      depth: REFERENCE.D,
+      x: mm(0),
+    });
+    const { warnings, panels } = buildCabinet(cabinet, mixed);
+
+    expect(warnings.join(' ')).toMatch(/Carcass is .* 18mm, but .* built around 16mm/);
+    expect(size(byName(panels, 'Bottom'))).toEqual([864, 544]);
+  });
+
+  it('does not call a 16.3mm board a mismatch — that is the point of it', () => {
+    const measured: Project = {
+      ...project,
+      materials: {
+        ...project.materials,
+        sheets: project.materials.sheets.map((s) =>
+          s.id === 'hmr-white-16' ? { ...s, actualThickness: mm(16.3) } : s,
+        ),
+      },
+      cabinets: [],
+    };
+    const cabinet = createCabinet({
+      typeId: 'base',
+      name: 'B1',
+      width: REFERENCE.W,
+      height: REFERENCE.H,
+      depth: REFERENCE.D,
+      x: mm(0),
+    });
+    expect(buildCabinet(cabinet, measured).warnings).toEqual([]);
   });
 
   it('runs the sides full depth when the back is inset instead of applied', () => {

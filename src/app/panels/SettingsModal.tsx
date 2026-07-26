@@ -13,9 +13,15 @@
 import { useState } from 'react';
 import { type Mm, mm } from '../../core/units.ts';
 import { type Room, isRectangularRoom, rectangularRoom, wallLength } from '../../core/model/room.ts';
+import type { Cabinet } from '../../core/model/cabinet.ts';
 import type { ConstructionMethod } from '../../core/model/construction.ts';
 import type { GstMode, Project, ProjectDefaults, ProjectSettings } from '../../core/model/project.ts';
-import type { MaterialLibrary } from '../../core/model/material.ts';
+import {
+  type MaterialLibrary,
+  type SheetMaterial,
+  actualThicknessOf,
+  isOversize,
+} from '../../core/model/material.ts';
 import { EdgeBandPicker, SheetPicker } from './MaterialPicker.tsx';
 import {
   type ShopStandards,
@@ -26,6 +32,24 @@ import {
 
 type Scope = 'job' | 'standards';
 
+/**
+ * The boards this job actually cuts: the defaults, plus anything a single cabinet overrides to.
+ * Listing the whole library would be a couple of dozen decors, nearly all of them irrelevant.
+ */
+const sheetsInUse = (defaults: ProjectDefaults, cabinets: readonly Cabinet[]): string[] => {
+  const ids = new Set<string>([
+    defaults.carcassMaterialId,
+    defaults.backMaterialId,
+    defaults.doorMaterialId,
+  ]);
+  for (const cabinet of cabinets) {
+    for (const id of [cabinet.materials.carcass, cabinet.materials.back, cabinet.materials.door]) {
+      if (id) ids.add(id);
+    }
+  }
+  return [...ids];
+};
+
 interface Props {
   project: Project;
   standards: ShopStandards;
@@ -33,6 +57,7 @@ interface Props {
   onUpdateConstruction: (id: string, patch: Partial<ConstructionMethod>) => void;
   onUpdateSettings: (patch: Partial<ProjectSettings>) => void;
   onUpdateDefaults: (patch: Partial<ProjectDefaults>) => void;
+  onUpdateSheet: (id: string, patch: Partial<SheetMaterial>) => void;
   onUpdateStandards: (patch: Partial<ShopStandards>) => void;
   onSaveAsStandards: (name: string) => void;
   onResetToStandards: () => void;
@@ -47,9 +72,14 @@ const CONSTRUCTION_FIELDS: {
   max?: number;
   step?: number;
 }[] = [
-  { key: 'carcassThickness', hint: 'Sides, bottoms, shelves, rails', min: 6, max: 50 },
-  { key: 'backThickness', hint: 'Back panel', min: 3, max: 50 },
-  { key: 'doorThickness', hint: 'Doors and drawer fronts', min: 6, max: 50 },
+  /*
+   * These three name the board the method is built around. Parts are cut to what the chosen
+   * board really measures — set under Materials — so these are checked against it rather than
+   * used for the arithmetic. Saying otherwise in the hint would be a lie you'd cut wrong to.
+   */
+  { key: 'carcassThickness', hint: 'The carcass board this method is built around', min: 6, max: 50 },
+  { key: 'backThickness', hint: 'The back board this method is built around', min: 3, max: 50 },
+  { key: 'doorThickness', hint: 'The front board this method is built around', min: 6, max: 50 },
   { key: 'kickHeight', hint: 'Floor to underside of carcass', min: 0, max: 400, step: 5 },
   { key: 'kickSetback', hint: 'How far the kick sits behind the door face', min: 0, max: 200, step: 5 },
   { key: 'stretcherWidth', hint: 'Front-to-back size of the top rails', min: 30, max: 300, step: 5 },
@@ -227,14 +257,76 @@ function DefaultsEditor({
   );
 }
 
-function MaterialsEditor({
+/**
+ * What the boards in this job really measure.
+ *
+ * Nominal 16mm melamine runs about 16.3, and every part that fits *between* two boards is cut
+ * to the real figure — a bottom panel at 900 − 2×16 is 0.6mm too wide to go in. The board is
+ * still ordered, invoiced and grouped on the cutlist as 16mm, because that is its name.
+ *
+ * Only the boards this job actually uses are listed. The full library runs to a couple of
+ * dozen decors, and measuring one you aren't cutting is wasted keystrokes.
+ *
+ * Nothing is measured for you. Entering a real figure moves every part in every cabinet made
+ * from that board, so it is a deliberate edit — which also means a job already quoted or cut
+ * keeps the sizes it was quoted and cut to.
+ */
+function BoardThicknessEditor({
   library,
-  defaults,
+  sheetIds,
   onChange,
 }: {
   library: MaterialLibrary;
+  sheetIds: readonly string[];
+  onChange: (id: string, patch: Partial<SheetMaterial>) => void;
+}) {
+  const inUse = library.sheets.filter((s) => sheetIds.includes(s.id));
+  if (inUse.length === 0) return null;
+
+  return (
+    <>
+      <div className="subhead">What the boards really measure</div>
+      {inUse.map((sheet) => (
+        <NumberRow
+          key={sheet.id}
+          label={`${sheet.decor} — ${sheet.thickness}mm`}
+          hint={
+            isOversize(sheet)
+              ? `Cut to ${actualThicknessOf(sheet)}mm. Still ordered as ${sheet.thickness}mm board.`
+              : 'Measures what it says'
+          }
+          value={actualThicknessOf(sheet)}
+          min={1}
+          max={100}
+          step={0.1}
+          onChange={(n) => onChange(sheet.id, { actualThickness: mm(n) })}
+        />
+      ))}
+      <p className="note subtle">
+        Nominal 16mm melamine usually measures about <strong>16.3</strong>. Parts that fit
+        between two boards are cut to whatever you put here, so a bottom panel goes in instead
+        of being half a millimetre too wide. What you order doesn't change.
+      </p>
+      <p className="note warning">
+        Changing these resizes every part made from that board. A job you have already quoted or
+        cut keeps the sizes it was quoted and cut to until you change it here.
+      </p>
+    </>
+  );
+}
+
+function MaterialsEditor({
+  library,
+  defaults,
+  sheetIds,
+  onChange,
+  onChangeSheet,
+}: {
+  library: MaterialLibrary;
   defaults: ProjectDefaults;
+  sheetIds: readonly string[];
   onChange: (patch: Partial<ProjectDefaults>) => void;
+  onChangeSheet: (id: string, patch: Partial<SheetMaterial>) => void;
 }) {
   return (
     <>
@@ -268,6 +360,8 @@ function MaterialsEditor({
         These are the defaults for new cabinets. Any single cabinet can override them in the
         Inspector.
       </p>
+
+      <BoardThicknessEditor library={library} sheetIds={sheetIds} onChange={onChangeSheet} />
     </>
   );
 }
@@ -506,6 +600,7 @@ export function SettingsModal({
   onUpdateConstruction,
   onUpdateSettings,
   onUpdateDefaults,
+  onUpdateSheet,
   onUpdateStandards,
   onSaveAsStandards,
   onResetToStandards,
@@ -616,10 +711,23 @@ export function SettingsModal({
             <MaterialsEditor
               library={source.materials}
               defaults={source.defaults}
+              sheetIds={sheetsInUse(source.defaults, editingStandards ? [] : project.cabinets)}
               onChange={(patch) =>
                 editingStandards
                   ? onUpdateStandards({ defaults: { ...standards.defaults, ...patch } })
                   : onUpdateDefaults(patch)
+              }
+              onChangeSheet={(id, patch) =>
+                editingStandards
+                  ? onUpdateStandards({
+                      materials: {
+                        ...standards.materials,
+                        sheets: standards.materials.sheets.map((s) =>
+                          s.id === id ? { ...s, ...patch } : s,
+                        ),
+                      },
+                    })
+                  : onUpdateSheet(id, patch)
               }
             />
           )}

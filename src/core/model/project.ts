@@ -12,7 +12,7 @@ import type { ConstructionMethod } from './construction.ts';
 import type { MaterialLibrary } from './material.ts';
 import type { Room } from './room.ts';
 
-export const CURRENT_SCHEMA_VERSION = 3 as const;
+export const CURRENT_SCHEMA_VERSION = 4 as const;
 
 /**
  * GST treatment. These are genuinely different arithmetic, not a display toggle:
@@ -182,6 +182,35 @@ const migrateV2toV3 = (raw: Record<string, unknown>): Record<string, unknown> =>
 };
 
 /**
+ * v3 → v4.
+ *
+ * Sheet materials gain `actualThickness` — what the board really measures, as against what it
+ * is called. Parts are now calculated from that figure, because a panel that fits *between*
+ * two boards has to match the boards that will really be cut.
+ *
+ * Every existing material is migrated to "it measures what it says", so a saved job cuts to
+ * exactly the same sizes as before. Entering 16.3 for nominal 16mm board is then a deliberate
+ * edit, per material — as it has to be, because it moves every part in every cabinet by a
+ * fraction of a millimetre.
+ *
+ * The version is bumped even though the field could have simply defaulted, so that a build
+ * from before this change **refuses** a file whose boards have been measured rather than
+ * quietly cutting it to nominal. That silent version is the dangerous one.
+ */
+const migrateV3toV4 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const materials = (raw.materials as Record<string, unknown> | undefined) ?? {};
+  const sheets = (materials.sheets as Record<string, unknown>[] | undefined) ?? [];
+  return {
+    ...raw,
+    schemaVersion: 4,
+    materials: {
+      ...materials,
+      sheets: sheets.map((s) => ({ ...s, actualThickness: s.actualThickness ?? s.thickness })),
+    },
+  };
+};
+
+/**
  * Load a project from stored JSON, migrating older schema versions forward.
  *
  * Migrations run in sequence, so a v1 file loaded after several schema changes still arrives
@@ -204,6 +233,7 @@ export const migrateProject = (raw: unknown): Project => {
 
   if (data.schemaVersion === 1) data = migrateV1toV2(data);
   if (data.schemaVersion === 2) data = migrateV2toV3(data);
+  if (data.schemaVersion === 3) data = migrateV3toV4(data);
 
   if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`migrateProject: could not migrate schema version ${String(version)}`);
