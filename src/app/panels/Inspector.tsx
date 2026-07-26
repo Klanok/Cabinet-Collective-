@@ -257,6 +257,7 @@ export function Inspector({
     project.materials.sheets.find((m) => m.id === id)?.decor ?? id;
   const nameOfBand = (id: string) =>
     project.materials.edgeBands.find((b) => b.id === id)?.decor ?? id;
+  const nameOfStyle = (id: string) => project.doorStyles.find((s) => s.id === id)?.name ?? id;
 
   const setMaterial = (patch: Partial<Cabinet['materials']>) =>
     onUpdate(cabinet.id, { materials: { ...cabinet.materials, ...patch } });
@@ -514,7 +515,20 @@ export function Inspector({
           defaultLabel={nameOfBand(project.defaults.edgeBandId)}
           onChange={(edgeBand) => setMaterial({ edgeBand })}
         />
+        <OverridePicker
+          label="Door style"
+          options={project.doorStyles.map((s) => ({ id: s.id, label: s.name }))}
+          value={cabinet.doorStyleId}
+          defaultLabel={nameOfStyle(project.defaults.doorStyleId)}
+          onChange={(doorStyleId) => onUpdate(cabinet.id, { doorStyleId })}
+        />
       </div>
+      {built.doorStyle.kind !== 'slab' && (
+        <p className="note subtle">
+          {built.doorStyle.name} — routed into the face of every door, drawer front and applied
+          end panel on this cabinet. They stay one part each on the cutlist.
+        </p>
+      )}
 
       <div className="subhead">Parts</div>
       <table className="parts-table">

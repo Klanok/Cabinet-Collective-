@@ -22,6 +22,7 @@ import {
 import { type Panel, bandedEdgeCount, bandedLength, panelExtent, panelFootprint } from '../model/panel.ts';
 import type { GstMode, Project } from '../model/project.ts';
 import { buildProject } from '../rules/build.ts';
+import { machinedFronts } from '../rules/frontStyle.ts';
 import { effectiveCost, gstOnSale } from './gst.ts';
 
 export interface PanelCost {
@@ -62,6 +63,18 @@ export interface CostBreakdown {
 
   readonly labourMinutes: number;
   readonly labourCost: Cents;
+
+  /**
+   * Router time the door styles add, over and above the panel and assembly allowances.
+   *
+   * Its own line rather than folded into `labourMinutes`, because it is machine time in the
+   * shop — it must not flow into the install estimate that mirrors the shop hours. Quoting a
+   * shaker kitchen as if the doors were plain slabs is the error this exists to stop.
+   */
+  readonly machiningMinutes: number;
+  readonly machiningCost: Cents;
+  /** How many fronts actually came out routed. Fronts that fell back to a slab don't count. */
+  readonly machinedFrontCount: number;
 
   readonly installHours: number;
   readonly installCost: Cents;
@@ -213,15 +226,30 @@ export const costProject = (project: Project): CostBreakdown => {
   // input credit to claim on your own time.
   const labourCost = roundCents((labourMinutes / 60) * settings.labour.ratePerHourExGst * 100);
 
+  // Routing the fronts, at the shop rate. The minutes belong to the style — a shaker recess
+  // and a run of V-grooves are not the same job — and the count comes from the panels that
+  // really carry machining, so a drawer front too narrow to take the style costs nothing extra.
+  let machiningMinutes = 0;
+  let machinedFrontCount = 0;
+  for (const b of built) {
+    const routed = machinedFronts(b.panels);
+    machinedFrontCount += routed.length;
+    machiningMinutes += routed.length * b.doorStyle.machiningMinutesPerFront;
+  }
+  const machiningCost = roundCents(
+    (machiningMinutes / 60) * settings.labour.ratePerHourExGst * 100,
+  );
+
   // Install is its own subtotal. Until there is a real per-cabinet install model, its hours
-  // mirror the shop hours — rough, but visible and easy to override per job.
+  // mirror the shop hours — rough, but visible and easy to override per job. Router time is
+  // left out of that mirror: routing a door takes no longer to hang.
   const installHours =
     settings.labour.installHoursMode === 'fixed'
       ? settings.labour.installFixedHours
       : labourMinutes / 60;
   const installCost = roundCents(installHours * settings.labour.installRatePerHourExGst * 100);
 
-  const totalCost = materialCost + labourCost + installCost;
+  const totalCost = materialCost + labourCost + machiningCost + installCost;
   const marginAmount = roundCents(totalCost * (settings.marginPercent / 100));
   const subtotalExGst = totalCost + marginAmount;
   // Delivery is a flat charge passed on, not a cost being sold on, so it sits outside margin.
@@ -239,6 +267,9 @@ export const costProject = (project: Project): CostBreakdown => {
     materialCost,
     labourMinutes,
     labourCost,
+    machiningMinutes,
+    machiningCost,
+    machinedFrontCount,
     installHours,
     installCost,
     totalCost,

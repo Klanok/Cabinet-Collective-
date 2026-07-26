@@ -6,6 +6,14 @@
  * This is the Phase 1 gate in its most checkable form: a list you can hold next to a
  * hand-written one. It runs entirely on the core model — no browser, no viewport — which is
  * the point of keeping the model layer framework-agnostic.
+ *
+ * Name a door style to see the same kitchen with routed fronts:
+ *
+ *   npm run report -- shaker-57
+ *
+ * The part count and every part size stay exactly the same, which is the thing worth checking:
+ * a shaker door is the same rectangle a slab door is. What moves is the routing line on the
+ * cost.
  */
 
 import { createSampleKitchen } from '../src/core/project/factory.ts';
@@ -15,7 +23,21 @@ import { buildProject } from '../src/core/rules/build.ts';
 import { formatAud } from '../src/core/units.ts';
 import { gstModeLabel } from '../src/core/costing/gst.ts';
 
-const project = createSampleKitchen();
+const sample = createSampleKitchen();
+
+const requestedStyle = process.argv[2];
+if (requestedStyle && !sample.doorStyles.some((s) => s.id === requestedStyle)) {
+  console.error(
+    `\n  Unknown door style "${requestedStyle}". This job has: ` +
+      `${sample.doorStyles.map((s) => s.id).join(', ')}\n`,
+  );
+  process.exit(1);
+}
+
+const project = requestedStyle
+  ? { ...sample, defaults: { ...sample.defaults, doorStyleId: requestedStyle } }
+  : sample;
+
 const built = buildProject(project);
 const cost = costProject(project);
 const lines = buildCutlist(project);
@@ -26,6 +48,9 @@ const rule = (label = '') =>
 
 console.log(`\n${project.name} — ${project.settings.entityName || 'no entity set'}`);
 console.log(`${gstModeLabel(project.settings.gstMode)} · margin ${project.settings.marginPercent}%`);
+console.log(
+  `Fronts: ${project.doorStyles.find((s) => s.id === project.defaults.doorStyleId)?.name ?? '—'}`,
+);
 
 rule('CABINETS');
 for (const { cabinet, panels, warnings } of built) {
@@ -65,6 +90,13 @@ row('Sheet goods', formatAud(cost.sheetCost));
 row('Edge banding', formatAud(cost.edgeBandCost));
 row('Material', formatAud(cost.materialCost));
 row(`Labour (${(cost.labourMinutes / 60).toFixed(1)} h)`, formatAud(cost.labourCost));
+if (cost.machiningMinutes > 0) {
+  row(
+    `Routing ${cost.machinedFrontCount} fronts (${(cost.machiningMinutes / 60).toFixed(1)} h)`,
+    formatAud(cost.machiningCost),
+  );
+}
+row(`Install (${cost.installHours.toFixed(1)} h)`, formatAud(cost.installCost));
 rule();
 row('Total cost', formatAud(cost.totalCost));
 row(`Margin @ ${project.settings.marginPercent}%`, formatAud(cost.marginAmount));

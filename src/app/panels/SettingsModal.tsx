@@ -23,6 +23,9 @@ import {
   isOversize,
 } from '../../core/model/material.ts';
 import { EdgeBandPicker, SheetPicker } from './MaterialPicker.tsx';
+import { DoorStyleEditor } from './DoorStyleEditor.tsx';
+import { NumberRow } from './fields.tsx';
+import type { DoorStyle } from '../../core/standards/doorStyles.ts';
 import {
   type ShopStandards,
   differencesFromStandards,
@@ -58,6 +61,7 @@ interface Props {
   onUpdateSettings: (patch: Partial<ProjectSettings>) => void;
   onUpdateDefaults: (patch: Partial<ProjectDefaults>) => void;
   onUpdateSheet: (id: string, patch: Partial<SheetMaterial>) => void;
+  onUpdateDoorStyles: (styles: readonly DoorStyle[]) => void;
   onUpdateStandards: (patch: Partial<ShopStandards>) => void;
   onSaveAsStandards: (name: string) => void;
   onResetToStandards: () => void;
@@ -90,49 +94,6 @@ const CONSTRUCTION_FIELDS: {
   { key: 'systemPitch', hint: 'System 32 hole spacing', min: 8, max: 64 },
   { key: 'systemFrontSetback', hint: 'First hole line in from the front edge', min: 0, max: 100 },
 ];
-
-function NumberRow({
-  label,
-  hint,
-  value,
-  suffix = 'mm',
-  min,
-  max,
-  step = 1,
-  onChange,
-}: {
-  label: string;
-  hint?: string;
-  value: number;
-  suffix?: string;
-  min?: number;
-  max?: number;
-  step?: number;
-  onChange: (n: number) => void;
-}) {
-  return (
-    <div className="setting-row">
-      <div className="setting-label">
-        <span>{label}</span>
-        {hint && <em>{hint}</em>}
-      </div>
-      <div className="setting-input">
-        <input
-          type="number"
-          value={value}
-          min={min}
-          max={max}
-          step={step}
-          onChange={(e) => {
-            const n = Number(e.target.value);
-            if (Number.isFinite(n)) onChange(n);
-          }}
-        />
-        <span className="suffix">{suffix}</span>
-      </div>
-    </div>
-  );
-}
 
 function ConstructionEditor({
   constructions,
@@ -598,6 +559,7 @@ export function SettingsModal({
   onUpdateSettings,
   onUpdateDefaults,
   onUpdateSheet,
+  onUpdateDoorStyles,
   onUpdateStandards,
   onSaveAsStandards,
   onResetToStandards,
@@ -605,7 +567,7 @@ export function SettingsModal({
 }: Props) {
   const [scope, setScope] = useState<Scope>('job');
   const [section, setSection] = useState<
-    'construction' | 'materials' | 'sizes' | 'room' | 'costing'
+    'construction' | 'materials' | 'doors' | 'sizes' | 'room' | 'costing'
   >('construction');
   const [standardsName, setStandardsName] = useState(standards.name);
 
@@ -667,6 +629,12 @@ export function SettingsModal({
             Materials
           </button>
           <button
+            className={`seg-btn${section === 'doors' ? ' is-active' : ''}`}
+            onClick={() => setSection('doors')}
+          >
+            Door styles
+          </button>
+          <button
             className={`seg-btn${section === 'sizes' ? ' is-active' : ''}`}
             onClick={() => setSection('sizes')}
           >
@@ -725,6 +693,22 @@ export function SettingsModal({
                       },
                     })
                   : onUpdateSheet(id, patch)
+              }
+            />
+          )}
+
+          {section === 'doors' && (
+            <DoorStyleEditor
+              scope={scope}
+              styles={source.doorStyles}
+              defaultStyleId={source.defaults.doorStyleId}
+              onChangeStyles={(doorStyles) =>
+                editingStandards ? onUpdateStandards({ doorStyles }) : onUpdateDoorStyles(doorStyles)
+              }
+              onChangeDefault={(doorStyleId) =>
+                editingStandards
+                  ? onUpdateStandards({ defaults: { ...standards.defaults, doorStyleId } })
+                  : onUpdateDefaults({ doorStyleId })
               }
             />
           )}

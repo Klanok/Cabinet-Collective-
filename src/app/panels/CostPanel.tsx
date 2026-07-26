@@ -104,6 +104,12 @@ export function CostPanel({ cost, settings, onUpdateSettings }: Props) {
           label={`Manufacturing (${(cost.labourMinutes / 60).toFixed(1)} h)`}
           value={formatAud(cost.labourCost)}
         />
+        {cost.machiningMinutes > 0 && (
+          <Row
+            label={`Routing ${cost.machinedFrontCount} fronts (${(cost.machiningMinutes / 60).toFixed(1)} h)`}
+            value={formatAud(cost.machiningCost)}
+          />
+        )}
         <Row
           label={`Install (${cost.installHours.toFixed(1)} h)`}
           value={formatAud(cost.installCost)}
