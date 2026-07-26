@@ -287,16 +287,23 @@ it belongs in the **feature system** (`model/feature.ts`), not in profiles or ex
 has **no dependency on the curved-part work in §4.3** — that is curvature in a part's *outline*,
 this is a cut in its *face*. The two can be done in either order.
 
-**Scoping question to settle first, because it changes everything:** one-piece or five-piece?
+**Scope: one-piece, settled by the user.** A single MDF slab with the shaker or V-groove look
+machined into its face, then wrapped or sprayed — the usual AU poly/MDF method. Five-piece
+construction (real rails, stiles and a centre panel) is **out of scope** and should not be
+built speculatively; it is a decomposition rather than a feature, turning one door into five
+cutlist parts with their own grain, banding and joinery, and it is a different piece of work.
 
-- **One-piece routed slab** — a single MDF panel with the shaker look machined into it, then
-  wrapped or sprayed. Almost certainly what is meant, and by far the common AU poly/MDF method.
-  One panel plus features. Cheap.
-- **Five-piece** — real rails, stiles and a centre panel. That is a *decomposition*, closer to a
-  cabinet spec than to a feature: one "door" becomes five parts on the cutlist with their own
-  grain, banding and joinery. Much larger, and a different piece of work.
+That decision keeps this small, and it is worth being explicit about what it means:
 
-Do not guess this one — ask.
+- The door stays **one `Panel`**. Same rectangle, same `rectProfile(height, width)`, same
+  placement, same material.
+- The **cutlist part count does not change**. A shaker door is one line, exactly as a slab door
+  is. What changes is that the line now carries a style, and the panel carries features.
+- **Edge banding is untouched.** The routing is on the face; the edges are what they always
+  were, so `bandedDirections: BAND_ALL` still holds.
+- Nothing in the **rule engine's sizing** moves. A door is still width and height less reveals.
+- So the entire model addition is: features on the panel, a `DoorStyle` to generate them from,
+  and somewhere to keep the styles.
 
 **The one real gap in the model.** `PanelFeature` today covers drill, drill-line, groove,
 rebate and cutout. A `GrooveFeature` is a **flat-bottomed cut of constant width**, which is
@@ -335,9 +342,36 @@ It touches **costing** immediately, though: a routed door is real machine time, 
 wants a per-door-style machining allowance. Do that with the model half, or the first shaker
 kitchen quotes as if the doors were plain slabs.
 
+**It applies to every front, not just doors.** A shaker kitchen has shaker *drawer fronts*, and
+usually shaker applied end panels too. The roles that take a style are `door`, `drawer-front`,
+`false-front` and `end-panel` — not `lid`, and never a carcass part. Getting this wrong is
+obvious on screen but it is also the difference between quoting 8 routed fronts and 20.
+
+A door style also has to cope with fronts of wildly different proportions from one style: a
+720-tall door and a 140-tall drawer front take the same border, and on the drawer front that
+can leave no centre panel at all. The style needs a **minimum centre size** below which it
+falls back to a plain slab (or warns), or narrow drawer fronts will come out as a rebate
+through the whole part.
+
+**Shape of the work, in order:**
+
+1. `PocketFeature` and a `ToolProfile` beside `PanelFeature` — the only genuinely new model
+   pieces. Straight-sided pockets first; V-groove and moulded edges once a tool profile exists.
+2. `DoorStyle` in `core/standards/`, alongside `savedTypes.ts` and following its shape: a named
+   parametric recipe, an id, and the same "lives in standards, copied into a job" rule.
+3. A pure function `featuresForFront(style, width, height, thickness) → PanelFeature[]`. Keep it
+   out of the specs: every front role calls the same function, and it is trivially testable
+   against hand-calculated numbers the way everything else here is.
+4. Wire it in `rules/parts.ts` where fronts are built, driven by a job default plus a
+   per-cabinet override, exactly as materials are.
+5. 3D preview. The features are parametric, so the viewport derives the recess from them rather
+   than being told about door styles — same principle as everywhere else.
+6. Costing allowance per style.
+
 **Suggested Definition of Done for the first half:** *"define a shaker style with a typed border
-width and recess depth, save it to the shop standards, apply it to one cabinet's doors, see the
-recess in 3D, and see the door style priced with its machining allowance on the quote."*
+width and recess depth, save it to the shop standards, apply it to one cabinet so its doors and
+drawer fronts both carry it, see the recess in 3D, and see it priced with its machining
+allowance on the quote."*
 
 ### 4.6 Smaller things noted but not done
 
