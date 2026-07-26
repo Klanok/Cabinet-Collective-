@@ -39,6 +39,7 @@ model, rule engine, costing and cutlist all run and test in Node.
 | Geometry engine — profile + extrude, ear-clipping | Straight-edged polygons only |
 | Rule engine — specs as data over a construction method | base, wall, tall, drawer-bank, custom |
 | Panel features (the Phase 4 CAM interface) | Types defined, barely populated |
+| Door styles — shaker, V-groove, routed MDF | **Not started — see 4.5** |
 | Costing — GST both contexts, install, delivery | Working, on placeholder pricing |
 | Nominal vs actual board thickness | Working, off until you measure a board |
 | Cutlist — grouped lines | Working, no CSV/PDF export yet |
@@ -136,8 +137,14 @@ real trade pricing has not been loaded yet.
 
 ## 4. Open items, in the order I'd do them
 
-§4.1 and §4.2 are finished; both are kept below as the record of what was built and why. The
-next one to pick up is **4.3** or **4.4**.
+§4.1 and §4.2 are finished; both are kept below as the record of what was built and why. Still
+open: **4.3** curved parts, **4.4** Phase 2 hardware, **4.5** routed door styles.
+
+If asked which to do next, the honest answer is that **4.5's first half is the cheapest thing
+on this list with the most visible payoff** — a client picks a door style, and nothing else here
+changes what they see. 4.3 is the one with a deadline attached, in the sense that it gets more
+expensive once the CAM layer exists. 4.4 is the largest and the one the machine ultimately
+depends on.
 
 ### 4.1 Nominal vs actual board thickness — **done**
 
@@ -267,7 +274,72 @@ Drawer **boxes** were deliberately left out of Phase 1 — their sizes are dicta
 specs (Legrabox/Tandembox nominal lengths, side thicknesses, clearances), and guessing them
 ahead of the hardware rules is how material gets wasted.
 
-### 4.5 Smaller things noted but not done
+### 4.5 Routed door styles and a door library
+
+Raised by the user and **not started.** His words: *"the ability to create custom routed doors
+from MDF panels, shaker, v groove etc… I should have a door library that I can create custom
+routs and save them and then save and select the door type."* He rightly calls it a core
+component — the door is the part of a kitchen a client actually chooses.
+
+**The thing to understand before starting: this is not a geometry problem.** A shaker door is
+the *same rectangle* a plain slab door already is. What differs is machining on its A-face. So
+it belongs in the **feature system** (`model/feature.ts`), not in profiles or extrusion, and it
+has **no dependency on the curved-part work in §4.3** — that is curvature in a part's *outline*,
+this is a cut in its *face*. The two can be done in either order.
+
+**Scoping question to settle first, because it changes everything:** one-piece or five-piece?
+
+- **One-piece routed slab** — a single MDF panel with the shaker look machined into it, then
+  wrapped or sprayed. Almost certainly what is meant, and by far the common AU poly/MDF method.
+  One panel plus features. Cheap.
+- **Five-piece** — real rails, stiles and a centre panel. That is a *decomposition*, closer to a
+  cabinet spec than to a feature: one "door" becomes five parts on the cutlist with their own
+  grain, banding and joinery. Much larger, and a different piece of work.
+
+Do not guess this one — ask.
+
+**The one real gap in the model.** `PanelFeature` today covers drill, drill-line, groove,
+rebate and cutout. A `GrooveFeature` is a **flat-bottomed cut of constant width**, which is
+enough for a shaker border done as a groove but not for the rest:
+
+- A **shaker centre recess** is a large rectangular *pocket*, not a groove. No pocket feature
+  exists.
+- A **V-groove** is not flat-bottomed. Its shape comes from the cutter, not from a width and a
+  depth.
+- Any **moulded edge** (ogee, bevel, bullnose) is likewise the cutter's cross-section.
+
+So the missing piece is a **tool profile** — a named cutter cross-section — plus a pocket
+feature. Both belong beside `PanelFeature`, and both are exactly the kind of thing Phase 4 must
+read as intent rather than reverse-engineer out of a mesh. Note this is a *third* kind of curve,
+distinct from both §4.3's curve-in-plan and a part outline: it is a curve in **section**.
+
+**The library maps onto a pattern that already exists.** A `DoorStyle` should live in the shop
+standards next to `savedTypes`, for the same reason those do — the value is that it outlasts the
+job you first worked it out on. Selectable as a job default and overridable per cabinet, the way
+materials already are.
+
+It must be **parametric, not a drawing**: "border 57mm, recess 6mm deep, 3mm internal corner
+radius, V-groove every 100mm" applied to whatever door size the rule engine produces. A saved
+style that only fits the door it was drawn on is worth nothing, since every door on a job is a
+different size.
+
+**Where it sits in the phases — split it, because the halves have very different costs:**
+
+| Half | Phase | Why |
+|---|---|---|
+| `DoorStyle` model, library, per-cabinet selection, 3D preview, costing allowance | **Do early** — it is cheap and it is the most customer-facing thing in the tool | Needs no CAM. A client picking a door style and seeing it is worth more now than machining it is. |
+| Emitting the actual toolpaths | **Phase 4 (CAM)**, with the post-processor in Phase 5 | A profiled cut has to reach the machine as the right tool on the right path. |
+
+It touches **Phase 2** only lightly — a thicker or profiled front shifts hinge boring a little.
+It touches **costing** immediately, though: a routed door is real machine time, so `LabourRates`
+wants a per-door-style machining allowance. Do that with the model half, or the first shaker
+kitchen quotes as if the doors were plain slabs.
+
+**Suggested Definition of Done for the first half:** *"define a shaker style with a typed border
+width and recess depth, save it to the shop standards, apply it to one cabinet's doors, see the
+recess in 3D, and see the door style priced with its machining allowance on the quote."*
+
+### 4.6 Smaller things noted but not done
 
 - Cabinets can be dragged but not rotated with the mouse; yaw is typed, or set by snapping to
   a wall.
