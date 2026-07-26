@@ -73,13 +73,10 @@ const CONSTRUCTION_FIELDS: {
   step?: number;
 }[] = [
   /*
-   * These three name the board the method is built around. Parts are cut to what the chosen
-   * board really measures — set under Materials — so these are checked against it rather than
-   * used for the arithmetic. Saying otherwise in the hint would be a lie you'd cut wrong to.
+   * No thicknesses here. How thick a board is belongs to the board — picked under Materials,
+   * measured there too. A method describes how the parts go together, not what they are cut
+   * from.
    */
-  { key: 'carcassThickness', hint: 'The carcass board this method is built around', min: 6, max: 50 },
-  { key: 'backThickness', hint: 'The back board this method is built around', min: 3, max: 50 },
-  { key: 'doorThickness', hint: 'The front board this method is built around', min: 6, max: 50 },
   { key: 'kickHeight', hint: 'Floor to underside of carcass', min: 0, max: 400, step: 5 },
   { key: 'kickSetback', hint: 'How far the kick sits behind the door face', min: 0, max: 200, step: 5 },
   { key: 'stretcherWidth', hint: 'Front-to-back size of the top rails', min: 30, max: 300, step: 5 },

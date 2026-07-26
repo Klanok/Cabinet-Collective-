@@ -23,7 +23,7 @@ src/core/                        pure model layer
     material.ts                  sheet goods, edge banding, grain, nominal vs actual thickness
     panel.ts                     Panel — the single source of truth for a part
     cabinet.ts                   a placed cabinet: driving dimensions and options
-    construction.ts              construction methods as data (frameless 32mm)
+    construction.ts              how parts go together; no opinion on board thickness
     room.ts                      walls as a list of segments; outline, normals, inside-ness
     project.ts                   versioned schema + migration entry point
   rules/                         the parametric rule engine
@@ -80,10 +80,10 @@ builders, which is the test of whether the abstraction is real.
 Switching the back from applied to inset resizes every dependent part with no code change, and
 so does changing the kick, the reveals or the shelf clearances.
 
-What it does *not* decide is how thick the boards are. Its three thickness fields declare the
-nominal board the method is built around — "frameless 32mm, 16mm carcass" — and are checked
-against the board a cabinet actually uses; the arithmetic follows the **sheet**, because that
-is the thing a part has to fit between. See below.
+What it does *not* decide is how thick the boards are — it has no field for it. That is the
+sheet's business, and choosing an 18mm carcass means choosing an 18mm board. It briefly carried
+a nominal thickness "the method is built around", checked against the sheet, but a second place
+claiming to know one fact is what this codebase exists not to do, so it went. See below.
 
 **`Room`** (`model/room.ts`) is a list of wall segments in the order you walk them, and always
 was — `rectangularRoom` is one constructor for it, not the shape of the data. Drawing an

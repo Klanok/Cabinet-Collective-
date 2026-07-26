@@ -15,11 +15,11 @@ import { type MaterialLibrary, actualThicknessOf } from '../model/material.ts';
 import type { ConstructionMethod } from '../model/construction.ts';
 import type { Project, ProjectDefaults, ProjectSettings } from '../model/project.ts';
 import type { SavedCabinetType } from './savedTypes.ts';
-import { DEFAULT_CONSTRUCTIONS } from '../model/construction.ts';
+import { DEFAULT_CONSTRUCTIONS, collapseThicknessFields } from '../model/construction.ts';
 import { AU_MATERIAL_LIBRARY } from '../library/materials.au.ts';
 import { AU_DEFAULT_SETTINGS, AU_PROJECT_DEFAULTS } from '../library/defaults.au.ts';
 
-export const CURRENT_STANDARDS_VERSION = 1 as const;
+export const CURRENT_STANDARDS_VERSION = 2 as const;
 
 export interface ShopStandards {
   readonly version: typeof CURRENT_STANDARDS_VERSION;
@@ -201,9 +201,6 @@ const DEFAULT_LABELS: Partial<Record<keyof ProjectDefaults, string>> = {
 /** Plain-English names for the construction numbers, used in the UI and in diffs. */
 export const labelForConstructionKey = (key: keyof ConstructionMethod): string => {
   const labels: Partial<Record<keyof ConstructionMethod, string>> = {
-    carcassThickness: 'Carcass thickness',
-    backThickness: 'Back thickness',
-    doorThickness: 'Door thickness',
     backStyle: 'Back style',
     kickHeight: 'Kick height',
     kickSetback: 'Kick setback',
@@ -226,14 +223,50 @@ export const migrateStandards = (raw: unknown): ShopStandards => {
   if (typeof raw !== 'object' || raw === null) {
     throw new Error('migrateStandards: standards data is not an object');
   }
-  const data = raw as Record<string, unknown>;
+  let data = raw as Record<string, unknown>;
   const version = data.version;
-  if (version !== CURRENT_STANDARDS_VERSION) {
+  if (typeof version !== 'number') {
+    throw new Error('migrateStandards: missing version');
+  }
+  if (version > CURRENT_STANDARDS_VERSION) {
     throw new Error(
-      `migrateStandards: version ${String(version)} is not supported (current is ${CURRENT_STANDARDS_VERSION})`,
+      `migrateStandards: these standards were saved by a newer version (${version}, this build reads ${CURRENT_STANDARDS_VERSION})`,
     );
+  }
+
+  if (version === 1) data = migrateStandardsV1toV2(data);
+
+  if (data.version !== CURRENT_STANDARDS_VERSION) {
+    throw new Error(`migrateStandards: could not migrate version ${String(version)}`);
   }
   // Saved types arrived after the first standards were written, so fill them in rather than
   // rejecting a file that is otherwise current.
   return { ...(data as unknown as ShopStandards), savedTypes: (data.savedTypes as never) ?? [] };
+};
+
+/**
+ * Standards v1 → v2: construction methods lose their thicknesses, matching the project's
+ * v4 → v5.
+ *
+ * This has to be a real migration rather than a version bump that rejects the old file. A
+ * shop's standards are their kick height, their reveals, their saved cabinet types — years of
+ * accumulated preference. Refusing to load them silently replaces the lot with the shipped
+ * Australian defaults, which is a far worse outcome than the schema change it was protecting
+ * against.
+ */
+const migrateStandardsV1toV2 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const { constructions, idMap } = collapseThicknessFields(
+    (raw.constructions as Record<string, unknown>[] | undefined) ?? [],
+  );
+  const defaults = (raw.defaults as Record<string, unknown> | undefined) ?? {};
+  const currentId = defaults.constructionId;
+  return {
+    ...raw,
+    version: 2,
+    constructions,
+    defaults: {
+      ...defaults,
+      constructionId: typeof currentId === 'string' ? (idMap[currentId] ?? currentId) : currentId,
+    },
+  };
 };

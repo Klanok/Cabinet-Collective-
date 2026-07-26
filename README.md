@@ -9,7 +9,7 @@ cutlist, and costing that handles GST properly — all driven from one versioned
 ```bash
 npm install
 npm run dev       # the app
-npm test          # 236 tests
+npm test          # 242 tests
 npm run report    # cutlist + costing for the sample kitchen, in the terminal
 ```
 
@@ -63,9 +63,10 @@ really measure** — which lists only the boards this job uses. Entering a figur
 made from that board, so it's yours to enter, and a job you've already quoted or cut keeps the
 sizes it was quoted and cut to.
 
-Carcass thickness therefore follows the board you pick, not a number typed under Joinery. If a
-cabinet's board isn't the one its construction method is built around, the Inspector says so
-rather than quietly disagreeing with itself.
+Carcass thickness therefore follows the board you pick. There's no thickness box under Joinery
+at all — a construction method describes how the parts go together (back style, kick, reveals,
+gaps, shelf clearances, hole pitch), and the board says how thick it is. One place knows each
+fact, so the two can't disagree.
 
 ## Settings: your shop's numbers, per job
 

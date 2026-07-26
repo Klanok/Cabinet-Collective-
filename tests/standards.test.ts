@@ -33,16 +33,14 @@ import { byName, size } from './helpers.ts';
 /**
  * Standards for a shop that builds to an 18mm carcass on a 100mm kick with 4mm gaps.
  *
- * Note it takes both halves to say "18mm carcass": the method declares the nominal it is built
- * around, and the default carcass board is the 18mm sheet. Parts are cut to the board.
+ * "18mm carcass" is now said entirely by the board: the construction method has no opinion
+ * about thickness, so the default carcass board is the 18mm sheet and the parts follow it.
  */
 const customStandards = (): ShopStandards => ({
   ...AU_SHOP_STANDARDS,
   name: 'Test shop',
   constructions: AU_SHOP_STANDARDS.constructions.map((c) =>
-    c.id === 'frameless-32-16'
-      ? { ...c, carcassThickness: mm(18), kickHeight: mm(100), gapBetweenDoors: mm(4) }
-      : c,
+    c.id === 'frameless-32' ? { ...c, kickHeight: mm(100), gapBetweenDoors: mm(4) } : c,
   ),
   defaults: {
     ...AU_SHOP_STANDARDS.defaults,
@@ -57,9 +55,9 @@ beforeEach(() => resetIdCounter());
 describe('a job starts from the standards', () => {
   it('copies the joinery numbers into the job', () => {
     const project = createEmptyProject('Job', undefined, customStandards());
-    const construction = project.constructions.find((c) => c.id === 'frameless-32-16')!;
+    const construction = project.constructions.find((c) => c.id === 'frameless-32')!;
 
-    expect(construction.carcassThickness).toBe(18);
+    expect(project.defaults.carcassMaterialId).toBe('hmr-white-18');
     expect(construction.kickHeight).toBe(100);
     expect(construction.gapBetweenDoors).toBe(4);
     expect(project.defaults.baseCabinetHeight).toBe(750);
@@ -93,7 +91,7 @@ describe('a job starts from the standards', () => {
     );
     // This is the bug the per-job settings expose: a 100mm kick must place the carcass at 100.
     expect(cabinet.placement.anchor.y).toBe(100);
-    expect(naturalAnchorY('base', 'frameless-32-16', {}, project.constructions, project.defaults)).toBe(
+    expect(naturalAnchorY('base', 'frameless-32', {}, project.constructions, project.defaults)).toBe(
       100,
     );
   });
@@ -135,7 +133,7 @@ describe('a job and the standards stay independent', () => {
       constructions: standards.constructions.map((c) => ({ ...c, kickHeight: mm(200) })),
     };
     // The job was created before the change and must be untouched by it.
-    expect(project.constructions.find((c) => c.id === 'frameless-32-16')!.kickHeight).toBe(100);
+    expect(project.constructions.find((c) => c.id === 'frameless-32')!.kickHeight).toBe(100);
     expect(laterStandards.constructions[0]!.kickHeight).toBe(200);
   });
 
@@ -174,7 +172,7 @@ describe('comparing a job against the standards', () => {
     const drifted: Project = {
       ...project,
       constructions: project.constructions.map((c) =>
-        c.id === 'frameless-32-16' ? { ...c, kickHeight: mm(150) } : c,
+        c.id === 'frameless-32' ? { ...c, kickHeight: mm(150) } : c,
       ),
       settings: { ...project.settings, marginPercent: 30 },
     };

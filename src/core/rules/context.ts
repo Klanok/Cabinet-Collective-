@@ -108,35 +108,6 @@ export const buildContext = (
   };
 };
 
-/**
- * A cabinet whose boards aren't the ones its construction method is built around.
- *
- * The parts follow the board, because that is what has to fit. But building an 18mm carcass to
- * a method written for 16mm is nearly always a mistake in the material picker rather than an
- * intention, and it changes every part in the cabinet — so it gets said out loud.
- *
- * Compared on the **nominal** figures: a 16mm board measuring 16.3 is not a mismatch, it is
- * the whole point.
- */
-export const checkThicknessAgainstMethod = (
-  construction: ConstructionMethod,
-  materials: ResolvedMaterials,
-  library: MaterialLibrary,
-): string[] => {
-  const problems: string[] = [];
-  const check = (slot: 'carcass' | 'back' | 'door', nominal: Mm, label: string) => {
-    const sheet = findSheet(library, materials[slot]);
-    if (Math.abs(sheet.thickness - nominal) > 0.001) {
-      problems.push(
-        `${label} is ${sheet.decor} at ${sheet.thickness}mm, but "${construction.name}" is built around ${nominal}mm.`,
-      );
-    }
-  };
-  check('carcass', construction.carcassThickness, 'Carcass');
-  check('back', construction.backThickness, 'Back');
-  check('door', construction.doorThickness, 'Fronts');
-  return problems;
-};
 
 /** Validate driving dimensions before any parts get built. */
 export const validateContext = (ctx: RuleContext): string[] => {

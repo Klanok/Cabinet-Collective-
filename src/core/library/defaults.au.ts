@@ -30,7 +30,7 @@ export const AU_TALL_CARCASS_HEIGHT = mm(2070);
 export const AU_TALL_CARCASS_DEPTH = mm(560);
 
 export const AU_PROJECT_DEFAULTS: ProjectDefaults = {
-  constructionId: 'frameless-32-16',
+  constructionId: 'frameless-32',
   // Carcass and back are board specs — white HMR particleboard is the shop standard.
   // Only the doors carry a decor, because only they are seen.
   carcassMaterialId: 'hmr-white-16',

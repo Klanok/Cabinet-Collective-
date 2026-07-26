@@ -3,8 +3,14 @@
  *
  * A construction method is *data*: the set of dimensional conventions a shop builds to.
  * Cabinet specs read these values rather than hard-coding them, which is what lets the same
- * base-cabinet spec produce a 16mm inset-back carcass or an 18mm applied-back one without a
- * branch anywhere in the rule engine.
+ * base-cabinet spec produce an inset-back carcass or an applied-back one, on a 150mm kick or a
+ * 100mm one, without a branch anywhere in the rule engine.
+ *
+ * **A method has no opinion about how thick the boards are.** That is the sheet's business —
+ * see `model/material.ts` and `rules/context.ts`. It used to carry a nominal thickness for
+ * each of carcass, back and door, which meant two places claimed to know one fact and were
+ * free to disagree. Choosing an 18mm carcass is choosing an 18mm board; there is nothing left
+ * for the method to say about it.
  *
  * The default is frameless (European 32mm system) because that is how cabinets are built
  * here. Face-frame is a construction method to be added later, not the baseline this engine
@@ -30,15 +36,6 @@ export interface ConstructionMethod {
   readonly name: string;
   readonly family: ConstructionFamily;
 
-  /*
-   * The **nominal** boards this method is designed around — "we build 16mm carcasses with
-   * 18mm doors". These name the method and are checked against the boards a cabinet actually
-   * uses, but they are not what parts are calculated from: that has to be the real measured
-   * thickness of the sheet being cut, which lives on the material. See `rules/context.ts`.
-   */
-  readonly carcassThickness: Mm;
-  readonly backThickness: Mm;
-  readonly doorThickness: Mm;
   readonly backStyle: BackStyle;
 
   /** Height of the toe kick a base cabinet stands on. */
@@ -84,16 +81,16 @@ export interface ConstructionMethod {
 }
 
 /**
- * The default: 16mm melamine carcass, 18mm doors, applied back, 150mm kick.
+ * The default: applied back, 150mm kick, 100mm top rails, flush-bottom doors.
  * These are AU volume-kitchen conventions, not a generic starting point.
+ *
+ * There used to be a second method here, identical but for its nominal thicknesses. With
+ * thickness gone to the board, the two were the same method written twice.
  */
-export const FRAMELESS_32_16MM: ConstructionMethod = {
-  id: 'frameless-32-16',
-  name: 'Frameless 32mm — 16mm carcass',
+export const FRAMELESS_32: ConstructionMethod = {
+  id: 'frameless-32',
+  name: 'Frameless 32mm',
   family: 'frameless-32',
-  carcassThickness: mm(16),
-  backThickness: mm(16),
-  doorThickness: mm(18),
   backStyle: 'applied',
   kickHeight: mm(150),
   kickSetback: mm(50),
@@ -109,19 +106,83 @@ export const FRAMELESS_32_16MM: ConstructionMethod = {
   systemFrontSetback: mm(37),
 };
 
-/** Heavier commercial-fitout variant. */
-export const FRAMELESS_32_18MM: ConstructionMethod = {
-  ...FRAMELESS_32_16MM,
-  id: 'frameless-32-18',
-  name: 'Frameless 32mm — 18mm carcass',
-  carcassThickness: mm(18),
-  backThickness: mm(18),
+export const DEFAULT_CONSTRUCTIONS: readonly ConstructionMethod[] = [FRAMELESS_32];
+
+/** Ids the shipped methods used to have, and the one they all become. */
+export const LEGACY_CONSTRUCTION_IDS: readonly string[] = ['frameless-32-16', 'frameless-32-18'];
+
+/** Names the shipped methods used to have, now that the thickness in them means nothing. */
+const LEGACY_CONSTRUCTION_NAMES: Record<string, string> = {
+  'Frameless 32mm — 16mm carcass': 'Frameless 32mm',
+  'Frameless 32mm — 18mm carcass': 'Frameless 32mm',
 };
 
-export const DEFAULT_CONSTRUCTIONS: readonly ConstructionMethod[] = [
-  FRAMELESS_32_16MM,
-  FRAMELESS_32_18MM,
-];
+/**
+ * Everything about a method except the label it goes by, as a comparable string.
+ *
+ * The name is left out on purpose: two methods called different things but built identically
+ * *are* the same method, and that is exactly the case this has to catch. Keys are sorted so
+ * two records written in a different order still compare equal.
+ */
+const behaviourKey = (c: Record<string, unknown>): string =>
+  JSON.stringify(
+    Object.keys(c)
+      .filter((k) => k !== 'id' && k !== 'name')
+      .sort()
+      .map((k) => [k, c[k]]),
+  );
+
+export interface CollapsedConstructions {
+  readonly constructions: Record<string, unknown>[];
+  /** Old construction id → the id that replaced it. Only ids that moved appear. */
+  readonly idMap: Record<string, string>;
+}
+
+/**
+ * Take the thicknesses off a stored list of construction methods, and fold together any that
+ * were only ever telling them apart.
+ *
+ * Shared by the project and standards migrations, because both store the same list and both
+ * have to come out the other side pointing at methods that still exist.
+ *
+ * Two methods are folded together only when everything that *makes a difference to a part* is
+ * identical. A shop that edited one method's kick height has two genuinely different methods
+ * and keeps both — losing one would silently re-cut their cabinets, which is the one thing a
+ * migration must never do.
+ */
+export const collapseThicknessFields = (
+  raw: readonly Record<string, unknown>[],
+): CollapsedConstructions => {
+  const survivors: Record<string, unknown>[] = [];
+  const idMap: Record<string, string> = {};
+
+  for (const original of raw) {
+    const stripped: Record<string, unknown> = { ...original };
+    delete stripped.carcassThickness;
+    delete stripped.backThickness;
+    delete stripped.doorThickness;
+    if (typeof stripped.name === 'string') {
+      stripped.name = LEGACY_CONSTRUCTION_NAMES[stripped.name] ?? stripped.name;
+    }
+
+    const key = behaviourKey(stripped);
+    const existing = survivors.find((s) => behaviourKey(s) === key);
+
+    if (existing) idMap[String(stripped.id)] = String(existing.id);
+    else survivors.push(stripped);
+  }
+
+  // Two methods that survived but now read the same on screen need telling apart.
+  const seen = new Map<string, number>();
+  for (const s of survivors) {
+    const name = String(s.name);
+    const count = seen.get(name) ?? 0;
+    seen.set(name, count + 1);
+    if (count > 0) s.name = `${name} (${count + 1})`;
+  }
+
+  return { constructions: survivors, idMap };
+};
 
 export const findConstruction = (
   methods: readonly ConstructionMethod[],

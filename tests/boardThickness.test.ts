@@ -39,9 +39,12 @@ import {
 } from '../src/core/project/factory.ts';
 import {
   AU_SHOP_STANDARDS,
+  CURRENT_STANDARDS_VERSION,
   differencesFromStandards,
   matchesStandards,
+  migrateStandards,
 } from '../src/core/standards/standards.ts';
+import { FRAMELESS_32 } from '../src/core/model/construction.ts';
 import { byName, occupies, size } from './helpers.ts';
 
 let project: Project;
@@ -146,8 +149,7 @@ describe('a 16mm board measured at 16.3', () => {
     );
   });
 
-  it('is not treated as a mismatch with the construction method', () => {
-    // The method is built around 16mm board. This *is* 16mm board — it just measures 16.3.
+  it('is not something to warn about — it is just the truth about the board', () => {
     expect(reference(job).warnings).toEqual([]);
   });
 });
@@ -235,5 +237,130 @@ describe('migrating a job saved before boards could be measured', () => {
     expect(() => migrateProject({ schemaVersion: CURRENT_SCHEMA_VERSION + 1 })).toThrow(
       /newer version/,
     );
+  });
+});
+
+/*
+ * Taking the thicknesses off the construction method.
+ *
+ * v4 had already stopped calculating from them — the board decides — so they survived only as
+ * a nominal the method was "built around". Two places claiming to know one fact, so they went.
+ *
+ * The two shipped methods differed *only* in those numbers, so once stripped they are the same
+ * method written twice and fold into one. A method a shop genuinely edited does not fold, and
+ * every cabinet is repointed at whichever method survived.
+ */
+describe('migrating a job whose construction methods still carried thicknesses', () => {
+  /** A v4 job: two shipped methods, cabinets on the 16mm one. */
+  const v4Job = () => ({
+    schemaVersion: 4,
+    id: 'p1',
+    name: 'Old job',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    room: createSampleKitchen().room,
+    materials: createSampleKitchen().materials,
+    settings: createSampleKitchen().settings,
+    defaults: { ...createSampleKitchen().defaults, constructionId: 'frameless-32-16' },
+    constructions: [
+      { ...FRAMELESS_32, id: 'frameless-32-16', name: 'Frameless 32mm — 16mm carcass', carcassThickness: 16, backThickness: 16, doorThickness: 18 },
+      { ...FRAMELESS_32, id: 'frameless-32-18', name: 'Frameless 32mm — 18mm carcass', carcassThickness: 18, backThickness: 18, doorThickness: 18 },
+    ],
+    cabinets: [
+      { ...createSampleKitchen().cabinets[0]!, constructionId: 'frameless-32-16' },
+      { ...createSampleKitchen().cabinets[1]!, constructionId: 'frameless-32-18' },
+    ],
+  });
+
+  it('folds the two shipped methods into one and drops the thicknesses', () => {
+    const migrated = migrateProject(JSON.parse(JSON.stringify(v4Job())));
+
+    expect(migrated.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
+    expect(migrated.constructions).toHaveLength(1);
+    expect(migrated.constructions[0]!.name).toBe('Frameless 32mm');
+    expect('carcassThickness' in migrated.constructions[0]!).toBe(false);
+  });
+
+  it('repoints every cabinet at the method that survived', () => {
+    const migrated = migrateProject(JSON.parse(JSON.stringify(v4Job())));
+    const survivingId = migrated.constructions[0]!.id;
+
+    // The cabinet that was on the 18mm method has to land somewhere that still exists,
+    // otherwise the rule engine throws the moment the job is opened.
+    expect(migrated.cabinets.map((c) => c.constructionId)).toEqual([survivingId, survivingId]);
+    expect(migrated.defaults.constructionId).toBe(survivingId);
+    for (const cabinet of migrated.cabinets) {
+      expect(() => buildCabinet(cabinet, migrated)).not.toThrow();
+    }
+  });
+
+  it('keeps both methods when a shop genuinely edited one of them', () => {
+    // A 100mm kick on the second method makes it a different method, not a duplicate. Folding
+    // it away would silently re-cut every cabinet built to it.
+    const edited = JSON.parse(JSON.stringify(v4Job()));
+    edited.constructions[1].kickHeight = 100;
+    const migrated = migrateProject(edited);
+
+    expect(migrated.constructions).toHaveLength(2);
+    expect(migrated.constructions.map((c) => c.kickHeight)).toEqual([150, 100]);
+    // Both now want to be called "Frameless 32mm", so they get told apart.
+    expect(new Set(migrated.constructions.map((c) => c.name)).size).toBe(2);
+    // And the cabinet built to the edited method still points at it.
+    expect(migrated.cabinets[1]!.constructionId).toBe('frameless-32-18');
+  });
+
+  it('cuts a migrated job to exactly the sizes it cut before', () => {
+    // Nothing dimensional changed: the thicknesses stopped sizing parts back in v4.
+    const migrated = migrateProject(JSON.parse(JSON.stringify(v4Job())));
+    const fresh = createSampleKitchen();
+
+    const before = buildCabinet(fresh.cabinets[0]!, fresh).panels;
+    const after = buildCabinet(migrated.cabinets[0]!, migrated).panels;
+    expect(after.map((p) => p.profile)).toEqual(before.map((p) => p.profile));
+  });
+});
+
+describe('migrating shop standards', () => {
+  /** v1 standards, with the two shipped methods and a shop's own kick height and saved type. */
+  const v1Standards = () => ({
+    version: 1,
+    name: 'My shop',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    materials: AU_SHOP_STANDARDS.materials,
+    settings: AU_SHOP_STANDARDS.settings,
+    defaults: { ...AU_SHOP_STANDARDS.defaults, constructionId: 'frameless-32-18' },
+    constructions: [
+      { ...FRAMELESS_32, id: 'frameless-32-16', name: 'Frameless 32mm — 16mm carcass', kickHeight: 100, carcassThickness: 16, backThickness: 16, doorThickness: 18 },
+      { ...FRAMELESS_32, id: 'frameless-32-18', name: 'Frameless 32mm — 18mm carcass', kickHeight: 100, carcassThickness: 18, backThickness: 18, doorThickness: 18 },
+    ],
+    savedTypes: [{ id: 't1', name: 'Bin cupboard', typeId: 'base', width: 600, height: 720, depth: 560, options: {}, materials: {} }],
+  });
+
+  it('migrates rather than rejecting, so nobody loses their shop standards', () => {
+    // Refusing the old file would silently replace years of accumulated preference with the
+    // shipped Australian defaults — far worse than the schema change it would be guarding.
+    const migrated = migrateStandards(JSON.parse(JSON.stringify(v1Standards())));
+
+    expect(migrated.version).toBe(CURRENT_STANDARDS_VERSION);
+    expect(migrated.name).toBe('My shop');
+    expect(migrated.constructions).toHaveLength(1);
+    // Their 100mm kick survived, and so did their saved cabinet type.
+    expect(migrated.constructions[0]!.kickHeight).toBe(100);
+    expect(migrated.savedTypes.map((t) => t.name)).toEqual(['Bin cupboard']);
+  });
+
+  it('repoints the default construction at the method that survived', () => {
+    const migrated = migrateStandards(JSON.parse(JSON.stringify(v1Standards())));
+    expect(migrated.defaults.constructionId).toBe(migrated.constructions[0]!.id);
+  });
+
+  it('refuses standards from a newer build', () => {
+    expect(() => migrateStandards({ version: CURRENT_STANDARDS_VERSION + 1 })).toThrow(
+      /newer version/,
+    );
+  });
+
+  it('rejects standards with no version at all', () => {
+    expect(() => migrateStandards({})).toThrow(/missing version/);
   });
 });

@@ -8,11 +8,11 @@
 
 import type { Mm } from '../units.ts';
 import type { Cabinet } from './cabinet.ts';
-import type { ConstructionMethod } from './construction.ts';
+import { type ConstructionMethod, collapseThicknessFields } from './construction.ts';
 import type { MaterialLibrary } from './material.ts';
 import type { Room } from './room.ts';
 
-export const CURRENT_SCHEMA_VERSION = 4 as const;
+export const CURRENT_SCHEMA_VERSION = 5 as const;
 
 /**
  * GST treatment. These are genuinely different arithmetic, not a display toggle:
@@ -211,6 +211,37 @@ const migrateV3toV4 = (raw: Record<string, unknown>): Record<string, unknown> =>
 };
 
 /**
+ * v4 → v5.
+ *
+ * Construction methods lose their carcass, back and door thicknesses. v4 had already stopped
+ * calculating from them — the board decides that — leaving them as a nominal the method was
+ * "built around" and checked against. Two places claiming to know one fact is the thing this
+ * codebase exists not to do, so they are gone, and with them the check.
+ *
+ * No part moves. The thicknesses stopped sizing anything in v4, so removing them changes
+ * nothing dimensional; what changes is that the two shipped methods, which differed only in
+ * those numbers, are now visibly one method. Any construction a shop genuinely edited stays
+ * as its own method, and every cabinet is repointed at whichever method survived, so a saved
+ * job cuts exactly as it did.
+ */
+const migrateV4toV5 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const { constructions, idMap } = collapseThicknessFields(
+    (raw.constructions as Record<string, unknown>[] | undefined) ?? [],
+  );
+  const remap = (id: unknown): unknown => (typeof id === 'string' ? (idMap[id] ?? id) : id);
+  const defaults = (raw.defaults as Record<string, unknown> | undefined) ?? {};
+  const cabinets = (raw.cabinets as Record<string, unknown>[] | undefined) ?? [];
+
+  return {
+    ...raw,
+    schemaVersion: 5,
+    constructions,
+    defaults: { ...defaults, constructionId: remap(defaults.constructionId) },
+    cabinets: cabinets.map((c) => ({ ...c, constructionId: remap(c.constructionId) })),
+  };
+};
+
+/**
  * Load a project from stored JSON, migrating older schema versions forward.
  *
  * Migrations run in sequence, so a v1 file loaded after several schema changes still arrives
@@ -234,6 +265,7 @@ export const migrateProject = (raw: unknown): Project => {
   if (data.schemaVersion === 1) data = migrateV1toV2(data);
   if (data.schemaVersion === 2) data = migrateV2toV3(data);
   if (data.schemaVersion === 3) data = migrateV3toV4(data);
+  if (data.schemaVersion === 4) data = migrateV4toV5(data);
 
   if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`migrateProject: could not migrate schema version ${String(version)}`);

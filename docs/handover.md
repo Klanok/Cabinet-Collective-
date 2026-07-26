@@ -23,7 +23,7 @@ really measures, and parts are cut to that. Details in §4.1 and §4.2 below.
 ```
 npm install
 npm run dev       # the app
-npm test          # 236 tests
+npm test          # 242 tests
 npm run build
 npm run report    # cutlist + costing for the sample kitchen, in the terminal
 ```
@@ -83,7 +83,10 @@ materials.
 
 **Migrations must never quietly change anyone's parts.** Both existing migrations carry old
 values forward so a saved job cuts exactly as it did; adopting a new default is then a
-deliberate edit. Schema is at **v4**; migrations run in sequence in `model/project.ts`.
+deliberate edit. Schema is at **v5**; migrations run in sequence in `model/project.ts`. Shop
+standards are versioned separately and are at **v2** — and they get a *real* migration rather
+than a rejection, because refusing to load them silently replaces a shop's accumulated kick
+heights, reveals and saved cabinet types with the shipped Australian defaults.
 
 **A room is a list of wall segments walked in order, and always was.** `rectangularRoom` is
 one constructor for that list, not the shape of the data — which is why drawing arbitrary
@@ -159,26 +162,34 @@ method and the parts were cut for 16 and drawn at 18. Splitting nominal from act
 issue, and the board won: **the sheet that will really be cut decides the arithmetic**, because
 that is the thing a part has to fit between.
 
-So the construction method's three thickness fields no longer size anything. They now declare
-the nominal board the method is built around, and are checked against the board a cabinet
-actually uses — mismatches show in the Inspector as *"Carcass is White HMR particleboard at
-18mm, but 'Frameless 32mm — 16mm carcass' is built around 16mm."* A 16mm board measuring 16.3
-is deliberately **not** a mismatch; that is the whole point of the split.
+That left the construction method's three thickness fields sizing nothing. v4 kept them for one
+more step as a nominal the method was "built around", checked against the board a cabinet
+actually used, with mismatches reported in the Inspector.
 
-**Consequence worth knowing:** changing carcass thickness is now done by choosing the board,
-not by typing a number under Joinery. If any saved job used the 18mm method with 16mm boards
-(or the reverse), its parts now follow the board — and it says so on screen instead of
-silently disagreeing with itself.
+**Consequence worth knowing:** changing carcass thickness is done by choosing the board, not by
+typing a number under Joinery. If any saved job used the 18mm method with 16mm boards (or the
+reverse), its parts now follow the board.
 
-**Still to decide:** whether those three construction fields should exist at all, or whether a
-construction method should simply not have an opinion about board thickness. Leaving them as a
-declared-and-checked intent is the conservative choice; deleting them would collapse the two
-shipped methods into one and is a bigger, user-visible call.
+**Then finished off (v5).** The user's call: the three construction thickness fields are gone
+entirely. A construction method now has **no opinion about how thick a board is** — that is the
+sheet's business, full stop, and there is exactly one place that knows it. The mismatch warning
+went with them, since there is no longer an expectation to violate.
 
-The schema moved to **v4**. The migration writes `actualThickness = thickness` on every
-material, so nothing moves. The version was bumped rather than letting the field default,
-specifically so an **older build refuses** a job whose boards have been measured instead of
-quietly cutting every part 0.6mm too big.
+The two shipped methods differed *only* in those numbers, so they folded into one,
+**`frameless-32` / "Frameless 32mm"**. Joinery now holds only what actually decides how parts
+go together: back style, kick, top rails, reveals, gaps, shelf clearances, system holes.
+
+`collapseThicknessFields` in `model/construction.ts` does the folding and is shared by both
+migrations. It folds two methods together **only** when everything that affects a part is
+identical — a shop that edited one method's kick height has two genuinely different methods and
+keeps both, because dropping one would silently re-cut their cabinets. Every cabinet and both
+`defaults.constructionId`s are repointed at whichever method survived, so nothing dangles.
+
+Schema history for this piece: **v4** added `actualThickness` (migration writes it equal to
+nominal, so nothing moves) and was bumped specifically so an **older build refuses** a measured
+job rather than quietly cutting every part 0.6mm too big. **v5** removed the construction
+thicknesses, which changed nothing dimensional because v4 had already stopped calculating from
+them.
 
 ### 4.2 Drawing room walls — **done**
 

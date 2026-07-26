@@ -12,7 +12,6 @@ import type { Project } from '../model/project.ts';
 import {
   type ResolvedMaterials,
   buildContext,
-  checkThicknessAgainstMethod,
   thicknessesFor,
   validateContext,
 } from './context.ts';
@@ -79,11 +78,7 @@ export const buildCabinet = (cabinet: Cabinet, project: Project): BuiltCabinet =
   const thicknesses = thicknessesFor(materials, project.materials);
   const ctx = buildContext(merged, construction, materials, thicknesses);
 
-  const warnings = [
-    ...validateContext(ctx),
-    ...checkThicknessAgainstMethod(construction, materials, project.materials),
-    ...(spec.validate?.(ctx) ?? []),
-  ];
+  const warnings = [...validateContext(ctx), ...(spec.validate?.(ctx) ?? [])];
 
   // A cabinet whose driving dimensions don't work can't produce meaningful parts. Report and
   // stop rather than emitting negative-sized panels that look plausible in a cutlist.

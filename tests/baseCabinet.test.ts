@@ -295,7 +295,6 @@ describe('construction method drives the parts, not the spec', () => {
       height: REFERENCE.H,
       depth: REFERENCE.D,
       x: mm(0),
-      constructionId: 'frameless-32-18',
     });
     const { panels } = buildCabinet(cabinet, eighteen);
 
@@ -344,55 +343,11 @@ describe('construction method drives the parts, not the spec', () => {
     expect(size(byName(panels, 'Door L'))).toEqual([717, 447]);
   });
 
-  it('says so when the board is not the one the method is built around', () => {
-    // Parts follow the board either way, but an 18mm carcass on a 16mm method is nearly
-    // always a slip in the material picker, and it changes every part in the cabinet.
-    const mixed: Project = {
-      ...project,
-      defaults: { ...project.defaults, carcassMaterialId: 'hmr-white-18' },
-      cabinets: [],
-    };
-    const cabinet = createCabinet({
-      typeId: 'base',
-      name: 'B1',
-      width: REFERENCE.W,
-      height: REFERENCE.H,
-      depth: REFERENCE.D,
-      x: mm(0),
-    });
-    const { warnings, panels } = buildCabinet(cabinet, mixed);
-
-    expect(warnings.join(' ')).toMatch(/Carcass is .* 18mm, but .* built around 16mm/);
-    expect(size(byName(panels, 'Bottom'))).toEqual([864, 544]);
-  });
-
-  it('does not call a 16.3mm board a mismatch — that is the point of it', () => {
-    const measured: Project = {
-      ...project,
-      materials: {
-        ...project.materials,
-        sheets: project.materials.sheets.map((s) =>
-          s.id === 'hmr-white-16' ? { ...s, actualThickness: mm(16.3) } : s,
-        ),
-      },
-      cabinets: [],
-    };
-    const cabinet = createCabinet({
-      typeId: 'base',
-      name: 'B1',
-      width: REFERENCE.W,
-      height: REFERENCE.H,
-      depth: REFERENCE.D,
-      x: mm(0),
-    });
-    expect(buildCabinet(cabinet, measured).warnings).toEqual([]);
-  });
-
   it('runs the sides full depth when the back is inset instead of applied', () => {
     const inset = {
       ...project,
       constructions: project.constructions.map((c) =>
-        c.id === 'frameless-32-16' ? { ...c, backStyle: 'inset' as const } : c,
+        c.id === 'frameless-32' ? { ...c, backStyle: 'inset' as const } : c,
       ),
     };
     const cabinet = createCabinet({
