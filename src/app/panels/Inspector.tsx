@@ -7,6 +7,8 @@ import { mm } from '../../core/units.ts';
 import type { Cabinet } from '../../core/model/cabinet.ts';
 import { panelExtent } from '../../core/model/panel.ts';
 import type { Project } from '../../core/model/project.ts';
+import { wallLength } from '../../core/model/room.ts';
+import { type WallAnchor, wallAnchorOf } from '../../core/project/wallPlacement.ts';
 import { sheetLabel } from './MaterialPicker.tsx';
 import type { BuiltCabinet } from '../../core/rules/build.ts';
 import { getSpec } from '../../core/rules/registry.ts';
@@ -17,6 +19,7 @@ interface Props {
   onUpdate: (id: string, patch: Partial<Cabinet>) => void;
   onUpdateOptions: (id: string, patch: Cabinet['options']) => void;
   onSaveAsType: (cabinetId: string, name: string) => void;
+  onPlaceOnWall: (cabinetId: string, anchor: WallAnchor | null) => void;
 }
 
 /**
@@ -94,7 +97,136 @@ function NumberField({
   );
 }
 
-export function Inspector({ built, project, onUpdate, onUpdateOptions, onSaveAsType }: Props) {
+/**
+ * Where the cabinet stands, said the way you'd say it on site: which wall, and how far along
+ * it from the corner.
+ *
+ * The wall isn't stored on the cabinet — it is read back out of the cabinet's placement every
+ * render. That is what keeps one source of truth for position: there is no wall reference to
+ * go stale when a wall is renamed, redrawn or deleted, and a cabinet dragged onto a different
+ * wall reports the new one without anything having to be kept in step.
+ *
+ * A cabinet that isn't against a wall — an island, a peninsula — is a normal thing to have, so
+ * it gets plain X and Z instead rather than being forced onto a wall.
+ */
+function PlacementEditor({
+  cabinet,
+  project,
+  onUpdate,
+  onPlaceOnWall,
+}: {
+  cabinet: Cabinet;
+  project: Project;
+  onUpdate: (id: string, patch: Partial<Cabinet>) => void;
+  onPlaceOnWall: (cabinetId: string, anchor: WallAnchor | null) => void;
+}) {
+  const anchor = wallAnchorOf(project.room, cabinet);
+  const wall = anchor ? project.room.walls.find((w) => w.id === anchor.wallId) : undefined;
+
+  const moveTo = (x: number, z: number) =>
+    onUpdate(cabinet.id, {
+      placement: { ...cabinet.placement, anchor: { ...cabinet.placement.anchor, x: mm(x), z: mm(z) } },
+    });
+
+  return (
+    <>
+      <label className="field">
+        <span>Against</span>
+        <div className="field-input">
+          <select
+            value={anchor?.wallId ?? ''}
+            onChange={(e) =>
+              onPlaceOnWall(
+                cabinet.id,
+                e.target.value
+                  ? { wallId: e.target.value, along: anchor?.along ?? mm(0), offset: anchor?.offset ?? mm(0) }
+                  : null,
+              )
+            }
+          >
+            <option value="">Nothing — free standing</option>
+            {project.room.walls.map((w) => (
+              <option key={w.id} value={w.id}>
+                {w.name} — {Math.round(wallLength(w))}mm
+              </option>
+            ))}
+          </select>
+        </div>
+      </label>
+
+      {anchor && wall ? (
+        <>
+          <NumberField
+            label="Along the wall"
+            value={anchor.along}
+            step={10}
+            onChange={(n) => onPlaceOnWall(cabinet.id, { ...anchor, along: mm(n) })}
+          />
+          <NumberField
+            label="Gap behind"
+            value={anchor.offset}
+            min={0}
+            max={200}
+            step={1}
+            onChange={(n) => onPlaceOnWall(cabinet.id, { ...anchor, offset: mm(n) })}
+          />
+          {anchor.along + cabinet.width > wallLength(wall) + 0.5 && (
+            <p className="note subtle">
+              Runs {Math.round(anchor.along + cabinet.width - wallLength(wall))}mm past the end of{' '}
+              {wall.name}.
+            </p>
+          )}
+        </>
+      ) : (
+        <>
+          <NumberField
+            label="Across the room"
+            value={cabinet.placement.anchor.x}
+            step={10}
+            onChange={(n) => moveTo(n, cabinet.placement.anchor.z)}
+          />
+          <NumberField
+            label="Back into the room"
+            value={cabinet.placement.anchor.z}
+            step={10}
+            onChange={(n) => moveTo(cabinet.placement.anchor.x, n)}
+          />
+          <NumberField
+            label="Turned"
+            value={cabinet.placement.yawDeg}
+            min={0}
+            max={359}
+            step={15}
+            suffix="°"
+            onChange={(n) =>
+              onUpdate(cabinet.id, { placement: { ...cabinet.placement, yawDeg: n } })
+            }
+          />
+        </>
+      )}
+
+      <NumberField
+        label="Height off floor"
+        value={cabinet.placement.anchor.y}
+        step={10}
+        onChange={(n) =>
+          onUpdate(cabinet.id, {
+            placement: { ...cabinet.placement, anchor: { ...cabinet.placement.anchor, y: mm(n) } },
+          })
+        }
+      />
+    </>
+  );
+}
+
+export function Inspector({
+  built,
+  project,
+  onUpdate,
+  onUpdateOptions,
+  onSaveAsType,
+  onPlaceOnWall,
+}: Props) {
   if (!built) {
     return (
       <section className="panel">
@@ -172,31 +304,15 @@ export function Inspector({ built, project, onUpdate, onUpdateOptions, onSaveAsT
           step={10}
           onChange={(n) => onUpdate(cabinet.id, { depth: mm(n) })}
         />
-        <NumberField
-          label="Position along wall"
-          value={cabinet.placement.anchor.x}
-          step={10}
-          onChange={(n) =>
-            onUpdate(cabinet.id, {
-              placement: {
-                ...cabinet.placement,
-                anchor: { ...cabinet.placement.anchor, x: mm(n) },
-              },
-            })
-          }
-        />
-        <NumberField
-          label="Height off floor"
-          value={cabinet.placement.anchor.y}
-          step={10}
-          onChange={(n) =>
-            onUpdate(cabinet.id, {
-              placement: {
-                ...cabinet.placement,
-                anchor: { ...cabinet.placement.anchor, y: mm(n) },
-              },
-            })
-          }
+      </div>
+
+      <div className="subhead">Where it stands</div>
+      <div className="fields">
+        <PlacementEditor
+          cabinet={cabinet}
+          project={project}
+          onUpdate={onUpdate}
+          onPlaceOnWall={onPlaceOnWall}
         />
       </div>
 

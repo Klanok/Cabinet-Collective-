@@ -74,9 +74,15 @@ export interface CabinetPlacement {
   readonly yawDeg: number;
 }
 
-const yawCosSin = (yawDeg: number): { c: number; s: number } => {
-  // Snap the four cardinal orientations exactly. Most runs are axis-aligned, and letting
-  // cos(90°) come back as 6.1e-17 puts that error into every part coordinate downstream.
+/**
+ * Cosine and sine of a yaw, with the four cardinal orientations snapped exactly.
+ *
+ * Exported because everything that turns a cabinet — the transform below, benchtop runs,
+ * plan footprints — has to round the same way. Letting cos(90°) come back as 6.1e-17 in one
+ * place and be snapped in another is how two cabinets that are butted together end up a
+ * billionth of a millimetre apart, which is enough to break a benchtop run in half.
+ */
+export const yawCosSin = (yawDeg: number): { c: number; s: number } => {
   const normalised = ((yawDeg % 360) + 360) % 360;
   if (normalised === 0) return { c: 1, s: 0 };
   if (normalised === 90) return { c: 0, s: 1 };

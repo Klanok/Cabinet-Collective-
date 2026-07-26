@@ -12,7 +12,7 @@
 
 import { useState } from 'react';
 import { type Mm, mm } from '../../core/units.ts';
-import { type Room, rectangularRoom, wallLength } from '../../core/model/room.ts';
+import { type Room, isRectangularRoom, rectangularRoom, wallLength } from '../../core/model/room.ts';
 import type { ConstructionMethod } from '../../core/model/construction.ts';
 import type { GstMode, Project, ProjectDefaults, ProjectSettings } from '../../core/model/project.ts';
 import type { MaterialLibrary } from '../../core/model/material.ts';
@@ -273,11 +273,16 @@ function MaterialsEditor({
 }
 
 /**
- * Room size. Phase 1 keeps the room a rectangle — enough to check a run against the space it
- * has to fit. Drawing an arbitrary plan (an L-shaped kitchen, a bulkhead, a window) is a
- * bigger piece of work and is called out as such rather than half-built here.
+ * Room size.
+ *
+ * A plain rectangle is still worth two boxes — it is most jobs, and typing 4200 by 3600 beats
+ * drawing four walls to say the same thing. But those two numbers can only describe a
+ * rectangle, and rebuilding the room from them would quietly throw away any plan that has been
+ * drawn. So once the room stops being a rectangle, this stands aside and points at the plan
+ * view, which can edit it without destroying it.
  */
 function RoomEditor({ room, onChange }: { room: Room; onChange: (room: Room) => void }) {
+  const rectangular = isRectangularRoom(room);
   const width = room.walls[0] ? wallLength(room.walls[0]) : mm(0);
   const depth = room.walls[1] ? wallLength(room.walls[1]) : mm(0);
   const thickness = room.walls[0]?.thickness ?? mm(90);
@@ -285,40 +290,57 @@ function RoomEditor({ room, onChange }: { room: Room; onChange: (room: Room) => 
   const resize = (w: Mm, d: Mm, h: Mm, t: Mm) =>
     onChange({ ...rectangularRoom(room.id, room.name, w, d, h, t), name: room.name });
 
+  /** Ceiling height applies whatever shape the room is, so it is edited on every wall. */
+  const setCeiling = (h: Mm) =>
+    onChange({ ...room, ceilingHeight: h, walls: room.walls.map((w) => ({ ...w, height: h })) });
+
   return (
     <>
-      <NumberRow
-        label="Room width"
-        hint="Along the wall the run sits against"
-        value={width}
-        min={500}
-        step={50}
-        onChange={(n) => resize(mm(n), depth, room.ceilingHeight, thickness)}
-      />
-      <NumberRow
-        label="Room depth"
-        value={depth}
-        min={500}
-        step={50}
-        onChange={(n) => resize(width, mm(n), room.ceilingHeight, thickness)}
-      />
+      {rectangular ? (
+        <>
+          <NumberRow
+            label="Room width"
+            hint="Along the wall the run sits against"
+            value={width}
+            min={500}
+            step={50}
+            onChange={(n) => resize(mm(n), depth, room.ceilingHeight, thickness)}
+          />
+          <NumberRow
+            label="Room depth"
+            value={depth}
+            min={500}
+            step={50}
+            onChange={(n) => resize(width, mm(n), room.ceilingHeight, thickness)}
+          />
+          <NumberRow
+            label="Wall thickness"
+            value={thickness}
+            min={10}
+            step={10}
+            onChange={(n) => resize(width, depth, room.ceilingHeight, mm(n))}
+          />
+        </>
+      ) : (
+        <p className="note">
+          This room has {room.walls.length} walls, so it can't be described by a width and a
+          depth. Edit it in the <strong>Plan</strong> view, next to the 3D button above the
+          viewport — that can change one wall without redrawing the others.
+        </p>
+      )}
+
       <NumberRow
         label="Ceiling height"
         value={room.ceilingHeight}
         min={2000}
         step={50}
-        onChange={(n) => resize(width, depth, mm(n), thickness)}
+        onChange={(n) => setCeiling(mm(n))}
       />
-      <NumberRow
-        label="Wall thickness"
-        value={thickness}
-        min={10}
-        step={10}
-        onChange={(n) => resize(width, depth, room.ceilingHeight, mm(n))}
-      />
+
       <p className="note subtle">
-        The room is a rectangle for now. Drawing an arbitrary plan — an L-shaped kitchen, a
-        bulkhead, a window — is a larger piece of work still to come.
+        Drawing the plan — an L-shaped kitchen, a return, a wall at an angle — is done in the
+        Plan view. Lengths are typed there rather than dragged, so a wall measures what the tape
+        said.
       </p>
     </>
   );

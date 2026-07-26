@@ -33,6 +33,7 @@ import {
   createSampleKitchen,
   naturalAnchorY,
 } from '../../core/project/factory.ts';
+import { type WallAnchor, placeAgainstWall } from '../../core/project/wallPlacement.ts';
 import { loadProject, loadStandards, saveProject, saveStandards } from './persistence.ts';
 
 export interface ProjectStore {
@@ -54,8 +55,13 @@ export interface ProjectStore {
   updateConstruction: (id: string, patch: Partial<ConstructionMethod>) => void;
   updateDefaults: (patch: Partial<ProjectDefaults>) => void;
   updateRoom: (room: Room) => void;
-  /** Move a cabinet on the floor plane — height is never changed by dragging. */
-  moveCabinet: (id: string, x: Mm, z: Mm) => void;
+  /**
+   * Move a cabinet on the floor plane, optionally turning it. Height is never changed by
+   * dragging — a wall cabinet pushed sideways must not slide down the wall.
+   */
+  moveCabinet: (id: string, x: Mm, z: Mm, yawDeg?: number) => void;
+  /** Stand a cabinet against a wall, or take it off the wall it is on. */
+  placeCabinetOnWall: (id: string, anchor: WallAnchor | null) => void;
 
   /** Make this job's current setup the shop standard for everything after it. */
   saveAsStandards: (name: string) => void;
@@ -215,19 +221,43 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
   updateRoom: (room) => set((state) => persist(touchProject({ ...state.project, room }))),
 
-  moveCabinet: (id, x, z) =>
+  moveCabinet: (id, x, z, yawDeg) =>
     set((state) =>
       persist(
         touchProject({
           ...state.project,
           cabinets: state.project.cabinets.map((c) =>
             c.id === id
-              ? { ...c, placement: { ...c.placement, anchor: { ...c.placement.anchor, x, z } } }
+              ? {
+                  ...c,
+                  placement: {
+                    anchor: { ...c.placement.anchor, x, z },
+                    yawDeg: yawDeg ?? c.placement.yawDeg,
+                  },
+                }
               : c,
           ),
         }),
       ),
     ),
+
+  placeCabinetOnWall: (id, anchor) =>
+    set((state) => {
+      const cabinet = state.project.cabinets.find((c) => c.id === id);
+      if (!cabinet) return {};
+      // Taking a cabinet off a wall leaves it exactly where it stands — it becomes an island
+      // in place, rather than jumping somewhere the user has to go and find it.
+      const placement = anchor
+        ? placeAgainstWall(state.project.room, anchor, cabinet.placement.anchor.y)
+        : cabinet.placement;
+      if (!placement) return {};
+      return persist(
+        touchProject({
+          ...state.project,
+          cabinets: state.project.cabinets.map((c) => (c.id === id ? { ...c, placement } : c)),
+        }),
+      );
+    }),
 
   saveCabinetAsType: (cabinetId, name, note) =>
     set((state) => {

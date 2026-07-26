@@ -9,14 +9,13 @@ cutlist, and costing that handles GST properly — all driven from one versioned
 ```bash
 npm install
 npm run dev       # the app
-npm test          # 169 tests
+npm test          # 216 tests
 npm run report    # cutlist + costing for the sample kitchen, in the terminal
 ```
 
 ## What it does today
 
-Lay out base, wall, tall, drawer-bank and custom cabinets along a run, inside a room you can
-size to the real space.
+Draw the room, then lay base, wall, tall, drawer-bank and custom cabinets against its walls.
 
 The **custom** cabinet is the same carcass with its part list chosen rather than fixed — top
 panel, rails or open; back or none; shelves; vertical dividers; a lid; drawers or doors.
@@ -31,10 +30,29 @@ one copy of each part in the system.
 The sample kitchen is a 3000mm base run with 2400mm of wall cabinets over it: 7 cabinets,
 63 parts, 29 cutlist lines, ~$1,800 on the seeded rates.
 
+## Drawing the room
+
+Every kitchen is a different shape, so the room isn't a box you type two numbers into. Switch
+the viewport to **Plan** and walk the room the way you'd measure it: each wall runs on from the
+last, you say which way it turns, and you **type what it measures**. Nothing is sized by
+dragging — a wall that's 4185 because that's where you let go of the mouse is worse than no
+wall at all. The last wall closes back onto the first, and the plan tells you how far off it is
+until it does.
+
+Change a length later and every wall after it moves with it, the same as it would on paper:
+make the room 600 longer and the wall running back the other way gives up the 600, so the plan
+stays closed.
+
+Name your walls what you call them on site — "sink wall", "window wall" — because those names
+are what you pick from when you place a cabinet. In the Inspector a cabinet says where it
+stands the way you'd say it: **against the sink wall, 600 along, no gap behind**. Drag one near
+a wall in the 3D view and it parks flush and square against it, turned the right way round.
+
 ## Settings: your shop's numbers, per job
 
-Every joinery number is editable, along with materials, standard cabinet sizes, room size,
-margin, labour rates, install, delivery and the GST context. **Settings** in the top bar.
+Every joinery number is editable, along with materials, standard cabinet sizes, ceiling height,
+margin, labour rates, install, delivery and the GST context. **Settings** in the top bar. The
+room's shape is drawn in the Plan view rather than typed here.
 
 Reveals and gaps are split by **where they physically are** rather than being called
 "horizontal" and "vertical" — those are read both ways in the trade, and getting it backwards

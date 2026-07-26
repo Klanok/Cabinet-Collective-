@@ -10,6 +10,8 @@
 import { type Mm, mm } from '../units.ts';
 import type { Cabinet } from '../model/cabinet.ts';
 import type { Project } from '../model/project.ts';
+import { isClosedPlan, isInsideRoom } from '../model/room.ts';
+import { cabinetFootprintCentre } from './wallPlacement.ts';
 import { type Bounds3, boundsFromPoints, cabinetToWorld } from '../geom/placement.ts';
 import { v3 } from '../geom/vec.ts';
 
@@ -45,7 +47,7 @@ const intrusion = (a: Bounds3, b: Bounds3): number => {
 };
 
 export interface LayoutIssue {
-  readonly kind: 'overlap' | 'below-floor';
+  readonly kind: 'overlap' | 'below-floor' | 'outside-room';
   readonly cabinetIds: readonly string[];
   readonly message: string;
 }
@@ -78,6 +80,30 @@ export const checkLayout = (project: Project): readonly LayoutIssue[] => {
         cabinetIds: [cabinet.id],
         message: `${cabinet.name} sits ${Math.round(-box.min.y)}mm below the floor.`,
       });
+    }
+  }
+
+  /*
+   * A cabinet standing outside the room.
+   *
+   * Only checkable once the room is a real outline — against a rectangle you could see it at
+   * a glance, but on an L-shaped plan a cabinet parked in the notch looks perfectly reasonable
+   * from most angles and isn't in the room at all.
+   *
+   * Tested at the centre of the footprint rather than at its corners: a cabinet pushed against
+   * a wall has its back corners lying exactly *on* the outline, where inside-or-out is a
+   * coin toss, while its centre is unambiguously in the room.
+   */
+  if (isClosedPlan(project.room)) {
+    for (const cabinet of cabinets) {
+      const centre = cabinetFootprintCentre(cabinet);
+      if (!isInsideRoom(project.room, centre.x, centre.z)) {
+        issues.push({
+          kind: 'outside-room',
+          cabinetIds: [cabinet.id],
+          message: `${cabinet.name} is outside the room.`,
+        });
+      }
     }
   }
 

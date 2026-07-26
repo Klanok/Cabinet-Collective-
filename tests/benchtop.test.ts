@@ -6,8 +6,10 @@
  */
 
 import { beforeEach, describe, expect, it } from 'vitest';
-import { mm } from '../src/core/units.ts';
+import { type Mm, mm } from '../src/core/units.ts';
 import { benchtopRuns } from '../src/core/project/benchtop.ts';
+import { placeAgainstWall } from '../src/core/project/wallPlacement.ts';
+import { rectangularRoom } from '../src/core/model/room.ts';
 import { createCabinet, createEmptyProject, resetIdCounter } from '../src/core/project/factory.ts';
 import type { Project } from '../src/core/model/project.ts';
 
@@ -121,6 +123,84 @@ describe('benchtop runs', () => {
     expect(run.carcassTopY).toBe(870);
     expect(run.carcassDepth).toBe(600);
     expect(run.backZ).toBe(0);
+  });
+
+  /*
+   * Runs that don't lie along X.
+   *
+   * The room is the shipped 4200 × 3600 rectangle. Down the east wall a cabinet faces −X at
+   * yaw 270, and its own width runs to world +Z — so two touching cabinets there share an X
+   * entirely and are told apart only by Z. Sorting a run by X, as this used to, would have
+   * called them one cabinet in the same place.
+   *
+   *   B1  900 wide, 900 along the east wall  → anchor (4200, 150, 900),  occupies z  900→1800
+   *   B2  600 wide, 1800 along               → anchor (4200, 150, 1800), occupies z 1800→2400
+   *   one top, 1500 long, starting at (4200, 900), facing yaw 270
+   */
+  const eastWall = () => rectangularRoom('room-1', 'Kitchen', mm(4200), mm(3600), mm(2400)).walls[1]!;
+
+  const againstEastWall = (name: string, width: Mm, along: Mm) => {
+    const wall = eastWall();
+    const cabinet = createCabinet(
+      { typeId: 'base', name, width, x: mm(0) },
+      project.defaults,
+      project.constructions,
+    );
+    return {
+      ...cabinet,
+      placement: placeAgainstWall(
+        { ...project.room, walls: [wall] },
+        { wallId: wall.id, along, offset: mm(0) },
+        cabinet.placement.anchor.y,
+      )!,
+    };
+  };
+
+  it('joins a run down a wall that runs in Z, not X', () => {
+    const runs = benchtopRuns({
+      ...project,
+      cabinets: [
+        againstEastWall('B1', mm(900), mm(900)),
+        againstEastWall('B2', mm(600), mm(1800)),
+      ],
+    });
+
+    expect(runs).toHaveLength(1);
+    expect(runs[0]!.length).toBe(1500);
+    expect(runs[0]!.startX).toBe(4200);
+    expect(runs[0]!.backZ).toBe(900);
+    expect(runs[0]!.yawDeg).toBe(270);
+    expect(runs[0]!.carcassTopY).toBe(870);
+  });
+
+  it('still breaks that run over a gap', () => {
+    // 600 of daylight between them — a dishwasher, turned to face the other way.
+    const runs = benchtopRuns({
+      ...project,
+      cabinets: [
+        againstEastWall('B1', mm(900), mm(900)),
+        againstEastWall('B2', mm(600), mm(2400)),
+      ],
+    });
+    expect(runs).toHaveLength(2);
+    expect(runs.map((r) => r.length)).toEqual([900, 600]);
+  });
+
+  it('gives a corner run of an L-shaped kitchen two tops, not one', () => {
+    // One cabinet on the south wall, one down the east wall. They touch at the corner but
+    // face different ways, so they cannot be under the same flat slab.
+    const south = createCabinet(
+      { typeId: 'base', name: 'B1', width: mm(900), x: mm(3300), z: mm(0) },
+      project.defaults,
+      project.constructions,
+    );
+    const runs = benchtopRuns({
+      ...project,
+      cabinets: [south, againstEastWall('B2', mm(900), mm(560))],
+    });
+
+    expect(runs).toHaveLength(2);
+    expect(runs.map((r) => r.yawDeg).sort()).toEqual([0, 270]);
   });
 
   it('covers the sample kitchen in one unbroken top', () => {

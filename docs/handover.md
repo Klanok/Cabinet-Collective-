@@ -16,10 +16,13 @@ Read alongside:
 cutlist against how he would hand-write it for a real cabinet and confirmed it tracks with no
 obvious errors.
 
+**Room drawing (was §4.2) is done.** You can trace a plan with typed wall lengths and stand
+cabinets against any wall in it. Details in §4.2 below.
+
 ```
 npm install
 npm run dev       # the app
-npm test          # 169 tests
+npm test          # 216 tests
 npm run build
 npm run report    # cutlist + costing for the sample kitchen, in the terminal
 ```
@@ -40,7 +43,8 @@ model, rule engine, costing and cutlist all run and test in Node.
 | Shop standards + per-job settings | Working, persisted to browser |
 | Saved cabinet types | Working |
 | Viewport — R3F, orbit + WASD/QE, drag to move, walls | Working |
-| Room | **Rectangle only. Cannot draw a plan.** |
+| Room — any shape, drawn in a 2D plan with typed lengths | Working |
+| Cabinets placed against a named wall, at any angle | Working |
 | Hardware / joinery rules (Blum) | **Not started — this is Phase 2** |
 | Nesting, CAM, post-processor | Not started |
 
@@ -79,6 +83,19 @@ materials.
 values forward so a saved job cuts exactly as it did; adopting a new default is then a
 deliberate edit. Schema is at **v3**; migrations run in sequence in `model/project.ts`.
 
+**A room is a list of wall segments walked in order, and always was.** `rectangularRoom` is
+one constructor for that list, not the shape of the data — which is why drawing arbitrary
+plans needed no schema change and no migration. Two conventions hold it together and should
+not be casually flipped: a wall's stored line is its **inside face** (a cabinet against it
+sits exactly on that line, which is why the sample kitchen has always sat at z = 0), and walls
+run so the **room is on the left of the direction of travel**, which makes the inward normal
+the left normal with no per-wall "which side is in?" flag to get wrong.
+
+**A cabinet's position is its placement — anchor and yaw — and nothing else.** "Against the
+north wall, 600 from the corner" is computed from that every time it's shown, never stored
+beside it. A stored wall id would be a second source of truth for position, and would go stale
+the moment a wall was redrawn or deleted.
+
 ---
 
 ## 3. Shop-specific knowledge, corrected from real feedback
@@ -114,6 +131,9 @@ real trade pricing has not been loaded yet.
 
 ## 4. Open items, in the order I'd do them
 
+§4.2 is finished; it is kept below as the record of what was built and why. The next one to
+pick up is **4.1**, then 4.3 or 4.4.
+
 ### 4.1 Nominal vs actual board thickness — do this first, it's small
 
 Raised by the user and **not yet implemented.**
@@ -133,17 +153,44 @@ out as `W − 2×16` when reality is `W − 2×16.3` — 0.6mm too wide to fit b
 which invalidates the cutlist he has just verified against 16mm arithmetic. It should be his
 call whether to switch, and per-material.
 
-### 4.2 Drawing room walls — highest practical value
+### 4.2 Drawing room walls — **done**
 
-The room is a rectangle sized by width/depth/height (`core/model/room.ts`, editable under
-Settings → Room, rendered by `app/viewport/RoomShell.tsx`). Every real kitchen is a different
-shape, so this is hit on every job.
+Definition of Done was *"trace an L-shaped kitchen with typed wall lengths, place cabinets
+against two different walls, and see them correctly in 3D."* That was met and checked in the
+running app, not only in tests.
 
-**Needed:** a 2D plan view where wall segments can be drawn, with lengths typed rather than
-dragged for accuracy, and cabinets that can sit against whatever has been drawn.
+**What you can do now.** A **Plan** tab sits next to **3D** above the viewport. In it you walk
+the room the way you'd measure it: each wall runs on from the last, you say how far it turns
+and type what it measures, and the final wall closes back to where you started. Change a
+length and every wall after it moves with it. Click a wall to rename it — "sink wall",
+"window wall" — and those names are what you pick from when placing a cabinet.
 
-Suggested Definition of Done: *"trace an L-shaped kitchen with typed wall lengths, place
-cabinets against two different walls, and see them correctly in 3D."*
+In the Inspector, **Where it stands** is now "Against: sink wall, 600 along, 0 gap behind"
+rather than a raw X. Dragging a cabinet near a wall in 3D also parks it flush and square
+against it, turned the right way round.
+
+**How it was built, and what to keep:**
+
+- `core/model/room.ts` — wall direction, inward normal, bearing, floor outline, area,
+  inside-the-room test. No schema change: the room was always a list of wall segments.
+- `core/project/plan.ts` — the editing model. Walls are *stored* as start/end pairs because
+  that is what everything downstream reads, but *edited* as a walk (a start corner plus a list
+  of length-and-bearing runs) because that is how a room is described. A closed plan that has
+  a length changed re-closes itself by letting the first later wall running parallel to the
+  gap absorb it — which is what happens on paper. When nothing can absorb it the plan is left
+  open and the gap is reported, because half-drawn is a normal state, not an error.
+- `core/project/wallPlacement.ts` — both directions of "which wall, how far along", plus drag
+  snapping. Snapping tests the **middle** of the cabinet, not its anchor corner: the anchor is
+  one corner of a box that may be turned any way, so its distance to a wall says very little.
+- `core/project/benchtop.ts` — runs are now measured along their own axis rather than along X.
+  Down the return leg of an L, touching cabinets share an X entirely, and the old code would
+  have called them one cabinet in the same place.
+
+**Not done, and deliberately so:** wall openings (doors, windows), bulkheads, out-of-square
+walls and scribes. Wall *height* is already per wall, so a bulkhead has somewhere to live when
+it earns its keep. Walls are still drawn as single planes in 3D rather than solids — you can
+see into the room from any side, which is worth more than thickness you can only see from
+outside.
 
 ### 4.3 Curved parts — the foundation is worth doing before Phase 4
 
@@ -184,10 +231,17 @@ ahead of the hardware rules is how material gets wasted.
 
 ### 4.5 Smaller things noted but not done
 
-- Cabinets can be dragged but not rotated with the mouse; yaw is typed.
+- Cabinets can be dragged but not rotated with the mouse; yaw is typed, or set by snapping to
+  a wall.
 - The custom cabinet excludes itself from benchtop runs — a banquette shouldn't get one, but
   a bench-height custom carcass arguably should. Needs a rule, or a per-cabinet flag.
 - Nesting still estimates sheets from area × a yield allowance. Phase 3 replaces it.
+- A corner where two runs meet at 90° leaves whatever gap the cabinet sizes leave; there is no
+  corner cabinet type and no check that the two runs don't foul each other's doors. Worth a
+  look once the hardware rules exist, since door swing is what actually decides it.
+- Benchtops still render as one slab per run. Two runs meeting in a corner draw as two slabs
+  butted together rather than one mitred top, which is fine to look at and wrong to cut from —
+  it matters when benchtops start being costed.
 
 ---
 

@@ -6,7 +6,7 @@
  * conversion happens once, here, and nowhere else.
  */
 
-import { Suspense, useMemo } from 'react';
+import { Suspense, useCallback, useMemo } from 'react';
 import { Canvas, type ThreeEvent } from '@react-three/fiber';
 import { Grid, OrbitControls } from '@react-three/drei';
 import type { BuiltCabinet } from '../../core/rules/build.ts';
@@ -14,6 +14,8 @@ import type { Project } from '../../core/model/project.ts';
 import { findSheet } from '../../core/model/material.ts';
 import { AU_BENCHTOP_THICKNESS } from '../../core/library/defaults.au.ts';
 import { benchtopRuns } from '../../core/project/benchtop.ts';
+import { yawCosSin } from '../../core/geom/placement.ts';
+import { snapToWall } from '../../core/project/wallPlacement.ts';
 import { PanelMesh } from './PanelMesh.tsx';
 import { RoomShell } from './RoomShell.tsx';
 import { FlyControls } from './FlyControls.tsx';
@@ -24,13 +26,22 @@ import type { Mm } from '../../core/units.ts';
 /** Millimetres → scene units. The model never leaves mm; only the render is scaled. */
 const MM_TO_SCENE = 0.001;
 
+/**
+ * How close a dragged cabinet has to get before it takes to a wall.
+ *
+ * Generous on purpose: against a wall is where nearly every cabinet goes, and getting it
+ * flush and square by eye through a perspective camera is not something anyone should have to
+ * do. Dragging it back out into the room is one gesture away.
+ */
+const WALL_SNAP_GAP: Mm = 200;
+
 interface Props {
   built: readonly BuiltCabinet[];
   project: Project;
   selectedCabinetId: string | null;
   onSelect: (id: string | null) => void;
   showWalls: boolean;
-  onMoveCabinet: (cabinetId: string, x: Mm, z: Mm) => void;
+  onMoveCabinet: (cabinetId: string, x: Mm, z: Mm, yawDeg: number) => void;
 }
 
 function CabinetGroup({
@@ -78,21 +89,30 @@ function Benchtops({ project }: { project: Project }) {
 
   return (
     <>
-      {runs.map((run) => (
-        <mesh
-          key={run.cabinetIds.join('+')}
-          position={[
-            run.startX + run.length / 2,
-            run.carcassTopY + thickness / 2,
-            run.backZ + (run.carcassDepth + overhang) / 2,
-          ]}
-          receiveShadow
-          castShadow
-        >
-          <boxGeometry args={[run.length, thickness, run.carcassDepth + overhang]} />
-          <meshStandardMaterial color="#3f4248" roughness={0.55} />
-        </mesh>
-      ))}
+      {runs.map((run) => {
+        // A run knows its own direction, so the slab is laid along the run rather than along
+        // world X. Turning the box by the run's yaw puts its length on the run's own axis —
+        // the same rotation a cabinet in that run gets.
+        const { c, s } = yawCosSin(run.yawDeg);
+        const half = run.length / 2;
+        const forward = (run.carcassDepth + overhang) / 2;
+        return (
+          <mesh
+            key={run.cabinetIds.join('+')}
+            position={[
+              run.startX + half * c + forward * s,
+              run.carcassTopY + thickness / 2,
+              run.backZ - half * s + forward * c,
+            ]}
+            rotation={[0, (run.yawDeg * Math.PI) / 180, 0]}
+            receiveShadow
+            castShadow
+          >
+            <boxGeometry args={[run.length, thickness, run.carcassDepth + overhang]} />
+            <meshStandardMaterial color="#3f4248" roughness={0.55} />
+          </mesh>
+        );
+      })}
     </>
   );
 }
@@ -105,7 +125,28 @@ function Scene({
   showWalls,
   onMoveCabinet,
 }: Props) {
-  const { begin, dragging } = useCabinetDrag({ onMove: onMoveCabinet, sceneScale: MM_TO_SCENE });
+  /*
+   * Dragging goes through the wall snap on its way to the store.
+   *
+   * The drag itself stays pure pointer geometry — it works out where on the floor you are
+   * pointing and nothing else. Deciding that this position means "against the east wall,
+   * turned to face into the room" is a fact about the job, so it comes from the model.
+   */
+  const handleMove = useCallback(
+    (cabinetId: string, x: Mm, z: Mm) => {
+      const cabinet = project.cabinets.find((c) => c.id === cabinetId);
+      if (!cabinet) return;
+      const snap = snapToWall(project.room, cabinet, x, z, WALL_SNAP_GAP);
+      if (snap) {
+        onMoveCabinet(cabinetId, snap.placement.anchor.x, snap.placement.anchor.z, snap.placement.yawDeg);
+      } else {
+        onMoveCabinet(cabinetId, x, z, cabinet.placement.yawDeg);
+      }
+    },
+    [onMoveCabinet, project.cabinets, project.room],
+  );
+
+  const { begin, dragging } = useCabinetDrag({ onMove: handleMove, sceneScale: MM_TO_SCENE });
 
   return (
     <>

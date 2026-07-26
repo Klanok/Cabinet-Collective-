@@ -11,9 +11,9 @@
  */
 
 import { useMemo } from 'react';
-import { DoubleSide, FrontSide } from 'three';
+import { DoubleSide, FrontSide, Shape, ShapeGeometry } from 'three';
 import type { Room, Wall } from '../../core/model/room.ts';
-import { wallLength } from '../../core/model/room.ts';
+import { roomOutline, wallLength } from '../../core/model/room.ts';
 
 interface WallPlacement {
   readonly length: number;
@@ -60,30 +60,40 @@ function WallMesh({ wall }: { wall: Wall }) {
   );
 }
 
-export function RoomShell({ room, showWalls }: { room: Room; showWalls: boolean }) {
-  const floor = useMemo(() => {
-    const xs = room.walls.flatMap((w) => [w.start.x, w.end.x]);
-    const zs = room.walls.flatMap((w) => [w.start.y, w.end.y]);
-    if (xs.length === 0) return null;
-    const minX = Math.min(...xs);
-    const maxX = Math.max(...xs);
-    const minZ = Math.min(...zs);
-    const maxZ = Math.max(...zs);
-    return {
-      width: maxX - minX,
-      depth: maxZ - minZ,
-      centre: [minX + (maxX - minX) / 2, 0, minZ + (maxZ - minZ) / 2] as [number, number, number],
-    };
-  }, [room.walls]);
+/**
+ * The floor, as the shape the walls actually enclose.
+ *
+ * It used to be the bounding rectangle of the walls, which is the same thing only while the
+ * room *is* a rectangle. On an L-shaped plan that draws floor across the bite — so a cabinet
+ * standing in a part of the room that doesn't exist looks like it is standing on something.
+ *
+ * The outline is a plan-space ring of (X, Z) points. Rotating the shape by +90° about X sends
+ * its own (x, y) to world (x, z), so the ring goes straight in with no flipping.
+ */
+function Floor({ room }: { room: Room }) {
+  const geometry = useMemo(() => {
+    const ring = roomOutline(room);
+    if (ring.length < 3) return null;
+    const shape = new Shape();
+    shape.moveTo(ring[0]!.x, ring[0]!.y);
+    for (const point of ring.slice(1)) shape.lineTo(point.x, point.y);
+    shape.closePath();
+    return new ShapeGeometry(shape);
+  }, [room]);
+
+  if (!geometry) return null;
 
   return (
+    <mesh geometry={geometry} rotation={[Math.PI / 2, 0, 0]} receiveShadow>
+      <meshStandardMaterial color="#3a3e45" roughness={1} side={DoubleSide} />
+    </mesh>
+  );
+}
+
+export function RoomShell({ room, showWalls }: { room: Room; showWalls: boolean }) {
+  return (
     <group>
-      {floor && floor.width > 0 && floor.depth > 0 && (
-        <mesh position={floor.centre} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
-          <planeGeometry args={[floor.width, floor.depth]} />
-          <meshStandardMaterial color="#3a3e45" roughness={1} side={DoubleSide} />
-        </mesh>
-      )}
+      <Floor room={room} />
       {showWalls && room.walls.map((wall) => <WallMesh key={wall.id} wall={wall} />)}
     </group>
   );

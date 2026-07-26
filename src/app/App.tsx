@@ -19,9 +19,11 @@ import { Inspector } from './panels/Inspector.tsx';
 import { CostPanel } from './panels/CostPanel.tsx';
 import { CutlistPanel } from './panels/CutlistPanel.tsx';
 import { SettingsModal } from './panels/SettingsModal.tsx';
+import { PlanView } from './plan/PlanView.tsx';
 import { exportProjectFile, importProjectFile } from './store/persistence.ts';
 
 type Tab = 'cutlist' | 'cost';
+type View = '3d' | 'plan';
 
 export default function App() {
   const project = useProjectStore((s) => s.project);
@@ -49,7 +51,10 @@ export default function App() {
   const deleteSavedType = useProjectStore((s) => s.deleteSavedType);
   const newProject = useProjectStore((s) => s.newProject);
 
+  const placeCabinetOnWall = useProjectStore((s) => s.placeCabinetOnWall);
+
   const [tab, setTab] = useState<Tab>('cutlist');
+  const [view, setView] = useState<View>('3d');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showWalls, setShowWalls] = useState(true);
 
@@ -149,29 +154,66 @@ export default function App() {
             onUpdate={updateCabinet}
             onUpdateOptions={updateOptions}
             onSaveAsType={saveCabinetAsType}
+            onPlaceOnWall={placeCabinetOnWall}
           />
         </aside>
 
         <main className="viewport">
-          <Viewport3D
-            built={built}
-            project={project}
-            selectedCabinetId={selectedCabinetId}
-            onSelect={select}
-            showWalls={showWalls}
-            onMoveCabinet={moveCabinet}
-          />
-          <label className="viewport-toggle">
-            <input
-              type="checkbox"
-              checked={showWalls}
-              onChange={(e) => setShowWalls(e.target.checked)}
+          {view === '3d' ? (
+            <Viewport3D
+              built={built}
+              project={project}
+              selectedCabinetId={selectedCabinetId}
+              onSelect={select}
+              showWalls={showWalls}
+              onMoveCabinet={moveCabinet}
             />
-            Walls
-          </label>
+          ) : (
+            <PlanView
+              project={project}
+              selectedCabinetId={selectedCabinetId}
+              onSelectCabinet={select}
+              onUpdateRoom={updateRoom}
+            />
+          )}
+
+          <div className="viewport-controls">
+            <div className="seg view-seg">
+              <button
+                className={`seg-btn${view === '3d' ? ' is-active' : ''}`}
+                onClick={() => setView('3d')}
+              >
+                3D
+              </button>
+              <button
+                className={`seg-btn${view === 'plan' ? ' is-active' : ''}`}
+                onClick={() => setView('plan')}
+              >
+                Plan
+              </button>
+            </div>
+            {view === '3d' && (
+              <label className="viewport-toggle">
+                <input
+                  type="checkbox"
+                  checked={showWalls}
+                  onChange={(e) => setShowWalls(e.target.checked)}
+                />
+                Walls
+              </label>
+            )}
+          </div>
+
           <div className="viewport-hint muted">
-            Drag to orbit · scroll to zoom · <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move,{' '}
-            <kbd>Q</kbd><kbd>E</kbd> down/up, <kbd>Shift</kbd> faster · click to select, drag to move
+            {view === '3d' ? (
+              <>
+                Drag to orbit · scroll to zoom · <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>{' '}
+                move, <kbd>Q</kbd><kbd>E</kbd> down/up, <kbd>Shift</kbd> faster · click to select,
+                drag to move — a cabinet dragged near a wall goes flush against it
+              </>
+            ) : (
+              <>Click a wall to select it, then type what it measures</>
+            )}
           </div>
         </main>
 

@@ -24,7 +24,7 @@ src/core/                        pure model layer
     panel.ts                     Panel — the single source of truth for a part
     cabinet.ts                   a placed cabinet: driving dimensions and options
     construction.ts              construction methods as data (frameless 32mm)
-    room.ts                      walls and ceiling height
+    room.ts                      walls as a list of segments; outline, normals, inside-ness
     project.ts                   versioned schema + migration entry point
   rules/                         the parametric rule engine
     context.ts                   driving dimensions → derived quantities
@@ -40,14 +40,19 @@ src/core/                        pure model layer
   library/                       AU seed data: materials, dimensional defaults
   project/
     factory.ts                   project/cabinet construction, sample kitchen
-    layout.ts                    cross-cabinet checks (overlap, below floor)
+    layout.ts                    cross-cabinet checks (overlap, below floor, outside room)
+    plan.ts                      editing walls as a walk: typed lengths, turns, closing
+    wallPlacement.ts             cabinet ⇄ "which wall, how far along"; drag snapping
+    benchtop.ts                  runs of touching bench-height cabinets, along any axis
 
 src/app/                         React; depends on core, never the reverse
   store/projectStore.ts          zustand: project + selection only, nothing derived
   viewport/
     transforms.ts                Three.js matrices derived from the core's own transforms
     PanelMesh.tsx                one panel; adapts core geometry, contains none
+    RoomShell.tsx                floor polygon and wall planes
     Viewport3D.tsx               scene, camera, lighting; mm → metres happens once here
+  plan/PlanView.tsx              the 2D plan: draw the room, lengths typed not dragged
   panels/                        cabinet list, inspector, cutlist, cost
 
 scripts/report.ts                terminal cutlist + costing for the sample kitchen
@@ -75,6 +80,13 @@ builders, which is the test of whether the abstraction is real.
 Changing the carcass from 16mm to 18mm resizes every dependent part with no code change; so
 does switching the back from applied to inset. Both are covered by tests.
 
+**`Room`** (`model/room.ts`) is a list of wall segments in the order you walk them, and always
+was — `rectangularRoom` is one constructor for it, not the shape of the data. Drawing an
+L-shaped kitchen therefore needed no schema change and no migration. Two conventions carry the
+weight: a wall's stored line is its **inside face** (so a cabinet against it sits exactly on
+that line), and walls run so the **room is on the left**, which makes the inward normal the
+left normal with no per-wall "which side is in?" flag to get wrong.
+
 ## Two decisions worth knowing about
 
 **Edge banding is expressed directionally.** A spec says "band the edge facing the front of
@@ -87,6 +99,12 @@ without the spec having to know it is describing a handed part. This is `resolve
 rebuilding them from angles and axes (`viewport/transforms.ts`). It maps the origin and three
 unit vectors through `partToCabinet` / `cabinetToWorld` and reads off the basis. The render
 therefore cannot drift from the geometry the cutlist and CAM layers work with.
+
+**A cabinet's position is its placement, and nothing else.** "Against the north wall, 600 from
+the corner" is *computed* from the anchor and yaw every time it is shown (`wallAnchorOf`), not
+stored alongside them. So there is no wall reference to go stale when a wall is renamed,
+redrawn or deleted, and a cabinet dragged onto a different wall reports the new one without
+anything having to be kept in step. `placeAgainstWall` is the same conversion run backwards.
 
 ## Where later phases attach
 
