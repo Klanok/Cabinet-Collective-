@@ -16,9 +16,10 @@ Read alongside:
 cutlist against how he would hand-write it for a real cabinet and confirmed it tracks with no
 obvious errors.
 
-**Room drawing (was §4.2) is done** — trace a plan with typed wall lengths and stand cabinets
-against any wall in it. **Board thickness (was §4.1) is done** — a board can be told what it
-really measures, and parts are cut to that. Details in §4.1 and §4.2 below.
+Since then, two more pieces have shipped: **room plans** you draw with typed wall lengths, with
+cabinets standing against named walls; and **nominal vs actual board thickness**, so a board can
+be told what it really measures and parts are cut to that. Section 4 records how both work and
+why; section 5 is what is actually left to do.
 
 ```
 npm install
@@ -29,7 +30,13 @@ npm run report    # cutlist + costing for the sample kitchen, in the terminal
 ```
 
 Everything is merged to `main`. `src/core` is pure TypeScript — no React, no Three.js — so the
-model, rule engine, costing and cutlist all run and test in Node.
+model, rule engine, costing and cutlist all run and test in Node, which is why `npm run report`
+prints a full cutlist with no browser involved.
+
+**Where to start reading:** `docs/coordinate-convention.md` first — everything downstream assumes
+it. Then `core/model/panel.ts` (the one representation of a part), `core/rules/spec.ts` and one
+spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, and
+`core/rules/build.ts` for how a cabinet becomes panels. `docs/architecture.md` has the full map.
 
 ### What exists
 
@@ -39,7 +46,7 @@ model, rule engine, costing and cutlist all run and test in Node.
 | Geometry engine — profile + extrude, ear-clipping | Straight-edged polygons only |
 | Rule engine — specs as data over a construction method | base, wall, tall, drawer-bank, custom |
 | Panel features (the Phase 4 CAM interface) | Types defined, barely populated |
-| Door styles — shaker, V-groove, routed MDF | **Not started — see 4.5** |
+| Door styles — shaker, V-groove, routed MDF | **Not started — see 5.3** |
 | Costing — GST both contexts, install, delivery | Working, on placeholder pricing |
 | Nominal vs actual board thickness | Working, off until you measure a board |
 | Cutlist — grouped lines | Working, no CSV/PDF export yet |
@@ -48,7 +55,8 @@ model, rule engine, costing and cutlist all run and test in Node.
 | Viewport — R3F, orbit + WASD/QE, drag to move, walls | Working |
 | Room — any shape, drawn in a 2D plan with typed lengths | Working |
 | Cabinets placed against a named wall, at any angle | Working |
-| Hardware / joinery rules (Blum) | **Not started — this is Phase 2** |
+| Hardware / joinery rules (Blum) | **Not started — this is Phase 2, see 5.2** |
+| Curved / radiused parts | **Not started — see 5.1** |
 | Nesting, CAM, post-processor | Not started |
 
 ---
@@ -97,6 +105,13 @@ sits exactly on that line, which is why the sample kitchen has always sat at z =
 run so the **room is on the left of the direction of travel**, which makes the inward normal
 the left normal with no per-wall "which side is in?" flag to get wrong.
 
+**The board decides how thick a board is — nothing else has an opinion.** A sheet carries a
+nominal thickness (what it is called, ordered and invoiced as, what groups the cutlist) and an
+actual one (what it measures). Every part is calculated from the actual figure, because that is
+what a part has to fit between. A construction method describes how parts go together and has
+no thickness field at all; it briefly had one, "the nominal it was built around", and that was
+one place too many claiming to know a single fact.
+
 **A cabinet's position is its placement — anchor and yaw — and nothing else.** "Against the
 north wall, 600 from the corner" is computed from that every time it's shown, never stored
 beside it. A stored wall id would be a second source of truth for position, and would go stale
@@ -135,18 +150,13 @@ real trade pricing has not been loaded yet.
 
 ---
 
-## 4. Open items, in the order I'd do them
+## 4. What has been built since Phase 1, and why it is that way
 
-§4.1 and §4.2 are finished; both are kept below as the record of what was built and why. Still
-open: **4.3** curved parts, **4.4** Phase 2 hardware, **4.5** routed door styles.
+Nothing here is outstanding work. It is the reasoning behind decisions that are now load-bearing,
+kept because the *why* is the part that gets lost and then undone. Skip to section 5 for what is
+actually left to do.
 
-If asked which to do next, the honest answer is that **4.5's first half is the cheapest thing
-on this list with the most visible payoff** — a client picks a door style, and nothing else here
-changes what they see. 4.3 is the one with a deadline attached, in the sense that it gets more
-expensive once the CAM layer exists. 4.4 is the largest and the one the machine ultimately
-depends on.
-
-### 4.1 Nominal vs actual board thickness — **done**
+### 4.1 Nominal vs actual board thickness
 
 > "Carcass board is generally entered into real world nesting as 16.3mm thick as that is the
 > closest to reality."
@@ -198,7 +208,7 @@ job rather than quietly cutting every part 0.6mm too big. **v5** removed the con
 thicknesses, which changed nothing dimensional because v4 had already stopped calculating from
 them.
 
-### 4.2 Drawing room walls — **done**
+### 4.2 Drawing room walls
 
 Definition of Done was *"trace an L-shaped kitchen with typed wall lengths, place cabinets
 against two different walls, and see them correctly in 3D."* That was met and checked in the
@@ -237,7 +247,18 @@ it earns its keep. Walls are still drawn as single planes in 3D rather than soli
 see into the room from any side, which is worth more than thickness you can only see from
 outside.
 
-### 4.3 Curved parts — the foundation is worth doing before Phase 4
+---
+
+## 5. Open items, in the order I'd do them
+
+Three pieces of real work are outstanding, plus a tail of small things.
+
+**If asked which to do next:** 5.3's first half is the cheapest item here with the most visible
+payoff — a client picks a door style, and nothing else on this list changes what they see. 5.1
+is the one with a deadline attached, in the sense that it gets materially more expensive once
+the CAM layer exists. 5.2 is the largest, and the one the machine ultimately depends on.
+
+### 5.1 Curved parts — the foundation is worth doing before Phase 4
 
 The user's radius work is two things, and both need the same foundation:
 
@@ -264,7 +285,7 @@ are the same thing; bendy ply breaks that. Getting this right also sets up the d
 pocketing method, which is the same idea plus a groove pattern the feature system can already
 hold.
 
-### 4.4 Phase 2 — hardware and joinery rules
+### 5.2 Phase 2 — hardware and joinery rules
 
 Per the original architecture: Blum first, Hettich second. This is on the critical path to
 trustworthy CAM output, and drilling accuracy is what actually stops material being ruined.
@@ -274,7 +295,7 @@ Drawer **boxes** were deliberately left out of Phase 1 — their sizes are dicta
 specs (Legrabox/Tandembox nominal lengths, side thicknesses, clearances), and guessing them
 ahead of the hardware rules is how material gets wasted.
 
-### 4.5 Routed door styles and a door library
+### 5.3 Routed door styles and a door library
 
 Raised by the user and **not started.** His words: *"the ability to create custom routed doors
 from MDF panels, shaker, v groove etc… I should have a door library that I can create custom
@@ -284,7 +305,7 @@ component — the door is the part of a kitchen a client actually chooses.
 **The thing to understand before starting: this is not a geometry problem.** A shaker door is
 the *same rectangle* a plain slab door already is. What differs is machining on its A-face. So
 it belongs in the **feature system** (`model/feature.ts`), not in profiles or extrusion, and it
-has **no dependency on the curved-part work in §4.3** — that is curvature in a part's *outline*,
+has **no dependency on the curved-part work in §5.1** — that is curvature in a part's *outline*,
 this is a cut in its *face*. The two can be done in either order.
 
 **Scope: one-piece, settled by the user.** A single MDF slab with the shaker or V-groove look
@@ -318,7 +339,7 @@ enough for a shaker border done as a groove but not for the rest:
 So the missing piece is a **tool profile** — a named cutter cross-section — plus a pocket
 feature. Both belong beside `PanelFeature`, and both are exactly the kind of thing Phase 4 must
 read as intent rather than reverse-engineer out of a mesh. Note this is a *third* kind of curve,
-distinct from both §4.3's curve-in-plan and a part outline: it is a curve in **section**.
+distinct from both §5.1's curve-in-plan and a part outline: it is a curve in **section**.
 
 **The library maps onto a pattern that already exists.** A `DoorStyle` should live in the shop
 standards next to `savedTypes`, for the same reason those do — the value is that it outlasts the
@@ -373,7 +394,7 @@ width and recess depth, save it to the shop standards, apply it to one cabinet s
 drawer fronts both carry it, see the recess in 3D, and see it priced with its machining
 allowance on the quote."*
 
-### 4.6 Smaller things noted but not done
+### 5.4 Smaller things noted but not done
 
 - Cabinets can be dragged but not rotated with the mouse; yaw is typed, or set by snapping to
   a wall.
@@ -389,7 +410,9 @@ allowance on the quote."*
 
 ---
 
-## 5. How to work on this
+---
+
+## 6. How to work on this
 
 From the original architecture doc, and it held up:
 
@@ -405,7 +428,7 @@ From the original architecture doc, and it held up:
   give complete step-by-step instructions for anything involving the terminal or GitHub. He
   runs it on Windows, from a downloaded ZIP.
 
-## 6. Verification standard
+## 7. Verification standard
 
 Tests are hand-calculated, not snapshots. The reference figures are written out longhand in
 each test file's header so they can be checked by eye against real practice.
