@@ -71,6 +71,12 @@ export interface Cabinet {
   /** Label shown in the UI and on the cutlist — "B1", "Sink base". */
   readonly name: string;
   readonly constructionId: string;
+  /**
+   * Door style for this cabinet's fronts. Unset — the usual case — follows the job default,
+   * the same way an unset material does. Set it for the one cabinet in a shaker kitchen that
+   * is deliberately a plain slab, or the reverse.
+   */
+  readonly doorStyleId?: string;
 
   /** Driving dimensions. Everything else in the cabinet is derived from these three. */
   readonly width: Mm;

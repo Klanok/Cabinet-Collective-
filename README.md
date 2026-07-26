@@ -9,7 +9,7 @@ cutlist, and costing that handles GST properly — all driven from one versioned
 ```bash
 npm install
 npm run dev       # the app
-npm test          # 242 tests
+npm test          # 276 tests
 npm run report    # cutlist + costing for the sample kitchen, in the terminal
 ```
 
@@ -47,6 +47,31 @@ Name your walls what you call them on site — "sink wall", "window wall" — be
 are what you pick from when you place a cabinet. In the Inspector a cabinet says where it
 stands the way you'd say it: **against the sink wall, 600 along, no gap behind**. Drag one near
 a wall in the 3D view and it parks flush and square against it, turned the right way round.
+
+## Door styles
+
+The door is the part of a kitchen a client actually chooses, so it's a **saved recipe**, not a
+drawing. Under **Settings → Door styles** you set a border width, a recess depth and an internal
+corner radius, give it a name, and that style applies to whatever size front the job turns out
+to need — a 717mm door and a 237mm drawer front off the same numbers.
+
+These are **one-piece** fronts: a single MDF slab with the shaker or V-groove look routed into
+its face, then wrapped or sprayed. Which means the thing worth knowing about them:
+
+- A shaker door is still **one part on the cutlist**, the same 717 × 447 a plain slab door is.
+- It's **banded exactly as a plain door is** — the routing is on the face, the edges are
+  untouched.
+- What changes is the router time, and that's **priced on the quote**: each style carries its
+  own minutes per front, charged at your shop rate. Quote a shaker kitchen as if the doors were
+  plain and you've given away the routing.
+
+A style applies to doors, drawer fronts, false fronts and applied end panels — a shaker kitchen
+has shaker drawer fronts too. Any single cabinet can override it in the Inspector, for the one
+that's deliberately a plain slab.
+
+One thing it does on its own: a drawer front too narrow to carry the border comes out a **plain
+slab and says so**. A 140mm front with a 57mm border has 26mm of centre left, and machining that
+would be a rebate through the whole part.
 
 ## What the board measures, not what it's called
 

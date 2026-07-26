@@ -28,6 +28,7 @@ import {
   savedTypeFromCabinet,
   upsertSavedType,
 } from '../../core/standards/savedTypes.ts';
+import type { DoorStyle } from '../../core/standards/doorStyles.ts';
 import {
   createCabinet,
   createEmptyProject,
@@ -57,6 +58,11 @@ export interface ProjectStore {
   updateDefaults: (patch: Partial<ProjectDefaults>) => void;
   /** Edit one sheet material on *this job only* — chiefly what the board really measures. */
   updateSheet: (id: string, patch: Partial<SheetMaterial>) => void;
+  /**
+   * Replace this job's door style library. The whole list at once, because the editor works
+   * out the new list — adding, editing and deleting all come back through here.
+   */
+  updateDoorStyles: (styles: readonly DoorStyle[]) => void;
   updateRoom: (room: Room) => void;
   /**
    * Move a cabinet on the floor plane, optionally turning it. Height is never changed by
@@ -236,6 +242,9 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         }),
       ),
     ),
+
+  updateDoorStyles: (doorStyles) =>
+    set((state) => persist(touchProject({ ...state.project, doorStyles }))),
 
   updateRoom: (room) => set((state) => persist(touchProject({ ...state.project, room }))),
 

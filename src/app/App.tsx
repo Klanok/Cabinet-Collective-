@@ -41,6 +41,7 @@ export default function App() {
   const updateConstruction = useProjectStore((s) => s.updateConstruction);
   const updateDefaults = useProjectStore((s) => s.updateDefaults);
   const updateSheet = useProjectStore((s) => s.updateSheet);
+  const updateDoorStyles = useProjectStore((s) => s.updateDoorStyles);
   const updateStandards = useProjectStore((s) => s.updateStandards);
   const saveAsStandards = useProjectStore((s) => s.saveAsStandards);
   const resetToStandards = useProjectStore((s) => s.resetToStandards);
@@ -250,6 +251,7 @@ export default function App() {
           onUpdateSettings={updateSettings}
           onUpdateDefaults={updateDefaults}
           onUpdateSheet={updateSheet}
+          onUpdateDoorStyles={updateDoorStyles}
           onUpdateStandards={updateStandards}
           onSaveAsStandards={saveAsStandards}
           onResetToStandards={resetToStandards}

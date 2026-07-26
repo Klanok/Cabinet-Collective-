@@ -16,17 +16,20 @@ Read alongside:
 cutlist against how he would hand-write it for a real cabinet and confirmed it tracks with no
 obvious errors.
 
-Since then, two more pieces have shipped: **room plans** you draw with typed wall lengths, with
-cabinets standing against named walls; and **nominal vs actual board thickness**, so a board can
-be told what it really measures and parts are cut to that. Section 4 records how both work and
-why; section 5 is what is actually left to do.
+Since then, three more pieces have shipped: **room plans** you draw with typed wall lengths,
+with cabinets standing against named walls; **nominal vs actual board thickness**, so a board
+can be told what it really measures and parts are cut to that; and **door styles**, the first
+half of §5.3 — shaker and V-groove fronts as machining rather than geometry, saved to the shop
+standards, priced. Section 4 records how each works and why; section 5 is what is actually left
+to do.
 
 ```
 npm install
 npm run dev       # the app
-npm test          # 242 tests
+npm test          # 276 tests
 npm run build
 npm run report    # cutlist + costing for the sample kitchen, in the terminal
+npm run report -- shaker-57    # the same kitchen with routed fronts
 ```
 
 Everything is merged to `main`. `src/core` is pure TypeScript — no React, no Three.js — so the
@@ -45,8 +48,9 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | Coordinate convention (world / cabinet / part, A-face) | Fixed and documented |
 | Geometry engine — profile + extrude, ear-clipping | Straight-edged polygons only |
 | Rule engine — specs as data over a construction method | base, wall, tall, drawer-bank, custom |
-| Panel features (the Phase 4 CAM interface) | Types defined, barely populated |
-| Door styles — shaker, V-groove, routed MDF | **Not started — see 5.3** |
+| Panel features (the Phase 4 CAM interface) | Types defined; door styles now populate pocket and profiled-cut |
+| Door styles — shaker, V-groove, routed MDF | **Model half done — toolpaths are Phase 4, see 5.3** |
+| Tool profiles — a cutter's cross-section | Defined; a short shipped list, no editor |
 | Costing — GST both contexts, install, delivery | Working, on placeholder pricing |
 | Nominal vs actual board thickness | Working, off until you measure a board |
 | Cutlist — grouped lines | Working, no CSV/PDF export yet |
@@ -90,12 +94,24 @@ year must not re-price or re-cut a job already quoted. A job is a record of what
 credits, so its cost base is GST-inclusive. Getting this backwards understates cost by ~9% of
 materials.
 
-**Migrations must never quietly change anyone's parts.** Both existing migrations carry old
-values forward so a saved job cuts exactly as it did; adopting a new default is then a
-deliberate edit. Schema is at **v5**; migrations run in sequence in `model/project.ts`. Shop
-standards are versioned separately and are at **v2** — and they get a *real* migration rather
-than a rejection, because refusing to load them silently replaces a shop's accumulated kick
-heights, reveals and saved cabinet types with the shipped Australian defaults.
+**Migrations must never quietly change anyone's parts.** Every migration carries old values
+forward so a saved job cuts exactly as it did; adopting a new default is then a deliberate
+edit. Schema is at **v6**; migrations run in sequence in `model/project.ts`. Shop standards are
+versioned separately and are at **v3** — and they get a *real* migration rather than a
+rejection, because refusing to load them silently replaces a shop's accumulated kick heights,
+reveals, door styles and saved cabinet types with the shipped Australian defaults.
+
+**A door style is machining, not geometry.** A shaker door is the *same rectangle* a plain slab
+door is; what differs is what is cut into its face. So a style produces `PanelFeature[]` and
+nothing else moves — same part, same size, same banding, same one line on the cutlist. It is
+snapshotted into a job like the materials are, because it decides how a part is cut, and
+resolved in `rules/build.ts` rather than in the part builders, because fronts are produced in
+four places and a style wired into three of them is a kitchen with one plain door in it.
+
+**A cutter's cross-section is the cutter's business.** A flat-bottomed groove is a width and a
+depth; a V-groove is not — its shape *is* the bit's shape. So `ToolProfile` carries the section
+and `cutWidthAtDepth` derives the width, rather than a width sitting beside a named cutter free
+to disagree with it.
 
 **A room is a list of wall segments walked in order, and always was.** `rectangularRoom` is
 one constructor for that list, not the shape of the data — which is why drawing arbitrary
@@ -247,16 +263,60 @@ it earns its keep. Walls are still drawn as single planes in 3D rather than soli
 see into the room from any side, which is worth more than thickness you can only see from
 outside.
 
+### 4.3 Routed door styles
+
+Definition of Done was *"define a shaker style with a typed border width and recess depth, save
+it to the shop standards, apply it to one cabinet so its doors and drawer fronts both carry it,
+see the recess in 3D, and see it priced with its machining allowance on the quote."* Met, and
+checked in the running app rather than only in tests.
+
+**What shipped.** Settings → **Door styles**, in both scopes. Three shipped styles — Plain slab,
+Shaker 57, V-groove 100 — and you can add your own. A style is a job default and overridable per
+cabinet in the Inspector, exactly as materials are. `npm run report -- shaker-57` prints the
+sample kitchen with routed fronts, which is the cheapest way to check the claim below.
+
+**The claim, and it is the whole point:** *a shaker door is the same rectangle a plain slab door
+is.* On the sample kitchen the two runs are identical — 63 parts, 29 lines, 717 × 447 doors,
+57.8m of banding, same sheet cost. The only thing that moves is a routing line on the quote.
+That is what "a style is machining, not geometry" buys, and it is worth re-checking after any
+change here, because the failure mode is a door style that quietly becomes a second way of
+describing a part.
+
+**Decisions worth not undoing:**
+
+- **The style resolves in `rules/build.ts`, not in the part builders.** Fronts come out of
+  `doors`, `drawerFronts`, the tall cabinet's split banks, and whatever emits a false front
+  next. One resolution point cannot forget a caller; four call sites can.
+- **The upright axis is derived from the panel's own placement**, not passed in. A door's length
+  runs up it (`u = +Y`), a drawer front's runs across it (`u = +X`), and that is already
+  recorded. Reading it back is what keeps a vertical groove pattern vertical on both — see the
+  V-groove tests, where the same style puts grooves on a different part-space axis for each.
+- **Styles are snapshotted into the job**, unlike saved cabinet types. A saved type is a
+  catalogue you pick from, so it stays in the standards and nowhere else. A style decides how a
+  part is *machined*, which puts it in the same class as the materials: the job keeps its own
+  copy, so editing your shaker border next year cannot re-machine a kitchen you already quoted.
+- **The machining minutes live on the style, not in `LabourRates`.** How long a front takes is a
+  property of the style — a shaker recess and a run of V-grooves are not the same job. The
+  *rate* is the shop's. Routing is also deliberately kept out of the install estimate that
+  mirrors shop hours: routing a door takes no longer to hang.
+- **The minimum-centre fallback is per front, not per style.** A 140mm drawer front with a 57mm
+  border has 26mm of centre, and machining it would be a rebate through the whole part. It comes
+  out a plain slab, says so in the warnings, and is not charged machine time for work nobody
+  did. A bank of identical fronts reports it once.
+- **A `ProfiledCutFeature` carries a tool and no width.** That is on purpose — see section 2.
+
+**Not done, and deliberately so:** five-piece doors (out of scope, and a decomposition rather
+than a feature), moulded edges, and the actual toolpaths. See 5.3.
+
 ---
 
 ## 5. Open items, in the order I'd do them
 
-Three pieces of real work are outstanding, plus a tail of small things.
+Two and a half pieces of real work are outstanding, plus a tail of small things.
 
-**If asked which to do next:** 5.3's first half is the cheapest item here with the most visible
-payoff — a client picks a door style, and nothing else on this list changes what they see. 5.1
-is the one with a deadline attached, in the sense that it gets materially more expensive once
-the CAM layer exists. 5.2 is the largest, and the one the machine ultimately depends on.
+**If asked which to do next:** 5.1 is the one with a deadline attached, in the sense that it
+gets materially more expensive once the CAM layer exists. 5.2 is the largest, and the one the
+machine ultimately depends on. What is left of 5.3 is mostly Phase 4 work now.
 
 ### 5.1 Curved parts — the foundation is worth doing before Phase 4
 
@@ -295,104 +355,40 @@ Drawer **boxes** were deliberately left out of Phase 1 — their sizes are dicta
 specs (Legrabox/Tandembox nominal lengths, side thicknesses, clearances), and guessing them
 ahead of the hardware rules is how material gets wasted.
 
-### 5.3 Routed door styles and a door library
+Door styles touch this only lightly: a thicker or profiled front shifts hinge boring a little.
+There is nothing to design for it ahead of time.
 
-Raised by the user and **not started.** His words: *"the ability to create custom routed doors
-from MDF panels, shaker, v groove etc… I should have a door library that I can create custom
-routs and save them and then save and select the door type."* He rightly calls it a core
-component — the door is the part of a kitchen a client actually chooses.
+### 5.3 Door styles — what is left
 
-**The thing to understand before starting: this is not a geometry problem.** A shaker door is
-the *same rectangle* a plain slab door already is. What differs is machining on its A-face. So
-it belongs in the **feature system** (`model/feature.ts`), not in profiles or extrusion, and it
-has **no dependency on the curved-part work in §5.1** — that is curvature in a part's *outline*,
-this is a cut in its *face*. The two can be done in either order.
+The model half shipped; see 4.3 for what it does and why. What remains:
 
-**Scope: one-piece, settled by the user.** A single MDF slab with the shaker or V-groove look
-machined into its face, then wrapped or sprayed — the usual AU poly/MDF method. Five-piece
-construction (real rails, stiles and a centre panel) is **out of scope** and should not be
-built speculatively; it is a decomposition rather than a feature, turning one door into five
-cutlist parts with their own grain, banding and joinery, and it is a different piece of work.
+**Emitting the toolpaths — Phase 4, with the post-processor in Phase 5.** This is the bulk of
+what's left, and it is CAM work rather than door work. The features are already there and
+already carry a tool id: a `pocket` needs clearing to a floor with a straight bit and its
+internal corners left at the stated radius, and a `profiled-cut` needs the named cutter run
+along a path at a plunge depth. `library/tools.ts` is a short shipped list of bits and is the
+seam the real tool library grows from — feeds, speeds, holder numbers all belong there.
 
-That decision keeps this small, and it is worth being explicit about what it means:
+**Moulded edges — ogee, bevel, bullnose.** The vocabulary is in place: `ToolProfile` already
+has a `round` section alongside `straight` and `vee`, and `ProfiledCutFeature` already carries a
+tool and a path. A moulded edge is that feature run around the part's own outline. What is
+missing is only the style fields to describe it and a generator branch. Cheap, once somebody
+wants one.
 
-- The door stays **one `Panel`**. Same rectangle, same `rectProfile(height, width)`, same
-  placement, same material.
-- The **cutlist part count does not change**. A shaker door is one line, exactly as a slab door
-  is. What changes is that the line now carries a style, and the panel carries features.
-- **Edge banding is untouched.** The routing is on the face; the edges are what they always
-  were, so `bandedDirections: BAND_ALL` still holds.
-- Nothing in the **rule engine's sizing** moves. A door is still width and height less reveals.
-- So the entire model addition is: features on the panel, a `DoorStyle` to generate them from,
-  and somewhere to keep the styles.
+**Five-piece doors remain out of scope**, and should stay out until asked for directly. It is a
+decomposition, not a feature: one door becomes five parts with their own grain, banding and
+joinery. Nothing in the current design blocks it, and nothing in it should be built
+speculatively.
 
-**The one real gap in the model.** `PanelFeature` today covers drill, drill-line, groove,
-rebate and cutout. A `GrooveFeature` is a **flat-bottomed cut of constant width**, which is
-enough for a shaker border done as a groove but not for the rest:
+**Smaller ones, if they come up:**
 
-- A **shaker centre recess** is a large rectangular *pocket*, not a groove. No pocket feature
-  exists.
-- A **V-groove** is not flat-bottomed. Its shape comes from the cutter, not from a width and a
-  depth.
-- Any **moulded edge** (ogee, bevel, bullnose) is likewise the cutter's cross-section.
-
-So the missing piece is a **tool profile** — a named cutter cross-section — plus a pocket
-feature. Both belong beside `PanelFeature`, and both are exactly the kind of thing Phase 4 must
-read as intent rather than reverse-engineer out of a mesh. Note this is a *third* kind of curve,
-distinct from both §5.1's curve-in-plan and a part outline: it is a curve in **section**.
-
-**The library maps onto a pattern that already exists.** A `DoorStyle` should live in the shop
-standards next to `savedTypes`, for the same reason those do — the value is that it outlasts the
-job you first worked it out on. Selectable as a job default and overridable per cabinet, the way
-materials already are.
-
-It must be **parametric, not a drawing**: "border 57mm, recess 6mm deep, 3mm internal corner
-radius, V-groove every 100mm" applied to whatever door size the rule engine produces. A saved
-style that only fits the door it was drawn on is worth nothing, since every door on a job is a
-different size.
-
-**Where it sits in the phases — split it, because the halves have very different costs:**
-
-| Half | Phase | Why |
-|---|---|---|
-| `DoorStyle` model, library, per-cabinet selection, 3D preview, costing allowance | **Do early** — it is cheap and it is the most customer-facing thing in the tool | Needs no CAM. A client picking a door style and seeing it is worth more now than machining it is. |
-| Emitting the actual toolpaths | **Phase 4 (CAM)**, with the post-processor in Phase 5 | A profiled cut has to reach the machine as the right tool on the right path. |
-
-It touches **Phase 2** only lightly — a thicker or profiled front shifts hinge boring a little.
-It touches **costing** immediately, though: a routed door is real machine time, so `LabourRates`
-wants a per-door-style machining allowance. Do that with the model half, or the first shaker
-kitchen quotes as if the doors were plain slabs.
-
-**It applies to every front, not just doors.** A shaker kitchen has shaker *drawer fronts*, and
-usually shaker applied end panels too. The roles that take a style are `door`, `drawer-front`,
-`false-front` and `end-panel` — not `lid`, and never a carcass part. Getting this wrong is
-obvious on screen but it is also the difference between quoting 8 routed fronts and 20.
-
-A door style also has to cope with fronts of wildly different proportions from one style: a
-720-tall door and a 140-tall drawer front take the same border, and on the drawer front that
-can leave no centre panel at all. The style needs a **minimum centre size** below which it
-falls back to a plain slab (or warns), or narrow drawer fronts will come out as a rebate
-through the whole part.
-
-**Shape of the work, in order:**
-
-1. `PocketFeature` and a `ToolProfile` beside `PanelFeature` — the only genuinely new model
-   pieces. Straight-sided pockets first; V-groove and moulded edges once a tool profile exists.
-2. `DoorStyle` in `core/standards/`, alongside `savedTypes.ts` and following its shape: a named
-   parametric recipe, an id, and the same "lives in standards, copied into a job" rule.
-3. A pure function `featuresForFront(style, width, height, thickness) → PanelFeature[]`. Keep it
-   out of the specs: every front role calls the same function, and it is trivially testable
-   against hand-calculated numbers the way everything else here is.
-4. Wire it in `rules/parts.ts` where fronts are built, driven by a job default plus a
-   per-cabinet override, exactly as materials are.
-5. 3D preview. The features are parametric, so the viewport derives the recess from them rather
-   than being told about door styles — same principle as everywhere else.
-6. Costing allowance per style.
-
-**Suggested Definition of Done for the first half:** *"define a shaker style with a typed border
-width and recess depth, save it to the shop standards, apply it to one cabinet so its doors and
-drawer fronts both carry it, see the recess in 3D, and see it priced with its machining
-allowance on the quote."*
+- A style is chosen per *cabinet*, not per front. A kitchen with shaker doors and slab drawer
+  fronts needs a per-front override, which would go in `CabinetOptions` and be read in
+  `machineFront`. Nobody has asked for it.
+- The border is the same all four sides. A wider bottom rail is a five-piece door, so this is
+  correct as it stands rather than a limitation to lift.
+- The tool list is shipped rather than editable. Worth an editor when Phase 4 gives it more to
+  hold than a name and a section.
 
 ### 5.4 Smaller things noted but not done
 

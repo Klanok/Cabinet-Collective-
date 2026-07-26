@@ -15,11 +15,12 @@ import { type MaterialLibrary, actualThicknessOf } from '../model/material.ts';
 import type { ConstructionMethod } from '../model/construction.ts';
 import type { Project, ProjectDefaults, ProjectSettings } from '../model/project.ts';
 import type { SavedCabinetType } from './savedTypes.ts';
+import { type DoorStyle, DEFAULT_DOOR_STYLES, PLAIN_SLAB_STYLE } from './doorStyles.ts';
 import { DEFAULT_CONSTRUCTIONS, collapseThicknessFields } from '../model/construction.ts';
 import { AU_MATERIAL_LIBRARY } from '../library/materials.au.ts';
 import { AU_DEFAULT_SETTINGS, AU_PROJECT_DEFAULTS } from '../library/defaults.au.ts';
 
-export const CURRENT_STANDARDS_VERSION = 2 as const;
+export const CURRENT_STANDARDS_VERSION = 3 as const;
 
 export interface ShopStandards {
   readonly version: typeof CURRENT_STANDARDS_VERSION;
@@ -35,6 +36,11 @@ export interface ShopStandards {
   readonly settings: ProjectSettings;
   /** The price list. */
   readonly materials: MaterialLibrary;
+  /**
+   * Door styles. Unlike saved cabinet types, these *are* snapshotted into a job — a style
+   * decides how a part is machined, so a job has to keep the one it was quoted and cut to.
+   */
+  readonly doorStyles: readonly DoorStyle[];
   /**
    * Reusable cabinet recipes. Unlike the rest of the standards these are *not* snapshotted
    * into a job — a job records the cabinets you placed, not the catalogue you picked them
@@ -52,6 +58,7 @@ export const AU_SHOP_STANDARDS: ShopStandards = {
   defaults: AU_PROJECT_DEFAULTS,
   settings: AU_DEFAULT_SETTINGS,
   materials: AU_MATERIAL_LIBRARY,
+  doorStyles: DEFAULT_DOOR_STYLES,
   savedTypes: [],
 };
 
@@ -61,15 +68,24 @@ export const AU_SHOP_STANDARDS: ShopStandards = {
  */
 export type StandardsSnapshot = Pick<
   Project,
-  'constructions' | 'defaults' | 'settings' | 'materials'
+  'constructions' | 'defaults' | 'settings' | 'materials' | 'doorStyles'
 >;
 
-export const snapshotOf = (standards: ShopStandards): StandardsSnapshot => ({
-  constructions: standards.constructions,
-  defaults: standards.defaults,
-  settings: standards.settings,
-  materials: standards.materials,
+/**
+ * Pull out just the snapshotted fields. Takes the structural type rather than `ShopStandards`
+ * so a job and a set of standards go through the same function — which is what stops
+ * "snapshot it" and "compare it to the snapshot" drifting apart when a field is added.
+ */
+const snapshotFieldsOf = (source: StandardsSnapshot): StandardsSnapshot => ({
+  constructions: source.constructions,
+  defaults: source.defaults,
+  settings: source.settings,
+  materials: source.materials,
+  doorStyles: source.doorStyles,
 });
+
+export const snapshotOf = (standards: ShopStandards): StandardsSnapshot =>
+  snapshotFieldsOf(standards);
 
 /** Apply standards to a project, leaving its room and cabinets alone. */
 export const applyStandards = (project: Project, standards: ShopStandards): Project => ({
@@ -96,6 +112,7 @@ export const standardsFromProject = (
   defaults: project.defaults,
   settings: project.settings,
   materials: project.materials,
+  doorStyles: project.doorStyles,
   // Saved types belong to the catalogue, not to any one job, so promoting a job's setup
   // leaves them alone.
   savedTypes: previous?.savedTypes ?? [],
@@ -103,13 +120,7 @@ export const standardsFromProject = (
 
 /** True when a job's settings still match the standards it came from. */
 export const matchesStandards = (project: Project, standards: ShopStandards): boolean =>
-  JSON.stringify(snapshotOf(standards)) ===
-  JSON.stringify({
-    constructions: project.constructions,
-    defaults: project.defaults,
-    settings: project.settings,
-    materials: project.materials,
-  });
+  JSON.stringify(snapshotOf(standards)) === JSON.stringify(snapshotFieldsOf(project));
 
 /**
  * A plain-language list of where a job differs from the standards it was started from.
@@ -165,6 +176,28 @@ export const differencesFromStandards = (
     }
   }
 
+  /*
+   * The door styles.
+   *
+   * A style decides machining, so a job whose shaker border has been nudged is genuinely
+   * cutting different doors from the standard — the same class of drift as a measured board,
+   * and it has to be visible for the same reason.
+   */
+  for (const standardStyle of standards.doorStyles) {
+    const jobStyle = project.doorStyles.find((s) => s.id === standardStyle.id);
+    if (!jobStyle) {
+      notes.push(`Door style "${standardStyle.name}" is not in this job.`);
+      continue;
+    }
+    for (const [key, label] of Object.entries(DOOR_STYLE_LABELS) as [keyof DoorStyle, string][]) {
+      if (jobStyle[key] !== standardStyle[key]) {
+        notes.push(
+          `${standardStyle.name}: ${label} is ${String(jobStyle[key])}, standard is ${String(standardStyle[key])}.`,
+        );
+      }
+    }
+  }
+
   if (project.settings.marginPercent !== standards.settings.marginPercent) {
     notes.push(
       `Margin is ${project.settings.marginPercent}%, standard is ${standards.settings.marginPercent}%.`,
@@ -182,6 +215,22 @@ export const differencesFromStandards = (
   return notes;
 };
 
+/** The numbers on a door style that actually change what gets machined. */
+export const DOOR_STYLE_LABELS: Partial<Record<keyof DoorStyle, string>> = {
+  kind: 'Style',
+  borderWidth: 'Border width',
+  recessDepth: 'Recess depth',
+  cornerRadius: 'Internal corner radius',
+  pocketToolId: 'Recess cutter',
+  grooveSpacing: 'Groove spacing',
+  grooveDepth: 'Groove depth',
+  grooveToolId: 'Groove cutter',
+  grooveDirection: 'Groove direction',
+  grooveMargin: 'Groove edge margin',
+  minimumCentre: 'Smallest centre',
+  machiningMinutesPerFront: 'Machining time per front',
+};
+
 /** Plain-English names for the job defaults, used when listing drift from the standards. */
 const DEFAULT_LABELS: Partial<Record<keyof ProjectDefaults, string>> = {
   carcassMaterialId: 'Carcass board',
@@ -189,6 +238,7 @@ const DEFAULT_LABELS: Partial<Record<keyof ProjectDefaults, string>> = {
   doorMaterialId: 'Front board',
   edgeBandId: 'Edge banding',
   constructionId: 'Construction method',
+  doorStyleId: 'Door style',
   baseCabinetHeight: 'Base cabinet height',
   baseCabinetDepth: 'Base cabinet depth',
   wallCabinetHeight: 'Wall cabinet height',
@@ -234,7 +284,8 @@ export const migrateStandards = (raw: unknown): ShopStandards => {
     );
   }
 
-  if (version === 1) data = migrateStandardsV1toV2(data);
+  if (data.version === 1) data = migrateStandardsV1toV2(data);
+  if (data.version === 2) data = migrateStandardsV2toV3(data);
 
   if (data.version !== CURRENT_STANDARDS_VERSION) {
     throw new Error(`migrateStandards: could not migrate version ${String(version)}`);
@@ -254,6 +305,25 @@ export const migrateStandards = (raw: unknown): ShopStandards => {
  * Australian defaults, which is a far worse outcome than the schema change it was protecting
  * against.
  */
+/**
+ * Standards v2 → v3: a door style library arrives, matching the project's v5 → v6.
+ *
+ * A real migration again rather than a rejection, for the reason the last one was: a shop's
+ * standards are years of accumulated preference, and throwing them away to add a field would
+ * be a far worse outcome than the change it was protecting against. The shipped styles are
+ * added and the default is the plain slab, so nothing a shop has already set is touched.
+ */
+const migrateStandardsV2toV3 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const defaults = (raw.defaults as Record<string, unknown> | undefined) ?? {};
+  const existing = raw.doorStyles as DoorStyle[] | undefined;
+  return {
+    ...raw,
+    version: 3,
+    doorStyles: existing && existing.length > 0 ? existing : DEFAULT_DOOR_STYLES,
+    defaults: { ...defaults, doorStyleId: defaults.doorStyleId ?? PLAIN_SLAB_STYLE.id },
+  };
+};
+
 const migrateStandardsV1toV2 = (raw: Record<string, unknown>): Record<string, unknown> => {
   const { constructions, idMap } = collapseThicknessFields(
     (raw.constructions as Record<string, unknown>[] | undefined) ?? [],

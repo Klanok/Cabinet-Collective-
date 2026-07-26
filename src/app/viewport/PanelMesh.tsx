@@ -10,8 +10,9 @@ import { useMemo } from 'react';
 import { BufferAttribute, BufferGeometry, type Matrix4 } from 'three';
 import type { ThreeEvent } from '@react-three/fiber';
 import type { Panel } from '../../core/model/panel.ts';
-import type { Mm } from '../../core/units.ts';
+import { type Mm, mm } from '../../core/units.ts';
 import { extrudeProfile } from '../../core/geom/extrude.ts';
+import { FrontRelief, frontRecessOf } from './FrontRelief.tsx';
 import { panelMatrix } from './transforms.ts';
 
 /** Panel colours, keyed loosely by what the part is, so a carcass reads at a glance. */
@@ -38,21 +39,32 @@ interface Props {
 }
 
 export function PanelMesh({ panel, thickness, selected, onSelect, onGrab }: Props) {
+  /*
+   * A routed front is drawn as the board that is actually left: a slab of the reduced
+   * thickness, with the border standing back up to full thickness around it. So the recess is
+   * real geometry, not shading — and it comes from the panel's own features, meaning the
+   * viewport never has to be told what a door style is.
+   */
+  const recess = frontRecessOf(panel, thickness);
+  const bodyThickness = recess ? mm(thickness - recess.depth) : thickness;
+
   const geometry = useMemo(() => {
-    const mesh = extrudeProfile(panel.profile, thickness);
+    const mesh = extrudeProfile(panel.profile, bodyThickness);
     const g = new BufferGeometry();
     g.setAttribute('position', new BufferAttribute(mesh.positions, 3));
     g.setAttribute('normal', new BufferAttribute(mesh.normals, 3));
     g.setIndex(new BufferAttribute(mesh.indices, 1));
     return g;
-  }, [panel.profile, thickness]);
+  }, [panel.profile, bodyThickness]);
 
   const matrix: Matrix4 = useMemo(() => panelMatrix(panel.placement), [panel.placement]);
 
   const colour = selected ? '#ff9640' : ROLE_COLOURS[panel.role] ?? '#dcd8d0';
   // Fronts sit proud of the carcass; making them slightly translucent keeps the interior
-  // readable without having to hide them.
-  const isFront = panel.role === 'door' || panel.role === 'drawer-front';
+  // readable without having to hide them. A routed front stays solid — the whole point of it
+  // is the shadow the recess throws, and that doesn't read through a translucent panel.
+  const isFront =
+    !recess && (panel.role === 'door' || panel.role === 'drawer-front');
 
   return (
     <group matrixAutoUpdate={false} matrix={matrix}>
@@ -79,6 +91,8 @@ export function PanelMesh({ panel, thickness, selected, onSelect, onGrab }: Prop
         <edgesGeometry args={[geometry]} />
         <lineBasicMaterial color={selected ? '#c2410c' : '#9a958c'} transparent opacity={0.55} />
       </lineSegments>
+
+      <FrontRelief panel={panel} thickness={thickness} colour={colour} />
     </group>
   );
 }

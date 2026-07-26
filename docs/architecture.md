@@ -19,7 +19,8 @@ src/core/                        pure model layer
     extrude.ts                   profile → mesh (ear clipping); the whole "3D kernel"
     placement.ts                 part → cabinet → world, and back
   model/
-    feature.ts                   parametric machining intent (the Phase 4 interface)
+    feature.ts                   parametric machining intent (the Phase 4 interface);
+                                 also the tool profile — a cutter's cross-section
     material.ts                  sheet goods, edge banding, grain, nominal vs actual thickness
     panel.ts                     Panel — the single source of truth for a part
     cabinet.ts                   a placed cabinet: driving dimensions and options
@@ -30,14 +31,19 @@ src/core/                        pure model layer
     context.ts                   driving dimensions → derived quantities
     spec.ts                      PartRule / CabinetSpec vocabulary, directional banding
     parts.ts                     shared part builders (sides, bottom, doors, …)
+    frontStyle.ts                door style + front size → machining features
     specs/                       one file per cabinet type
     registry.ts                  type → spec
     build.ts                     cabinet + project → Panel[]
+  standards/
+    standards.ts                 shop standards; snapshot into a job, and drift from it
+    savedTypes.ts                reusable cabinet recipes (catalogue, not snapshotted)
+    doorStyles.ts                door styles — parametric front recipes (snapshotted)
   costing/
     gst.ts                       10% GST, both registration contexts
     costing.ts                   panels → cost breakdown
   cutlist/cutlist.ts             panels → grouped cutlist lines
-  library/                       AU seed data: materials, dimensional defaults
+  library/                       AU seed data: materials, dimensional defaults, cutters
   project/
     factory.ts                   project/cabinet construction, sample kitchen
     layout.ts                    cross-cabinet checks (overlap, below floor, outside room)
@@ -50,6 +56,7 @@ src/app/                         React; depends on core, never the reverse
   viewport/
     transforms.ts                Three.js matrices derived from the core's own transforms
     PanelMesh.tsx                one panel; adapts core geometry, contains none
+    FrontRelief.tsx              a routed front, drawn from the panel's own features
     RoomShell.tsx                floor polygon and wall planes
     Viewport3D.tsx               scene, camera, lighting; mm → metres happens once here
   plan/PlanView.tsx              the 2D plan: draw the room, lengths typed not dragged
@@ -124,13 +131,37 @@ to be two numbers for one fact — the method's and the sheet's — free to disa
 an 18mm board on a 16mm method cut the parts for 16 and drew them at 18. Now there is one, and
 the mismatch is reported rather than silently resolved.
 
+**A door style is machining, not geometry.** A shaker door is the *same rectangle* a plain slab
+door is; what differs is what is cut into its face. So `DoorStyle`
+(`standards/doorStyles.ts`) produces `PanelFeature[]` and nothing else moves: the door stays
+one `Panel`, the cutlist part count is unchanged, the banding rule still bands all four edges,
+and the rule engine's sizing is untouched. Five-piece construction — real rails, stiles and a
+centre panel — is deliberately *not* this: it is a decomposition into five parts with their own
+grain, banding and joinery, and it is a different piece of work.
+
+Two consequences worth knowing:
+
+- **The style is resolved in `build.ts`, not in the part builders.** Fronts are produced in
+  several places (`doors`, `drawerFronts`, the tall cabinet's split banks, and whatever emits a
+  false front next); a style wired into three of them is a kitchen with one plain door in it.
+- **The upright axis is derived from the panel's own placement.** A door's length runs up it
+  and a drawer front's runs across it, and that is already recorded in the placement's `u`.
+  Reading it back is what keeps a vertical groove pattern vertical on both.
+
+**A cutter's cross-section is the cutter's business.** A flat-bottomed groove is describable as
+a width and a depth; a V-groove is not — its shape *is* the bit's shape, and how wide it comes
+out follows from the bit and the plunge. So `ToolProfile` carries the section and
+`cutWidthAtDepth` derives the width, rather than a width being stored beside a named cutter
+where the two could disagree. Note this is a third distinct kind of curve: §5.1's radius work is
+a curve in *plan*, a part outline is a curve in *outline*, and this is a curve in **section**.
+
 ## Where later phases attach
 
 | Phase | Attaches to |
 |---|---|
 | 2 — hardware/joinery, BOM export | `PanelFeature[]` on each panel; a `HardwareRule` layer beside `rules/` keyed on panel role and construction method. `cutlist/` gains the CSV/PDF writers. |
 | 3 — guillotine nesting | Consumes `Panel` + `SheetMaterial`. `costing.ts` swaps its yield estimate for a real sheet count — the `sheetWastageFactor` path is the seam. |
-| 4 — CAM feature layer | Reads `PanelFeature[]` directly and emits a machine-independent operation list. Nothing upstream changes. |
+| 4 — CAM feature layer | Reads `PanelFeature[]` directly and emits a machine-independent operation list. Nothing upstream changes. Door styles are already emitting `pocket` and `profiled-cut` features with a tool id on them; turning those into toolpaths is this phase's work, and `library/tools.ts` is the seam the real tool library grows from. |
 | 5 — post-processor + simulation | Consumes the operation list only. One machine first. |
 
 The pragmatic bridge worth checking before Phase 5: if the Mozaik machine your friend runs

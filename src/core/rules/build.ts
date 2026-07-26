@@ -9,12 +9,16 @@ import type { Cabinet } from '../model/cabinet.ts';
 import { findConstruction } from '../model/construction.ts';
 import type { Panel } from '../model/panel.ts';
 import type { Project } from '../model/project.ts';
+import { profileExtent } from '../geom/profile.ts';
+import { type DoorStyle, resolveDoorStyle } from '../standards/doorStyles.ts';
 import {
+  type BuildThicknesses,
   type ResolvedMaterials,
   buildContext,
   thicknessesFor,
   validateContext,
 } from './context.ts';
+import { type StyledFront, isStyledFrontRole, styleFront } from './frontStyle.ts';
 import { getSpec } from './registry.ts';
 import { type MaterialSlot, type PartInstance, resolveBanding } from './spec.ts';
 
@@ -26,6 +30,8 @@ export interface BuiltCabinet {
    * cabinet still needs to be visible in the viewport so the user can see what to fix.
    */
   readonly warnings: readonly string[];
+  /** The style this cabinet's fronts were machined to, once the override and default resolve. */
+  readonly doorStyle: DoorStyle;
 }
 
 const resolveMaterials = (cabinet: Cabinet, project: Project): ResolvedMaterials => ({
@@ -46,11 +52,45 @@ const materialFor = (slot: MaterialSlot, materials: ResolvedMaterials): string =
   }
 };
 
+/**
+ * Machine a front to the cabinet's door style.
+ *
+ * This happens here rather than in the part builders on purpose. Fronts are produced in four
+ * places — `doors`, `drawerFronts`, the tall cabinet's split door banks, and whatever emits a
+ * false front or an applied end panel next — and a style that only reaches three of them is a
+ * kitchen with one plain door in it. One resolution point cannot forget a caller.
+ *
+ * The upright axis is *derived from the panel's own placement* rather than passed in: a door's
+ * length runs up it and a drawer front's runs across it, and that is already recorded in `u`.
+ * Reading it back is what stops a vertical groove pattern coming out sideways on the drawers.
+ */
+const machineFront = (
+  instance: PartInstance,
+  style: DoorStyle,
+  thicknesses: BuildThicknesses,
+): StyledFront => {
+  if (!isStyledFrontRole(instance.role)) return { features: [], warnings: [] };
+  // A part that already carries its own machining has been given it deliberately.
+  if (instance.features && instance.features.length > 0) return { features: [], warnings: [] };
+
+  const { length, width } = profileExtent(instance.profile);
+  const upright =
+    instance.placement.u === '+Y' || instance.placement.u === '-Y' ? 'length' : 'width';
+
+  return styleFront(style, {
+    length,
+    width,
+    thickness: thicknesses[instance.material],
+    upright,
+  });
+};
+
 const toPanel = (
   instance: PartInstance,
   cabinetId: string,
   panelId: string,
   materials: ResolvedMaterials,
+  styleFeatures: StyledFront,
 ): Panel => ({
   id: panelId,
   cabinetId,
@@ -59,7 +99,7 @@ const toPanel = (
   materialId: materialFor(instance.material, materials),
   profile: instance.profile,
   placement: instance.placement,
-  features: instance.features ?? [],
+  features: [...(instance.features ?? []), ...styleFeatures.features],
   edgeBanding: resolveBanding(instance.placement, instance.bandedDirections, materials.edgeBand),
   grain: instance.grain,
   note: instance.note,
@@ -69,6 +109,11 @@ export const buildCabinet = (cabinet: Cabinet, project: Project): BuiltCabinet =
   const spec = getSpec(cabinet.typeId);
   const construction = findConstruction(project.constructions, cabinet.constructionId);
   const materials = resolveMaterials(cabinet, project);
+  const doorStyle = resolveDoorStyle(
+    project.doorStyles,
+    cabinet.doorStyleId,
+    project.defaults.doorStyleId,
+  );
 
   // Spec defaults fill any option the cabinet doesn't set.
   const merged: Cabinet = {
@@ -83,18 +128,24 @@ export const buildCabinet = (cabinet: Cabinet, project: Project): BuiltCabinet =
   // A cabinet whose driving dimensions don't work can't produce meaningful parts. Report and
   // stop rather than emitting negative-sized panels that look plausible in a cutlist.
   if (validateContext(ctx).length > 0) {
-    return { cabinet: merged, panels: [], warnings };
+    return { cabinet: merged, panels: [], warnings, doorStyle };
   }
 
   const panels: Panel[] = [];
+  // A bank of identical drawer fronts would otherwise report the same fallback three times.
+  const styleWarnings = new Set<string>();
   for (const rule of spec.parts) {
     const instances = rule.produce(ctx);
     instances.forEach((instance, i) => {
-      panels.push(toPanel(instance, cabinet.id, `${cabinet.id}:${rule.key}:${i}`, materials));
+      const styled = machineFront(instance, doorStyle, thicknesses);
+      styled.warnings.forEach((w) => styleWarnings.add(w));
+      panels.push(
+        toPanel(instance, cabinet.id, `${cabinet.id}:${rule.key}:${i}`, materials, styled),
+      );
     });
   }
 
-  return { cabinet: merged, panels, warnings };
+  return { cabinet: merged, panels, warnings: [...warnings, ...styleWarnings], doorStyle };
 };
 
 /** Build every cabinet in the project. */

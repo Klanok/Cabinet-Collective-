@@ -11,8 +11,9 @@ import type { Cabinet } from './cabinet.ts';
 import { type ConstructionMethod, collapseThicknessFields } from './construction.ts';
 import type { MaterialLibrary } from './material.ts';
 import type { Room } from './room.ts';
+import { type DoorStyle, DEFAULT_DOOR_STYLES, PLAIN_SLAB_STYLE } from '../standards/doorStyles.ts';
 
-export const CURRENT_SCHEMA_VERSION = 5 as const;
+export const CURRENT_SCHEMA_VERSION = 6 as const;
 
 /**
  * GST treatment. These are genuinely different arithmetic, not a display toggle:
@@ -86,6 +87,14 @@ export interface Project {
   readonly cabinets: readonly Cabinet[];
   readonly materials: MaterialLibrary;
   readonly constructions: readonly ConstructionMethod[];
+  /**
+   * The door styles this job's fronts are machined to.
+   *
+   * Copied in from the shop standards, never referenced, for the same reason the materials are:
+   * a style decides how a part is cut, so editing your shaker border next year must not
+   * re-machine a kitchen you already quoted.
+   */
+  readonly doorStyles: readonly DoorStyle[];
   readonly settings: ProjectSettings;
 
   /** Default materials used when a cabinet doesn't override them. */
@@ -98,6 +107,8 @@ export interface ProjectDefaults {
   readonly backMaterialId: string;
   readonly doorMaterialId: string;
   readonly edgeBandId: string;
+  /** Style used for every front unless a cabinet says otherwise. */
+  readonly doorStyleId: string;
   readonly baseCabinetHeight: Mm;
   readonly baseCabinetDepth: Mm;
   readonly wallCabinetHeight: Mm;
@@ -242,6 +253,33 @@ const migrateV4toV5 = (raw: Record<string, unknown>): Record<string, unknown> =>
 };
 
 /**
+ * v5 → v6.
+ *
+ * Fronts gain a door style: a named, parametric recipe for what is machined into a door's
+ * face. The job carries its own copy of the style library, because a style decides how a part
+ * is cut and a job is a record of what was agreed.
+ *
+ * **No part moves and nothing re-prices.** Every existing job is given the shipped style list
+ * and defaulted to the plain slab, which machines nothing and costs nothing — so a job cuts,
+ * quotes and looks exactly as it did. Choosing a shaker is then a deliberate edit.
+ *
+ * The version is bumped even though the fields could have simply defaulted, and for the same
+ * reason v4 was: an older build loading a shaker kitchen would quietly quote and machine it as
+ * plain slabs. Refusing the file is the honest failure; silently cutting the wrong doors is
+ * not.
+ */
+const migrateV5toV6 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const defaults = (raw.defaults as Record<string, unknown> | undefined) ?? {};
+  const existing = raw.doorStyles as DoorStyle[] | undefined;
+  return {
+    ...raw,
+    schemaVersion: 6,
+    doorStyles: existing && existing.length > 0 ? existing : DEFAULT_DOOR_STYLES,
+    defaults: { ...defaults, doorStyleId: defaults.doorStyleId ?? PLAIN_SLAB_STYLE.id },
+  };
+};
+
+/**
  * Load a project from stored JSON, migrating older schema versions forward.
  *
  * Migrations run in sequence, so a v1 file loaded after several schema changes still arrives
@@ -266,6 +304,7 @@ export const migrateProject = (raw: unknown): Project => {
   if (data.schemaVersion === 2) data = migrateV2toV3(data);
   if (data.schemaVersion === 3) data = migrateV3toV4(data);
   if (data.schemaVersion === 4) data = migrateV4toV5(data);
+  if (data.schemaVersion === 5) data = migrateV5toV6(data);
 
   if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`migrateProject: could not migrate schema version ${String(version)}`);
