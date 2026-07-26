@@ -32,7 +32,9 @@ npm run report    # cutlist + costing for the sample kitchen, in the terminal
 npm run report -- shaker-57    # the same kitchen with routed fronts
 ```
 
-Everything is merged to `main`. `src/core` is pure TypeScript — no React, no Three.js — so the
+Each session's work lands on `main` through a pull request, so `git log main` is the honest
+answer to what has actually shipped — check it rather than trusting this paragraph, which is
+exactly the kind of sentence that goes stale. `src/core` is pure TypeScript — no React, no Three.js — so the
 model, rule engine, costing and cutlist all run and test in Node, which is why `npm run report`
 prints a full cutlist with no browser involved.
 
