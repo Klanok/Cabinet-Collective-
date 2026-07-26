@@ -1087,3 +1087,44 @@ tbody td {
 .viewport-controls .viewport-toggle {
   position: static;
 }
+
+/* ── Asking a question, in the app rather than in the browser ─────────────── */
+
+.modal.is-compact {
+  width: min(440px, 100%);
+}
+
+.modal.is-compact .modal-body {
+  padding: 22px 22px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ask-message {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text);
+  text-wrap: pretty;
+}
+
+.ask-message + .ask-message {
+  color: var(--text-muted);
+}
+
+.ask-input {
+  width: 100%;
+  font: inherit;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--bg-raised);
+  color: var(--text);
+}
+
+.ask-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}

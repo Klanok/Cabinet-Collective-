@@ -41,6 +41,7 @@ import {
   startPlan,
 } from '../../core/project/plan.ts';
 import { cabinetFootprint } from '../../core/project/wallPlacement.ts';
+import { useAsk } from '../panels/ask.tsx';
 
 interface Props {
   project: Project;
@@ -344,8 +345,10 @@ function WallEditor({
 
 export function PlanView({ project, selectedCabinetId, onSelectCabinet, onUpdateRoom }: Props) {
   const { room, cabinets } = project;
+  const ask = useAsk();
   const [selectedWallId, setSelectedWallId] = useState<string | null>(null);
   const [newLength, setNewLength] = useState(1800);
+  const [newTurn, setNewTurn] = useState(90);
 
   const view = useMemo(() => viewboxFor(room, cabinets), [room, cabinets]);
   // Text and hairlines are sized in model units, so they have to be scaled back up as the
@@ -464,48 +467,67 @@ export function PlanView({ project, selectedCabinetId, onSelectCabinet, onUpdate
         <div className="subhead">Carry on drawing</div>
         <NumberRow
           label="Next wall"
-          hint="Then choose which way it turns off the last one"
+          hint="How far the tape reads along it"
           value={newLength}
           min={50}
           step={100}
           onChange={setNewLength}
         />
+        <NumberRow
+          label="Turning"
+          hint={
+            newTurn === 0
+              ? 'Straight on from the last wall'
+              : `${Math.abs(newTurn)}° to the ${newTurn > 0 ? 'right' : 'left'} off the last wall`
+          }
+          value={newTurn}
+          suffix="°"
+          step={5}
+          onChange={setNewTurn}
+        />
         <div className="plan-actions">
           <button
-            className="btn"
-            onClick={() => onUpdateRoom(appendWall(room, { length: mm(newLength), turnDeg: -90 }))}
+            className="btn primary"
+            onClick={() => onUpdateRoom(appendWall(room, { length: mm(newLength), turnDeg: newTurn }))}
           >
-            Add, turning left
+            Add this wall
           </button>
-          <button
-            className="btn"
-            onClick={() => onUpdateRoom(appendWall(room, { length: mm(newLength), turnDeg: 90 }))}
-          >
-            Add, turning right
-          </button>
-          <button
-            className="btn"
-            onClick={() => onUpdateRoom(appendWall(room, { length: mm(newLength), turnDeg: 0 }))}
-          >
-            Add, straight on
-          </button>
-          <button className="btn primary" disabled={closed} onClick={() => onUpdateRoom(closePlan(room))}>
+          <button className="btn" disabled={closed} onClick={() => onUpdateRoom(closePlan(room))}>
             Close the plan
           </button>
         </div>
+        {/* The square corners are most of every kitchen, so they stay one click away. */}
+        <div className="plan-actions">
+          <button className="btn" onClick={() => setNewTurn(-90)}>
+            Left 90°
+          </button>
+          <button className="btn" onClick={() => setNewTurn(0)}>
+            Straight
+          </button>
+          <button className="btn" onClick={() => setNewTurn(90)}>
+            Right 90°
+          </button>
+          <button className="btn" onClick={() => setNewTurn(45)}>
+            Right 45°
+          </button>
+        </div>
+        <p className="note subtle">
+          Any angle you can type, not just square corners — a 45° splay across a corner is{' '}
+          <strong>45</strong>. Negative turns left. An angled wall usually leaves the plan open
+          until the walls after it catch up, which is a normal state to be in.
+        </p>
 
         <div className="subhead">Start again</div>
         <button
           className="btn full danger"
-          onClick={() => {
-            if (
-              window.confirm(
-                'Throw away this room and start a new plan from one 4200mm wall?\n\nCabinets stay where they are.',
-              )
-            ) {
-              onUpdateRoom(startPlan(room, { length: mm(4200), bearingDeg: 0, name: 'Wall 1' }));
-              setSelectedWallId(null);
-            }
+          onClick={async () => {
+            const go = await ask.confirm(
+              'Throw away this room and start a new plan from one 4200mm wall?\n\nCabinets stay where they are.',
+              { confirmLabel: 'Redraw', danger: true },
+            );
+            if (!go) return;
+            onUpdateRoom(startPlan(room, { length: mm(4200), bearingDeg: 0, name: 'Wall 1' }));
+            setSelectedWallId(null);
           }}
         >
           Redraw from scratch
