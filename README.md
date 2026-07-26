@@ -103,7 +103,12 @@ anything from this.
 testable in Node and reusable by every later phase. `src/app` is the React/R3F layer on top,
 and the dependency only points one way.
 
-Two documents are worth reading before changing anything:
+**Continuing this work in a new session? Start with
+[docs/handover.md](docs/handover.md)** — it carries the current state, the decisions that
+shouldn't be casually undone, the shop-specific corrections, and the open items in
+recommended order.
+
+Two more documents are worth reading before changing anything:
 
 - **[docs/coordinate-convention.md](docs/coordinate-convention.md)** — the three coordinate
   spaces (world, cabinet, part) and why the A-face is defined the way it is. This is the
@@ -143,6 +148,8 @@ builders, which is the test of whether that's actually true.
 | 1 | Data model, coordinate convention, rule engine, geometry, viewport, costing | **done** |
 | 2 | Hardware/joinery rules (Blum first), full cutlist/BOM export | next |
 | — | Drawing an arbitrary room plan (L-shaped, bulkheads, windows) | not started |
+| — | Nominal vs actual board thickness (16 vs 16.3mm) | agreed, not started |
+| — | Drawing room walls — L-shaped plans | agreed, not started |
 | — | Curved parts — arc-capable profiles, then radiused shelving and radiused ends | agreed, not started |
 | 3 | Guillotine nesting for sheet goods, offcut tracking | |
 | 4 | CAM feature layer — drilling, grooving, profiling | |
