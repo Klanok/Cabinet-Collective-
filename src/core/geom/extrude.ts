@@ -8,7 +8,13 @@
  */
 
 import type { Mm } from '../units.ts';
-import { type Polygon, type Profile2D, signedArea } from './profile.ts';
+import {
+  type Polygon,
+  type Profile2D,
+  flattenPolygonPoints,
+  flattenPolygonSegments,
+  signedArea,
+} from './profile.ts';
 import type { Vec2 } from './vec.ts';
 
 export interface MeshData {
@@ -37,6 +43,10 @@ const pointInTriangle = (p: Vec2, a: Vec2, b: Vec2, c: Vec2): boolean => {
  * Handles the non-convex outlines cabinet work actually produces (scribe notches, sink
  * cutouts that break the perimeter). Interior holes are not triangulated — see
  * `extrudeProfile`.
+ *
+ * Takes the ring **as given** and treats every edge as straight, because it returns indices
+ * into that ring and could not do so if it subdivided. A ring with arcs on it must be put
+ * through `flattenPolygonSegments` first, which is what `extrudeProfile` does.
  */
 export const triangulatePolygon = (poly: Polygon): number[] => {
   const n = poly.length;
@@ -93,9 +103,12 @@ export const triangulatePolygon = (poly: Polygon): number[] => {
  * viewport is cosmetic where a hole in the cutlist is not.
  */
 export const extrudeProfile = (profile: Profile2D, thickness: Mm): MeshData => {
-  const outline = profile.outline;
-  const n = outline.length;
-  const capTris = triangulatePolygon(outline);
+  // Curves become segments here and only here. Everything dimensional — the cutlist, the
+  // banding length, the sheet the part has to fit on — is measured off the exact arc
+  // upstream, so this approximation never escapes into what gets cut.
+  const capRing = flattenPolygonPoints(profile.outline);
+  const walls = flattenPolygonSegments(profile.outline);
+  const capTris = triangulatePolygon(capRing);
 
   const positions: number[] = [];
   const normals: number[] = [];
@@ -103,7 +116,7 @@ export const extrudeProfile = (profile: Profile2D, thickness: Mm): MeshData => {
 
   // A-face (z = thickness), normal +Z.
   const aBase = positions.length / 3;
-  for (const p of outline) {
+  for (const p of capRing) {
     positions.push(p.x, p.y, thickness);
     normals.push(0, 0, 1);
   }
@@ -113,7 +126,7 @@ export const extrudeProfile = (profile: Profile2D, thickness: Mm): MeshData => {
 
   // B-face (z = 0), normal -Z, reversed winding so it faces outward.
   const bBase = positions.length / 3;
-  for (const p of outline) {
+  for (const p of capRing) {
     positions.push(p.x, p.y, 0);
     normals.push(0, 0, -1);
   }
@@ -121,22 +134,17 @@ export const extrudeProfile = (profile: Profile2D, thickness: Mm): MeshData => {
     indices.push(bBase + capTris[i + 2]!, bBase + capTris[i + 1]!, bBase + capTris[i]!);
   }
 
-  // Edge walls. Each edge gets its own vertices so the normals stay flat rather than
-  // averaging across a corner — panel edges are square, and should look it.
-  for (let i = 0; i < n; i++) {
-    const a = outline[i]!;
-    const b = outline[(i + 1) % n]!;
-    const ex = b.x - a.x;
-    const ey = b.y - a.y;
-    const len = Math.hypot(ex, ey);
-    if (len === 0) continue;
-    // Outward normal for a CCW outline is (dy, -dx) normalised.
-    const nx = ey / len;
-    const ny = -ex / len;
-
+  // Edge walls. Each segment gets its own four vertices rather than sharing them along the
+  // ring, so a square corner stays square instead of averaging itself round. The two ends of
+  // a segment carry their own normals, which is what lets a radiused edge shade as one
+  // continuous curve and still break sharply where the curve ends.
+  for (const w of walls) {
     const base = positions.length / 3;
-    positions.push(a.x, a.y, 0, b.x, b.y, 0, b.x, b.y, thickness, a.x, a.y, thickness);
-    for (let k = 0; k < 4; k++) normals.push(nx, ny, 0);
+    positions.push(w.a.x, w.a.y, 0, w.b.x, w.b.y, 0, w.b.x, w.b.y, thickness, w.a.x, w.a.y, thickness);
+    normals.push(w.na.x, w.na.y, 0);
+    normals.push(w.nb.x, w.nb.y, 0);
+    normals.push(w.nb.x, w.nb.y, 0);
+    normals.push(w.na.x, w.na.y, 0);
     indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
   }
 

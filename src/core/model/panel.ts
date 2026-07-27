@@ -12,6 +12,7 @@ import {
   type Profile2D,
   type RectEdge,
   profileArea,
+  profileEdgeLengths,
   profileExtent,
   isRectangular,
 } from '../geom/profile.ts';
@@ -78,11 +79,14 @@ export const panelFootprint = (p: Panel): Mm2 => {
 
 export const panelIsRectangular = (p: Panel): boolean => isRectangular(p.profile);
 
-/** Length of each named edge. Only meaningful for rectangular parts. */
-export const panelEdgeLengths = (p: Panel): Record<RectEdge, Mm> => {
-  const { length, width } = panelExtent(p);
-  return { L1: length, L2: length, W1: width, W2: width };
-};
+/**
+ * True length of each named side of the part.
+ *
+ * For a rectangle this is the bounding box, which is what it always was. For a part with a
+ * radiused edge it is the length **around** the curve, which is more banding than the box
+ * says — so a curved shelf now buys the tape it actually uses.
+ */
+export const panelEdgeLengths = (p: Panel): Record<RectEdge, Mm> => profileEdgeLengths(p.profile);
 
 /** Total banded length, for costing and for edgebander time. */
 export const bandedLength = (p: Panel): Mm => {

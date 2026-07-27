@@ -22,6 +22,19 @@ export const mm = (n: number): Mm => n as Mm;
 /** Machining tolerances below this are treated as zero when comparing geometry. */
 export const GEOMETRIC_EPSILON: Mm = mm(1e-6);
 
+/**
+ * Drop arithmetic noise below the geometric epsilon — a nanometre.
+ *
+ * Straight parts come out of pure additions and subtractions of the numbers somebody typed,
+ * so they land exact. A curve doesn't: the deepest point of a radiused shelf is found through
+ * a centre and a radius, and comes back as 350.0000000000002. That is not a measurement, it
+ * is the last bit of a double, and letting it through means a part size that fails an equality
+ * check and a nest that reserves a phantom fraction. Nothing in cabinetmaking is meaningful
+ * below a micron, let alone a nanometre, so it is safe to round here — and legitimate figures
+ * like a 867.4mm panel pass through untouched.
+ */
+export const snapGeometric = (n: number): Mm => mm(Math.round(n * 1e6) / 1e6);
+
 export const nearlyEqual = (a: Mm, b: Mm, epsilon: Mm = GEOMETRIC_EPSILON): boolean =>
   Math.abs(a - b) <= epsilon;
 
