@@ -9,13 +9,14 @@ cutlist, and costing that handles GST properly — all driven from one versioned
 ```bash
 npm install
 npm run dev       # the app
-npm test          # 276 tests
+npm test          # 341 tests
 npm run report    # cutlist + costing for the sample kitchen, in the terminal
 ```
 
 ## What it does today
 
-Draw the room, then lay base, wall, tall, drawer-bank and custom cabinets against its walls.
+Draw the room, then lay base, wall, tall, drawer-bank, custom and radiused-end cabinets
+against its walls.
 
 The **custom** cabinet is the same carcass with its part list chosen rather than fixed — top
 panel, rails or open; back or none; shelves; vertical dividers; a lid; drawers or doors.
@@ -72,6 +73,42 @@ that's deliberately a plain slab.
 One thing it does on its own: a drawer front too narrow to carry the border comes out a **plain
 slab and says so**. A 140mm front with a 57mm border has 26mm of centre left, and machining that
 would be a rebate through the whole part.
+
+## Curves
+
+Two kinds of radius work, both cut from real circles rather than from a lot of short straight
+lines pretending to be one.
+
+**Open radius shelving.** Any custom cabinet has a **shelf front bow**: how far the front of a
+shelf stands proud at its middle. That's the measurement you'd actually take — a straightedge
+across the front and a tape to the middle — so it's the one you type, and the radius follows
+from it. The shelf keeps its back where a straight one had it and reaches forward.
+
+The thing that matters here is the banding. A curved edge is **longer than the straight line
+across it**: an 866mm shelf bowed 40mm has 871mm of front edge, and the cutlist buys 871. It's
+only about 5mm a shelf, but it's 5mm the wrong way, every shelf, and it used to be invisible.
+
+**Enclosed radiused ends.** Add a **Radiused end** to finish a run. It's a quarter circle, so
+it has one plan dimension rather than two — you set the radius and the width and depth follow.
+Out comes what one actually is: a stack of quarter-disc formers, bendy ply over them, and a
+curved kick.
+
+Three numbers in there are each a wasted sheet if you get them wrong, and all three are worked
+out for you:
+
+- **The formers are cut smaller than the finished radius**, by however many layers of skin go
+  over them. Cut them to the finished size and the curve stands proud of the run's front face by
+  the thickness of the skin — a step right where a hand lands.
+- **Each layer of bendy ply is a different length.** The outer one wraps the inner one, so it has
+  further to go — on a 560 quarter, 877.3 against 872.6. Cut them the same and the outer one is
+  4.7mm short, which you find out with the glue on.
+- **Those lengths are measured round the middle of the board**, not the inside or the outside
+  face. Round the inside it comes up short; round the outside it runs long.
+
+Every skin is on the cutlist as the **flat rectangle you actually cut**, with a note saying what
+radius to bend it to. Bendy ply is sold barrel form or column form depending which way it bends,
+and the app doesn't know which you've bought — so the note tells whoever's cutting to check the
+sheet first.
 
 ## What the board measures, not what it's called
 
@@ -185,7 +222,7 @@ builders, which is the test of whether that's actually true.
 
 ## Verification
 
-276 tests, and the ones that matter are hand-calculated rather than snapshot:
+341 tests, and the ones that matter are hand-calculated rather than snapshot:
 
 - Every part size for the reference 900×720×560 base cabinet, worked out longhand in the test
   file header and asserted individually.
@@ -206,6 +243,10 @@ builders, which is the test of whether that's actually true.
 - That a shaker door is the same rectangle a slab door is: same size, same placement, same
   banding, same material, same number of cutlist lines, and the same sheet cost. Only the
   routing line on the quote moves.
+- The curves, against figures worked longhand in the test headers: a circle written as two
+  half-circle edges coming out at exactly πr² and 2πr rather than at zero and 400; a shelf
+  bowed 50 over 900 measuring 350 deep at its middle; and the two skin layers of a radiused end
+  differing by exactly one board thickness round the turn.
 
 All of it runs on every pull request (`.github/workflows/ci.yml`) — typecheck, tests, build, and
 a terminal cutlist for the sample kitchen in both a plain and a routed door style. A property
@@ -220,7 +261,7 @@ having something other than memory re-checking it.
 | — | Drawing the room plan — any shape, typed wall lengths, walls at any angle | **done** |
 | — | Nominal vs actual board thickness (16 vs 16.3mm) | **done** |
 | — | Door styles — shaker and V-groove as machining, saved and costed | **done**; toolpaths in 4 |
-| — | Curved parts — arc-capable profiles, then radiused shelving and radiused ends | **next** |
+| — | Curved parts — arc-capable profiles, radiused shelving, radiused ends | **done** |
 | 2 | Hardware/joinery rules (Blum first), full cutlist/BOM export | not started |
 | — | Benchtops as their own unit, rather than derived from the cabinets under them | not started |
 | — | A separate ladder kick under a run, rather than a kick per cabinet | not started |

@@ -12,6 +12,7 @@ import type { ThreeEvent } from '@react-three/fiber';
 import type { Panel } from '../../core/model/panel.ts';
 import { type Mm, mm } from '../../core/units.ts';
 import { extrudeProfile } from '../../core/geom/extrude.ts';
+import { formedMesh } from '../../core/model/forming.ts';
 import { FrontRelief, frontRecessOf } from './FrontRelief.tsx';
 import { panelMatrix } from './transforms.ts';
 
@@ -27,6 +28,10 @@ const ROLE_COLOURS: Record<string, string> = {
   door: '#f4f2ee',
   'drawer-front': '#f4f2ee',
   kick: '#8f8b84',
+  // The skeleton reads darker than the skin over it, so a radiused end is legible as an
+  // assembly rather than as one lump.
+  former: '#cfc9be',
+  skin: '#ece7dd',
 };
 
 interface Props {
@@ -49,13 +54,18 @@ export function PanelMesh({ panel, thickness, selected, onSelect, onGrab }: Prop
   const bodyThickness = recess ? mm(thickness - recess.depth) : thickness;
 
   const geometry = useMemo(() => {
-    const mesh = extrudeProfile(panel.profile, bodyThickness);
+    // A formed part is stored flat, because flat is what gets cut. Bending it is the one
+    // thing the viewport is allowed to do with `forming`, and it happens here rather than in
+    // the model so that the shape being drawn can never become the shape being cut.
+    const mesh = panel.forming
+      ? formedMesh(panel.profile, bodyThickness, panel.forming)
+      : extrudeProfile(panel.profile, bodyThickness);
     const g = new BufferGeometry();
     g.setAttribute('position', new BufferAttribute(mesh.positions, 3));
     g.setAttribute('normal', new BufferAttribute(mesh.normals, 3));
     g.setIndex(new BufferAttribute(mesh.indices, 1));
     return g;
-  }, [panel.profile, bodyThickness]);
+  }, [panel.profile, bodyThickness, panel.forming]);
 
   const matrix: Matrix4 = useMemo(() => panelMatrix(panel.placement), [panel.placement]);
 
@@ -86,9 +96,17 @@ export function PanelMesh({ panel, thickness, selected, onSelect, onGrab }: Prop
           opacity={isFront ? 0.86 : 1}
         />
       </mesh>
-      {/* Edge outline, so panel joints stay legible against same-coloured neighbours. */}
+      {/*
+        Edge outline, so panel joints stay legible against same-coloured neighbours.
+
+        The 20° threshold matters now that parts can curve. A curve is drawn as a run of
+        facets a degree or two apart, and the default 1° threshold treats every one of them as
+        an edge — so a radiused shelf comes out looking like a fan rather than a shelf. Twenty
+        degrees is well below the square corners that are real and well above the tessellation
+        that isn't.
+      */}
       <lineSegments>
-        <edgesGeometry args={[geometry]} />
+        <edgesGeometry args={[geometry, 20]} />
         <lineBasicMaterial color={selected ? '#c2410c' : '#9a958c'} transparent opacity={0.55} />
       </lineSegments>
 

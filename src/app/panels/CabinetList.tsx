@@ -34,7 +34,7 @@ export function CabinetList({
       </header>
 
       <div className="add-row">
-        {(['base', 'wall', 'tall', 'drawer-bank', 'custom'] as const).map((t) => (
+        {(['base', 'wall', 'tall', 'drawer-bank', 'custom', 'radius-end'] as const).map((t) => (
           <button key={t} className="btn" onClick={() => onAdd(t)}>
             + {CABINET_TYPE_LABELS[t]}
           </button>

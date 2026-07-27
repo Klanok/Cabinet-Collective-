@@ -340,6 +340,12 @@ export const isRectangular = (p: Profile2D): boolean => {
  * only curves that were ever measured wrongly.
  *
  * An arc is assigned as a whole, by its chord, because a side is a side even when it bows.
+ *
+ * Two honest limits. An edge running at exactly 45° could be called either, and falls to the
+ * L side; and a part with fewer than four sides — a quarter disc former — leaves one of the
+ * four names measuring zero, which is correct in that there is no such edge to band. Both
+ * only matter to a part that is banded on the edge in question, and neither is true of
+ * anything built today.
  */
 export const profileEdgeLengths = (p: Profile2D): Record<RectEdge, Mm> => {
   const totals: Record<RectEdge, number> = { L1: 0, L2: 0, W1: 0, W2: 0 };
