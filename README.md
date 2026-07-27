@@ -185,7 +185,7 @@ builders, which is the test of whether that's actually true.
 
 ## Verification
 
-169 tests, and the ones that matter are hand-calculated rather than snapshot:
+276 tests, and the ones that matter are hand-calculated rather than snapshot:
 
 - Every part size for the reference 900×720×560 base cabinet, worked out longhand in the test
   file header and asserted individually.
@@ -203,6 +203,14 @@ builders, which is the test of whether that's actually true.
 - That a job and the shop standards stay isolated: editing one never touches the other, two
   jobs from the same standards stay independent, and a shop building to an 18mm carcass on a
   100mm kick gets parts and placements to match.
+- That a shaker door is the same rectangle a slab door is: same size, same placement, same
+  banding, same material, same number of cutlist lines, and the same sheet cost. Only the
+  routing line on the quote moves.
+
+All of it runs on every pull request (`.github/workflows/ci.yml`) — typecheck, tests, build, and
+a terminal cutlist for the sample kitchen in both a plain and a routed door style. A property
+like the shaker/slab one above is the kind that breaks quietly and stays broken, so it is worth
+having something other than memory re-checking it.
 
 ## Roadmap
 

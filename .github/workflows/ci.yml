@@ -1,0 +1,67 @@
+# Runs the checks a change has to pass before it lands on main.
+#
+# The point of this workflow is the door-style invariant and its relatives: properties like
+# "a shaker door is the same rectangle a slab door is — same size, same banding, same sheet
+# cost" are asserted in the test suite, and they are exactly the kind of thing that breaks
+# silently months later. Nothing re-ran those tests on a pull request until this existed.
+#
+# All four steps run even if an earlier one fails, so one push tells you everything that is
+# wrong rather than only the first thing.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A second push to the same branch supersedes the first; don't burn minutes finishing a run
+# nobody will read. `main` is exempt — every commit that lands there gets a real result.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  check:
+    name: Typecheck, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # `ci` not `install`: it installs exactly what package-lock.json pins and fails if the
+      # lockfile and package.json have drifted, so a run here matches a run on the bench.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        if: '!cancelled()'
+        run: npm run typecheck
+
+      - name: Tests
+        if: '!cancelled()'
+        run: npm test
+
+      - name: Build
+        if: '!cancelled()'
+        run: npm run build
+
+      # The core is pure TypeScript and runs in Node, so the whole model — rule engine,
+      # costing, cutlist — can be exercised end to end without a browser. This catches a
+      # break that typechecks and has no unit test pointed at it. The second run puts a
+      # routed door style through the same path.
+      - name: Cutlist smoke run
+        if: '!cancelled()'
+        run: |
+          npm run report
+          npm run report -- shaker-57

@@ -61,6 +61,7 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | Viewport — R3F, orbit + WASD/QE, drag to move, walls | Working |
 | Room — any shape, drawn in a 2D plan with typed lengths | Working |
 | Cabinets placed against a named wall, at any angle | Working |
+| CI — typecheck, tests, build, cutlist smoke run on every PR | Working, `.github/workflows/ci.yml` |
 | Hardware / joinery rules (Blum) | **Not started — this is Phase 2, see 5.2** |
 | Curved / radiused parts | **Not started — see 5.1** |
 | Nesting, CAM, post-processor | Not started |
@@ -512,6 +513,13 @@ From the original architecture doc, and it held up:
 
 Tests are hand-calculated, not snapshots. The reference figures are written out longhand in
 each test file's header so they can be checked by eye against real practice.
+
+They run on every pull request — `.github/workflows/ci.yml` does typecheck, tests, build, and a
+terminal cutlist for the sample kitchen in both a plain and a routed door style. That last step
+exists because `src/core` runs in Node, so the whole model can be exercised end to end without a
+browser, which catches a break that typechecks and has no unit test aimed at it. The four checks
+run independently rather than stopping at the first failure, so one push reports everything that
+is wrong.
 
 Two things get asserted separately and both matter:
 - **part size** — what goes on the cutlist
