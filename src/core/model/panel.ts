@@ -18,6 +18,7 @@ import {
 } from '../geom/profile.ts';
 import type { PanelPlacement } from '../geom/placement.ts';
 import type { PanelFeature } from './feature.ts';
+import type { Forming } from './forming.ts';
 import type { EdgeBanding } from './material.ts';
 
 export type PanelRole =
@@ -35,7 +36,11 @@ export type PanelRole =
   | 'lid'
   | 'kick'
   | 'filler'
-  | 'end-panel';
+  | 'end-panel'
+  /** A shaped rib in the skeleton of a curved assembly — flat, with one edge on a radius. */
+  | 'former'
+  /** Bendy ply wrapped over formers. Cut flat to its developed length, then bent. */
+  | 'skin';
 
 /** How the part's length axis must sit relative to sheet grain when nesting. */
 export type GrainConstraint =
@@ -50,7 +55,11 @@ export interface Panel {
   /** Short human label for the cutlist — "Side L", "Shelf", "Drawer front 2". */
   readonly name: string;
   readonly materialId: string;
-  /** Shape in part space. */
+  /**
+   * Shape in part space, **flat and as cut** — always. A part that gets bent afterwards is
+   * stored at the size it is cut to, which for a skin round a radius is its developed length.
+   * How it then bends is `forming`, and nothing dimensional reads that. See model/forming.ts.
+   */
   readonly profile: Profile2D;
   /** Where the panel sits in cabinet space. */
   readonly placement: PanelPlacement;
@@ -58,6 +67,11 @@ export interface Panel {
   readonly features: readonly PanelFeature[];
   readonly edgeBanding: EdgeBanding;
   readonly grain: GrainConstraint;
+  /**
+   * How this part is bent after it is cut. Absent for every part that stays flat, which is
+   * nearly all of them. Read by the viewport and by nothing that decides a dimension.
+   */
+  readonly forming?: Forming;
   /**
    * Human note carried through to the cutlist — "grain vertical", "handed pair".
    * Free text on purpose: it is for the person at the saw, not for a machine.

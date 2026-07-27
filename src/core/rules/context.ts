@@ -20,6 +20,8 @@ export interface ResolvedMaterials {
   readonly carcass: string;
   readonly back: string;
   readonly door: string;
+  /** Bendy ply for a formed skin. Resolved for every cabinet; cut only by curved ones. */
+  readonly skin: string;
   readonly edgeBand: string;
 }
 
@@ -36,6 +38,14 @@ export interface BuildThicknesses {
   readonly carcass: Mm;
   readonly back: Mm;
   readonly door: Mm;
+  /**
+   * Bendy ply. This one does something none of the others do: it sets a **length**.
+   *
+   * Every other thickness here decides how a part fits between two others. A skin's thickness
+   * decides how far round the curve its neutral axis runs, and therefore how long to cut it —
+   * so a board that measures 3.2 rather than 3 makes the skin longer, not tighter.
+   */
+  readonly skin: Mm;
 }
 
 export const thicknessesFor = (
@@ -45,6 +55,7 @@ export const thicknessesFor = (
   carcass: actualThicknessOf(findSheet(library, materials.carcass)),
   back: actualThicknessOf(findSheet(library, materials.back)),
   door: actualThicknessOf(findSheet(library, materials.door)),
+  skin: actualThicknessOf(findSheet(library, materials.skin)),
 });
 
 export interface RuleContext {
@@ -65,6 +76,8 @@ export interface RuleContext {
   readonly t: Mm;
   readonly tb: Mm;
   readonly td: Mm;
+  /** Bendy ply thickness — decides a skin's developed length, not a fit. */
+  readonly ts: Mm;
 
   /** Clear width between the sides. */
   readonly interiorWidth: Mm;
@@ -99,6 +112,7 @@ export const buildContext = (
     t,
     tb,
     td: thicknesses.door,
+    ts: thicknesses.skin,
     interiorWidth: mm(W - 2 * t),
     interiorHeight: mm(H - 2 * t),
     sideDepth: sideDepth(construction, D, tb),

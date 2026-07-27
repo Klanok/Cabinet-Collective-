@@ -236,6 +236,7 @@ const DEFAULT_LABELS: Partial<Record<keyof ProjectDefaults, string>> = {
   carcassMaterialId: 'Carcass board',
   backMaterialId: 'Back board',
   doorMaterialId: 'Front board',
+  skinMaterialId: 'Bendy ply',
   edgeBandId: 'Edge banding',
   constructionId: 'Construction method',
   doorStyleId: 'Door style',

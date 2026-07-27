@@ -103,6 +103,7 @@ const NAME_PREFIX: Record<CabinetTypeId, string> = {
   tall: 'T',
   'drawer-bank': 'D',
   custom: 'C',
+  'radius-end': 'R',
 };
 
 const nextName = (project: Project, typeId: CabinetTypeId): string => {

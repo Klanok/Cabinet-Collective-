@@ -234,6 +234,43 @@ export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
     indicativePricing: true,
   },
 
+  /*
+   * ── Bendy ply ────────────────────────────────────────────────────────────────────────
+   *
+   * For skinning formers on a radiused end. Sold as barrel form (bends across the length of
+   * the sheet) or column form (bends along it) and bought to suit the job — which the model
+   * does not yet record, so the parts carry a note to check the sheet before cutting. Two
+   * layers is the usual build: one takes up the shape of every former it crosses.
+   *
+   * Grain is left `none` deliberately. It is not that the sheet has no direction — it has a
+   * very strong one — but that the direction constrains which way it *bends*, which is not
+   * what `GrainDirection` means here. Recording it properly is a material-model change, and
+   * pretending it is a grain constraint would nest these the right way round by accident and
+   * the wrong way round the moment someone changed the nester.
+   */
+  {
+    id: 'bendy-ply-3',
+    brand: 'Imported',
+    decor: 'Bendy plywood 3mm',
+    substrate: 'plywood',
+    thickness: mm(3),
+    grain: 'none',
+    decorFaces: 2,
+    sheets: [IMPORTED(6_400)],
+    indicativePricing: true,
+  },
+  {
+    id: 'bendy-ply-5',
+    brand: 'Imported',
+    decor: 'Bendy plywood 5mm',
+    substrate: 'plywood',
+    thickness: mm(5),
+    grain: 'none',
+    decorFaces: 2,
+    sheets: [IMPORTED(8_900)],
+    indicativePricing: true,
+  },
+
   // ── Backs ──────────────────────────────────────────────────────────────────────────────
   {
     id: 'poly-classic-white-back-16',

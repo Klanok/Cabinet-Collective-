@@ -201,7 +201,7 @@ describe('a circle written as two semicircular edges', () => {
 });
 
 describe('the reference radiused shelf', () => {
-  const shelf = bowedFrontProfile(mm(900), mm(300), mm(50));
+  const shelf = bowedFrontProfile(mm(900), mm(300), mm(50), 'L2');
 
   it('derives 2050 radius from the 900 chord and 50 bow', () => {
     expect(radiusFromChordAndSagitta(mm(900), mm(50))).toBeCloseTo(2050, 9);
@@ -231,13 +231,13 @@ describe('the reference radiused shelf', () => {
   });
 
   it('is a plain rectangle when nothing is asked to bow', () => {
-    const flat = bowedFrontProfile(mm(900), mm(300), mm(0));
+    const flat = bowedFrontProfile(mm(900), mm(300), mm(0), 'L2');
     expect(isRectangular(flat)).toBe(true);
     expect(flat).toEqual(rectProfile(mm(900), mm(300)));
   });
 
   it('will not bow a front backwards', () => {
-    expect(() => bowedFrontProfile(mm(900), mm(300), mm(-50))).toThrow(/positive/);
+    expect(() => bowedFrontProfile(mm(900), mm(300), mm(-50), 'L2')).toThrow(/positive/);
   });
 });
 
@@ -262,7 +262,7 @@ describe('a scooped edge', () => {
 });
 
 describe('flattening, which is for drawing and nothing else', () => {
-  const shelf = bowedFrontProfile(mm(900), mm(300), mm(50));
+  const shelf = bowedFrontProfile(mm(900), mm(300), mm(50), 'L2');
 
   it('keeps every segment within tolerance of the true curve', () => {
     const tol = mm(0.05);
@@ -311,8 +311,8 @@ describe('flattening, which is for drawing and nothing else', () => {
   });
 
   it('uses more segments for a tighter radius', () => {
-    const gentle = flattenPolygonSegments(bowedFrontProfile(mm(900), mm(300), mm(10)).outline);
-    const tight = flattenPolygonSegments(bowedFrontProfile(mm(900), mm(300), mm(300)).outline);
+    const gentle = flattenPolygonSegments(bowedFrontProfile(mm(900), mm(300), mm(10), 'L2').outline);
+    const tight = flattenPolygonSegments(bowedFrontProfile(mm(900), mm(300), mm(299), 'L2').outline);
     expect(tight.length).toBeGreaterThan(gentle.length);
   });
 
@@ -324,7 +324,7 @@ describe('flattening, which is for drawing and nothing else', () => {
 });
 
 describe('extruding a curved part', () => {
-  const shelf = bowedFrontProfile(mm(900), mm(300), mm(50));
+  const shelf = bowedFrontProfile(mm(900), mm(300), mm(50), 'L2');
 
   it('builds a closed mesh with the curve in it', () => {
     const mesh = extrudeProfile(shelf, mm(18));

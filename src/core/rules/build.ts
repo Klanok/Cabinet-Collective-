@@ -38,6 +38,7 @@ const resolveMaterials = (cabinet: Cabinet, project: Project): ResolvedMaterials
   carcass: cabinet.materials.carcass ?? project.defaults.carcassMaterialId,
   back: cabinet.materials.back ?? project.defaults.backMaterialId,
   door: cabinet.materials.door ?? project.defaults.doorMaterialId,
+  skin: cabinet.materials.skin ?? project.defaults.skinMaterialId,
   edgeBand: cabinet.materials.edgeBand ?? project.defaults.edgeBandId,
 });
 
@@ -49,6 +50,8 @@ const materialFor = (slot: MaterialSlot, materials: ResolvedMaterials): string =
       return materials.back;
     case 'door':
       return materials.door;
+    case 'skin':
+      return materials.skin;
   }
 };
 
@@ -102,6 +105,7 @@ const toPanel = (
   features: [...(instance.features ?? []), ...styleFeatures.features],
   edgeBanding: resolveBanding(instance.placement, instance.bandedDirections, materials.edgeBand),
   grain: instance.grain,
+  forming: instance.forming,
   note: instance.note,
 });
 
