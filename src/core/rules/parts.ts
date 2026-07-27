@@ -10,7 +10,7 @@
  */
 
 import { type Mm, mm } from '../units.ts';
-import { rectProfile } from '../geom/profile.ts';
+import { type Profile2D, bowedFrontProfile, rectProfile } from '../geom/profile.ts';
 import { placement } from '../geom/placement.ts';
 import { v3 } from '../geom/vec.ts';
 import type { RuleContext } from './context.ts';
@@ -122,10 +122,28 @@ export const backPanel = (ctx: RuleContext, name = 'Back'): PartInstance => {
 };
 
 /**
+ * The plan shape of a shelf, bowed at the front if this cabinet asks for it.
+ *
+ * A shelf is laid in with `v = −Z`, so part +Y runs toward the *back* of the cabinet and the
+ * front edge of the shelf is **L1** — which is also why `BAND_FRONT` resolves to L1 on a
+ * shelf and to L2 on an upright. The bow has to go on the same edge the banding does, or the
+ * curve ends up against the wall.
+ */
+const shelfProfile = (ctx: RuleContext, length: Mm, depth: Mm): Profile2D => {
+  const bow = ctx.options.shelfBow ?? 0;
+  if (bow <= 0) return rectProfile(length, depth);
+  return bowedFrontProfile(length, depth, mm(bow), 'L1');
+};
+
+/**
  * Adjustable shelves, spread evenly through the interior opening.
  *
  * Each shelf is narrower than the opening by the construction's side clearance (so it can be
  * lifted in and out) and shallower by its setback (so it clears the doors).
+ *
+ * With `shelfBow` set they come out radiused at the front — open radius shelving. The part
+ * grows *forward* of the carcass by the bow, which is the point of it, and the banding
+ * follows the arc rather than the chord because `panelEdgeLengths` measures the real edge.
  */
 export const adjustableShelves = (ctx: RuleContext, count: number): PartInstance[] => {
   if (count <= 0) return [];
@@ -134,6 +152,7 @@ export const adjustableShelves = (ctx: RuleContext, count: number): PartInstance
   const width = mm(ctx.horizontalDepth - c.shelfSetback);
   const openingBottom = ctx.t;
   const openingHeight = ctx.interiorHeight;
+  const bow = Math.max(0, ctx.options.shelfBow ?? 0);
 
   return Array.from({ length: count }, (_, i) => {
     // Evenly divide the opening; a shelf is centred on each division line.
@@ -141,15 +160,22 @@ export const adjustableShelves = (ctx: RuleContext, count: number): PartInstance
     return {
       name: count === 1 ? 'Shelf' : `Shelf ${i + 1}`,
       role: 'shelf-adjustable' as const,
-      profile: rectProfile(length, width),
+      profile: shelfProfile(ctx, length, width),
+      // A bowed shelf keeps its back where a straight one had it and reaches *forward*, so
+      // the origin — the front-most plane of the part — moves out by the bow.
       placement: placement(
-        v3(mm(ctx.t + c.shelfSideClearance / 2), mm(centreY - ctx.t / 2), mm(ctx.D - c.shelfSetback)),
+        v3(
+          mm(ctx.t + c.shelfSideClearance / 2),
+          mm(centreY - ctx.t / 2),
+          mm(ctx.D - c.shelfSetback + bow),
+        ),
         '+X',
         '-Z',
       ),
       material: 'carcass' as const,
       bandedDirections: BAND_FRONT,
       grain: 'any' as const,
+      note: bow > 0 ? `Radiused front, ${bow}mm bow` : undefined,
     };
   });
 };
@@ -292,6 +318,8 @@ export const bayShelves = (
   const openingBottom = ctx.t;
   const openingHeight = ctx.interiorHeight;
 
+  const bow = Math.max(0, ctx.options.shelfBow ?? 0);
+
   const parts: PartInstance[] = [];
   for (let level = 0; level < shelfCount; level++) {
     const centreY = openingBottom + (openingHeight * (level + 1)) / (shelfCount + 1);
@@ -301,15 +329,20 @@ export const bayShelves = (
       parts.push({
         name: shelfCount === 1 ? `Shelf bay ${bay + 1}` : `Shelf ${level + 1} bay ${bay + 1}`,
         role: 'shelf-adjustable',
-        profile: rectProfile(width, depth),
+        profile: shelfProfile(ctx, width, depth),
         placement: placement(
-          v3(mm(bayLeft + c.shelfSideClearance / 2), mm(centreY - ctx.t / 2), mm(ctx.D - c.shelfSetback)),
+          v3(
+            mm(bayLeft + c.shelfSideClearance / 2),
+            mm(centreY - ctx.t / 2),
+            mm(ctx.D - c.shelfSetback + bow),
+          ),
           '+X',
           '-Z',
         ),
         material: 'carcass',
         bandedDirections: BAND_FRONT,
         grain: 'any',
+        note: bow > 0 ? `Radiused front, ${bow}mm bow` : undefined,
       });
     }
   }

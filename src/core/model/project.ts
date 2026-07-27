@@ -13,7 +13,13 @@ import type { MaterialLibrary } from './material.ts';
 import type { Room } from './room.ts';
 import { type DoorStyle, DEFAULT_DOOR_STYLES, PLAIN_SLAB_STYLE } from '../standards/doorStyles.ts';
 
-export const CURRENT_SCHEMA_VERSION = 6 as const;
+export const CURRENT_SCHEMA_VERSION = 7 as const;
+
+/**
+ * The bendy ply an older job is given when it is migrated forward. It has no curved parts in
+ * it, so nothing is cut from this — it is there so the slot is never empty.
+ */
+export const DEFAULT_SKIN_MATERIAL_ID = 'bendy-ply-3';
 
 /**
  * GST treatment. These are genuinely different arithmetic, not a display toggle:
@@ -106,6 +112,8 @@ export interface ProjectDefaults {
   readonly carcassMaterialId: string;
   readonly backMaterialId: string;
   readonly doorMaterialId: string;
+  /** Bendy ply for formed skins. Only curved work uses it, but it has to be orderable. */
+  readonly skinMaterialId: string;
   readonly edgeBandId: string;
   /** Style used for every front unless a cabinet says otherwise. */
   readonly doorStyleId: string;
@@ -280,6 +288,36 @@ const migrateV5toV6 = (raw: Record<string, unknown>): Record<string, unknown> =>
 };
 
 /**
+ * v6 → v7.
+ *
+ * Curved work arrives, and with it a board no previous job could have needed: bendy ply for a
+ * skin wrapped over formers. It gets its own material slot rather than borrowing the door
+ * board, because it is a different sheet bought for a different reason — and because its
+ * thickness decides how *long* a skin is cut, not just how it fits.
+ *
+ * **No part moves and nothing re-prices.** A job with no curved parts in it never resolves the
+ * new slot, so the only change to an existing file is a default id sitting unused. Every
+ * existing cabinet keeps every dimension it had.
+ *
+ * The version is bumped anyway, for the reason v4 and v6 were: an older build opening a job
+ * with a radiused end in it would not know the type, and the honest failure is refusing the
+ * file rather than quietly dropping a cabinet out of a kitchen.
+ */
+const migrateV6toV7 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const defaults = (raw.defaults as Record<string, unknown> | undefined) ?? {};
+  return {
+    ...raw,
+    schemaVersion: 7,
+    defaults: {
+      ...defaults,
+      // Named rather than imported from the AU library: that module imports this one for its
+      // types, and reaching back for a value would close the loop.
+      skinMaterialId: defaults.skinMaterialId ?? DEFAULT_SKIN_MATERIAL_ID,
+    },
+  };
+};
+
+/**
  * Load a project from stored JSON, migrating older schema versions forward.
  *
  * Migrations run in sequence, so a v1 file loaded after several schema changes still arrives
@@ -305,6 +343,7 @@ export const migrateProject = (raw: unknown): Project => {
   if (data.schemaVersion === 3) data = migrateV3toV4(data);
   if (data.schemaVersion === 4) data = migrateV4toV5(data);
   if (data.schemaVersion === 5) data = migrateV5toV6(data);
+  if (data.schemaVersion === 6) data = migrateV6toV7(data);
 
   if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`migrateProject: could not migrate schema version ${String(version)}`);

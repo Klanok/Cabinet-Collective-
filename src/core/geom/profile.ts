@@ -134,22 +134,71 @@ export const sweepFromChordAndRadius = (chord: Mm, radius: Mm): number => {
  * A rectangle with one long edge bowed out into a circular arc — the open radiused shelf.
  *
  * `length` × `depth` is the rectangle at the **ends** of the shelf; `sagitta` is how much
- * further the middle of the front reaches, which is how the curve gets described on a
- * cutting list and how it gets checked with a straightedge. The part is therefore
- * `depth + sagitta` deep at its deepest, and that — not `depth` — is what has to fit on the
- * sheet, which `profileExtent` already knows.
+ * further the middle of the front reaches. That is how the curve gets described and how it
+ * gets checked — a straightedge across the front and a tape to the middle — so it is what
+ * gets typed, and the radius follows from it rather than the other way round.
  *
- * The front is the `y = depth` edge, so the curve lands on **L2**, and banding it costs the
- * arc rather than the chord.
+ * The part is `depth + sagitta` deep at its deepest, and that, not `depth`, is what has to
+ * fit on the sheet. `profileExtent` already knows.
+ *
+ * `frontEdge` says which named edge bows, and there is no default on purpose. Which part-space
+ * edge faces the front of a cabinet depends on the panel's placement: a shelf laid in with
+ * `v = −Z` has its front on **L1**, and a caller that assumed L2 would put the curve on the
+ * back of the shelf, against the wall, where it would look perfectly fine in a unit test.
+ * This is the same handedness trap `resolveBanding` exists to avoid, so it is made explicit
+ * the same way.
  */
-export const bowedFrontProfile = (length: Mm, depth: Mm, sagitta: Mm): Profile2D => {
+export const bowedFrontProfile = (
+  length: Mm,
+  depth: Mm,
+  sagitta: Mm,
+  frontEdge: 'L1' | 'L2',
+): Profile2D => {
   if (sagitta === 0) return rectProfile(length, depth);
   if (sagitta < 0) throw new Error('bowedFrontProfile: a front bows out, so sagitta is positive');
-  // The front edge runs from (length, depth) to (0, depth) — travelling −X, whose right-hand
-  // side is +Y. A positive bulge is therefore the convex, bowed-forward case.
+  if (sagitta >= depth) {
+    throw new Error(
+      `bowedFrontProfile: a ${sagitta}mm bow on a ${depth}mm shelf reaches past the back of it`,
+    );
+  }
   const bulge = (2 * sagitta) / length;
+
+  if (frontEdge === 'L2') {
+    // The front runs from (length, depth) to (0, depth) — travelling −X, whose right-hand
+    // side is +Y. A positive bulge is therefore the convex, bowed-forward case.
+    return {
+      outline: [v2(0, 0), v2(length, 0), { x: length, y: depth, bulge }, v2(0, depth)],
+      holes: [],
+    };
+  }
+
+  // Bowing the y = 0 edge pushes it below the origin, and part space starts at the corner of
+  // the bounding box — so the whole rectangle is lifted by the bow and the curve comes back
+  // down to y = 0 at its middle. The front runs +X, whose right-hand side is −Y.
+  const s = sagitta;
   return {
-    outline: [v2(0, 0), v2(length, 0), { x: length, y: depth, bulge }, v2(0, depth)],
+    outline: [
+      { x: 0, y: s, bulge },
+      v2(length, s),
+      v2(length, s + depth),
+      v2(0, s + depth),
+    ],
+    holes: [],
+  };
+};
+
+/**
+ * A quarter disc — the plan shape of a former in a radiused end.
+ *
+ * Occupies the corner at the origin: straight along `y = 0` out to the radius, round to the
+ * radius on `x = 0`, and back down. The curve is the outside of the cabinet.
+ */
+export const quarterDiscProfile = (radius: Mm): Profile2D => {
+  if (radius <= 0) throw new Error('quarterDiscProfile: radius must be positive');
+  // From (r,0) to (0,r) the right-hand side of travel points away from the origin, so a
+  // positive bulge is the convex quarter. tan(90°/4) = tan 22.5°.
+  return {
+    outline: [v2(0, 0), { x: radius, y: 0, bulge: Math.tan(Math.PI / 8) }, v2(0, radius)],
     holes: [],
   };
 };

@@ -10,6 +10,7 @@ import type { Mm } from '../units.ts';
 import type { CabinetOptions, CabinetTypeId } from '../model/cabinet.ts';
 import type { GrainConstraint, PanelRole } from '../model/panel.ts';
 import type { PanelFeature } from '../model/feature.ts';
+import type { Forming } from '../model/forming.ts';
 import type { PanelPlacement } from '../geom/placement.ts';
 import type { Profile2D } from '../geom/profile.ts';
 import { type SignedAxis, negateAxis } from '../geom/vec.ts';
@@ -17,7 +18,7 @@ import type { RectEdge } from '../geom/profile.ts';
 import type { RuleContext } from './context.ts';
 
 /** Which of a cabinet's material slots a part is cut from. */
-export type MaterialSlot = 'carcass' | 'back' | 'door';
+export type MaterialSlot = 'carcass' | 'back' | 'door' | 'skin';
 
 /**
  * Edges to band, named by the cabinet-space direction the edge faces rather than by part-space
@@ -40,6 +41,8 @@ export interface PartInstance {
   readonly bandedDirections: BandingRule;
   readonly grain: GrainConstraint;
   readonly features?: readonly PanelFeature[];
+  /** How the part bends after cutting. `profile` stays the flat, as-cut shape regardless. */
+  readonly forming?: Forming;
   readonly note?: string;
 }
 

@@ -10,7 +10,7 @@ import type { Mm } from '../units.ts';
 import type { CabinetPlacement } from '../geom/placement.ts';
 
 /** Identifies which declarative spec builds this cabinet. */
-export type CabinetTypeId = 'base' | 'wall' | 'drawer-bank' | 'tall' | 'custom';
+export type CabinetTypeId = 'base' | 'wall' | 'drawer-bank' | 'tall' | 'custom' | 'radius-end';
 
 /** Which way a door swings, described by the side its hinges are on, facing the cabinet. */
 export type DoorSwing = 'left' | 'right';
@@ -55,6 +55,31 @@ export interface CabinetOptions {
   readonly hasLid?: boolean;
   /** How far the lid overhangs the carcass on each exposed side. */
   readonly lidOverhang?: Mm;
+
+  /*
+   * Curved work.
+   */
+
+  /**
+   * How far the front of a shelf bows forward at its middle — open radius shelving.
+   *
+   * Stated as a bow rather than as a radius because that is what gets measured: a
+   * straightedge across the front and a tape to the middle. The radius follows from it and
+   * the width, and is derived rather than stored.
+   */
+  readonly shelfBow?: Mm;
+
+  /** Radiused end only. Plan radius of the curve. Unset follows the cabinet's depth. */
+  readonly endRadius?: Mm;
+  /** Radiused end only. Greatest clear gap between formers before another one is added. */
+  readonly formerSpacing?: Mm;
+  /**
+   * Radiused end only. Layers of bendy ply over the formers.
+   *
+   * Two is the usual answer: one layer takes up the shape of every former it crosses and you
+   * can read them down the finished curve in a raking light.
+   */
+  readonly skinLayers?: number;
 }
 
 export interface CabinetMaterials {
@@ -62,6 +87,12 @@ export interface CabinetMaterials {
   readonly carcass?: string;
   readonly back?: string;
   readonly door?: string;
+  /**
+   * Bendy ply for a formed skin. A distinct slot rather than a reuse of the door board,
+   * because it is a genuinely different sheet — it is bought for the direction it bends, and
+   * it is the only board in a job whose thickness decides a *length* rather than a fit.
+   */
+  readonly skin?: string;
   readonly edgeBand?: string;
 }
 
@@ -96,6 +127,7 @@ export const CABINET_TYPE_LABELS: Record<CabinetTypeId, string> = {
   'drawer-bank': 'Drawer bank',
   tall: 'Tall',
   custom: 'Custom',
+  'radius-end': 'Radiused end',
 };
 
 /**
