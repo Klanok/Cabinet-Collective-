@@ -67,6 +67,12 @@ import {
 } from '../src/core/geom/profile.ts';
 import { extrudeProfile } from '../src/core/geom/extrude.ts';
 import { v2 } from '../src/core/geom/vec.ts';
+import {
+  cylindricalForming,
+  developedLength,
+  formPoint,
+  formedMesh,
+} from '../src/core/model/forming.ts';
 
 const SHELF_RADIUS = 2050;
 const SHELF_SWEEP = 0.442628885;
@@ -352,5 +358,118 @@ describe('extruding a curved part', () => {
     const mesh = extrudeProfile(rectProfile(mm(600), mm(400)), mm(16));
     // 4 outline verts × 2 faces + 4 walls × 4 verts.
     expect(mesh.positions.length / 3).toBe(8 + 16);
+  });
+});
+
+describe('bending a flat part', () => {
+  /*
+   * A 3mm skin bent through a quarter turn at a 554mm inside radius — the reference radiused
+   * end. Worked longhand:
+   *
+   *   neutral radius   554 + 0.5×3 = 555.5
+   *   developed        555.5 × π/2 = 872.5774      what it is cut to, flat
+   *   bent envelope    the B-face traces r = 554 from φ=0 to φ=π/2, so the part sweeps from
+   *                    (s=0, n=0) round to (s=554, n=−554); the A-face runs 3 further out,
+   *                    reaching s = 557 and n = −554.
+   */
+  const INNER = 554;
+  const T = 3;
+  const skin = cylindricalForming('x', mm(INNER), Math.PI / 2);
+
+  it('leaves the start of the bend exactly where the flat part had it', () => {
+    for (const z of [0, 1.5, T]) {
+      const p = formPoint(skin, mm(T), { x: mm(0), y: mm(100), z: mm(z) });
+      expect(p.x).toBeCloseTo(0, 9);
+      expect(p.y).toBeCloseTo(100, 9);
+      expect(p.z).toBeCloseTo(z, 9);
+    }
+  });
+
+  it('traces the inside face round a circle of exactly the inside radius', () => {
+    // This is what has to be true for the skin to sit down on the formers rather than bridge
+    // between them.
+    const centre = { s: 0, n: -INNER };
+    for (const along of [0, 200, 500, 872.5774]) {
+      const p = formPoint(skin, mm(T), { x: mm(along), y: mm(0), z: mm(0) });
+      expect(Math.hypot(p.x - centre.s, p.z - centre.n)).toBeCloseTo(INNER, 6);
+    }
+  });
+
+  it('carries the across-the-bend co-ordinate through untouched', () => {
+    // A cylinder is dead straight in that direction, which is the reason bendy ply can make
+    // one and not a dome.
+    for (const y of [0, 360, 720]) {
+      expect(formPoint(skin, mm(T), { x: mm(400), y: mm(y), z: mm(0) }).y).toBe(y);
+    }
+  });
+
+  it('finishes the quarter turn square to where it started', () => {
+    const end = formPoint(skin, mm(T), { x: mm(872.5774), y: mm(0), z: mm(0) });
+    expect(end.x).toBeCloseTo(INNER, 3);
+    expect(end.z).toBeCloseTo(-INNER, 3);
+  });
+
+  it('runs on flat past the end of the bend, so a fixing tab stays a tab', () => {
+    const end = formPoint(skin, mm(T), { x: mm(872.5774), y: mm(0), z: mm(0) });
+    const tab = formPoint(skin, mm(T), { x: mm(872.5774 + 50), y: mm(0), z: mm(0) });
+    // The tangent at a quarter turn points along −n, so a 50mm tab drops 50mm and goes no
+    // further round.
+    expect(tab.x).toBeCloseTo(end.x, 4);
+    expect(tab.z).toBeCloseTo(end.z - 50, 4);
+  });
+
+  it('keeps the developed length: the bend is exactly a quarter turn', () => {
+    const dev = developedLength(skin, mm(T));
+    expect(dev).toBeCloseTo(872.5774, 3);
+    // Walk the neutral surface in small steps and add up the chords; it must come back to the
+    // length the part was cut to.
+    let walked = 0;
+    const steps = 2000;
+    let prev = formPoint(skin, mm(T), { x: mm(0), y: mm(0), z: mm(T / 2) });
+    for (let i = 1; i <= steps; i++) {
+      const p = formPoint(skin, mm(T), { x: mm((dev * i) / steps), y: mm(0), z: mm(T / 2) });
+      walked += Math.hypot(p.x - prev.x, p.z - prev.z);
+      prev = p;
+    }
+    expect(walked).toBeCloseTo(dev, 3);
+  });
+
+  it('builds a mesh that actually curves, rather than four corners leaning over', () => {
+    const flat = rectProfile(mm(872.5774), mm(720));
+    const bent = formedMesh(flat, mm(T), skin);
+    // Far more vertices than the flat part's 24: the subdivision is the whole point.
+    expect(bent.positions.length / 3).toBeGreaterThan(200);
+
+    let minZ = Infinity;
+    let maxX = -Infinity;
+    for (let i = 0; i < bent.positions.length; i += 3) {
+      maxX = Math.max(maxX, bent.positions[i]!);
+      minZ = Math.min(minZ, bent.positions[i + 2]!);
+    }
+    // The quarter turn reaches the inside radius across and down, plus the board thickness.
+    expect(maxX).toBeCloseTo(INNER + T, 1);
+    expect(minZ).toBeCloseTo(-INNER, 1);
+  });
+
+  it('gives the bent mesh unit normals that turn with the curve', () => {
+    const bent = formedMesh(rectProfile(mm(872.5774), mm(720)), mm(T), skin);
+    const seen = new Set<string>();
+    for (let i = 0; i < bent.normals.length; i += 3) {
+      const n = [bent.normals[i]!, bent.normals[i + 1]!, bent.normals[i + 2]!];
+      expect(Math.hypot(n[0]!, n[1]!, n[2]!)).toBeCloseTo(1, 6);
+      seen.add(n.map((v) => v.toFixed(2)).join(','));
+    }
+    // A flat panel has six distinct normals. A bent one has to have many more, or it is being
+    // shaded as though it were still flat.
+    expect(seen.size).toBeGreaterThan(20);
+  });
+
+  it('leaves a part with no forming alone', () => {
+    // formedMesh on a shaped profile falls back rather than bending it about an axis it was
+    // never designed around.
+    const shelf = bowedFrontProfile(mm(900), mm(300), mm(50), 'L2');
+    const viaForming = formedMesh(shelf, mm(18), skin);
+    const plain = extrudeProfile(shelf, mm(18));
+    expect(viaForming.positions.length).toBe(plain.positions.length);
   });
 });

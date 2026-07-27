@@ -248,6 +248,7 @@ export function Inspector({
   const isWall = cabinet.typeId === 'wall';
   const isTall = cabinet.typeId === 'tall';
   const isCustom = cabinet.typeId === 'custom';
+  const isRadiusEnd = cabinet.typeId === 'radius-end';
 
   const sheetOptions = project.materials.sheets.map((m) => ({
     id: m.id,
@@ -285,14 +286,45 @@ export function Inspector({
           </div>
         </label>
 
-        <NumberField
-          label="Width"
-          value={cabinet.width}
-          min={100}
-          max={1800}
-          step={50}
-          onChange={(n) => onUpdate(cabinet.id, { width: mm(n) })}
-        />
+        {/*
+          A radiused end has one plan dimension, not two. Its width, its depth and its radius
+          are the same number by definition, so it is asked for once and the other two follow.
+          Three separate boxes holding one fact is exactly what this codebase avoids in its
+          data, and it is no better in a form: two of them would be wrong until you typed the
+          third.
+        */}
+        {isRadiusEnd ? (
+          <NumberField
+            label="Radius"
+            value={cabinet.options.endRadius ?? cabinet.depth}
+            min={100}
+            max={1200}
+            step={10}
+            onChange={(n) => {
+              onUpdate(cabinet.id, { width: mm(n), depth: mm(n) });
+              onUpdateOptions(cabinet.id, { endRadius: mm(n) });
+            }}
+          />
+        ) : (
+          <>
+            <NumberField
+              label="Width"
+              value={cabinet.width}
+              min={100}
+              max={1800}
+              step={50}
+              onChange={(n) => onUpdate(cabinet.id, { width: mm(n) })}
+            />
+            <NumberField
+              label="Depth"
+              value={cabinet.depth}
+              min={100}
+              max={900}
+              step={10}
+              onChange={(n) => onUpdate(cabinet.id, { depth: mm(n) })}
+            />
+          </>
+        )}
         <NumberField
           label="Height"
           value={cabinet.height}
@@ -300,14 +332,6 @@ export function Inspector({
           max={2400}
           step={10}
           onChange={(n) => onUpdate(cabinet.id, { height: mm(n) })}
-        />
-        <NumberField
-          label="Depth"
-          value={cabinet.depth}
-          min={100}
-          max={900}
-          step={10}
-          onChange={(n) => onUpdate(cabinet.id, { depth: mm(n) })}
         />
       </div>
 
@@ -323,7 +347,12 @@ export function Inspector({
 
       <div className="subhead">Configuration</div>
       <div className="fields">
-        {!isDrawerBank && (
+        {/*
+          A radiused end has no doors and no shelves — it is a closed curved feature, and the
+          point of it is the outside. Offering the controls anyway would let somebody set a
+          door count the spec then silently ignores.
+        */}
+        {!isDrawerBank && !isRadiusEnd && (
           <>
             <label className="field">
               <span>Doors</span>
@@ -419,6 +448,40 @@ export function Inspector({
                 onChange={(n) => onUpdateOptions(cabinet.id, { lidOverhang: mm(n) })}
               />
             )}
+            {/*
+              Open radius shelving. Asked for as a bow rather than as a radius because that is
+              what gets measured — a straightedge across the front and a tape to the middle.
+              Zero is a straight shelf, which is what everything ships as.
+            */}
+            <NumberField
+              label="Shelf front bow"
+              value={cabinet.options.shelfBow ?? 0}
+              min={0}
+              max={Math.max(0, cabinet.depth - 40)}
+              step={5}
+              onChange={(n) => onUpdateOptions(cabinet.id, { shelfBow: n > 0 ? mm(n) : undefined })}
+            />
+          </>
+        )}
+
+        {isRadiusEnd && (
+          <>
+            <NumberField
+              label="Former spacing (max)"
+              value={cabinet.options.formerSpacing ?? 300}
+              min={50}
+              max={800}
+              step={25}
+              onChange={(n) => onUpdateOptions(cabinet.id, { formerSpacing: mm(n) })}
+            />
+            <NumberField
+              label="Skin layers"
+              value={cabinet.options.skinLayers ?? 2}
+              min={1}
+              max={4}
+              suffix=""
+              onChange={(n) => onUpdateOptions(cabinet.id, { skinLayers: Math.round(n) })}
+            />
           </>
         )}
 
@@ -512,6 +575,13 @@ export function Inspector({
           value={cabinet.materials.door}
           defaultLabel={nameOfSheet(project.defaults.doorMaterialId)}
           onChange={(door) => setMaterial({ door })}
+        />
+        <OverridePicker
+          label="Bendy ply"
+          options={sheetOptions}
+          value={cabinet.materials.skin}
+          defaultLabel={nameOfSheet(project.defaults.skinMaterialId)}
+          onChange={(skin) => setMaterial({ skin })}
         />
         <OverridePicker
           label="Edging"

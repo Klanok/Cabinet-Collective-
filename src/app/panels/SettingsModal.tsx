@@ -307,6 +307,13 @@ function MaterialsEditor({
         value={defaults.doorMaterialId}
         onChange={(doorMaterialId) => onChange({ doorMaterialId })}
       />
+      <SheetPicker
+        label="Bendy ply"
+        hint="Skins over formers on a radiused end — only curved work uses it"
+        library={library}
+        value={defaults.skinMaterialId}
+        onChange={(skinMaterialId) => onChange({ skinMaterialId })}
+      />
       <EdgeBandPicker
         label="Edge banding"
         hint="Must be at least as wide as the panel is thick"

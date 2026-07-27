@@ -22,6 +22,9 @@
  */
 
 import { type Mm, mm } from '../units.ts';
+import { type MeshData, extrudeProfile } from '../geom/extrude.ts';
+import { type Profile2D, isRectangular, profileExtent } from '../geom/profile.ts';
+import { type Vec2, v2 } from '../geom/vec.ts';
 
 /**
  * A part bent to a single radius about one axis — a cylinder, which is what bendy ply over
@@ -165,4 +168,93 @@ export const formPoint = (
   return f.axis === 'x'
     ? { x: mm(s), y: mm(across), z: mm(n) }
     : { x: mm(across), y: mm(s), z: mm(n) };
+};
+
+/**
+ * How much a flat chord may stray from the true bend when a formed part is drawn. Rendering
+ * only — the part is cut flat, so nothing dimensional is approximated here.
+ */
+export const FORM_TOLERANCE: Mm = mm(0.1);
+
+/**
+ * How the local frame turns at bend angle `phi`: the part's own +along direction rotates to
+ * `(cos φ, −sin φ)` in the (along, through) plane, and +through rotates to `(sin φ, cos φ)`.
+ *
+ * Exported shape of the same fact `formPoint` uses, applied to directions rather than
+ * positions — which is what a normal is. Rotating normals rather than recomputing them from
+ * the bent triangles is what keeps a curve smoothly shaded instead of faceted.
+ */
+const rotateNormal = (na: number, nb: number, nz: number, phi: number) => {
+  const cos = Math.cos(phi);
+  const sin = Math.sin(phi);
+  return { a: na * cos + nz * sin, b: nb, n: -na * sin + nz * cos };
+};
+
+/**
+ * A formed part's mesh: the flat part, cut into enough pieces along the bend to look round,
+ * then bent.
+ *
+ * The subdivision has to happen *before* extruding. A skin is a rectangle, so its flat mesh
+ * is two triangles, and bending four corners gives a flat parallelogram leaning over — the
+ * curve simply isn't there to bend. Adding stations along the bend axis first and then
+ * reusing the ordinary extruder is both less code than building a shell by hand and less
+ * to get wrong, since the extruder is already the tested one.
+ *
+ * Falls back to the flat mesh for a profile that isn't rectangular. Nothing produces one
+ * today — a skin is always a rectangle — and quietly bending a shaped part about an axis it
+ * was never designed around would look plausible and be wrong.
+ */
+export const formedMesh = (
+  profile: Profile2D,
+  thickness: Mm,
+  f: Forming,
+  tolerance: Mm = FORM_TOLERANCE,
+): MeshData => {
+  if (!isRectangular(profile)) return extrudeProfile(profile, thickness);
+
+  const { length, width } = profileExtent(profile);
+  const alongLength = f.axis === 'x' ? length : width;
+  const acrossLength = f.axis === 'x' ? width : length;
+
+  const rn = neutralRadius(f, thickness);
+  const maxStep =
+    rn <= tolerance ? f.sweep : 2 * Math.acos(Math.max(-1, 1 - tolerance / rn));
+  const steps = Math.max(2, Math.ceil(f.sweep / Math.max(maxStep, 1e-6)));
+
+  const stations = Array.from({ length: steps + 1 }, (_, i) => (alongLength * i) / steps);
+  const at = (a: number, b: number): Vec2 => (f.axis === 'x' ? v2(a, b) : v2(b, a));
+
+  // Walk the rectangle counter-clockwise, subdividing the two edges that run along the bend.
+  const ring = [
+    ...stations.map((a) => at(a, 0)),
+    ...[...stations].reverse().map((a) => at(a, acrossLength)),
+  ];
+  const flat = extrudeProfile({ outline: ring, holes: [] }, thickness);
+
+  const positions = new Float32Array(flat.positions.length);
+  const normals = new Float32Array(flat.normals.length);
+  const { from, to } = formedSpan(f, thickness);
+
+  for (let i = 0; i < flat.positions.length; i += 3) {
+    const p = {
+      x: mm(flat.positions[i]!),
+      y: mm(flat.positions[i + 1]!),
+      z: mm(flat.positions[i + 2]!),
+    };
+    const bent = formPoint(f, thickness, p);
+    positions[i] = bent.x;
+    positions[i + 1] = bent.y;
+    positions[i + 2] = bent.z;
+
+    const along = f.axis === 'x' ? p.x : p.y;
+    const phi = (Math.min(Math.max(along, from), to) - from) / rn;
+    const na = f.axis === 'x' ? flat.normals[i]! : flat.normals[i + 1]!;
+    const nb = f.axis === 'x' ? flat.normals[i + 1]! : flat.normals[i]!;
+    const turned = rotateNormal(na, nb, flat.normals[i + 2]!, phi);
+    normals[i] = f.axis === 'x' ? turned.a : turned.b;
+    normals[i + 1] = f.axis === 'x' ? turned.b : turned.a;
+    normals[i + 2] = turned.n;
+  }
+
+  return { positions, normals, indices: flat.indices };
 };

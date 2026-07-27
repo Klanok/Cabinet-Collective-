@@ -15,12 +15,14 @@ src/core/                        pure model layer
   units.ts                       Mm, Cents; no conversion layer exists by design
   geom/
     vec.ts                       Vec2/Vec3 and the signed-axis machinery
-    profile.ts                   2D profiles, rectangles and notches, edge naming
+    arc.ts                       circular arcs on a boundary — bulge, and what it derives
+    profile.ts                   2D profiles, rectangles, notches, curves, edge naming
     extrude.ts                   profile → mesh (ear clipping); the whole "3D kernel"
     placement.ts                 part → cabinet → world, and back
   model/
     feature.ts                   parametric machining intent (the Phase 4 interface);
                                  also the tool profile — a cutter's cross-section
+    forming.ts                   how a flat part bends after it is cut; developed length
     material.ts                  sheet goods, edge banding, grain, nominal vs actual thickness
     panel.ts                     Panel — the single source of truth for a part
     cabinet.ts                   a placed cabinet: driving dimensions and options
@@ -148,12 +150,37 @@ Two consequences worth knowing:
   and a drawer front's runs across it, and that is already recorded in the placement's `u`.
   Reading it back is what keeps a vertical groove pattern vertical on both.
 
+**An arc is stored as the one number that isn't already there.** A boundary edge may bow into
+a circle, carried as a **bulge** — `tan(θ/4)` — on the vertex it leaves (`geom/arc.ts`). That is
+the DXF LWPOLYLINE convention, so a DXF export writes it unchanged, but the reason to prefer it
+is the same rule as everywhere else here: a centre plus a radius plus two endpoints is four
+facts describing three degrees of freedom, and four facts can disagree. The endpoints are
+already in the vertex ring, so the bulge adds what is genuinely missing and nothing can
+contradict it. Centre, radius and sweep are derived on demand, the way `placementNormal`
+derives `w` from `u` and `v`.
+
+`Vertex2 extends Vec2`, so every straight polygon written before curves existed is still one.
+Everything dimensional — area, perimeter, bounds, per-side banding length — measures the exact
+arc. **Flattening happens only for drawing**, in `flattenPolygonSegments`, and the CAM layer
+must not call it: a curve reaches the machine as a real G2/G3 arc, not as a polyline that has
+forgotten it was a circle.
+
+**A part's profile is the flat, as-cut shape; how it bends is separate.** Until curves arrived,
+every part was the same shape on the sheet as in the room, so one profile could honestly be
+both. A bendy-ply skin isn't: it is a rectangle on the sheet and a curve in the cabinet, and the
+rectangle is longer. So `Panel.profile` stays the flat shape and `Panel.forming`
+(`model/forming.ts`) says how it bends — read by the viewport and by nothing that decides a
+dimension. Storing the curve and deriving the flat shape was the alternative, and the flat one
+is the one being cut, so it is the one that has to be exact.
+
 **A cutter's cross-section is the cutter's business.** A flat-bottomed groove is describable as
 a width and a depth; a V-groove is not — its shape *is* the bit's shape, and how wide it comes
 out follows from the bit and the plunge. So `ToolProfile` carries the section and
 `cutWidthAtDepth` derives the width, rather than a width being stored beside a named cutter
 where the two could disagree. Note this is a third distinct kind of curve: §5.1's radius work is
-a curve in *plan*, a part outline is a curve in *outline*, and this is a curve in **section**.
+a curve in *plan*, a part outline is a curve in *outline*, and this is a curve in **section**. All three now exist: §5.1's radius work landed as a curve in
+plan and in outline (`geom/arc.ts`), this is the one in section, and they stay separate
+because they answer different questions.
 
 ## Where later phases attach
 

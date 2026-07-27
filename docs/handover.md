@@ -16,17 +16,18 @@ Read alongside:
 cutlist against how he would hand-write it for a real cabinet and confirmed it tracks with no
 obvious errors.
 
-Since then, three more pieces have shipped: **room plans** you draw with typed wall lengths,
+Since then, four more pieces have shipped: **room plans** you draw with typed wall lengths,
 with cabinets standing against named walls; **nominal vs actual board thickness**, so a board
-can be told what it really measures and parts are cut to that; and **door styles**, the first
-half of §5.3 — shaker and V-groove fronts as machining rather than geometry, saved to the shop
-standards, priced. Section 4 records how each works and why; section 5 is what is actually left
-to do.
+can be told what it really measures and parts are cut to that; **door styles**, the first half
+of §5.3 — shaker and V-groove fronts as machining rather than geometry, saved to the shop
+standards, priced; and **curved parts** (§5.1), which put real circular arcs in the model and
+built radiused shelving and an enclosed radiused end on them. Section 4 records how each works
+and why; section 5 is what is actually left to do.
 
 ```
 npm install
 npm run dev       # the app
-npm test          # 276 tests
+npm test          # 341 tests
 npm run build
 npm run report    # cutlist + costing for the sample kitchen, in the terminal
 npm run report -- shaker-57    # the same kitchen with routed fronts
@@ -48,8 +49,8 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | Area | State |
 |---|---|
 | Coordinate convention (world / cabinet / part, A-face) | Fixed and documented |
-| Geometry engine — profile + extrude, ear-clipping | Straight-edged polygons only |
-| Rule engine — specs as data over a construction method | base, wall, tall, drawer-bank, custom |
+| Geometry engine — profile + extrude, ear-clipping | Straight edges **and circular arcs** |
+| Rule engine — specs as data over a construction method | base, wall, tall, drawer-bank, custom, radius-end |
 | Panel features (the Phase 4 CAM interface) | Types defined; door styles now populate pocket and profiled-cut |
 | Door styles — shaker, V-groove, routed MDF | **Model half done — toolpaths are Phase 4, see 5.3** |
 | Tool profiles — a cutter's cross-section | Defined; a short shipped list, no editor |
@@ -63,7 +64,8 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | Cabinets placed against a named wall, at any angle | Working |
 | CI — typecheck, tests, build, cutlist smoke run on every PR | Working, `.github/workflows/ci.yml` |
 | Hardware / joinery rules (Blum) | **Not started — this is Phase 2, see 5.2** |
-| Curved / radiused parts | **Not started — see 5.1** |
+| Curved / radiused parts — arcs, bowed shelves, radiused ends | Working, see 4.4 |
+| Nesting a curved part | **Still bounding-box only — see 5.1** |
 | Nesting, CAM, post-processor | Not started |
 
 ---
@@ -99,7 +101,7 @@ materials.
 
 **Migrations must never quietly change anyone's parts.** Every migration carries old values
 forward so a saved job cuts exactly as it did; adopting a new default is then a deliberate
-edit. Schema is at **v6**; migrations run in sequence in `model/project.ts`. Shop standards are
+edit. Schema is at **v7**; migrations run in sequence in `model/project.ts`. Shop standards are
 versioned separately and are at **v3** — and they get a *real* migration rather than a
 rejection, because refusing to load them silently replaces a shop's accumulated kick heights,
 reveals, door styles and saved cabinet types with the shipped Australian defaults.
@@ -119,6 +121,21 @@ failure available to a control that throws away a room somebody measured. `panel
 replacement and keeps the same shape (`await ask.confirm(...)`, `null` on cancel), so reaching
 for the native call is never worth it. This was found by running the built app inside a
 sandboxed frame — which is worth doing before shipping a build anywhere it might be embedded.
+
+**An arc is one number on the vertex it leaves.** A boundary edge bows into a circle via a
+**bulge**, `tan(θ/4)` — the DXF convention, and more importantly the *non-redundant* one. A
+centre plus a radius plus two endpoints is four facts for three degrees of freedom; the
+endpoints are already stored, so the bulge is the only thing missing and nothing can contradict
+it. Positive means convex on a part outline. Everything dimensional measures the exact arc;
+**flattening is for drawing only** and the CAM layer must not do it, because a curve has to
+reach the machine as a real G2/G3 arc.
+
+**A part's profile is always the flat, as-cut shape.** How it then bends is `Panel.forming`,
+and nothing that decides a size may read it. A skin round a radius is cut to its **developed
+length** — measured at the neutral axis, half a board thickness out — so the flat rectangle it
+is cut from is longer than the curve is wide. Deriving the flat shape from a stored curve was
+the alternative and is a rounding error away from a skin that is short, which you find out with
+the glue on.
 
 **A cutter's cross-section is the cutter's business.** A flat-bottomed groove is a width and a
 depth; a V-groove is not — its shape *is* the bit's shape. So `ToolProfile` carries the section
@@ -326,42 +343,94 @@ describing a part.
 **Not done, and deliberately so:** five-piece doors (out of scope, and a decomposition rather
 than a feature), moulded edges, and the actual toolpaths. See 5.3.
 
+### 4.4 Curved parts
+
+Definition of Done was *"a profile edge can be a circular arc, with area, perimeter, bounds and
+banding all exact rather than approximated; edge banding on a curved edge charged at the arc;
+the stored profile the flat as-cut shape with a separate descriptor for how it bends; and two
+real parts — a radiused shelf and an enclosed radiused end — proving both halves."* Met.
+
+**Why before Phase 4 rather than after.** The whole argument for doing this now was cost: arcs
+touched the geometry layer and nothing else, where afterwards they would have touched CAM too,
+and a curve has to reach the machine as a real G2/G3 arc. That held — `geom/`, `model/panel.ts`
+and the shelf builders were the whole of it, and all 276 existing tests passed untouched at
+every step.
+
+**Two things were wrong before, not merely missing.** Banding on a curved edge was charged
+across the chord, so a radiused shelf under-bought its own tape — on the reference 866mm shelf
+bowed 40, by about 5mm. And a bowed part's bounding box was read off its vertices, which
+under-reports the part: a shelf bowed 50 over 900 is 50mm deeper at its middle than at its
+corners, and the middle is the figure that has to fit the sheet.
+
+**Decisions worth not undoing:**
+
+- **The bulge, not a centre and a radius.** See section 2. The short version is that a centre
+  is redundant with the endpoints already stored, and a redundant centre a hundredth out is an
+  arc that machines as a step.
+- **`Vertex2 extends Vec2`.** A vertex without a bulge is a point, which is what it always was,
+  so no straight polygon anywhere had to change. This is why the diff is as small as it is.
+- **Flattening is named, is in one place, and is for drawing.** `flattenPolygonSegments` carries
+  a true normal at each *segment end* rather than per point, because the join between an arc and
+  a straight run is one position with two surface directions — which is what lets a radiused
+  edge shade smoothly and still break crisply where the curve stops.
+- **`profileEdgeLengths` measures the real boundary per side**, and reproduces the bounding box
+  exactly for a rectangle *and* a notched rectangle, so nothing straight moved.
+- **`bowedFrontProfile` takes the edge that bows with no default.** A shelf lies in with
+  `v = −Z`, so its front is **L1**; a caller assuming L2 puts the radius against the wall, where
+  it looks entirely correct in a test. Same handedness trap `resolveBanding` exists to avoid.
+- **A former's thickness axis is derived from `u × v`**, so `'+X','+Z'` crosses to −Y and hangs
+  every plate a board thickness below its own line. `'+Z','+X'` sits them on it. This was a real
+  bug, caught by asserting occupancy rather than size — which is the section 7 standard earning
+  its keep again.
+- **Formers are cut to the finished radius less every layer of skin.** Cut to the finished
+  radius they give a curve standing proud of the run's front face by the skin thickness — a step
+  exactly where a hand lands.
+- **Each skin layer has its own developed length**, longer than the one beneath it by exactly
+  one board thickness round the turn. Cutting a stack of them the same is how the outer one ends
+  up 4.7mm short on a 560 quarter.
+- **The kick on a radiused end curves too.** A flat board across the front of a quarter round is
+  a chord, with a triangle of daylight at each end.
+- **Bendy ply is its own material slot** (schema **v7**), not a reuse of the door board. It is
+  bought for a different reason, and it is the only board in a job whose thickness sets a
+  *length* rather than a fit. An existing job never resolves the slot, so nothing re-priced.
+
+**Where to look:** `geom/arc.ts` for the arc maths, with the derivations written out;
+`model/forming.ts` for the bend and the developed length; `rules/specs/radiusEnd.ts` for the
+assembly. `tests/curves.test.ts` and `tests/radiusParts.test.ts` carry the longhand reference
+figures in their headers.
+
 ---
 
 ## 5. Open items, in the order I'd do them
 
-Two and a half pieces of real work are outstanding, plus a tail of small things.
+**If asked which to do next:** 5.2 is now the largest and the one the machine ultimately
+depends on. What is left of 5.3 is mostly Phase 4 work. 5.1 is the tail of the curve work and
+is small.
 
-**If asked which to do next:** 5.1 is the one with a deadline attached, in the sense that it
-gets materially more expensive once the CAM layer exists. 5.2 is the largest, and the one the
-machine ultimately depends on. What is left of 5.3 is mostly Phase 4 work now.
+### 5.1 Curved parts — what is left after 4.4
 
-### 5.1 Curved parts — the foundation is worth doing before Phase 4
+The foundation and both deliverables shipped; see 4.4 for what they do and why. What remains:
 
-The user's radius work is two things, and both need the same foundation:
-
-1. **Open radius shelving** — flat parts with a curved edge, edged and done.
-2. **Enclosed radiused end** — a skeleton of formers (flat parts with a curved edge) with
-   bendy ply applied over them, then laminated.
-
-A third method — **pocketing the back of a melamine panel leaving straight fixing sections** —
-was explicitly deferred by the user as too complicated for now.
-
-**The foundation:**
-- **Arc segments in profiles.** Today `Polygon` is a list of straight-line vertices; there is
-  no such thing as a curve in the model. Doing this before the CAM layer exists touches
-  ~3 files; afterwards it also touches CAM, and a curve must reach the machine as a real arc
-  (G2/G3), not as a polyline that leaves faceted edges.
-- **True perimeter.** A curved edge is longer than the chord across it, so edge banding on a
-  radiused shelf is currently under-costed.
-- **Developed length.** Bendy ply and laminate must be cut to the length *around* the curve.
-
-**The architectural point:** a panel's stored profile should be the **flat, as-cut** shape,
-because that is what the cutlist, nesting and machine need, with a separate descriptor for how
-it forms into a curve for the 3D view. Today "what to cut" and "what it looks like in place"
-are the same thing; bendy ply breaks that. Getting this right also sets up the deferred
-pocketing method, which is the same idea plus a groove pattern the feature system can already
-hold.
+- **Nesting doesn't understand a curve.** `panelFootprint` is the bounding box, so a radiused
+  shelf reserves the rectangle it fits inside and the offcut between the curve and the corner
+  is invisible. That is correct for a saw and wasteful for a router, and it is Phase 3's
+  problem rather than something to pre-solve — the arc is in the model now, so a nester can
+  read it when there is one.
+- **The pocketed melamine panel** — pocketing the back of a panel leaving straight fixing
+  sections — is still deferred, and was deferred by the user as too complicated for now. The
+  ground is prepared: it is a flat part plus a groove pattern the feature system already holds,
+  and `forming` already describes what it becomes.
+- **Bendy ply is sold barrel or column form** — it bends across the sheet or along it — and the
+  model doesn't record which. The parts carry a note telling whoever cuts them to check the
+  sheet. Recording it properly is a `SheetMaterial` field, and it is *not* `GrainDirection`:
+  that constrains nesting rotation for appearance, and this constrains which way the board will
+  physically go round a corner. Worth doing when a real bendy ply order is loaded.
+- **A radiused end has no spine.** The formers fix back into the end of the last carcass in the
+  run, which is how one usually goes together. A shop that wants a vertical spine has a part to
+  add to the spec, not a rethink.
+- **Compound curves are not modelled** and should stay that way. `CylindricalForming` is one
+  radius about one axis, which is what bendy ply over formers makes. A dome is a different
+  trade.
 
 ### 5.2 Phase 2 — hardware and joinery rules
 

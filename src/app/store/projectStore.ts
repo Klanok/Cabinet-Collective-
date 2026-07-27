@@ -135,7 +135,16 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         {
           typeId,
           name: nextName(state.project, typeId),
-          width: mm(typeId === 'drawer-bank' || typeId === 'tall' ? 600 : 900),
+          // A radiused end is a quarter circle, so it arrives square: its width has to equal
+          // its depth or it is not a circle and the spec says so straight away. Adding one and
+          // being told off for it is a poor introduction to the feature.
+          width: mm(
+            typeId === 'radius-end'
+              ? state.project.defaults.baseCabinetDepth
+              : typeId === 'drawer-bank' || typeId === 'tall'
+                ? 600
+                : 900,
+          ),
           x: nextFreeX(state.project, typeId),
         },
         state.project.defaults,
