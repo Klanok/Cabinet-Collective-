@@ -16,11 +16,15 @@ import type { ConstructionMethod } from '../model/construction.ts';
 import type { Project, ProjectDefaults, ProjectSettings } from '../model/project.ts';
 import type { SavedCabinetType } from './savedTypes.ts';
 import { type DoorStyle, DEFAULT_DOOR_STYLES, PLAIN_SLAB_STYLE } from './doorStyles.ts';
-import { DEFAULT_CONSTRUCTIONS, collapseThicknessFields } from '../model/construction.ts';
+import {
+  DEFAULT_CONSTRUCTIONS,
+  collapseThicknessFields,
+  withFixingStrip,
+} from '../model/construction.ts';
 import { AU_MATERIAL_LIBRARY } from '../library/materials.au.ts';
 import { AU_DEFAULT_SETTINGS, AU_PROJECT_DEFAULTS } from '../library/defaults.au.ts';
 
-export const CURRENT_STANDARDS_VERSION = 3 as const;
+export const CURRENT_STANDARDS_VERSION = 4 as const;
 
 export interface ShopStandards {
   readonly version: typeof CURRENT_STANDARDS_VERSION;
@@ -263,6 +267,7 @@ export const labelForConstructionKey = (key: keyof ConstructionMethod): string =
     gapBetweenDrawers: 'Gap between drawer fronts',
     shelfSetback: 'Shelf setback',
     shelfSideClearance: 'Shelf side clearance',
+    fixingStripWidth: 'Fixing strip at a radius',
     systemPitch: 'System hole pitch',
     systemFrontSetback: 'First hole from front',
   };
@@ -287,6 +292,7 @@ export const migrateStandards = (raw: unknown): ShopStandards => {
 
   if (data.version === 1) data = migrateStandardsV1toV2(data);
   if (data.version === 2) data = migrateStandardsV2toV3(data);
+  if (data.version === 3) data = migrateStandardsV3toV4(data);
 
   if (data.version !== CURRENT_STANDARDS_VERSION) {
     throw new Error(`migrateStandards: could not migrate version ${String(version)}`);
@@ -323,6 +329,18 @@ const migrateStandardsV2toV3 = (raw: Record<string, unknown>): Record<string, un
     doorStyles: existing && existing.length > 0 ? existing : DEFAULT_DOOR_STYLES,
     defaults: { ...defaults, doorStyleId: defaults.doorStyleId ?? PLAIN_SLAB_STYLE.id },
   };
+};
+
+/**
+ * Standards v3 → v4: construction methods gain a fixing strip, matching the project's
+ * v7 → v8.
+ *
+ * A real migration again, and this one changes nothing a shop has set: the strip is only read
+ * by a cabinet carrying a corner radius, and it is filled with the shipped 50mm.
+ */
+const migrateStandardsV3toV4 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const constructions = (raw.constructions as Record<string, unknown>[] | undefined) ?? [];
+  return { ...raw, version: 4, constructions: constructions.map(withFixingStrip) };
 };
 
 const migrateStandardsV1toV2 = (raw: Record<string, unknown>): Record<string, unknown> => {

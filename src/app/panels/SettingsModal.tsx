@@ -91,6 +91,13 @@ const CONSTRUCTION_FIELDS: {
   { key: 'gapBetweenDrawers', hint: 'Between stacked drawer fronts', min: 0, max: 20, step: 0.5 },
   { key: 'shelfSetback', hint: 'How much shallower a shelf is than the opening', min: 0, max: 60 },
   { key: 'shelfSideClearance', hint: 'Total side play so a shelf lifts out', min: 0, max: 20, step: 0.5 },
+  {
+    key: 'fixingStripWidth',
+    hint: 'Flat front left beside a rounded corner, to fix the curved piece to',
+    min: 0,
+    max: 200,
+    step: 5,
+  },
   { key: 'systemPitch', hint: 'System 32 hole spacing', min: 8, max: 64 },
   { key: 'systemFrontSetback', hint: 'First hole line in from the front edge', min: 0, max: 100 },
 ];
