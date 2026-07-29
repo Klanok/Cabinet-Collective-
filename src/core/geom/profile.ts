@@ -17,7 +17,7 @@
  * recover intent from a mesh.
  */
 
-import { type Mm, type Mm2, mm, snapGeometric } from '../units.ts';
+import { type Mm, type Mm2, mm, nearlyEqual, snapGeometric } from '../units.ts';
 import { type Vec2, v2 } from './vec.ts';
 import {
   type Vertex2,
@@ -311,12 +311,28 @@ export const profileExtent = (p: Profile2D): { length: Mm; width: Mm } => {
   return { length: mm(b.maxX - b.minX), width: mm(b.maxY - b.minY) };
 };
 
+/**
+ * Whether a profile is a plain rectangle — four square corners, no arcs, no holes.
+ *
+ * The corner test is **tolerant, and has to be**. `profileBounds` snaps its result to the
+ * geometric epsilon, so comparing a raw stored vertex against it with `===` asks a
+ * full-precision number to equal a rounded one. Any part whose size is derived rather than
+ * typed fails that: a skin's developed length is r·π/2 = 872.5773595345651, which snaps to
+ * 872.57736, and the two are not `===`.
+ *
+ * That is not a hypothetical. It made `formedMesh` take its non-rectangular fallback for
+ * every bendy-ply skin in the model, so every curved part rendered dead flat while the
+ * cutlist stayed correct — the failure looked like a viewport bug and was this line. Round
+ * test dimensions survive the snap unchanged, which is why the suite missed it.
+ */
 export const isRectangular = (p: Profile2D): boolean => {
   if (p.holes.length > 0 || p.outline.length !== 4) return false;
   if (p.outline.some(isArcEdge)) return false;
   const b = profileBounds(p);
   return p.outline.every(
-    (v) => (v.x === b.minX || v.x === b.maxX) && (v.y === b.minY || v.y === b.maxY),
+    (v) =>
+      (nearlyEqual(v.x, b.minX) || nearlyEqual(v.x, b.maxX)) &&
+      (nearlyEqual(v.y, b.minY) || nearlyEqual(v.y, b.maxY)),
   );
 };
 

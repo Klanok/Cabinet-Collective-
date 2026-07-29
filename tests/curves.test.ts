@@ -40,7 +40,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { mm } from '../src/core/units.ts';
+import { mm, snapGeometric } from '../src/core/units.ts';
 import {
   arcGeometry,
   arcLength,
@@ -449,6 +449,43 @@ describe('bending a flat part', () => {
     // The quarter turn reaches the inside radius across and down, plus the board thickness.
     expect(maxX).toBeCloseTo(INNER + T, 1);
     expect(minZ).toBeCloseTo(-INNER, 1);
+  });
+
+  /*
+   * The regression that matters, and the one the tests above walked straight past.
+   *
+   * Every test here had typed its developed length as a rounded literal — 872.5774 — which
+   * happens to survive the snap in `profileBounds` unchanged. Production never does: it
+   * passes `developedLength`'s full-precision 872.5773595345651, which snaps to a *different*
+   * number, so `isRectangular`'s `===` corner test said "not a rectangle" and `formedMesh`
+   * quietly returned the flat fallback. Every curved part in the app rendered dead flat while
+   * the cutlist stayed perfectly correct.
+   *
+   * So this asserts the real path: derive the length the way the spec does, and require the
+   * mesh to actually turn the corner. A flat fallback spans the full 872.6 along x and only
+   * the board thickness through z — a wrapped quarter reaches ~INNER in both.
+   */
+  it('bends a skin cut to its true derived length, not just a rounded one', () => {
+    const dev = developedLength(skin, mm(T));
+    expect(dev).not.toBe(snapGeometric(dev)); // the precondition that broke it
+
+    const bent = formedMesh(rectProfile(dev, mm(720)), mm(T), skin);
+    let maxX = -Infinity;
+    let minZ = Infinity;
+    for (let i = 0; i < bent.positions.length; i += 3) {
+      maxX = Math.max(maxX, bent.positions[i]!);
+      minZ = Math.min(minZ, bent.positions[i + 2]!);
+    }
+    expect(maxX).toBeCloseTo(INNER + T, 1);
+    expect(minZ).toBeCloseTo(-INNER, 1);
+    // Belt and braces: a flat fallback would still be the full developed length across.
+    expect(maxX).toBeLessThan(dev - 100);
+  });
+
+  it('calls a rectangle rectangular even when its size is derived rather than typed', () => {
+    // The root cause in one line: a raw vertex compared against a snapped bound.
+    const dev = developedLength(skin, mm(T));
+    expect(isRectangular(rectProfile(dev, mm(720)))).toBe(true);
   });
 
   it('gives the bent mesh unit normals that turn with the curve', () => {
