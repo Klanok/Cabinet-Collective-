@@ -22,11 +22,15 @@ import {
   adjustableShelves,
   backPanel,
   bottomPanel,
+  carcassCornerFormers,
+  doorZone,
   doors,
   kickPanel,
   leftSide,
+  pairTooNarrowProblem,
   rightSide,
   topPanel,
+  wrapLayers,
 } from '../parts.ts';
 
 /**
@@ -47,8 +51,12 @@ const tallDoors = (ctx: RuleContext): PartInstance[] => {
   const rTop = c.revealTop;
   const rBot = c.revealBottom;
   const rS = c.revealSides;
+  // The doors keep clear of the fixing strip on a radiused cabinet, so both banks are laid out
+  // in the door zone rather than across the full width.
+  const zone = doorZone(ctx);
   const width =
-    count === 1 ? mm(ctx.W - 2 * rS) : mm((ctx.W - 2 * rS - c.gapBetweenDoors) / 2);
+    count === 1 ? mm(zone.width - 2 * rS) : mm((zone.width - 2 * rS - c.gapBetweenDoors) / 2);
+  if (width <= 0) return [];
 
   // Lower bank runs from the bottom reveal up to the split; upper bank from the split to the
   // top reveal. The break itself takes a gap, half either side of the split line.
@@ -73,9 +81,12 @@ const tallDoors = (ctx: RuleContext): PartInstance[] => {
       note: 'Grain vertical',
     });
     if (count === 1) {
-      parts.push(make(label, mm(rS + width)));
+      parts.push(make(label, mm(zone.x0 + rS + width)));
     } else {
-      parts.push(make(`${label} L`, mm(rS + width)), make(`${label} R`, mm(ctx.W - rS)));
+      parts.push(
+        make(`${label} L`, mm(zone.x0 + rS + width)),
+        make(`${label} R`, mm(zone.x1 - rS)),
+      );
     }
   }
   return parts;
@@ -94,11 +105,7 @@ export const TALL_CABINET_SPEC: CabinetSpec = {
   carcassLift: (ctx) => (ctx.options.hasKick === false ? mm(0) : ctx.construction.kickHeight),
 
   validate: (ctx) => {
-    const problems: string[] = [];
-    const count = ctx.options.doorCount ?? 2;
-    if (count === 2 && ctx.W < 400) {
-      problems.push(`A ${ctx.W}mm cabinet is too narrow for a pair of doors — use one door.`);
-    }
+    const problems: string[] = [...pairTooNarrowProblem(ctx)];
     if (ctx.H < 1200) {
       problems.push(
         `Height ${ctx.H}mm is short for a tall cabinet — a base or wall cabinet may suit better.`,
@@ -112,16 +119,18 @@ export const TALL_CABINET_SPEC: CabinetSpec = {
   },
 
   parts: [
-    { key: 'side-left', produce: (ctx) => [leftSide(ctx)] },
-    { key: 'side-right', produce: (ctx) => [rightSide(ctx)] },
+    { key: 'side-left', produce: leftSide },
+    { key: 'side-right', produce: rightSide },
     { key: 'bottom', produce: (ctx) => [bottomPanel(ctx)] },
     { key: 'top', produce: (ctx) => [topPanel(ctx)] },
-    { key: 'back', produce: (ctx) => [backPanel(ctx)] },
+    { key: 'back', produce: backPanel },
     { key: 'shelves', produce: (ctx) => adjustableShelves(ctx, ctx.options.shelfCount ?? 4) },
     { key: 'doors', produce: tallDoors },
+    { key: 'formers', produce: (ctx) => carcassCornerFormers(ctx, { hasTopPanel: true }) },
+    { key: 'skin', produce: (ctx) => (ctx.radius ? wrapLayers(ctx, ctx.radius) : []) },
     {
       key: 'kick',
-      produce: (ctx) => (ctx.options.hasKick === false ? [] : [kickPanel(ctx)]),
+      produce: (ctx) => (ctx.options.hasKick === false ? [] : kickPanel(ctx)),
     },
   ],
 };

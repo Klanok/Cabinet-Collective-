@@ -3,7 +3,12 @@
  */
 
 import { type Mm, mm } from '../units.ts';
-import type { Cabinet, CabinetOptions, CabinetTypeId } from '../model/cabinet.ts';
+import {
+  type Cabinet,
+  type CabinetOptions,
+  type CabinetTypeId,
+  radiusDefaultOptions,
+} from '../model/cabinet.ts';
 import {
   type ConstructionMethod,
   DEFAULT_CONSTRUCTIONS,
@@ -73,7 +78,13 @@ export const createCabinet = (
 ): Cabinet => {
   const constructionId = args.constructionId ?? defaults.constructionId;
   const spec = getSpec(args.typeId);
-  const options = { ...spec.defaultOptions, ...args.options };
+  // Three layers, and the order is the point: the type's own defaults, then what a corner
+  // radius changes about them, then whatever was actually asked for. Anything explicit wins.
+  const options = {
+    ...spec.defaultOptions,
+    ...radiusDefaultOptions(args.options ?? {}),
+    ...args.options,
+  };
 
   const naturalHeight =
     args.typeId === 'wall'

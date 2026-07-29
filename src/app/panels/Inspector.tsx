@@ -4,7 +4,11 @@
  */
 
 import { mm } from '../../core/units.ts';
-import type { Cabinet } from '../../core/model/cabinet.ts';
+import {
+  type Cabinet,
+  type CabinetOptions,
+  radiusDefaultOptions,
+} from '../../core/model/cabinet.ts';
 import { panelExtent } from '../../core/model/panel.ts';
 import type { Project } from '../../core/model/project.ts';
 import { wallLength } from '../../core/model/room.ts';
@@ -267,6 +271,26 @@ export function Inspector({
   const setMaterial = (patch: Partial<Cabinet['materials']>) =>
     onUpdate(cabinet.id, { materials: { ...cabinet.materials, ...patch } });
 
+  /** Base, wall and tall carcasses take a rounded front corner. The quarter-round unit *is* one. */
+  const canRound = cabinet.typeId === 'base' || isWall || isTall;
+  const corner = cabinet.options.radiusCorner;
+  const carcassRadius = cabinet.options.carcassRadius ?? 0;
+
+  /*
+   * Turning a radius on defaults the cabinet to no doors and no shelves — the common use for
+   * one of these is a decorative end, not a cupboard. Applied here, where the change is
+   * visible in the form the moment it happens, rather than deep in the rule engine where it
+   * would look like the app had quietly lost your doors.
+   */
+  const setRadius = (patch: CabinetOptions) => {
+    const merged = { ...cabinet.options, ...patch };
+    const turningOn =
+      merged.radiusCorner !== undefined &&
+      (merged.carcassRadius ?? 0) > 0 &&
+      !(corner !== undefined && carcassRadius > 0);
+    onUpdateOptions(cabinet.id, turningOn ? { ...radiusDefaultOptions(merged), ...patch } : patch);
+  };
+
   return (
     <section className="panel">
       <header className="panel-head">
@@ -482,6 +506,47 @@ export function Inspector({
               suffix=""
               onChange={(n) => onUpdateOptions(cabinet.id, { skinLayers: Math.round(n) })}
             />
+          </>
+        )}
+
+        {/*
+          A rounded front corner.
+
+          The corner is asked for first and has **no default** — `carcassRadius` does nothing
+          until it is named. A run ends left or right and you cannot get the other hand by
+          turning a cabinet round, because that puts its back to the room; and a back corner
+          rounds into the wall where nobody sees it. So only the two front corners are offered,
+          named as you stand and look at the cabinet.
+        */}
+        {canRound && (
+          <>
+            <label className="field">
+              <span>Rounded corner</span>
+              <div className="field-input">
+                <select
+                  value={corner ?? ''}
+                  onChange={(e) =>
+                    setRadius({
+                      radiusCorner: (e.target.value || undefined) as CabinetOptions['radiusCorner'],
+                    })
+                  }
+                >
+                  <option value="">None — square</option>
+                  <option value="front-left">Front left</option>
+                  <option value="front-right">Front right</option>
+                </select>
+              </div>
+            </label>
+            {corner && (
+              <NumberField
+                label="Corner radius"
+                value={carcassRadius}
+                min={0}
+                max={Math.max(0, Math.min(cabinet.width, cabinet.depth))}
+                step={10}
+                onChange={(n) => setRadius({ carcassRadius: n > 0 ? mm(n) : undefined })}
+              />
+            )}
           </>
         )}
 

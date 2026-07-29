@@ -74,21 +74,21 @@ export const DRAWER_BANK_SPEC: CabinetSpec = {
   },
 
   parts: [
-    { key: 'side-left', produce: (ctx) => [leftSide(ctx)] },
-    { key: 'side-right', produce: (ctx) => [rightSide(ctx)] },
+    { key: 'side-left', produce: leftSide },
+    { key: 'side-right', produce: rightSide },
     { key: 'bottom', produce: (ctx) => [bottomPanel(ctx)] },
     {
       key: 'rails',
       produce: (ctx) => [
-        stretcher(ctx, 'front', 'Top rail front'),
-        stretcher(ctx, 'back', 'Top rail back'),
+        ...stretcher(ctx, 'front', 'Top rail front'),
+        ...stretcher(ctx, 'back', 'Top rail back'),
       ],
     },
-    { key: 'back', produce: (ctx) => [backPanel(ctx)] },
+    { key: 'back', produce: backPanel },
     { key: 'fronts', produce: (ctx) => drawerFronts(ctx, resolveFrontHeights(ctx)) },
     {
       key: 'kick',
-      produce: (ctx) => (ctx.options.hasKick === false ? [] : [kickPanel(ctx)]),
+      produce: (ctx) => (ctx.options.hasKick === false ? [] : kickPanel(ctx)),
     },
   ],
 };

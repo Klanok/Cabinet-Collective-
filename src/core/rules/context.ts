@@ -14,6 +14,7 @@ import {
   sideDepth,
 } from '../model/construction.ts';
 import { type MaterialLibrary, actualThicknessOf, findSheet } from '../model/material.ts';
+import { type CornerRadius, resolveCornerRadius } from './radius.ts';
 
 /** The resolved material ids for one cabinet, defaults already applied. */
 export interface ResolvedMaterials {
@@ -89,7 +90,47 @@ export interface RuleContext {
   readonly horizontalDepth: Mm;
   /** Cabinet-space z of the front face of the back panel — where the interior starts. */
   readonly interiorBackZ: Mm;
+
+  /**
+   * The rounded front corner, if this cabinet has one — resolved once, so no builder has to
+   * re-derive it and get a different answer.
+   *
+   * `null` is the usual case and means a square cabinet, exactly as before. It is null both
+   * when no corner was named and when the radius is zero: **naming a corner is not a radius,
+   * and a radius with no corner named is not a corner**. Either half on its own does nothing,
+   * which is what protects every job already quoted.
+   */
+  readonly radius: CornerRadius | null;
 }
+
+/**
+ * Resolve the corner radius, or `null` if this cabinet hasn't got one.
+ *
+ * Both halves are required, and there is deliberately no default for either. See
+ * `CabinetOptions.radiusCorner` for why the corner is never guessed.
+ */
+const resolveRadius = (
+  options: CabinetOptions,
+  construction: ConstructionMethod,
+  dims: { W: Mm; D: Mm; t: Mm; tb: Mm; ts: Mm },
+): CornerRadius | null => {
+  const corner = options.radiusCorner;
+  const radius = options.carcassRadius ?? 0;
+  if (!corner || radius <= 0) return null;
+  return resolveCornerRadius({
+    corner,
+    radius: mm(radius),
+    layers: options.skinLayers ?? 2,
+    W: dims.W,
+    D: dims.D,
+    t: dims.t,
+    tb: dims.tb,
+    ts: dims.ts,
+    // Older methods that predate the field are migrated to the shipped 50, but a method
+    // hand-built in a test may not be, so it falls back to the same number rather than to NaN.
+    stripWidth: mm(construction.fixingStripWidth ?? 50),
+  });
+};
 
 export const buildContext = (
   cabinet: Cabinet,
@@ -119,6 +160,13 @@ export const buildContext = (
     horizontalDepth: horizontalDepth(D, tb),
     // Under both back styles the back occupies z ∈ [0, tb], so the interior starts at tb.
     interiorBackZ: tb,
+    radius: resolveRadius(cabinet.options, construction, {
+      W,
+      D,
+      t,
+      tb,
+      ts: thicknesses.skin,
+    }),
   };
 };
 

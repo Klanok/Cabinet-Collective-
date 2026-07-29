@@ -12,11 +12,14 @@ import {
   adjustableShelves,
   backPanel,
   bottomPanel,
+  carcassCornerFormers,
   doors,
   kickPanel,
   leftSide,
+  pairTooNarrowProblem,
   rightSide,
   stretcher,
+  wrapLayers,
 } from '../parts.ts';
 
 export const BASE_CABINET_SPEC: CabinetSpec = {
@@ -32,11 +35,7 @@ export const BASE_CABINET_SPEC: CabinetSpec = {
   carcassLift: (ctx) => (ctx.options.hasKick === false ? mm(0) : ctx.construction.kickHeight),
 
   validate: (ctx) => {
-    const problems: string[] = [];
-    const count = ctx.options.doorCount ?? 2;
-    if (count === 2 && ctx.W < 400) {
-      problems.push(`A ${ctx.W}mm cabinet is too narrow for a pair of doors — use one door.`);
-    }
+    const problems: string[] = [...pairTooNarrowProblem(ctx)];
     if (ctx.D < 300) {
       problems.push(`Base cabinet depth ${ctx.D}mm is unusually shallow (AU standard is 560mm).`);
     }
@@ -48,22 +47,26 @@ export const BASE_CABINET_SPEC: CabinetSpec = {
   },
 
   parts: [
-    { key: 'side-left', produce: (ctx) => [leftSide(ctx)] },
-    { key: 'side-right', produce: (ctx) => [rightSide(ctx)] },
+    { key: 'side-left', produce: leftSide },
+    { key: 'side-right', produce: rightSide },
     { key: 'bottom', produce: (ctx) => [bottomPanel(ctx)] },
     {
       key: 'rails',
       produce: (ctx) => [
-        stretcher(ctx, 'front', 'Top rail front'),
-        stretcher(ctx, 'back', 'Top rail back'),
+        ...stretcher(ctx, 'front', 'Top rail front'),
+        ...stretcher(ctx, 'back', 'Top rail back'),
       ],
     },
-    { key: 'back', produce: (ctx) => [backPanel(ctx)] },
+    { key: 'back', produce: backPanel },
     { key: 'shelves', produce: (ctx) => adjustableShelves(ctx, ctx.options.shelfCount ?? 1) },
     { key: 'doors', produce: (ctx) => doors(ctx, ctx.options.doorCount ?? 2) },
+    // A base cabinet is closed at the top by rails rather than a panel, so there is nothing up
+    // there for the wrap to land on — the top former is doing that job as well as its own.
+    { key: 'formers', produce: (ctx) => carcassCornerFormers(ctx, { hasTopPanel: false }) },
+    { key: 'skin', produce: (ctx) => (ctx.radius ? wrapLayers(ctx, ctx.radius) : []) },
     {
       key: 'kick',
-      produce: (ctx) => (ctx.options.hasKick === false ? [] : [kickPanel(ctx)]),
+      produce: (ctx) => (ctx.options.hasKick === false ? [] : kickPanel(ctx)),
     },
   ],
 };

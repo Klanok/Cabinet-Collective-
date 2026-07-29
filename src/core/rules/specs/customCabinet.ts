@@ -42,7 +42,10 @@ const topParts = (ctx: RuleContext): PartInstance[] => {
     case 'panel':
       return [topPanel(ctx)];
     case 'rails':
-      return [stretcher(ctx, 'front', 'Top rail front'), stretcher(ctx, 'back', 'Top rail back')];
+      return [
+        ...stretcher(ctx, 'front', 'Top rail front'),
+        ...stretcher(ctx, 'back', 'Top rail back'),
+      ];
     case 'open':
       return [];
   }
@@ -117,13 +120,13 @@ export const CUSTOM_CABINET_SPEC: CabinetSpec = {
   },
 
   parts: [
-    { key: 'side-left', produce: (ctx) => [leftSide(ctx)] },
-    { key: 'side-right', produce: (ctx) => [rightSide(ctx)] },
+    { key: 'side-left', produce: leftSide },
+    { key: 'side-right', produce: rightSide },
     { key: 'bottom', produce: (ctx) => [bottomPanel(ctx)] },
     { key: 'top', produce: topParts },
     {
       key: 'back',
-      produce: (ctx) => (ctx.options.hasBack === false ? [] : [backPanel(ctx)]),
+      produce: (ctx) => (ctx.options.hasBack === false ? [] : backPanel(ctx)),
     },
     { key: 'dividers', produce: (ctx) => dividers(ctx, ctx.options.dividerCount ?? 0) },
     {
@@ -137,7 +140,7 @@ export const CUSTOM_CABINET_SPEC: CabinetSpec = {
     },
     {
       key: 'kick',
-      produce: (ctx) => (ctx.options.hasKick === false ? [] : [kickPanel(ctx)]),
+      produce: (ctx) => (ctx.options.hasKick === false ? [] : kickPanel(ctx)),
     },
   ],
 };

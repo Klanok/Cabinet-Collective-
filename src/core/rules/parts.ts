@@ -10,69 +10,209 @@
  */
 
 import { type Mm, mm } from '../units.ts';
-import { type Profile2D, bowedFrontProfile, rectProfile } from '../geom/profile.ts';
+import {
+  type Profile2D,
+  bowedFrontProfile,
+  notchedRectProfile,
+  rectProfile,
+} from '../geom/profile.ts';
 import { placement } from '../geom/placement.ts';
 import { v3 } from '../geom/vec.ts';
+import { cylindricalForming, developedLength } from '../model/forming.ts';
+import type { PanelRole } from '../model/panel.ts';
 import type { RuleContext } from './context.ts';
+import {
+  type CornerRadius,
+  QUARTER_TURN,
+  clampToSubstrate,
+  cornerFormerRing,
+  cornerPlateRing,
+  planPlate,
+} from './radius.ts';
 import { BAND_ALL, BAND_FRONT, BAND_NONE, type PartInstance } from './spec.ts';
+
+/** The lower and upper of two x positions, whichever hand the cabinet is. */
+const span = (a: Mm, b: Mm): { lo: Mm; hi: Mm; length: Mm } => {
+  const lo = mm(Math.min(a, b));
+  const hi = mm(Math.max(a, b));
+  return { lo, hi, length: mm(hi - lo) };
+};
+
+/**
+ * A side panel, either end.
+ *
+ * On a cabinet with a rounded corner one of these two is the **end panel** — the one the curve
+ * runs into. It stays in, which is a settled decision rather than a simplification: it goes on
+ * carrying the shelves, the top and the benchtop load, and deleting it in favour of formers at
+ * every radius would throw away a good 460mm side panel to get a 100mm curve.
+ *
+ * Two things happen to it, and both fall out of the geometry rather than being special-cased:
+ *
+ * - it **sets back** by the thickness of the wrap, so the ply finishes flush with the rest of
+ *   the cabinet rather than standing proud of it;
+ * - it **loses the radius off its depth** — full depth at radius 0, and gone entirely by the
+ *   time the radius reaches the depth, because there is no end face left for it to be.
+ *
+ * The panel at the other end is untouched until the curve springs from inside its front edge,
+ * at which point there is no front face there for it to finish at and it goes too.
+ */
+const sidePanel = (ctx: RuleContext, side: 'left' | 'right', name: string): PartInstance[] => {
+  const rad = ctx.radius;
+
+  if (rad === null) {
+    const placed =
+      side === 'left'
+        ? placement(v3(0, 0, ctx.D - ctx.sideDepth), '+Y', '+Z')
+        : placement(v3(ctx.W, 0, ctx.D), '+Y', '-Z');
+    return [
+      {
+        name,
+        role: 'side',
+        profile: rectProfile(ctx.H, ctx.sideDepth),
+        placement: placed,
+        material: 'carcass',
+        bandedDirections: BAND_FRONT,
+        grain: 'length-along-grain',
+        note: 'Grain vertical',
+      },
+    ];
+  }
+
+  const isEndPanel = (rad.corner === 'front-right') === (side === 'right');
+
+  if (isEndPanel) {
+    if (!rad.hasEndPanel) return [];
+    const depth = mm(rad.tangentZ - rad.backZ);
+    // The A-face is the inside face either way: `u × v` crosses toward the interior, which is
+    // why the two hands take different axes rather than the same ones and a different origin.
+    const placed =
+      side === 'left'
+        ? placement(v3(rad.subEndX, 0, rad.backZ), '+Y', '+Z')
+        : placement(v3(rad.subEndX, 0, rad.tangentZ), '+Y', '-Z');
+    return [
+      {
+        name,
+        role: 'side',
+        profile: rectProfile(ctx.H, depth),
+        placement: placed,
+        material: 'carcass',
+        bandedDirections: BAND_FRONT,
+        grain: 'length-along-grain',
+        note: `Grain vertical — set back ${Math.round(rad.skin)}mm behind the ply`,
+      },
+    ];
+  }
+
+  if (!rad.hasFarSide) return [];
+  // With the back gone the side runs the whole depth, because there is nothing at the back for
+  // it to stop short of.
+  const applied = ctx.construction.backStyle === 'applied';
+  const depth = mm(ctx.D - (applied ? rad.backZ : 0));
+  const placed =
+    side === 'left'
+      ? placement(v3(0, 0, ctx.D - depth), '+Y', '+Z')
+      : placement(v3(ctx.W, 0, ctx.D), '+Y', '-Z');
+  return [
+    {
+      name,
+      role: 'side',
+      profile: rectProfile(ctx.H, depth),
+      placement: placed,
+      material: 'carcass',
+      bandedDirections: BAND_FRONT,
+      grain: 'length-along-grain',
+      note: 'Grain vertical',
+    },
+  ];
+};
 
 /**
  * Left side. Occupies x ∈ [0, t], y ∈ [0, H], z ∈ [interiorBackZ, D].
  * A-face is the inside face (x = t) — the face that gets shelf pins and hinge plates.
+ *
+ * Returns a list because a corner radius can consume a side entirely — see `sidePanel`.
  */
-export const leftSide = (ctx: RuleContext, name = 'Side L'): PartInstance => ({
-  name,
-  role: 'side',
-  profile: rectProfile(ctx.H, ctx.sideDepth),
-  placement: placement(v3(0, 0, ctx.D - ctx.sideDepth), '+Y', '+Z'),
-  material: 'carcass',
-  bandedDirections: BAND_FRONT,
-  grain: 'length-along-grain',
-  note: 'Grain vertical',
-});
+export const leftSide = (ctx: RuleContext, name = 'Side L'): PartInstance[] =>
+  sidePanel(ctx, 'left', name);
 
 /**
  * Right side. Occupies x ∈ [W − t, W], y ∈ [0, H], z ∈ [interiorBackZ, D].
  * Same part size as the left side, mirrored — A-face is again the inside face (x = W − t).
  */
-export const rightSide = (ctx: RuleContext, name = 'Side R'): PartInstance => ({
-  name,
-  role: 'side',
-  profile: rectProfile(ctx.H, ctx.sideDepth),
-  placement: placement(v3(ctx.W, 0, ctx.D), '+Y', '-Z'),
-  material: 'carcass',
-  bandedDirections: BAND_FRONT,
-  grain: 'length-along-grain',
-  note: 'Grain vertical',
-});
+export const rightSide = (ctx: RuleContext, name = 'Side R'): PartInstance[] =>
+  sidePanel(ctx, 'right', name);
+
+/**
+ * A bottom or a top on a cabinet with a rounded corner.
+ *
+ * The plate keeps the rectangle it always had and loses **the corner offcut only** — that is
+ * the whole point, and it is the reported bug written as geometry: setting a radius must not
+ * shrink the box. Where the wrap needs something to land on the plate reaches out to the
+ * substrate face, because forward of the end panel there is nothing else holding the curve.
+ * A bottom on a radiused cabinet is doing a former's job as well as a bottom's.
+ *
+ * At radius = width = depth every straight run in the ring collapses and what is left is the
+ * quarter disc the enclosed radiused end already cuts — of its own accord, not by a branch.
+ */
+const cornerPlate = (
+  ctx: RuleContext,
+  rad: CornerRadius,
+  name: string,
+  role: 'bottom' | 'top',
+): PartInstance => {
+  const y = role === 'bottom' ? mm(0) : ctx.H;
+  const { profile, placement: placed } = planPlate(
+    cornerPlateRing(rad, ctx.W, ctx.D),
+    y,
+    role === 'bottom' ? 'up' : 'down',
+  );
+  return {
+    name,
+    role,
+    profile,
+    placement: placed,
+    material: 'carcass',
+    bandedDirections: BAND_FRONT,
+    grain: 'any',
+    note:
+      `Corner cut to a ${Math.round(rad.rSub)}mm radius — under the skin, not to the ` +
+      `finished ${Math.round(rad.r)}mm.`,
+  };
+};
 
 /**
  * Bottom, housed between the sides. Occupies x ∈ [t, W − t], y ∈ [0, t], z ∈ [interiorBackZ, D].
  * A-face is the top face — the one visible inside the cabinet.
  */
-export const bottomPanel = (ctx: RuleContext, name = 'Bottom'): PartInstance => ({
-  name,
-  role: 'bottom',
-  profile: rectProfile(ctx.interiorWidth, ctx.horizontalDepth),
-  placement: placement(v3(ctx.t, 0, ctx.D), '+X', '-Z'),
-  material: 'carcass',
-  bandedDirections: BAND_FRONT,
-  grain: 'any',
-});
+export const bottomPanel = (ctx: RuleContext, name = 'Bottom'): PartInstance =>
+  ctx.radius
+    ? cornerPlate(ctx, ctx.radius, name, 'bottom')
+    : {
+        name,
+        role: 'bottom',
+        profile: rectProfile(ctx.interiorWidth, ctx.horizontalDepth),
+        placement: placement(v3(ctx.t, 0, ctx.D), '+X', '-Z'),
+        material: 'carcass',
+        bandedDirections: BAND_FRONT,
+        grain: 'any',
+      };
 
 /**
  * Full top, housed between the sides. Occupies x ∈ [t, W − t], y ∈ [H − t, H], z ∈ [interiorBackZ, D].
  * A-face is the underside — the face seen from inside.
  */
-export const topPanel = (ctx: RuleContext, name = 'Top'): PartInstance => ({
-  name,
-  role: 'top',
-  profile: rectProfile(ctx.interiorWidth, ctx.horizontalDepth),
-  placement: placement(v3(ctx.t, ctx.H, ctx.interiorBackZ), '+X', '+Z'),
-  material: 'carcass',
-  bandedDirections: BAND_FRONT,
-  grain: 'any',
-});
+export const topPanel = (ctx: RuleContext, name = 'Top'): PartInstance =>
+  ctx.radius
+    ? cornerPlate(ctx, ctx.radius, name, 'top')
+    : {
+        name,
+        role: 'top',
+        profile: rectProfile(ctx.interiorWidth, ctx.horizontalDepth),
+        placement: placement(v3(ctx.t, ctx.H, ctx.interiorBackZ), '+X', '+Z'),
+        material: 'carcass',
+        bandedDirections: BAND_FRONT,
+        grain: 'any',
+      };
 
 /**
  * A top rail. Base cabinets take a pair of these instead of a full top, so a benchtop can be
@@ -84,18 +224,49 @@ export const stretcher = (
   ctx: RuleContext,
   position: 'front' | 'back',
   name: string,
-): PartInstance => {
+): PartInstance[] => {
   const sw = ctx.construction.stretcherWidth;
-  const z = position === 'front' ? mm(ctx.D - sw) : ctx.interiorBackZ;
-  return {
-    name,
-    role: 'stretcher',
-    profile: rectProfile(ctx.interiorWidth, sw),
-    placement: placement(v3(ctx.t, ctx.H, z), '+X', '+Z'),
-    material: 'carcass',
-    bandedDirections: position === 'front' ? BAND_FRONT : BAND_NONE,
-    grain: 'any',
-  };
+  const rad = ctx.radius;
+  const banding = position === 'front' ? BAND_FRONT : BAND_NONE;
+
+  if (rad === null) {
+    return [
+      {
+        name,
+        role: 'stretcher',
+        profile: rectProfile(ctx.interiorWidth, sw),
+        placement: placement(v3(ctx.t, ctx.H, position === 'front' ? mm(ctx.D - sw) : ctx.interiorBackZ), '+X', '+Z'),
+        material: 'carcass',
+        bandedDirections: banding,
+        grain: 'any',
+      },
+    ];
+  }
+
+  const z = position === 'front' ? mm(ctx.D - sw) : rad.backZ;
+  /*
+   * The front rail stops where the fixing strip starts — the strip and the curve above it are
+   * the corner former's job, and a rail carried on past would sit proud of the substrate face
+   * the ply lands on. The back rail is pulled in to wherever the curve has reached at its own
+   * front edge, which on an ordinary radius is nowhere near it and on a large one is what
+   * stops it poking out through the finished face.
+   */
+  const near =
+    position === 'front' ? rad.stripInnerX : clampToSubstrate(rad, rad.endInnerX, mm(z + sw));
+  const { lo, length } = span(rad.farInnerX, near);
+  if (length <= 0) return [];
+
+  return [
+    {
+      name,
+      role: 'stretcher',
+      profile: rectProfile(length, sw),
+      placement: placement(v3(lo, ctx.H, z), '+X', '+Z'),
+      material: 'carcass',
+      bandedDirections: banding,
+      grain: 'any',
+    },
+  ];
 };
 
 /**
@@ -104,21 +275,48 @@ export const stretcher = (
  *
  * A-face is the face seen from inside the cabinet (z = tb).
  */
-export const backPanel = (ctx: RuleContext, name = 'Back'): PartInstance => {
+export const backPanel = (ctx: RuleContext, name = 'Back'): PartInstance[] => {
   const applied = ctx.construction.backStyle === 'applied';
-  // Applied: covers the whole rear face. Inset: fits between the sides and the horizontals.
-  const length = applied ? ctx.W : ctx.interiorWidth;
-  const width = applied ? ctx.H : ctx.interiorHeight;
-  const origin = applied ? v3(0, 0, 0) : v3(ctx.t, ctx.t, 0);
-  return {
-    name,
-    role: 'back',
-    profile: rectProfile(length, width),
-    placement: placement(origin, '+X', '+Y'),
-    material: 'back',
-    bandedDirections: BAND_NONE,
-    grain: 'any',
-  };
+  const rad = ctx.radius;
+
+  if (rad === null) {
+    // Applied: covers the whole rear face. Inset: fits between the sides and the horizontals.
+    const length = applied ? ctx.W : ctx.interiorWidth;
+    const width = applied ? ctx.H : ctx.interiorHeight;
+    const origin = applied ? v3(0, 0, 0) : v3(ctx.t, ctx.t, 0);
+    return [
+      {
+        name,
+        role: 'back',
+        profile: rectProfile(length, width),
+        placement: placement(origin, '+X', '+Y'),
+        material: 'back',
+        bandedDirections: BAND_NONE,
+        grain: 'any',
+      },
+    ];
+  }
+
+  // Once the curve has run past the back's own front face there is no flat end left to fix a
+  // back to, and one carried on anyway would stand outside the finished face at the corner.
+  if (!rad.hasBack) return [];
+
+  const far = applied ? mm(rad.corner === 'front-right' ? 0 : ctx.W) : rad.farInnerX;
+  const near = clampToSubstrate(rad, applied ? rad.endX : rad.endInnerX, ctx.tb);
+  const { lo, length } = span(far, near);
+  if (length <= 0) return [];
+
+  return [
+    {
+      name,
+      role: 'back',
+      profile: rectProfile(length, applied ? ctx.H : ctx.interiorHeight),
+      placement: placement(v3(lo, applied ? mm(0) : ctx.t, 0), '+X', '+Y'),
+      material: 'back',
+      bandedDirections: BAND_NONE,
+      grain: 'any',
+    },
+  ];
 };
 
 /**
@@ -148,11 +346,20 @@ const shelfProfile = (ctx: RuleContext, length: Mm, depth: Mm): Profile2D => {
 export const adjustableShelves = (ctx: RuleContext, count: number): PartInstance[] => {
   if (count <= 0) return [];
   const c = ctx.construction;
-  const length = mm(ctx.interiorWidth - c.shelfSideClearance);
-  const width = mm(ctx.horizontalDepth - c.shelfSetback);
+  const rad = ctx.radius;
   const openingBottom = ctx.t;
   const openingHeight = ctx.interiorHeight;
   const bow = Math.max(0, ctx.options.shelfBow ?? 0);
+
+  const frontZ = mm(ctx.D - c.shelfSetback);
+  const shelf = rad === null ? null : radiusedShelf(ctx, rad, frontZ);
+  // A notch that has eaten the whole shelf comes back as nothing at all, rather than as a
+  // part nobody could lift in.
+  if (rad !== null && shelf === null) return [];
+
+  const length = shelf ? shelf.length : mm(ctx.interiorWidth - c.shelfSideClearance);
+  const width = shelf ? shelf.width : mm(ctx.horizontalDepth - c.shelfSetback);
+  const leftX = shelf ? shelf.lo : mm(ctx.t + c.shelfSideClearance / 2);
 
   return Array.from({ length: count }, (_, i) => {
     // Evenly divide the opening; a shelf is centred on each division line.
@@ -160,24 +367,78 @@ export const adjustableShelves = (ctx: RuleContext, count: number): PartInstance
     return {
       name: count === 1 ? 'Shelf' : `Shelf ${i + 1}`,
       role: 'shelf-adjustable' as const,
-      profile: shelfProfile(ctx, length, width),
+      profile: shelf ? shelf.profile : shelfProfile(ctx, length, width),
       // A bowed shelf keeps its back where a straight one had it and reaches *forward*, so
       // the origin — the front-most plane of the part — moves out by the bow.
       placement: placement(
-        v3(
-          mm(ctx.t + c.shelfSideClearance / 2),
-          mm(centreY - ctx.t / 2),
-          mm(ctx.D - c.shelfSetback + bow),
-        ),
+        v3(leftX, mm(centreY - ctx.t / 2), mm(frontZ + (shelf ? 0 : bow))),
         '+X',
         '-Z',
       ),
       material: 'carcass' as const,
       bandedDirections: BAND_FRONT,
       grain: 'any' as const,
-      note: bow > 0 ? `Radiused front, ${bow}mm bow` : undefined,
+      note: shelf ? shelf.note : bow > 0 ? `Radiused front, ${bow}mm bow` : undefined,
     };
   });
+};
+
+/**
+ * The plan shape of a shelf in a cabinet with a rounded corner: a rectangle with a **square
+ * notch** at that corner, not an arc.
+ *
+ * The reason is the **edgebander, not the saw** — a curved edge cannot go through it, and a
+ * shelf's front edge is banded. The top and the bottom can and do take the arc, because that
+ * edge disappears under the ply and never needs banding. This will look like a shape that
+ * wants improving to anyone who does not know why it is square, so the reason travels with it.
+ *
+ * The notch is the whole bounding square of the curve rather than a tight fit, which loses a
+ * little more board and is what somebody at a saw would actually cut.
+ */
+interface ShelfShape {
+  readonly profile: Profile2D;
+  readonly length: Mm;
+  readonly width: Mm;
+  readonly lo: Mm;
+  readonly note: string;
+}
+
+const radiusedShelf = (ctx: RuleContext, rad: CornerRadius, frontZ: Mm): ShelfShape | null => {
+  const c = ctx.construction;
+  const half = c.shelfSideClearance / 2;
+  const inner = span(rad.farInnerX, rad.endInnerX);
+  const lo = mm(inner.lo + half);
+  const hi = mm(inner.hi - half);
+  const length = mm(hi - lo);
+  const width = mm(frontZ - rad.backZ);
+  if (length <= 0 || width <= 0) return null;
+
+  // Everything past the tangent points is inside the curve's bounding square, so that square
+  // is what comes out. Both are clamped at zero: a radius smaller than the shelf's setback
+  // leaves the shelf square, which is correct.
+  const notchLength = mm(Math.max(0, rad.sign > 0 ? hi - rad.tangentX : rad.tangentX - lo));
+  const notchWidth = mm(Math.max(0, frontZ - rad.tangentZ));
+
+  if (notchLength <= 0 || notchWidth <= 0) {
+    return { profile: rectProfile(length, width), length, width, lo, note: 'Square shelf' };
+  }
+  // A notch that reaches the far side or the back has eaten the shelf: report it by dropping
+  // the part rather than by cutting something that cannot be lifted in.
+  if (notchLength >= length || notchWidth >= width) return null;
+
+  // The shelf lies in with `v = −Z`, so part +Y runs toward the back and the front of the
+  // shelf is at y = 0. The rounded corner is therefore at the front, on whichever end the
+  // radius is.
+  const corner = rad.sign > 0 ? 'x1y0' : 'x0y0';
+  return {
+    profile: notchedRectProfile(length, width, corner, notchLength, notchWidth),
+    length,
+    width,
+    lo,
+    note:
+      `Square notch ${Math.round(notchLength)} × ${Math.round(notchWidth)} at the radiused ` +
+      'corner — square, not curved, because a curved edge will not go through the edgebander.',
+  };
 };
 
 /**
@@ -197,7 +458,11 @@ export const doors = (ctx: RuleContext, count: 0 | 1 | 2): PartInstance[] => {
   const rS = ctx.construction.revealSides;
   const gap = ctx.construction.gapBetweenDoors;
   const height = mm(ctx.H - rTop - rBot);
-  const width = count === 1 ? mm(ctx.W - 2 * rS) : mm((ctx.W - 2 * rS - gap) / 2);
+
+  const zone = doorZone(ctx);
+  if (zone.width <= 2 * rS) return [];
+  const width = count === 1 ? mm(zone.width - 2 * rS) : mm((zone.width - 2 * rS - gap) / 2);
+  if (width <= 0) return [];
 
   // u = +Y (length runs up the door), v = −X → thickness direction +Z, facing out of the
   // cabinet. The A-face is therefore the show face.
@@ -212,8 +477,45 @@ export const doors = (ctx: RuleContext, count: 0 | 1 | 2): PartInstance[] => {
     note: 'Grain vertical',
   });
 
-  if (count === 1) return [make('Door', mm(rS + width))];
-  return [make('Door L', mm(rS + width)), make('Door R', mm(ctx.W - rS))];
+  if (count === 1) return [make('Door', mm(zone.x0 + rS + width))];
+  return [make('Door L', mm(zone.x0 + rS + width)), make('Door R', mm(zone.x1 - rS))];
+};
+
+/**
+ * The clear run of front the doors are laid out in.
+ *
+ * On a square cabinet that is the whole width, and everything below reduces to the arithmetic
+ * it always was. On a radiused one it stops at the fixing strip — the doors **keep clear of
+ * the strip**, because the strip is what the curved piece is fixed to and is not a door
+ * clearance to be borrowed back.
+ *
+ * This is also the width a pair-of-doors check has to measure. Measuring the full width lets a
+ * 550 radius on a 900 quietly produce two 160mm doors and pass, which is the kind of error
+ * that reaches the bench.
+ */
+export const doorZone = (ctx: RuleContext): { x0: Mm; x1: Mm; width: Mm } => {
+  const rad = ctx.radius;
+  if (rad === null) return { x0: mm(0), x1: ctx.W, width: ctx.W };
+  return { x0: rad.doorZoneX0, x1: rad.doorZoneX1, width: rad.doorZoneWidth };
+};
+
+/**
+ * The shared "is this too narrow for a pair" check, measured on the door zone.
+ *
+ * One function rather than the same three lines in the base, wall and tall specs — a check
+ * copied three times is a check that gets fixed twice.
+ */
+export const pairTooNarrowProblem = (ctx: RuleContext): string[] => {
+  if ((ctx.options.doorCount ?? 2) !== 2) return [];
+  const zone = doorZone(ctx);
+  if (zone.width >= 400) return [];
+  if (ctx.radius === null) {
+    return [`A ${ctx.W}mm cabinet is too narrow for a pair of doors — use one door.`];
+  }
+  return [
+    `The radius and its fixing strip leave ${Math.round(zone.width)}mm of door front on a ` +
+      `${ctx.W}mm cabinet — too narrow for a pair. Use one door.`,
+  ];
 };
 
 /**
@@ -252,20 +554,278 @@ export const drawerFronts = (ctx: RuleContext, heights: readonly Mm[]): PartInst
  * Toe kick. Sits below the carcass, recessed behind the door face by the construction's
  * setback. Occupies y ∈ [−kickHeight, 0].
  */
-export const kickPanel = (ctx: RuleContext): PartInstance => {
+export const kickPanel = (ctx: RuleContext): PartInstance[] => {
   const c = ctx.construction;
+  const rad = ctx.radius;
   // The kick face sits `kickSetback` behind the door front, and the panel is `t` thick.
   const faceZ = mm(ctx.D + ctx.td - c.kickSetback);
+
+  if (rad === null) {
+    return [
+      {
+        name: 'Kick',
+        role: 'kick',
+        profile: rectProfile(ctx.W, c.kickHeight),
+        placement: placement(v3(0, mm(-c.kickHeight), mm(faceZ - ctx.t)), '+X', '+Y'),
+        material: 'carcass',
+        bandedDirections: ['+Y'],
+        grain: 'any',
+        note: 'Band top edge only',
+      },
+    ];
+  }
+
+  /*
+   * A flat board across the front of a radiused cabinet would be a chord cutting the corner
+   * off — a triangle of daylight at each end and a flat where the curve should be. So the kick
+   * turns the corner too, as one bent piece with a flat run at each end: the same flat–bend–
+   * flat part the wrap is, at a tighter radius.
+   *
+   * That radius is picked so the kick's flat run lands exactly where a square cabinet's kick
+   * lands. Setting it back from the *finished curve* instead would put the kick 18mm further
+   * back than its neighbour's in a run, and you would see the step.
+   */
+  const finished = mm(rad.r + ctx.td - c.kickSetback);
+  const inner = mm(finished - ctx.ts);
+  if (inner <= 0) return [];
+  const flatFront = mm(Math.abs(rad.tangentX - (rad.sign > 0 ? 0 : ctx.W)));
+
+  return [
+    wrapPart(ctx, rad, {
+      name: 'Kick',
+      role: 'kick',
+      innerRadius: inner,
+      lead: flatFront,
+      trail: rad.tail,
+      height: c.kickHeight,
+      bottomY: mm(-c.kickHeight),
+      note: (length) =>
+        `Bendy ply, cut flat ${length.toFixed(1)} × ${c.kickHeight} and bent to ` +
+        `${Math.round(inner)}mm inside radius — set back ${c.kickSetback} from the door face. ` +
+        'Needs blocking behind it.',
+    }),
+  ];
+};
+
+// ---------------------------------------------------------------------------------------
+// Curved assemblies — shared with the enclosed radiused end
+// ---------------------------------------------------------------------------------------
+
+/**
+ * Where the formers sit up the height.
+ *
+ * Top and bottom always, plus enough between them that no clear gap exceeds `formerSpacing`.
+ * The gap is what decides it rather than the count, because what actually goes wrong is the
+ * skin taking up a flat between two formers too far apart.
+ */
+export const formerHeights = (ctx: RuleContext): Mm[] => {
+  const spacing = Math.max(50, ctx.options.formerSpacing ?? 300);
+  const run = ctx.H - ctx.t; // bottom former's underside to top former's underside
+  const gaps = Math.max(1, Math.ceil(run / (spacing + ctx.t)));
+  return Array.from({ length: gaps + 1 }, (_, i) => mm((run * i) / gaps));
+};
+
+/**
+ * The plates the wrap is bent over.
+ *
+ * On an enclosed radiused end these are the whole skeleton, and every one of them is a full
+ * quarter disc. On an ordinary carcass with a rounded corner the bottom — and the top, where
+ * there is one — is already doing this job, so only the heights in between need a plate, and
+ * the plate is just the corner rather than the whole plan.
+ *
+ * The two are the same builder because they are the same part. Keeping a second copy in the
+ * radiused-end spec is how the two drift and only one of them gets the next fix.
+ */
+export const cornerFormers = (
+  ctx: RuleContext,
+  rad: CornerRadius,
+  heights: readonly Mm[],
+  name = 'Former',
+): PartInstance[] =>
+  heights.map((y, i) => {
+    const { profile, placement: placed } = planPlate(cornerFormerRing(rad, ctx.W), y, 'up');
+    return {
+      name: heights.length === 1 ? name : `${name} ${i + 1}`,
+      role: 'former' as const,
+      profile,
+      placement: placed,
+      // Nothing is banded: every edge of a former is either buried in the assembly or under
+      // the skin.
+      bandedDirections: BAND_NONE,
+      material: 'carcass' as const,
+      grain: 'any' as const,
+      note:
+        i === 0
+          ? `Cut to ${Math.round(rad.rSub)}mm radius — under the skin, not to the finished ` +
+            `${Math.round(rad.r)}mm.`
+          : undefined,
+    };
+  });
+
+/**
+ * The corner formers an ordinary carcass needs behind its wrap.
+ *
+ * The bottom already carries the curve at y = 0, and a cabinet closed by a top panel carries
+ * it at the top too, so those two heights are skipped: a plate at the same height as a plate
+ * is a plate too many. What is left is the runs in between, at whatever spacing keeps the ply
+ * from taking up a flat.
+ */
+export const carcassCornerFormers = (
+  ctx: RuleContext,
+  opts: { hasTopPanel: boolean },
+): PartInstance[] => {
+  const rad = ctx.radius;
+  if (rad === null) return [];
+  const heights = formerHeights(ctx);
+  const between = heights.slice(1, opts.hasTopPanel ? heights.length - 1 : heights.length);
+  return cornerFormers(ctx, rad, between, 'Corner former');
+};
+
+export interface WrapSpec {
+  readonly name: string;
+  readonly role: PanelRole;
+  /** Radius of the B-face — the inside of the bend, the face that lies on the formers. */
+  readonly innerRadius: Mm;
+  /** Flat run before the bend: the fixing strip, or the whole flat front for a kick. */
+  readonly lead: Mm;
+  /** Flat run after the bend: down the end of the cabinet to the back. */
+  readonly trail: Mm;
+  readonly height: Mm;
+  readonly bottomY: Mm;
+  readonly note?: (length: Mm) => string;
+}
+
+/**
+ * One layer of the wrap: **one piece, no join** — the fixing strip, round the quarter, then
+ * flat all the way down the end of the cabinet to the back. An exposed end wants no joint
+ * line in it.
+ *
+ * `CylindricalForming` already describes this and needed no extension: anything before `from`
+ * or past the end of the bend runs on flat along the tangent, so a single bend with straight
+ * tails is exactly what it is. Cut length per layer:
+ *
+ * ```
+ *     strip  +  (rᵢ + ts/2) · π/2  +  (D − r)
+ * ```
+ *
+ * Both flat tails are the same on every layer and only the arc differs, so the gap between one
+ * layer and the next stays exactly `ts · π/2` — 4.712mm on 3mm ply — however long the tails
+ * are. The part stored is the **flat rectangle**, which is what gets nested and cut; `forming`
+ * records the bend for the viewport and for nobody else.
+ */
+export const wrapPart = (ctx: RuleContext, rad: CornerRadius, spec: WrapSpec): PartInstance => {
+  const forming = cylindricalForming('x', spec.innerRadius, QUARTER_TURN, spec.lead);
+  const length = mm(spec.lead + developedLength(forming, ctx.ts) + spec.trail);
+  // The flat part starts at the far end of its lead-in, on the plane the bend is tangent to.
+  const startX = mm(rad.tangentX - rad.sign * spec.lead);
+  const z = mm(rad.tangentZ + spec.innerRadius);
+  // Part +X wraps the curve and part +Y runs up the cabinet — mirrored for a left-hand corner,
+  // which is the one place the handedness of a wrap lives.
+  const placed =
+    rad.sign > 0
+      ? placement(v3(startX, spec.bottomY, z), '+X', '+Y')
+      : placement(v3(startX, mm(spec.bottomY + spec.height), z), '-X', '-Y');
+
   return {
-    name: 'Kick',
-    role: 'kick',
-    profile: rectProfile(ctx.W, c.kickHeight),
-    placement: placement(v3(0, mm(-c.kickHeight), mm(faceZ - ctx.t)), '+X', '+Y'),
-    material: 'carcass',
-    bandedDirections: ['+Y'],
+    name: spec.name,
+    role: spec.role,
+    profile: rectProfile(length, spec.height),
+    placement: placed,
+    material: 'skin',
+    bandedDirections: BAND_NONE,
     grain: 'any',
-    note: 'Band top edge only',
+    forming,
+    note: spec.note?.(length),
   };
+};
+
+/**
+ * Every layer of the wrap.
+ *
+ * Each layer is a **different length**, and this is the whole reason the forming descriptor
+ * exists. The inner layer wraps the formers; the next one wraps the inner layer, a board
+ * thickness further out, and therefore has further to go. Cutting them all the same makes
+ * every layer after the first come up short, and you find out with the glue on.
+ */
+export const wrapLayers = (ctx: RuleContext, rad: CornerRadius): PartInstance[] =>
+  Array.from({ length: rad.layers }, (_, i) => {
+    const inner = mm(rad.rSub + i * ctx.ts);
+    return wrapPart(ctx, rad, {
+      name: rad.layers === 1 ? 'Skin' : `Skin layer ${i + 1}`,
+      role: 'skin',
+      innerRadius: inner,
+      lead: rad.strip,
+      trail: rad.tail,
+      height: ctx.H,
+      bottomY: mm(0),
+      note: (length) =>
+        `Cut flat ${length.toFixed(1)} × ${ctx.H} and bend to ${Math.round(inner)}mm inside radius. ` +
+        'Check the sheet bends this way before cutting — bendy ply is sold barrel or column form.',
+    });
+  });
+
+/**
+ * What is wrong with the corner radius on this cabinet, in plain terms.
+ *
+ * Reported rather than thrown, and run for every cabinet type from `buildCabinet`, so a
+ * half-filled form says what it needs rather than quietly drawing something else. A cabinet
+ * with no radius on it produces nothing here, which is what lets the radius-zero invariant
+ * compare warnings as well as parts.
+ */
+export const cornerRadiusProblems = (ctx: RuleContext): string[] => {
+  const problems: string[] = [];
+  const corner = ctx.options.radiusCorner;
+  const asked = ctx.options.carcassRadius ?? 0;
+
+  if (!corner) {
+    if (asked > 0) {
+      problems.push(
+        `This cabinet has a ${Math.round(asked)}mm corner radius but no corner named, so it is ` +
+          'being drawn square. Say which front corner is rounded — left or right as you stand ' +
+          'and look at it.',
+      );
+    }
+    return problems;
+  }
+
+  const rad = ctx.radius;
+  if (rad === null) return problems;
+
+  // The carcass builders take the radius for any type, but only these three specs also cut the
+  // formers and the wrap. On anything else the corner would come out cut and bare, which looks
+  // like a finished cabinet in the viewport and is a hole in the end of one.
+  if (!['base', 'wall', 'tall'].includes(ctx.cabinet.typeId)) {
+    problems.push(
+      'A rounded corner is only built on base, wall and tall cabinets — this one would come ' +
+        'out with the corner cut away and nothing wrapped round it.',
+    );
+  }
+
+  if (rad.r > ctx.W + 0.5 || rad.r > ctx.D + 0.5) {
+    problems.push(
+      `A ${Math.round(rad.r)}mm radius does not fit a ${ctx.W} × ${ctx.D} cabinet — the curve ` +
+        'would run off the end of it.',
+    );
+  }
+  const stripAsked = ctx.construction.fixingStripWidth ?? 50;
+  if (rad.strip < stripAsked - 0.5) {
+    problems.push(
+      `A ${Math.round(rad.r)}mm radius leaves only ${Math.round(rad.strip)}mm of flat front, ` +
+        `and the curved piece is fixed to that strip — this method asks for ${stripAsked}mm.`,
+    );
+  }
+  if ((ctx.options.shelfBow ?? 0) > 0 && (ctx.options.shelfCount ?? 0) > 0) {
+    problems.push(
+      'A shelf cannot carry a bowed front and a rounded corner at once — two curves arguing ' +
+        'over one edge. Pick one.',
+    );
+  }
+  if (rad.rSub <= 0) {
+    problems.push(
+      `${rad.layers} layers of ${ctx.ts}mm bendy ply leave nothing of a ${Math.round(rad.r)}mm radius.`,
+    );
+  }
+  return problems;
 };
 
 /**
