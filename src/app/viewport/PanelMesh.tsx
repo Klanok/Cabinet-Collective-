@@ -34,6 +34,9 @@ const ROLE_COLOURS: Record<string, string> = {
   skin: '#ece7dd',
 };
 
+/** Air left between stacked layers when drawing them. Rendering only — see `bodyThickness`. */
+const DRAW_INSET: Mm = mm(0.3);
+
 interface Props {
   panel: Panel;
   thickness: Mm;
@@ -51,7 +54,16 @@ export function PanelMesh({ panel, thickness, selected, onSelect, onGrab }: Prop
    * viewport never has to be told what a door style is.
    */
   const recess = frontRecessOf(panel, thickness);
-  const bodyThickness = recess ? mm(thickness - recess.depth) : thickness;
+  /*
+   * Drawn a third of a millimetre thin, and only drawn — the part is still cut to `thickness`.
+   *
+   * Laminated layers touch exactly: a skin's outer face *is* the next layer's inner face, which
+   * is what laminating means. Two surfaces at one depth give the depth buffer nothing to order
+   * them by, so they interleave and the curve picks up a fine woven hatch. A third of a
+   * millimetre is an order of magnitude below anything a cabinetmaker measures and is plenty
+   * for the renderer to make up its mind.
+   */
+  const bodyThickness = mm((recess ? thickness - recess.depth : thickness) - DRAW_INSET);
 
   const geometry = useMemo(() => {
     // A formed part is stored flat, because flat is what gets cut. Bending it is the one

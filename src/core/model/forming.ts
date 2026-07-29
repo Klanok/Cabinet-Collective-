@@ -24,7 +24,6 @@
 import { type Mm, mm } from '../units.ts';
 import { type MeshData, extrudeProfile } from '../geom/extrude.ts';
 import { type Profile2D, isRectangular, profileExtent } from '../geom/profile.ts';
-import { type Vec2, v2 } from '../geom/vec.ts';
 
 /**
  * A part bent to a single radius about one axis — a cylinder, which is what bendy ply over
@@ -191,6 +190,138 @@ const rotateNormal = (na: number, nb: number, nz: number, phi: number) => {
 };
 
 /**
+ * The flat slab a formed part starts as: a rectangle carrying `stations` down its length,
+ * triangulated as a **strip** that follows them.
+ *
+ * Subdividing the outline is not enough, and assuming it was is what put fins and a woven
+ * cross-hatch on every radiused end. The general extruder triangulates a cap by ear clipping,
+ * which is free to join any two vertices of the ring it likes — handed a long rectangle with
+ * fifty collinear stations down each side, it cheerfully returns triangles spanning half the
+ * length. Flat, that is a perfectly correct triangulation and looks like nothing at all.
+ *
+ * Bending is what exposes it. `formPoint` moves vertices, not the triangles between them, so a
+ * triangle reaching from station 3 to station 47 becomes a chord cutting clean through the
+ * curve — the surface tears into flat wedges and the skeleton beneath shows through them.
+ *
+ * So a formed part cannot reuse the ordinary extruder's cap: the stations have to bind the
+ * triangulation, and every triangle has to stay inside one station gap. The walls are built
+ * here for the same reason. Nothing dimensional is decided in this function — it is a drawing
+ * of a part whose size was fixed, flat, long before it got here.
+ */
+const slabMesh = (
+  stations: readonly number[],
+  across: Mm,
+  thickness: Mm,
+  axis: 'x' | 'y',
+): MeshData => {
+  const positions: number[] = [];
+  const normals: number[] = [];
+  const indices: number[] = [];
+  const n = stations.length;
+
+  // (along, across, through) is the natural frame for a bend; the part's own axes are whichever
+  // way round `axis` says. Everything below is written in the former and mapped here once.
+  const put = (a: number, b: number, z: number, na: number, nb: number, nz: number) => {
+    if (axis === 'x') {
+      positions.push(a, b, z);
+      normals.push(na, nb, nz);
+    } else {
+      positions.push(b, a, z);
+      normals.push(nb, na, nz);
+    }
+  };
+
+  // The two big faces, each a ladder of quads between consecutive stations.
+  for (const face of [
+    { z: thickness, nz: 1, front: true },
+    { z: 0, nz: -1, front: false },
+  ]) {
+    const base = positions.length / 3;
+    for (const a of stations) put(a, 0, face.z, 0, 0, face.nz);
+    for (const a of stations) put(a, across, face.z, 0, 0, face.nz);
+    for (let i = 0; i < n - 1; i++) {
+      const p0 = base + i;
+      const p1 = base + i + 1;
+      const q0 = base + n + i;
+      const q1 = base + n + i + 1;
+      if (face.front) indices.push(p0, p1, q1, p0, q1, q0);
+      else indices.push(p0, q1, p1, p0, q0, q1);
+    }
+  }
+
+  /** One flat quad, corners given counter-clockwise as seen from outside. */
+  const quad = (
+    corners: readonly (readonly [number, number, number])[],
+    na: number,
+    nb: number,
+    nz: number,
+  ) => {
+    const base = positions.length / 3;
+    for (const [a, b, z] of corners) put(a, b, z, na, nb, nz);
+    indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  };
+
+  // The long edges follow the stations too, or they would cut the same chords the faces did.
+  for (let i = 0; i < n - 1; i++) {
+    const a0 = stations[i]!;
+    const a1 = stations[i + 1]!;
+    quad(
+      [
+        [a0, 0, 0],
+        [a1, 0, 0],
+        [a1, 0, thickness],
+        [a0, 0, thickness],
+      ],
+      0,
+      -1,
+      0,
+    );
+    quad(
+      [
+        [a0, across, 0],
+        [a0, across, thickness],
+        [a1, across, thickness],
+        [a1, across, 0],
+      ],
+      0,
+      1,
+      0,
+    );
+  }
+
+  // The two cut ends stay square — nothing bends across them.
+  const last = stations[n - 1]!;
+  quad(
+    [
+      [0, 0, 0],
+      [0, 0, thickness],
+      [0, across, thickness],
+      [0, across, 0],
+    ],
+    -1,
+    0,
+    0,
+  );
+  quad(
+    [
+      [last, 0, 0],
+      [last, across, 0],
+      [last, across, thickness],
+      [last, 0, thickness],
+    ],
+    1,
+    0,
+    0,
+  );
+
+  return {
+    positions: new Float32Array(positions),
+    normals: new Float32Array(normals),
+    indices: new Uint32Array(indices),
+  };
+};
+
+/**
  * A formed part's mesh: the flat part, cut into enough pieces along the bend to look round,
  * then bent.
  *
@@ -222,14 +353,7 @@ export const formedMesh = (
   const steps = Math.max(2, Math.ceil(f.sweep / Math.max(maxStep, 1e-6)));
 
   const stations = Array.from({ length: steps + 1 }, (_, i) => (alongLength * i) / steps);
-  const at = (a: number, b: number): Vec2 => (f.axis === 'x' ? v2(a, b) : v2(b, a));
-
-  // Walk the rectangle counter-clockwise, subdividing the two edges that run along the bend.
-  const ring = [
-    ...stations.map((a) => at(a, 0)),
-    ...[...stations].reverse().map((a) => at(a, acrossLength)),
-  ];
-  const flat = extrudeProfile({ outline: ring, holes: [] }, thickness);
+  const flat = slabMesh(stations, acrossLength, thickness, f.axis);
 
   const positions = new Float32Array(flat.positions.length);
   const normals = new Float32Array(flat.normals.length);

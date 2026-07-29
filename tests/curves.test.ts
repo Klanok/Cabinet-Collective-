@@ -482,6 +482,44 @@ describe('bending a flat part', () => {
     expect(maxX).toBeLessThan(dev - 100);
   });
 
+  /*
+   * The surface has to *be* the shell, not just reach its corners.
+   *
+   * Vertex counts and bounding boxes are both blind to the way this broke: the general
+   * extruder triangulates its cap by ear clipping, which joined stations at opposite ends of
+   * the part. Every vertex still landed exactly on the true curve — so the extents were right
+   * and the vertex count was right — while the triangles between them cut chords straight
+   * through it, tearing the skin into wedges with the formers showing through.
+   *
+   * A triangle's centroid is what tells them apart. On a shell every centroid sits between the
+   * inside face and the outside face, give or take the sag across one station gap. On a chord
+   * spanning the quarter it falls hundreds of millimetres inside.
+   */
+  it('builds a shell at the true radius, not a fan of chords across it', () => {
+    const dev = developedLength(skin, mm(T));
+    const bent = formedMesh(rectProfile(dev, mm(720)), mm(T), skin);
+    const centre = { s: 0, n: -INNER };
+
+    let worstInside = Infinity;
+    let worstOutside = -Infinity;
+    for (let i = 0; i < bent.indices.length; i += 3) {
+      let cs = 0;
+      let cn = 0;
+      for (let k = 0; k < 3; k++) {
+        const v = bent.indices[i + k]! * 3;
+        cs += bent.positions[v]! / 3;
+        cn += bent.positions[v + 2]! / 3;
+      }
+      const r = Math.hypot(cs - centre.s, cn - centre.n);
+      worstInside = Math.min(worstInside, r);
+      worstOutside = Math.max(worstOutside, r);
+    }
+
+    // One station gap sags by at most FORM_TOLERANCE, so a millimetre is generous.
+    expect(worstInside).toBeGreaterThan(INNER - 1);
+    expect(worstOutside).toBeLessThan(INNER + T + 1);
+  });
+
   it('calls a rectangle rectangular even when its size is derived rather than typed', () => {
     // The root cause in one line: a raw vertex compared against a snapped bound.
     const dev = developedLength(skin, mm(T));
