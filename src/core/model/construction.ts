@@ -74,6 +74,19 @@ export interface ConstructionMethod {
   /** Total side clearance for an adjustable shelf — half taken off each end. */
   readonly shelfSideClearance: Mm;
 
+  /**
+   * The flat run of front face between the door edge and where a corner radius starts.
+   *
+   * It is there to **fix the curved piece to**, so it exists whenever there is a curve —
+   * doors or no doors. It is *not* a door clearance, and reading it as one is the mistake to
+   * avoid: that reading makes it vanish exactly when the cabinet has no doors, which for a
+   * radiused end used as a decorative end is the common case.
+   *
+   * A radius leaving less than this much flat front is reported rather than drawn with a strip
+   * too small to fix to.
+   */
+  readonly fixingStripWidth: Mm;
+
   /** System 32 hole pitch. */
   readonly systemPitch: Mm;
   /** Distance from the front edge to the front line of system holes. */
@@ -102,11 +115,24 @@ export const FRAMELESS_32: ConstructionMethod = {
   gapBetweenDrawers: mm(3),
   shelfSetback: mm(10),
   shelfSideClearance: mm(2),
+  fixingStripWidth: mm(50),
   systemPitch: mm(32),
   systemFrontSetback: mm(37),
 };
 
 export const DEFAULT_CONSTRUCTIONS: readonly ConstructionMethod[] = [FRAMELESS_32];
+
+/**
+ * Give a stored method a fixing strip if it predates the field.
+ *
+ * Shared by the project and the standards migration, because both store the same list. The
+ * shipped 50mm is used, and it moves no part: only a cabinet with a corner radius on it reads
+ * this number, and no job saved before the field existed could have had one.
+ */
+export const withFixingStrip = (c: Record<string, unknown>): Record<string, unknown> => ({
+  ...c,
+  fixingStripWidth: typeof c.fixingStripWidth === 'number' ? c.fixingStripWidth : 50,
+});
 
 /** Ids the shipped methods used to have, and the one they all become. */
 export const LEGACY_CONSTRUCTION_IDS: readonly string[] = ['frameless-32-16', 'frameless-32-18'];

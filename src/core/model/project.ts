@@ -8,12 +8,16 @@
 
 import type { Mm } from '../units.ts';
 import type { Cabinet } from './cabinet.ts';
-import { type ConstructionMethod, collapseThicknessFields } from './construction.ts';
+import {
+  type ConstructionMethod,
+  collapseThicknessFields,
+  withFixingStrip,
+} from './construction.ts';
 import type { MaterialLibrary } from './material.ts';
 import type { Room } from './room.ts';
 import { type DoorStyle, DEFAULT_DOOR_STYLES, PLAIN_SLAB_STYLE } from '../standards/doorStyles.ts';
 
-export const CURRENT_SCHEMA_VERSION = 7 as const;
+export const CURRENT_SCHEMA_VERSION = 8 as const;
 
 /**
  * The bendy ply an older job is given when it is migrated forward. It has no curved parts in
@@ -318,6 +322,30 @@ const migrateV6toV7 = (raw: Record<string, unknown>): Record<string, unknown> =>
 };
 
 /**
+ * v7 → v8.
+ *
+ * Construction methods gain a **fixing strip** — the flat run of front face a curved corner
+ * piece is fixed to. It belongs to the method, beside the kick setback and the shelf setback,
+ * because it is a number a shop builds to rather than something the geometry can work out.
+ *
+ * **No part moves and nothing re-prices.** Only a cabinet carrying a corner radius reads the
+ * figure, and no job saved before this version could have had one — `radiusCorner` and
+ * `carcassRadius` did nothing until now.
+ *
+ * The version is bumped anyway, for the reason v4, v6 and v7 were: an older build opening a
+ * job with a radiused corner in it would draw the cabinet square, quote it square and cut it
+ * square, and never say so. Refusing the file is the honest failure.
+ */
+const migrateV7toV8 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const constructions = (raw.constructions as Record<string, unknown>[] | undefined) ?? [];
+  return {
+    ...raw,
+    schemaVersion: 8,
+    constructions: constructions.map(withFixingStrip),
+  };
+};
+
+/**
  * Load a project from stored JSON, migrating older schema versions forward.
  *
  * Migrations run in sequence, so a v1 file loaded after several schema changes still arrives
@@ -344,6 +372,7 @@ export const migrateProject = (raw: unknown): Project => {
   if (data.schemaVersion === 4) data = migrateV4toV5(data);
   if (data.schemaVersion === 5) data = migrateV5toV6(data);
   if (data.schemaVersion === 6) data = migrateV6toV7(data);
+  if (data.schemaVersion === 7) data = migrateV7toV8(data);
 
   if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`migrateProject: could not migrate schema version ${String(version)}`);
