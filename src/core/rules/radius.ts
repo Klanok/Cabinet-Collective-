@@ -265,11 +265,30 @@ export interface CornerRadius {
   readonly doorZoneWidth: Mm;
 }
 
+/** Layers of wrap, as a whole number of at least one. */
+export const wrapLayerCount = (layers: number): number => Math.max(1, Math.round(layers));
+
+/**
+ * The radius the substrate is cut to — the finished radius less every layer of wrap.
+ *
+ * **Zero or negative means there is no radius to build**, because the ply has nothing left to
+ * bend round. A 5mm radius under two layers of 3mm ply is not a tight curve, it is an
+ * impossible one, and it has to be reported rather than attempted: `cylindricalForming`
+ * rightly refuses a radius that isn't positive, and a throw out of the rule engine takes the
+ * whole app down and leaves a saved job that takes it down again on every reload.
+ *
+ * Exported so the check and the arithmetic are the same function. Two places computing this
+ * and disagreeing about the boundary is how you get a warning that says it's fine and a
+ * builder that throws anyway.
+ */
+export const substrateRadius = (radius: Mm, layers: number, ts: Mm): Mm =>
+  mm(radius - wrapLayerCount(layers) * ts);
+
 export const resolveCornerRadius = (input: CornerRadiusInput): CornerRadius => {
   const { corner, radius: r, W, D, t, tb, ts } = input;
-  const layers = Math.max(1, Math.round(input.layers));
+  const layers = wrapLayerCount(input.layers);
   const skin = mm(layers * ts);
-  const rSub = mm(r - skin);
+  const rSub = substrateRadius(r, layers, ts);
 
   const sign: 1 | -1 = corner === 'front-right' ? 1 : -1;
   /** Un-mirrored → real. Front-right is the frame everything is written in, so it is identity. */

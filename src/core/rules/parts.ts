@@ -28,6 +28,8 @@ import {
   cornerFormerRing,
   cornerPlateRing,
   planPlate,
+  substrateRadius,
+  wrapLayerCount,
 } from './radius.ts';
 import { BAND_ALL, BAND_FRONT, BAND_NONE, type PartInstance } from './spec.ts';
 
@@ -750,6 +752,10 @@ export const wrapPart = (ctx: RuleContext, rad: CornerRadius, spec: WrapSpec): P
 export const wrapLayers = (ctx: RuleContext, rad: CornerRadius): PartInstance[] =>
   Array.from({ length: rad.layers }, (_, i) => {
     const inner = mm(rad.rSub + i * ctx.ts);
+    // Belt as well as braces. `resolveRadius` will not hand over a corner this tight, and
+    // `cylindricalForming` is right to refuse one — but a builder that can throw is a builder
+    // that can take the whole app down, so it returns nothing instead.
+    if (inner <= 0) return null;
     return wrapPart(ctx, rad, {
       name: rad.layers === 1 ? 'Skin' : `Skin layer ${i + 1}`,
       role: 'skin',
@@ -762,7 +768,7 @@ export const wrapLayers = (ctx: RuleContext, rad: CornerRadius): PartInstance[] 
         `Cut flat ${length.toFixed(1)} × ${ctx.H} and bend to ${Math.round(inner)}mm inside radius. ` +
         'Check the sheet bends this way before cutting — bendy ply is sold barrel or column form.',
     });
-  });
+  }).filter((layer): layer is PartInstance => layer !== null);
 
 /**
  * What is wrong with the corner radius on this cabinet, in plain terms.
@@ -789,7 +795,32 @@ export const cornerRadiusProblems = (ctx: RuleContext): string[] => {
   }
 
   const rad = ctx.radius;
-  if (rad === null) return problems;
+
+  /*
+   * A radius the wrap cannot turn. `ctx.radius` is null for this, so the cabinet is drawn
+   * square rather than half-built — but it has to be *said*, or a radius that quietly does
+   * nothing looks like the field is broken.
+   *
+   * Checked from the raw numbers rather than off `ctx.radius`, precisely because there is no
+   * resolved radius to read in this case. `substrateRadius` is shared with the resolver so the
+   * two cannot disagree about where the boundary is.
+   */
+  if (rad === null) {
+    const layers = wrapLayerCount(ctx.options.skinLayers ?? 2);
+    // `asked > 0` first, and it is not a nicety: a corner named with **no** radius on it is a
+    // half-filled form, not an impossible cabinet, and has to do nothing whatsoever. Without
+    // it, every square cabinet whose corner had ever been named picked up a warning — which is
+    // the radius-zero invariant, and it caught this.
+    if (asked > 0 && substrateRadius(mm(asked), layers, ctx.ts) <= 0) {
+      problems.push(
+        `A ${Math.round(asked)}mm radius is smaller than the ${layers} × ${ctx.ts}mm of bendy ` +
+          `ply that wraps it, so there is nothing left to bend it round. The smallest this ` +
+          `cabinet can turn is about ${Math.ceil(layers * ctx.ts) + 1}mm — and in practice a ` +
+          'radius wants to be a good deal bigger than the board going round it.',
+      );
+    }
+    return problems;
+  }
 
   // The carcass builders take the radius for any type, but only these three specs also cut the
   // formers and the wrap. On anything else the corner would come out cut and bare, which looks
@@ -818,11 +849,6 @@ export const cornerRadiusProblems = (ctx: RuleContext): string[] => {
     problems.push(
       'A shelf cannot carry a bowed front and a rounded corner at once — two curves arguing ' +
         'over one edge. Pick one.',
-    );
-  }
-  if (rad.rSub <= 0) {
-    problems.push(
-      `${rad.layers} layers of ${ctx.ts}mm bendy ply leave nothing of a ${Math.round(rad.r)}mm radius.`,
     );
   }
   return problems;

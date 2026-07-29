@@ -572,6 +572,34 @@ left is `quarterDiscProfile`'s three vertices.
 offcut plus the two thin slivers the ply set-back costs — worked longhand in
 `tests/cornerRadiusParts.test.ts`. 2% of the panel, not the 96% the shrinking bug was losing.
 
+#### The crash found from the bench, and the two things it taught
+
+**A radius smaller than the ply that wraps it took the whole app to a blank screen.** Two layers
+of 3mm leave nothing of a 5mm radius, and `cylindricalForming` rightly refuses a radius that
+isn't positive — but a **number field fires on every keystroke**, so typing "200" resolves a 2mm
+radius first and threw on the first digit. The suite was green and the app was unusable: every
+test typed a finished number, and nobody types a finished number.
+
+Two separate faults, and both are worth carrying forward because neither is about radii.
+
+- **The rule engine must never throw.** `build.ts` already said so — "surfaced rather than
+  thrown: a half-valid cabinet still needs to be visible in the viewport so the user can see what
+  to fix" — and a builder quietly broke it. An impossible radius now resolves to `null`, the
+  cabinet draws square, and a warning says why. The check and the arithmetic are one exported
+  function, `substrateRadius`, so the warning and the builder cannot disagree about the boundary.
+- **A crash was unrecoverable, which is what made it serious.** The job saves as you edit, so the
+  value that crashed the build was *already saved* by the time the screen went white, and every
+  reload loaded it back and blanked again. The only way out was the browser's developer console.
+  `app/ErrorScreen.tsx` is now the backstop: it names the error, offers to save the broken job to
+  a file — that file is what makes a bug reproducible — and offers to clear it. **It is a
+  backstop, not a licence to throw.**
+
+The testing lesson generalises the one in 5.1. That one was *measure the thing itself, not its
+vertices*. This one is **feed it what a person actually types, not what they mean to type** —
+`tests/cornerRadiusParts.test.ts` now walks 1, 2, 5, 6, 7, 20, 200, 2000 through both hands and
+all three types, and asserts the boundary moves with the board rather than sitting at a
+hard-coded 6.
+
 #### What is left, and known gaps
 
 - **Nesting reads a radiused corner as its bounding box**, the same as every other curve. 5.1's
