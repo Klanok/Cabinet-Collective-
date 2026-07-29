@@ -14,7 +14,7 @@ import {
   sideDepth,
 } from '../model/construction.ts';
 import { type MaterialLibrary, actualThicknessOf, findSheet } from '../model/material.ts';
-import { type CornerRadius, resolveCornerRadius } from './radius.ts';
+import { type CornerRadius, resolveCornerRadius, substrateRadius } from './radius.ts';
 
 /** The resolved material ids for one cabinet, defaults already applied. */
 export interface ResolvedMaterials {
@@ -104,10 +104,18 @@ export interface RuleContext {
 }
 
 /**
- * Resolve the corner radius, or `null` if this cabinet hasn't got one.
+ * Resolve the corner radius, or `null` if this cabinet hasn't got a usable one.
  *
  * Both halves are required, and there is deliberately no default for either. See
  * `CabinetOptions.radiusCorner` for why the corner is never guessed.
+ *
+ * A radius too small for the wrap to turn also comes back `null`, so the cabinet is drawn
+ * square and `cornerRadiusProblems` says why. **This has to be caught here rather than left to
+ * the builders**, and the reason is worth writing down: a number field fires on every
+ * keystroke, so typing "200" makes the app resolve a 2mm radius first. Two layers of 3mm ply
+ * leave nothing of a 2mm radius, `cylindricalForming` rightly refuses it, and the throw took
+ * the whole app to a blank screen — then persisted the job, so every reload blanked it again.
+ * The rule engine's job is to report an impossible cabinet and keep drawing, never to throw.
  */
 const resolveRadius = (
   options: CabinetOptions,
@@ -116,11 +124,13 @@ const resolveRadius = (
 ): CornerRadius | null => {
   const corner = options.radiusCorner;
   const radius = options.carcassRadius ?? 0;
+  const layers = options.skinLayers ?? 2;
   if (!corner || radius <= 0) return null;
+  if (substrateRadius(mm(radius), layers, dims.ts) <= 0) return null;
   return resolveCornerRadius({
     corner,
     radius: mm(radius),
-    layers: options.skinLayers ?? 2,
+    layers,
     W: dims.W,
     D: dims.D,
     t: dims.t,

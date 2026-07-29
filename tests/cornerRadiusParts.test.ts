@@ -460,6 +460,65 @@ describe('either hand, and every carcass type', () => {
   });
 });
 
+describe('a radius the ply cannot turn', () => {
+  /*
+   * The crash this file exists to keep out, found by using the app.
+   *
+   * A number field fires on every keystroke, so typing "200" makes the app resolve a **2mm**
+   * radius first. Two layers of 3mm ply leave nothing of a 2mm radius, `cylindricalForming`
+   * rightly refuses a radius that isn't positive — and the throw took the whole app to a blank
+   * screen. Worse, the job is saved as you type, so every reload loaded it back and blanked
+   * again; the only way out was the browser's developer console.
+   *
+   * So the boundary gets tested at every value around it, not just at one. 6 is exactly the ply
+   * and must not build; 7 is a millimetre of substrate and must.
+   */
+  const KEYSTROKES = [1, 2, 5, 6, 7, 20, 200, 2000];
+
+  it('never throws, at any radius somebody could type', () => {
+    for (const r of KEYSTROKES) {
+      for (const corner of ['front-left', 'front-right'] as const) {
+        for (const typeId of ['base', 'wall', 'tall'] as const) {
+          expect(() =>
+            build(typeId, BASE, { radiusCorner: corner, carcassRadius: mm(r) }),
+          ).not.toThrow();
+        }
+      }
+    }
+  });
+
+  it('draws the cabinet square when the radius is smaller than the ply round it', () => {
+    // Two layers of 3mm: 6 is exactly the wrap and leaves nothing, 7 leaves a millimetre.
+    for (const r of [1, 2, 5, 6]) {
+      const tight = build('base', BASE, { radiusCorner: 'front-right', carcassRadius: mm(r) });
+      for (const p of tight.panels) {
+        expect(profileHasArcs(p.profile)).toBe(false);
+        expect(p.forming).toBeUndefined();
+      }
+      // Square, but not silent. A radius that quietly does nothing reads as a broken field.
+      expect(tight.warnings.join(' ')).toMatch(/nothing left to bend it round/);
+    }
+  });
+
+  it('builds the corner as soon as there is any substrate left to bend round', () => {
+    const just = build('base', BASE, { radiusCorner: 'front-right', carcassRadius: mm(7) });
+    expect(profileHasArcs(byName(just.panels, 'Bottom').profile)).toBe(true);
+    expect(byName(just.panels, 'Skin layer 1').forming!.innerRadius).toBe(mm(1));
+    expect(just.warnings.join(' ')).not.toMatch(/nothing left to bend it round/);
+  });
+
+  it('moves the boundary with the board, rather than hard-coding 6', () => {
+    // One layer of 3mm ply leaves substrate at 4, where two layers would not.
+    const thin = build('base', BASE, {
+      radiusCorner: 'front-right',
+      carcassRadius: mm(4),
+      skinLayers: 1,
+    });
+    expect(profileHasArcs(byName(thin.panels, 'Bottom').profile)).toBe(true);
+    expect(byName(thin.panels, 'Skin').forming!.innerRadius).toBe(mm(1));
+  });
+});
+
 describe('what it says when the numbers do not work', () => {
   it('draws a cabinet square, and says so, when the corner was never named', () => {
     // `carcassRadius` does nothing on its own, and must not guess. A caller that guessed would
