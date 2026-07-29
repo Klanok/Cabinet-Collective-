@@ -403,13 +403,81 @@ figures in their headers.
 
 ## 5. Open items, in the order I'd do them
 
-**If asked which to do next:** 5.2 is now the largest and the one the machine ultimately
-depends on. What is left of 5.3 is mostly Phase 4 work. 5.1 is the tail of the curve work and
-is small.
+**If asked which to do next:** 5.0 is specified and waiting, and is the one the shop owner
+asked for after using it. 5.2 is the largest and the one the machine ultimately depends on.
+What is left of 5.3 is mostly Phase 4 work. 5.1 is the tail of the curve work and is small.
+
+### 5.0 A corner radius on any cabinet — specified, not started
+
+**Asked for directly, after using the radiused end in the app.** Two things came back: a
+curved skin that did not wrap (fixed — see below), and the unit shrinking whenever the radius
+changed. The second is not a bug. `radiusEnd.ts` says the radius *is* the width and *is* the
+depth, and `validate` rejects anything else as an ellipse, so a 200mm radius gives a
+200 × 720 × 200 cabinet. That is what a quarter-round end **is**, and it stays.
+
+What is wanted alongside it is different: an ordinary carcass that keeps its size, with **one
+corner rounded**. Confirmed choice — the quarter-disc unit remains for full round ends, and
+base, wall and tall cabinets gain a corner radius.
+
+**Where it lands.** All four carcass types share the builders in `rules/parts.ts`, so this is
+shared-code work rather than one more spec. `topPanel`, `bottomPanel` and `adjustableShelves`
+gain an arc at one corner; the side at that end gives way to formers; `kickPanel` curves there;
+`doors` have to stop at the tangent.
+
+**Most of the parts already exist.** Arcs are in the model and a curved edge already bands at
+true arc length rather than the chord. Formers, developed-length skins and a curved kick are
+all in `radiusEnd.ts` and want lifting into shared builders rather than reinventing — and they
+must be *shared*, or the two will drift and only one will get the next fix.
+
+**Four decisions, none of them safe to guess:**
+
+- **Which corner, and how it is named.** This is the handedness trap the codebase already has
+  scar tissue for: `bowedFrontProfile` takes its edge with no default precisely because a
+  caller assuming wrong puts the radius against the wall and still passes a size assertion.
+  Assert *occupancy*, not size — that is what caught the former thickness axis in 4.4.
+- **Doors** — stop at the tangent, or no door across the curved zone.
+- **The side panel** at the radiused end — deleted and replaced by formers, or kept and set
+  back behind them.
+- **Shelves** — arced to match the top and bottom, or cut square and stopped short.
+
+**Definition of done, testable:**
+
+- A base cabinet 900 × 720 × 560 with a 200 radius still measures 900 × 720 × 560. The box does
+  not shrink. This is the reported bug written as an assertion.
+- Sheet area falls by the corner offcut only, not by the whole rectangle.
+- **Radius 0 produces parts identical to today's cabinet** — the invariant that protects every
+  existing job, and the one worth writing first.
+- **Radius = width = depth reproduces the quarter-round unit**, which still exists.
+- Verified in the running app as well as in the suite, per section 7. A quarter circle and a
+  box are hard to tell apart in a screenshot; check a constant radius numerically.
+
+Nesting will read a radiused corner as its bounding box, the same as it reads every other
+curve. That is 5.1's known gap and Phase 3's problem — not a reason to hold this up.
 
 ### 5.1 Curved parts — what is left after 4.4
 
 The foundation and both deliverables shipped; see 4.4 for what they do and why. What remains:
+
+**Two rendering bugs found by using the app, both since fixed, and both worth knowing about
+because the failure mode repeats.** Curved parts drew dead flat, and then drew torn into
+wedges. In each case the model was correct throughout — the cutlist never lied — and the
+suite passed, so only looking at the thing caught it.
+
+- **`isRectangular` compared raw vertices to snapped bounds with `===`.** `profileBounds` snaps
+  deliberately; a skin's developed length is r·π/2 = 872.5773595345651, which snaps to a
+  different number, so a plain rectangle was judged non-rectangular and `formedMesh` took its
+  flat fallback. `nearlyEqual` existed for exactly this and this was the one place reaching past
+  it. Every test had typed the length as a rounded literal that survives the snap.
+- **Ear clipping joined stations at opposite ends of the part.** `formedMesh` subdivided the
+  outline and reused the general extruder, whose cap triangulation may connect any two ring
+  vertices. Flat that is correct; bent, a triangle spanning the quarter becomes a chord through
+  the curve. A formed part now builds its own slab so every triangle stays inside one station
+  gap.
+
+The lesson both times: **a test that checks vertices, counts or extents will pass on a surface
+that is wrong**, because the vertices were never what broke. Measure the thing itself — triangle
+centroids against the true radius — and derive test dimensions the way the code does rather than
+typing a rounded literal.
 
 - **Nesting doesn't understand a curve.** `panelFootprint` is the bounding box, so a radiused
   shelf reserves the rectangle it fits inside and the offcut between the curve and the corner
