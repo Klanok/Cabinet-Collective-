@@ -69,6 +69,30 @@ export interface CabinetOptions {
    */
   readonly shelfBow?: Mm;
 
+  /**
+   * Which corner of an ordinary carcass is rounded, named as you stand and look at the
+   * cabinet. Unset — the usual case — means a square cabinet, exactly as before.
+   *
+   * **There is deliberately no default**, and `carcassRadius` deliberately does nothing on its
+   * own. This is the same handedness trap `bowedFrontProfile` takes its edge for: a caller
+   * that guessed would put the curve against the wall, where it is the right size, occupies
+   * the wrong quarter, and looks entirely correct in a test that only asserts size.
+   *
+   * Only the two front corners are offered. A run ends left or right and you cannot get the
+   * other hand by turning a cabinet round, because that puts its back to the room; a back
+   * corner rounds into the wall where nobody sees it.
+   */
+  readonly radiusCorner?: 'front-left' | 'front-right';
+  /**
+   * Plan radius of that corner, measured to the **finished** face — the outside of the skin,
+   * not the formers under it. Nothing happens unless `radiusCorner` says where it goes.
+   *
+   * Named apart from `endRadius`, which belongs to the quarter-round unit and is required to
+   * equal both the width and the depth, and apart from `DoorStyle.cornerRadius`, which is the
+   * internal radius a cutter leaves in a routed pocket. Three different radii; three names.
+   */
+  readonly carcassRadius?: Mm;
+
   /** Radiused end only. Plan radius of the curve. Unset follows the cabinet's depth. */
   readonly endRadius?: Mm;
   /** Radiused end only. Greatest clear gap between formers before another one is added. */
