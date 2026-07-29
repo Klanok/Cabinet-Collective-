@@ -106,6 +106,24 @@ export interface CabinetOptions {
   readonly skinLayers?: number;
 }
 
+/** True when both halves of a corner radius are set, which is the only way either does anything. */
+export const isRadiused = (options: CabinetOptions): boolean =>
+  options.radiusCorner !== undefined && (options.carcassRadius ?? 0) > 0;
+
+/**
+ * What setting a corner radius changes about the rest of the cabinet.
+ *
+ * **A radiused cabinet defaults to no doors and no shelves.** The common use for one of these
+ * is a *decorative end*, not a cupboard — so the fronts are the exception rather than the
+ * rule, and offering a cupboard by default gives you two doors squeezed into whatever the
+ * curve left over.
+ *
+ * A default, not a rule: these sit *under* whatever the cabinet has been given, so asking for
+ * a door on a radiused cabinet still gives you one, sized to the door zone.
+ */
+export const radiusDefaultOptions = (options: CabinetOptions): CabinetOptions =>
+  isRadiused(options) ? { doorCount: 0, shelfCount: 0 } : {};
+
 export interface CabinetMaterials {
   /** Carcass sides, bottom, top, shelves, stretchers. */
   readonly carcass?: string;

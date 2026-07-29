@@ -65,6 +65,8 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | CI — typecheck, tests, build, cutlist smoke run on every PR | Working, `.github/workflows/ci.yml` |
 | Hardware / joinery rules (Blum) | **Not started — this is Phase 2, see 5.2** |
 | Curved / radiused parts — arcs, bowed shelves, radiused ends | Working, see 4.4 |
+| A corner radius on a base, wall or tall cabinet | Working — bendy ply and formers, see 5.0 |
+| The same corner routed from door board instead | **Not started — see 5.7, now unblocked** |
 | Nesting a curved part | **Still bounding-box only — see 5.1** |
 | Nesting, CAM, post-processor | Not started |
 
@@ -101,8 +103,8 @@ materials.
 
 **Migrations must never quietly change anyone's parts.** Every migration carries old values
 forward so a saved job cuts exactly as it did; adopting a new default is then a deliberate
-edit. Schema is at **v7**; migrations run in sequence in `model/project.ts`. Shop standards are
-versioned separately and are at **v3** — and they get a *real* migration rather than a
+edit. Schema is at **v8**; migrations run in sequence in `model/project.ts`. Shop standards are
+versioned separately and are at **v4** — and they get a *real* migration rather than a
 rejection, because refusing to load them silently replaces a shop's accumulated kick heights,
 reveals, door styles and saved cabinet types with the shipped Australian defaults.
 
@@ -414,13 +416,14 @@ figures in their headers.
 
 ## 5. Open items, in the order I'd do them
 
-**If asked which to do next:** 5.0 is decided, has its invariants written, and is waiting on
-its builders — it is the one the shop owner asked for after using it, and the four questions
-that were blocking it have been answered. 5.2 is the largest and the one the machine
-ultimately depends on. What is left of 5.3 is mostly Phase 4 work. 5.1 is the tail of the
-curve work and is small. 5.7 follows 5.0 and should not be started before it.
+**If asked which to do next:** 5.0 is **built** — the bendy-ply corner radius the shop owner
+asked for after using the app, on base, wall and tall. **5.7 is now unblocked**: it is the same
+corner by the shop's other method, the shared builders it needed exist, and the one thing to
+settle before starting it is whether the routed piece is kerfed to bend or machined from
+something thicker. 5.2 is the largest and the one the machine ultimately depends on. What is
+left of 5.3 is mostly Phase 4 work. 5.1 is the tail of the curve work and is small.
 
-### 5.0 A corner radius on any cabinet — decided, invariants written, builders not started
+### 5.0 A corner radius on any cabinet — built, bendy-ply version. 5.7 is the other method
 
 **Asked for directly, after using the radiused end in the app.** Two things came back: a
 curved skin that did not wrap (fixed — see below), and the unit shrinking whenever the radius
@@ -530,30 +533,58 @@ the wrap has no straight run back to the back (D − r = 0), and the end panel's
 zero. Make any one of them unconditional — a 50mm strip that is always present, say — and a
 full-radius cabinet comes out as a quarter plus a tail, which is not the unit that exists.
 
-#### What is done, and what is left
+#### What is done
 
-**Done:** both invariants, and `radiusCorner` / `carcassRadius` on `CabinetOptions`, read by
-nothing yet. Both optional and absent by default, so no saved job changed and no migration was
-needed. Named apart from `endRadius` — the quarter-round unit's, required to equal both width
-and depth — and from `DoorStyle.cornerRadius`, the internal radius a cutter leaves in a routed
-pocket. Three different radii, three names.
+**All five of them, and both invariants pass** — including the second half of invariant 2,
+unskipped by the commit that made it pass. `radiusCorner` and `carcassRadius` are read by the
+rule engine, offered in the Inspector for base, wall and tall, and verified in the running app
+as well as in the suite.
 
-**Left**, roughly in order:
+1. Formers and skins are **shared builders in `rules/parts.ts`** — `cornerFormers`,
+   `wrapLayers`, `wrapPart`, `formerHeights`. `radiusEnd.ts` now resolves its own geometry
+   through `rules/radius.ts` and calls the same builders, so there is one description of a
+   former and one of a wrap, not two.
+2. `bottomPanel` and `topPanel` take the arc. The end panel stays in, sets back behind the ply
+   and loses the radius off its depth.
+3. The wrap is one flat–bend–flat part per layer, `strip + (rᵢ + ts/2)·π/2 + (D − r)` long.
+4. Doors are laid out in the **door zone** and the pair check measures it — one shared
+   `pairTooNarrowProblem`, not the same three lines in three specs. Shelves take the square
+   notch, and the note says the edgebander is why.
+5. The fixing strip is `ConstructionMethod.fixingStripWidth`, migrated in at project schema v8
+   and standards v4.
 
-1. Lift formers and skins out of `radiusEnd.ts` into shared builders in `rules/parts.ts`.
-2. `topPanel` and `bottomPanel` take the arc; the end panel loses the radius off its depth and
-   sits back behind the ply.
-3. The wrap, as one flat–bend–flat part.
-4. Doors keep clear of the strip; shelves take the square notch. The `W < 400` pair check in
-   all three specs has to measure the **door zone**, not the full width, or a 550 radius on a
-   900 quietly produces two 160mm doors and passes.
-5. Unskip the second half of invariant 2.
+**How the geometry hangs together**, since it is the part that will look arbitrary otherwise.
+`rules/radius.ts` resolves the corner once: the substrate arc is radius `r − skin` and the
+finished arc is `r`, both centred on `(W − r, D − r)`, so the wrap is the same thickness the
+whole way round. Everything is written for a **front-right** corner and mirrored, so the two
+hands cannot drift apart. Plan rings are wound clockwise in (x, z) because a horizontal
+panel's placement reflects into part space, and that reflection turns them counter-clockwise —
+the winding every profile here uses.
 
-Nesting will read a radiused corner as its bounding box, the same as it reads every other
-curve. That is 5.1's known gap and Phase 3's problem — not a reason to hold this up.
+**Three parts go when the radius has eaten them, by one rule applied three times**: the end
+panel when its depth reaches zero, the back when the curve runs past its front face, the far
+side when the curve springs from inside its front edge. Nothing is special-cased at the limit,
+which is what lets a base cabinet at radius = width = depth collapse into the quarter-round
+unit of its own accord — every straight run in the plan ring reaches zero length and what is
+left is `quarterDiscProfile`'s three vertices.
 
-**Deferred, confirmed as much later:** a shelf cannot sensibly carry a bowed front *and* a
-rounded corner — two curves arguing over one edge. The app should say pick one.
+**What a radiused cabinet costs in board**: the bottom keeps its rectangle and loses the corner
+offcut plus the two thin slivers the ply set-back costs — worked longhand in
+`tests/cornerRadiusParts.test.ts`. 2% of the panel, not the 96% the shrinking bug was losing.
+
+#### What is left, and known gaps
+
+- **Nesting reads a radiused corner as its bounding box**, the same as every other curve. 5.1's
+  known gap and Phase 3's problem.
+- **The plan view draws a cabinet's footprint as a rectangle**, so a radiused corner reads
+  square there. Cosmetic, and the same limitation `panelFootprint` has.
+- **A benchtop over a radiused base cabinet is still a rectangle.** The cabinet's box does not
+  shrink, so the top is the right size — but its corner is square over a round cabinet.
+  Belongs with 5.5, where a benchtop becomes its own unit rather than something derived.
+- **Bendy ply is sold barrel or column form** and the model still doesn't record which; the
+  wrap's note tells whoever cuts it to check the sheet. Same `SheetMaterial` field 5.1 wants.
+- **Deferred, confirmed as much later:** a shelf cannot sensibly carry a bowed front *and* a
+  rounded corner — two curves arguing over one edge. The app now says pick one.
 
 ### 5.1 Curved parts — what is left after 4.4
 
@@ -729,8 +760,10 @@ alongside it, because both want the same answer to "what owns a thing that spans
 
 ### 5.7 The routed corner — the second way the shop builds a radius
 
-**Do 5.0 first.** This is the same corner by a different method, and it only makes sense once
-the bendy-ply one is built and the shared builders exist.
+**5.0 is done, so this is unblocked.** It is the same corner by a different method, and the
+shared builders it wanted — `rules/radius.ts` for the plan geometry, `cornerFormers` and
+`wrapPart` in `rules/parts.ts` — now exist. What changes is the curved piece and its material
+slot; the corner, the strip, the wrap to the back and the square-notched shelf do not.
 
 The shop builds a radiused corner two ways, and which one is in use changes what is on the
 cutlist:

@@ -202,13 +202,12 @@ describe('invariant 2 — radius = width = depth is the quarter-round unit', () 
   });
 
   /*
-   * The other half of the invariant, and the target the builders are being written against.
+   * The other half of the invariant, and the target the builders were written against.
    *
-   * Skipped rather than deleted because it cannot pass until `radiusCorner` actually reaches
-   * the part builders, and section 7's suite runs on every pull request — a red test on main
-   * teaches everyone to ignore red tests. Unskip it in the commit that makes it pass.
+   * Was skipped until `radiusCorner` reached the part builders — a red test on main teaches
+   * everyone to ignore red tests. Unskipped by the commit that made it pass.
    */
-  it.skip('reproduces the quarter-round unit from a base cabinet at radius = width = depth', () => {
+  it('reproduces the quarter-round unit from a base cabinet at radius = width = depth', () => {
     const target = quarterRound();
     const full = build(
       'base',

@@ -38,15 +38,10 @@
  */
 
 import { type Mm, mm } from '../../units.ts';
-import { cylindricalForming, developedLength } from '../../model/forming.ts';
-import { placement } from '../../geom/placement.ts';
-import { quarterDiscProfile, rectProfile } from '../../geom/profile.ts';
-import { v3 } from '../../geom/vec.ts';
 import type { RuleContext } from '../context.ts';
-import { BAND_NONE, type CabinetSpec, type PartInstance } from '../spec.ts';
-
-/** A quarter turn. Both faces the curve meets are square to each other, so it is always this. */
-const QUARTER = Math.PI / 2;
+import { type CabinetSpec, type PartInstance } from '../spec.ts';
+import { type CornerRadius, resolveCornerRadius } from '../radius.ts';
+import { cornerFormers, formerHeights, wrapLayers, wrapPart } from '../parts.ts';
 
 /** The plan radius of the curve — the outside of the finished skin. */
 const outerRadius = (ctx: RuleContext): Mm => mm(ctx.options.endRadius ?? ctx.D);
@@ -55,94 +50,42 @@ const outerRadius = (ctx: RuleContext): Mm => mm(ctx.options.endRadius ?? ctx.D)
 const layerCount = (ctx: RuleContext): number => Math.max(1, Math.round(ctx.options.skinLayers ?? 2));
 
 /**
- * The radius the **formers** are cut to: the finished face, less every layer of skin that
- * will go over them.
+ * This unit, described as the corner radius it is.
  *
- * Getting this wrong by one layer is the classic error — a former cut to the finished radius
- * gives a curve 3 or 6mm proud of where the run's front face is, which shows up as a step you
- * can catch a fingernail on right where everybody touches it.
+ * **The quarter-round unit is already a corner radius — the front-right one.** Its straight
+ * edges land on the left face and the back, and the arc runs from (0, D) round to (W, 0), so
+ * the corner actually missing is the front-right, at (W, D). A corner radius `r` there has its
+ * centre at (W − r, D − r); set `r = W = D` and the centre lands on the back-left corner and
+ * the shape *is* the quarter disc. So the parts come out of `rules/parts.ts` rather than out
+ * of a second copy here — the fixing strip, the wrap's straight tail, the end panel and the
+ * far side all fall to zero of their own accord at that radius, which is exactly the identity
+ * `tests/cornerRadius.test.ts` pins.
+ *
+ * The width and depth passed in are the **radius**, not the cabinet's. A unit asked for at
+ * some other width is an ellipse, which `validate` reports; building it as a quarter of the
+ * stated radius is what it has always done, and changing that here would be a different fix.
  */
-const formerRadius = (ctx: RuleContext): Mm => mm(outerRadius(ctx) - layerCount(ctx) * ctx.ts);
-
-/**
- * Where the formers sit up the height.
- *
- * Top and bottom always, plus enough between them that no clear gap exceeds `formerSpacing`.
- * The gap is what decides it rather than the count, because what actually goes wrong is the
- * skin taking up a flat between two formers too far apart.
- */
-const formerHeights = (ctx: RuleContext): Mm[] => {
-  const spacing = Math.max(50, ctx.options.formerSpacing ?? 300);
-  const span = ctx.H - ctx.t; // bottom former's underside to top former's underside
-  const gaps = Math.max(1, Math.ceil(span / (spacing + ctx.t)));
-  return Array.from({ length: gaps + 1 }, (_, i) => mm((span * i) / gaps));
-};
-
-const formers = (ctx: RuleContext): PartInstance[] => {
-  const r = formerRadius(ctx);
-  const heights = formerHeights(ctx);
-  return heights.map((y, i) => ({
-    name: heights.length === 1 ? 'Former' : `Former ${i + 1}`,
-    role: 'former' as const,
-    /*
-     * A former is a horizontal plate, so its thickness has to run **up**. The thickness axis
-     * is derived — `u × v` — which makes the choice of u and v the thing that decides it:
-     * `+X, +Z` crosses to −Y and hangs every plate below its own line, a whole board thickness
-     * out and out of the carcass at the bottom. `+Z, +X` crosses to +Y and sits them on it.
-     *
-     * With those axes part +X runs toward the front and part +Y runs right, so the quarter
-     * disc's two straight edges land exactly on the faces that are covered: the back against
-     * the wall, and the left against the run it butts.
-     */
-    profile: quarterDiscProfile(r),
-    placement: placement(v3(0, y, 0), '+Z', '+X'),
-    material: 'carcass' as const,
-    // Nothing is banded: every edge of a former is either buried in the assembly or under
-    // the skin.
-    bandedDirections: BAND_NONE,
-    grain: 'any' as const,
-    note: i === 0 ? `Quarter disc, ${Math.round(r)}mm radius — cut under the skin` : undefined,
-  }));
-};
-
-/**
- * The bendy ply, cut flat and bent afterwards.
- *
- * Each layer is a **different length**, and this is the whole reason the forming descriptor
- * exists. The inner layer wraps the formers; the next one wraps the inner layer, a board
- * thickness further out, and therefore has further to go. Cutting them all the same makes
- * every layer after the first come up short, and you find out with the glue on.
- *
- * The part stored is the flat rectangle — `developedLength` long by the carcass height. That
- * is what gets nested and cut. `forming` records the bend for the viewport and for nobody
- * else.
- */
-const skins = (ctx: RuleContext): PartInstance[] => {
-  const layers = layerCount(ctx);
-  const rFormer = formerRadius(ctx);
-
-  return Array.from({ length: layers }, (_, i) => {
-    const inner = mm(rFormer + i * ctx.ts);
-    const forming = cylindricalForming('x', inner, QUARTER);
-    const length = developedLength(forming, ctx.ts);
-
-    return {
-      name: layers === 1 ? 'Skin' : `Skin layer ${i + 1}`,
-      role: 'skin' as const,
-      profile: rectProfile(length, ctx.H),
-      // Laid so part +X wraps the curve and part +Y runs up the cabinet. The placement is
-      // where the *flat* part starts; the viewport bends it from there.
-      placement: placement(v3(0, 0, mm(inner)), '+X', '+Y'),
-      material: 'skin' as const,
-      bandedDirections: BAND_NONE,
-      grain: 'any' as const,
-      forming,
-      note:
-        `Cut flat ${length.toFixed(1)} × ${ctx.H} and bend to ${Math.round(inner)}mm inside radius. ` +
-        'Check the sheet bends this way before cutting — bendy ply is sold barrel or column form.',
-    };
+const asCorner = (ctx: RuleContext): CornerRadius => {
+  const r = outerRadius(ctx);
+  return resolveCornerRadius({
+    corner: 'front-right',
+    radius: r,
+    layers: layerCount(ctx),
+    W: r,
+    D: r,
+    t: ctx.t,
+    tb: ctx.tb,
+    ts: ctx.ts,
+    // No doors, so no door zone and nothing for a fixing strip to divide off — the wrap is
+    // the whole quarter and nothing else.
+    stripWidth: mm(0),
   });
 };
+
+const formers = (ctx: RuleContext): PartInstance[] =>
+  cornerFormers(ctx, asCorner(ctx), formerHeights(ctx));
+
+const skins = (ctx: RuleContext): PartInstance[] => wrapLayers(ctx, asCorner(ctx));
 
 /**
  * The kick, which on one of these has to curve too.
@@ -152,9 +95,11 @@ const skins = (ctx: RuleContext): PartInstance[] => {
  * daylight at each end and a flat where the curve should be. So the kick here is what the
  * rest of the unit is: a strip of bendy ply, bent, cut to its developed length.
  *
- * It sits `kickSetback` behind the finished face, so it turns a tighter circle than the skin
- * above it does and is a different length. One layer, because a kick is not holding a shape —
- * but it does need blocking behind it, which the note says.
+ * It sits `kickSetback` behind the finished face — with no door on an enclosed end there is no
+ * door face to measure back from, which is the one thing that differs from a kick round the
+ * corner of an ordinary carcass. So it turns a tighter circle than the skin above it does and
+ * is a different length. One layer, because a kick is not holding a shape — but it does need
+ * blocking behind it, which the note says.
  */
 const curvedKick = (ctx: RuleContext): PartInstance[] => {
   if (ctx.options.hasKick === false) return [];
@@ -163,22 +108,19 @@ const curvedKick = (ctx: RuleContext): PartInstance[] => {
   const inner = mm(finished - ctx.ts);
   if (inner <= 0) return [];
 
-  const forming = cylindricalForming('x', inner, QUARTER);
-  const length = developedLength(forming, ctx.ts);
   return [
-    {
+    wrapPart(ctx, asCorner(ctx), {
       name: 'Kick',
       role: 'kick',
-      profile: rectProfile(length, c.kickHeight),
-      placement: placement(v3(0, mm(-c.kickHeight), mm(inner)), '+X', '+Y'),
-      material: 'skin',
-      bandedDirections: BAND_NONE,
-      grain: 'any',
-      forming,
-      note:
+      innerRadius: inner,
+      lead: mm(0),
+      trail: mm(0),
+      height: c.kickHeight,
+      bottomY: mm(-c.kickHeight),
+      note: () =>
         `Bendy ply, bent to ${Math.round(inner)}mm inside radius — set back ${c.kickSetback} ` +
         'from the face. Needs blocking behind it.',
-    },
+    }),
   ];
 };
 
@@ -211,8 +153,7 @@ export const RADIUS_END_SPEC: CabinetSpec = {
       );
     }
 
-    const rFormer = formerRadius(ctx);
-    if (rFormer <= 0) {
+    if (asCorner(ctx).rSub <= 0) {
       problems.push(
         `${layerCount(ctx)} layers of ${ctx.ts}mm skin leave nothing of a ${Math.round(r)}mm radius.`,
       );

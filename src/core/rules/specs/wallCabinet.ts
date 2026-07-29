@@ -13,10 +13,13 @@ import {
   adjustableShelves,
   backPanel,
   bottomPanel,
+  carcassCornerFormers,
   doors,
   leftSide,
+  pairTooNarrowProblem,
   rightSide,
   topPanel,
+  wrapLayers,
 } from '../parts.ts';
 
 export const WALL_CABINET_SPEC: CabinetSpec = {
@@ -32,11 +35,7 @@ export const WALL_CABINET_SPEC: CabinetSpec = {
   carcassLift: () => mm(0),
 
   validate: (ctx) => {
-    const problems: string[] = [];
-    const count = ctx.options.doorCount ?? 2;
-    if (count === 2 && ctx.W < 400) {
-      problems.push(`A ${ctx.W}mm cabinet is too narrow for a pair of doors — use one door.`);
-    }
+    const problems: string[] = [...pairTooNarrowProblem(ctx)];
     if (ctx.D > 450) {
       problems.push(`Wall cabinet depth ${ctx.D}mm will foul the benchtop working area.`);
     }
@@ -47,12 +46,14 @@ export const WALL_CABINET_SPEC: CabinetSpec = {
   },
 
   parts: [
-    { key: 'side-left', produce: (ctx) => [leftSide(ctx)] },
-    { key: 'side-right', produce: (ctx) => [rightSide(ctx)] },
+    { key: 'side-left', produce: leftSide },
+    { key: 'side-right', produce: rightSide },
     { key: 'bottom', produce: (ctx) => [bottomPanel(ctx)] },
     { key: 'top', produce: (ctx) => [topPanel(ctx)] },
-    { key: 'back', produce: (ctx) => [backPanel(ctx)] },
+    { key: 'back', produce: backPanel },
     { key: 'shelves', produce: (ctx) => adjustableShelves(ctx, ctx.options.shelfCount ?? 2) },
     { key: 'doors', produce: (ctx) => doors(ctx, ctx.options.doorCount ?? 2) },
+    { key: 'formers', produce: (ctx) => carcassCornerFormers(ctx, { hasTopPanel: true }) },
+    { key: 'skin', produce: (ctx) => (ctx.radius ? wrapLayers(ctx, ctx.radius) : []) },
   ],
 };

@@ -76,7 +76,7 @@ would be a rebate through the whole part.
 
 ## Curves
 
-Two kinds of radius work, both cut from real circles rather than from a lot of short straight
+Three kinds of radius work, all cut from real circles rather than from a lot of short straight
 lines pretending to be one.
 
 **Open radius shelving.** Any custom cabinet has a **shelf front bow**: how far the front of a
@@ -109,6 +109,34 @@ Every skin is on the cutlist as the **flat rectangle you actually cut**, with a 
 radius to bend it to. Bendy ply is sold barrel form or column form depending which way it bends,
 and the app doesn't know which you've bought — so the note tells whoever's cutting to check the
 sheet first.
+
+**A rounded corner on an ordinary cabinet.** A base, wall or tall cabinet takes a **rounded
+corner** — pick which front corner, left or right as you stand and look at it, and type the
+radius. The cabinet **keeps its size**: a 900 × 720 × 560 with a 200 radius is still 900 × 720
+× 560, and the only board you lose is the corner offcut. A radiused end is the same thing grown
+until the radius equals the width and the depth, which is why the two produce the same shape at
+that point.
+
+What comes out is what one is built from:
+
+- **The end panel stays in**, set back behind the ply so the ply finishes flush, and shortened
+  by the radius. It's still carrying the shelves, the top and the benchtop over it — you don't
+  throw away a good 460mm side panel to get a 100mm curve.
+- **A 50mm strip of flat front** beside the curve, which is what the curved piece is fixed to.
+  It's there whether the cabinet has doors or not, and it's under **Settings → Construction** if
+  your shop works to something other than 50.
+- **The wrap is one piece per layer, no join** — the strip, round the corner, then flat all the
+  way down the end to the back. An exposed end wants no joint line in it.
+- **Shelves get a square notch** at that corner rather than a curved one. That's the
+  edgebander's doing, not the saw's: a curved edge won't go through it. The top and bottom do
+  take the curve, because that edge disappears under the ply and never gets banded.
+- **Doors keep clear of the strip**, and the app checks the pair for width against the door
+  opening you'd actually have — a 550 radius on a 900 leaves 300mm of front, and it says so
+  rather than quietly cutting two 147mm doors.
+
+Setting a radius **defaults the cabinet to no doors and no shelves**, because the usual reason
+for one is a decorative end rather than a cupboard. Ask for a door and you'll get one, sized to
+what the curve left.
 
 ## What the board measures, not what it's called
 
@@ -262,6 +290,8 @@ having something other than memory re-checking it.
 | — | Nominal vs actual board thickness (16 vs 16.3mm) | **done** |
 | — | Door styles — shaker and V-groove as machining, saved and costed | **done**; toolpaths in 4 |
 | — | Curved parts — arc-capable profiles, radiused shelving, radiused ends | **done** |
+| — | A rounded corner on a base, wall or tall cabinet — bendy ply and formers | **done** |
+| — | The same corner routed from door board instead of wrapped in ply | not started |
 | 2 | Hardware/joinery rules (Blum first), full cutlist/BOM export | not started |
 | — | Benchtops as their own unit, rather than derived from the cabinets under them | not started |
 | — | A separate ladder kick under a run, rather than a kick per cabinet | not started |
