@@ -9,7 +9,7 @@ cutlist, and costing that handles GST properly — all driven from one versioned
 ```bash
 npm install
 npm run dev       # the app
-npm test          # 341 tests
+npm test          # 388 tests
 npm run report    # cutlist + costing for the sample kitchen, in the terminal
 ```
 
@@ -250,7 +250,7 @@ builders, which is the test of whether that's actually true.
 
 ## Verification
 
-341 tests, and the ones that matter are hand-calculated rather than snapshot:
+388 tests, and the ones that matter are hand-calculated rather than snapshot:
 
 - Every part size for the reference 900×720×560 base cabinet, worked out longhand in the test
   file header and asserted individually.
