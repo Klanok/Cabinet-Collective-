@@ -344,6 +344,8 @@ having something other than memory re-checking it.
 | 2 | Hardware/joinery rules — MERIVOBOX boxes, CLIP top boring, System 32, hardware BOM, CSV export | **done** |
 | — | Hettich as the second hardware brand | not started |
 | — | PDF export (CSV is done; print from the browser meanwhile) | not started |
+| — | Cabinets butting up against each other on a drag, not just against walls | **done** |
+| — | Decor colours in the 3D view, so a walnut door doesn't render as white melamine | **done** |
 | — | Benchtops as their own unit, rather than derived from the cabinets under them | not started |
 | — | A separate ladder kick under a run, rather than a kick per cabinet | not started |
 | — | Wall openings — bulkheads, windows, out-of-square walls and scribes | not started |

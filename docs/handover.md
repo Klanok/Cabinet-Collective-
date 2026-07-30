@@ -960,17 +960,18 @@ speculatively.
 
 ### 5.4 Smaller things noted but not done
 
-- **Cabinets snap to a wall but not to each other.** Dragging one within ~50mm of a neighbour
-  should butt it against that neighbour's end, the way it already goes flush to a wall. Asked
-  for from the bench: it is how a run actually gets laid out, and it removes the last reason to
-  type an X. The snapping already in `project/wallPlacement.ts` is the place for it, and it
-  should test the cabinet's *ends along its own run axis* rather than world X — the same lesson
-  the benchtop run-finder had to learn.
-- **Changing the front material doesn't change the colour on screen.** `PanelMesh` colours a
-  part by its *role*, so every door renders the same off-white whatever decor is chosen.
-  `SheetMaterial` has a decor name but no colour to render, so the fix is a hex on the material
-  and a viewport that prefers it over the role colour. Worth doing — it is most of what makes
-  the 3D view worth showing a client, and a routed door style barely reads on white.
+- ~~Cabinets snap to a wall but not to each other.~~ **Done.** `snapToNeighbour` in
+  `project/wallPlacement.ts`, tried before the wall snap and winning within 60mm. It resolves both
+  cabinets into the **run's own frame** before comparing, which is the lesson the benchtop
+  run-finder had to learn — down the east wall two cabinets side by side share an X entirely, so
+  the test for it is written on that wall rather than on the south one where a wrong
+  implementation passes. Same yaw, same height off the floor and same line across the run are all
+  required, and each rules out a real mistake rather than being tidiness.
+- ~~Changing the front material doesn't change the colour on screen.~~ **Done.**
+  `SheetMaterial.colour` is a hex the viewport prefers over the role colour; unset falls back
+  exactly as before. It is a **screen approximation** and nothing is cut, priced or ordered from
+  it — the decor name is the fact. Editable per job under Settings → Materials, and reported in
+  the standards diff so a changed colour cannot make a job read as drifted with nothing listed.
 - Cabinets can be dragged but not rotated with the mouse; yaw is typed, or set by snapping to
   a wall.
 - The custom cabinet excludes itself from benchtop runs — a banquette shouldn't get one, but
