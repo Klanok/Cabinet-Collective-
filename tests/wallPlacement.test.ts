@@ -21,6 +21,18 @@
  *   yaw     = 270, so cabinet +X (its own right) runs to world +Z
  *   it therefore occupies z 900 → 1500, and x 4200 back to 3640
  *   footprint centre = (3920, 1200)
+ *
+ * ## Butting one cabinet against the next
+ *
+ * The east wall is the case that matters and it is why these tests exist. A cabinet on it has
+ * yaw 270, so its **run axis is world +Z** — two cabinets side by side there share an X entirely.
+ * Anything that measured "next to" along world X would call them neighbours when they are one
+ * behind the other, and would never call them neighbours when they are side by side. That is the
+ * same mistake `project/benchtop.ts` had to be fixed for.
+ *
+ *   a 600-wide cabinet 900 along the east wall occupies z 900 → 1500 at x 4200
+ *   the next one butted to its right-hand end starts at z 1500, anchor (4200, 150, 1500)
+ *   the one butted to its left-hand end ends at z 900, so a 900-wide one starts at z 0
  */
 
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -32,6 +44,7 @@ import {
   cabinetFootprint,
   cabinetFootprintCentre,
   placeAgainstWall,
+  snapToNeighbour,
   snapToWall,
   wallAnchorOf,
   yawAgainstWall,
@@ -296,5 +309,145 @@ describe('cabinets in an L-shaped room', () => {
       cabinets: [onWall(l, 'Sink wall', 600, 900), onWall(l, 'Wall 6', 900, 600)],
     });
     expect(issues).toEqual([]);
+  });
+});
+
+
+describe('butting one cabinet against the next', () => {
+  // Ids only have to be stable and distinct here — the snap never looks at the room.
+  beforeEach(resetIdCounter);
+
+  /** A base cabinet standing on the south wall, where the run axis is world +X. */
+  const onSouth = (name: string, x: number, width = 600) =>
+    createCabinet({ typeId: 'base', name, width: mm(width), x: mm(x), z: mm(0) });
+
+  /** The same on the east wall, where the run axis is world +Z and X is constant. */
+  const onEast = (name: string, along: number, width = 600) =>
+    createCabinet({
+      typeId: 'base',
+      name,
+      width: mm(width),
+      x: mm(4200),
+      z: mm(along),
+      yawDeg: 270,
+    });
+
+  it('closes a small gap onto the neighbour’s right-hand end', () => {
+    const fixed = onSouth('B1', 0);
+    const dragged = onSouth('B2', 600);
+    // Dropped 20mm short of where it belongs.
+    const snap = snapToNeighbour([fixed, dragged], dragged, mm(580), mm(0), mm(60));
+
+    expect(snap?.neighbour.name).toBe('B1');
+    expect(snap?.end).toBe('right');
+    expect(snap?.placement.anchor.x).toBe(600);
+    expect(snap?.gap).toBe(20);
+  });
+
+  it('closes onto the left-hand end too, from the other side', () => {
+    const fixed = onSouth('B1', 900);
+    const dragged = onSouth('B2', 0);
+    // A 600 cabinet butted to the left of one starting at 900 has to start at 300.
+    const snap = snapToNeighbour([fixed, dragged], dragged, mm(315), mm(0), mm(60));
+
+    expect(snap?.end).toBe('left');
+    expect(snap?.placement.anchor.x).toBe(300);
+  });
+
+  it('lines the run up across as well as along', () => {
+    const fixed = onSouth('B1', 0);
+    const dragged = onSouth('B2', 600);
+    // Dropped 25mm out into the room as well as 10mm short along the run.
+    const snap = snapToNeighbour([fixed, dragged], dragged, mm(590), mm(25), mm(60));
+
+    expect(snap?.placement.anchor.x).toBe(600);
+    // Back in line with the neighbour's back, which is what makes a run straight.
+    expect(snap?.placement.anchor.z).toBe(0);
+    // hypot(10, 25) — how far it actually moved, not just how far along.
+    expect(snap?.gap).toBeCloseTo(Math.hypot(10, 25), 6);
+  });
+
+  /**
+   * The one that would fail on a world-X test. Both cabinets sit at x = 4200 and differ only in Z,
+   * so "how far apart in X" is zero whether they are butted or a metre apart.
+   */
+  it('works down a wall whose run axis is world Z, not world X', () => {
+    const fixed = onEast('E1', 900);
+    const dragged = onEast('E2', 1500);
+    const snap = snapToNeighbour([fixed, dragged], dragged, mm(4200), mm(1470), mm(60));
+
+    expect(snap?.end).toBe('right');
+    expect(snap?.placement.anchor.z).toBe(1500);
+    expect(snap?.placement.anchor.x).toBe(4200);
+    expect(snap?.gap).toBe(30);
+  });
+
+  it('does not mistake one behind the other for one beside it', () => {
+    const fixed = onEast('E1', 900);
+    const dragged = onEast('E2', 900);
+    // Directly in front of the neighbour: same Z entirely, 600 out into the room. On a world-X
+    // test these two share an X and would read as touching.
+    expect(snapToNeighbour([fixed, dragged], dragged, mm(3600), mm(900), mm(60))).toBeNull();
+  });
+
+  it('leaves a cabinet on the return leg of an L alone', () => {
+    const fixed = onSouth('B1', 0);
+    const returning = onEast('E1', 0);
+    // Geometrically close to the south run, but turned 270° — a corner, not a butt joint.
+    expect(snapToNeighbour([fixed, returning], returning, mm(600), mm(0), mm(60))).toBeNull();
+  });
+
+  it('does not snap a wall unit onto the base cabinet under it', () => {
+    const base = onSouth('B1', 0);
+    const wall = createCabinet({ typeId: 'wall', name: 'W1', width: mm(600), x: mm(600), z: mm(0) });
+    // Right above the run and perfectly placed along it — but 1500 off the floor.
+    expect(snapToNeighbour([base, wall], wall, mm(590), mm(0), mm(60))).toBeNull();
+  });
+
+  it('never snaps a cabinet to itself', () => {
+    const only = onSouth('B1', 0);
+    expect(snapToNeighbour([only], only, mm(10), mm(0), mm(60))).toBeNull();
+  });
+
+  it('lets go beyond the snap distance', () => {
+    const fixed = onSouth('B1', 0);
+    const dragged = onSouth('B2', 600);
+    expect(snapToNeighbour([fixed, dragged], dragged, mm(520), mm(0), mm(60))).toBeNull();
+    expect(snapToNeighbour([fixed, dragged], dragged, mm(545), mm(0), mm(60))).not.toBeNull();
+  });
+
+  it('takes the nearer of two neighbours rather than the first it finds', () => {
+    const left = onSouth('B1', 0);
+    const right = onSouth('B3', 1240);
+    const dragged = onSouth('B2', 600);
+    // The gap between them is 640 for a 600 cabinet, so both ends are in reach: 600 on the left,
+    // 640 on the right. Dropped at 625 it is 25 from one and 15 from the other.
+    const snap = snapToNeighbour([left, right, dragged], dragged, mm(625), mm(0), mm(60));
+    expect(snap?.neighbour.name).toBe('B3');
+    expect(snap?.placement.anchor.x).toBe(640);
+  });
+
+  it('butts a narrower cabinet flush at the back, proud at the front', () => {
+    const deep = onSouth('B1', 0);
+    const shallow = createCabinet({
+      typeId: 'base',
+      name: 'B2',
+      width: mm(450),
+      depth: mm(400),
+      x: mm(600),
+      z: mm(0),
+    });
+    const snap = snapToNeighbour([deep, shallow], shallow, mm(590), mm(0), mm(60));
+    // The anchor is the back-left corner, so lining the anchors up lines the backs up — which is
+    // what happens against a wall, and leaves the shallower one 160 shy at the front.
+    expect(snap?.placement.anchor.z).toBe(0);
+    expect(snap?.placement.anchor.x).toBe(600);
+  });
+
+  it('squares a cabinet up with its neighbour, not merely near it', () => {
+    const fixed = onSouth('B1', 0);
+    const askew = { ...onSouth('B2', 600), placement: { anchor: { x: mm(590), y: mm(150), z: mm(0) }, yawDeg: 0 } };
+    const snap = snapToNeighbour([fixed, askew], askew, mm(590), mm(0), mm(60));
+    expect(snap?.placement.yawDeg).toBe(fixed.placement.yawDeg);
   });
 });
