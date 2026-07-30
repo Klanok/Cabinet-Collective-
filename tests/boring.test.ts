@@ -135,6 +135,56 @@ describe('hinge cups', () => {
     expect(drilledFor(byName(panels, 'Door R'), 'hinge-cup').map((c) => c.y)).toEqual([22.5, 22.5]);
   });
 
+  /**
+   * The bug this exists for, and it is the one the whole file is shaped around.
+   *
+   * A corner radius pushes the door zone to one end of the cabinet. At a 350mm radius on a 900
+   * carcass **both** doors of a pair sit in the left half — so deciding each door's hand by
+   * comparing it to the middle of the cabinet hinged both of them left. Two doors swinging the same
+   * way, and the right-hand one's mounting plates bored into the left side panel.
+   *
+   * It passed everything: two doors, two cups each, four plate holes, all the right diameters. Only
+   * the coordinate shows it. Deciding the pair by comparing the doors **to each other** cannot go
+   * wrong however far the curve has eaten the zone.
+   */
+  it('hinges a pair outward on a radiused cabinet, where both doors are in one half', () => {
+    for (const radius of [200, 350, 450]) {
+      const { panels } = build('base', {
+        radiusCorner: 'front-right',
+        carcassRadius: mm(radius) as never,
+        doorCount: 2,
+        shelfCount: 0,
+      });
+      const left = byName(panels, 'Door L');
+      const right = byName(panels, 'Door R');
+      const width = size(left)[1];
+
+      // Door L's cups on its far edge (part y = width − 22.5), Door R's on its near edge (22.5).
+      expect(drilledFor(left, 'hinge-cup').map((c) => c.y), `radius ${radius} left`).toEqual([
+        width - 22.5,
+        width - 22.5,
+      ]);
+      expect(drilledFor(right, 'hinge-cup').map((c) => c.y), `radius ${radius} right`).toEqual([
+        22.5,
+        22.5,
+      ]);
+    }
+  });
+
+  it('keeps a tall cabinet’s split banks as two separate pairs, not one foursome', () => {
+    const split = build('tall', { doorCount: 2, doorSplitHeight: mm(1200), shelfCount: 0 });
+    for (const name of ['Door lower L', 'Door upper L']) {
+      const door = byName(split.panels, name);
+      expect(drilledFor(door, 'hinge-cup').every((c) => c.y === size(door)[1] - 22.5), name).toBe(true);
+    }
+    for (const name of ['Door lower R', 'Door upper R']) {
+      expect(
+        drilledFor(byName(split.panels, name), 'hinge-cup').every((c) => c.y === 22.5),
+        name,
+      ).toBe(true);
+    }
+  });
+
   it('takes the swing from the option when there is only one door to read', () => {
     const left = build('base', { doorCount: 1, doorSwing: 'left' });
     const right = build('base', { doorCount: 1, doorSwing: 'right' });
@@ -217,6 +267,41 @@ describe('mounting plates', () => {
     const split = build('tall', { doorCount: 2, doorSplitHeight: mm(1200), shelfCount: 0 });
     // Lower door 1198.5 tall → 3 hinges; upper 865.5 → 2. Five hinges, ten holes, one side.
     expect(drilledFor(byName(split.panels, 'Side L'), 'hinge-plate')).toHaveLength(10);
+  });
+
+  /**
+   * A pair on a radiused cabinet has a door with nothing beside it.
+   *
+   * The curve pushes the door zone off the rounded end, so the inner door's hinged edge can end up
+   * hundreds of millimetres from the far side panel. Four holes bored into that panel would be four
+   * holes for a hinge that cannot reach them — the cabinet needs one door, and the model says so
+   * rather than drilling.
+   */
+  it('will not bore a plate a door cannot reach', () => {
+    const { panels, warnings } = build('base', {
+      radiusCorner: 'front-right',
+      carcassRadius: mm(350) as never,
+      doorCount: 2,
+      shelfCount: 0,
+    });
+    // The door beside the left-hand side panel still gets its plates.
+    expect(drilledFor(byName(panels, 'Side L'), 'hinge-plate')).toHaveLength(4);
+    // The one out over the curve does not, and the cups are still bored so it is visible.
+    expect(drilledFor(byName(panels, 'Side R'), 'hinge-plate')).toHaveLength(0);
+    expect(drilledFor(byName(panels, 'Door R'), 'hinge-cup')).toHaveLength(2);
+    expect(warnings.join(' ')).toMatch(/380mm clear of the nearest side panel/);
+  });
+
+  it('leaves an ordinary cabinet’s plates alone — the reach check only bites when it should', () => {
+    for (const options of [
+      { doorCount: 2 as const, shelfCount: 0 },
+      { doorCount: 1 as const, doorSwing: 'right' as const, shelfCount: 0 },
+    ]) {
+      const { panels, warnings } = build('base', options);
+      const bored = panels.filter((p) => drilledFor(p, 'hinge-plate').length > 0);
+      expect(bored.length).toBe(options.doorCount);
+      expect(warnings.join(' ')).not.toMatch(/clear of the nearest side panel/);
+    }
   });
 
   it('says so when the radius has eaten the side a door hinges onto', () => {
