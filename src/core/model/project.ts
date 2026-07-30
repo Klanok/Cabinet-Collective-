@@ -12,12 +12,20 @@ import {
   type ConstructionMethod,
   collapseThicknessFields,
   withFixingStrip,
+  withSystemHoles,
 } from './construction.ts';
+import type { HardwareLibrary } from './hardware.ts';
 import type { MaterialLibrary } from './material.ts';
 import type { Room } from './room.ts';
 import { type DoorStyle, DEFAULT_DOOR_STYLES, PLAIN_SLAB_STYLE } from '../standards/doorStyles.ts';
+import {
+  BLUM_HARDWARE_LIBRARY,
+  DEFAULT_DRAWER_SIDE_HEIGHT_CODE,
+  DEFAULT_HINGE_SYSTEM_ID,
+  DEFAULT_RUNNER_SYSTEM_ID,
+} from '../library/blum.ts';
 
-export const CURRENT_SCHEMA_VERSION = 8 as const;
+export const CURRENT_SCHEMA_VERSION = 9 as const;
 
 /**
  * The bendy ply an older job is given when it is migrated forward. It has no curved parts in
@@ -105,6 +113,15 @@ export interface Project {
    * re-machine a kitchen you already quoted.
    */
   readonly doorStyles: readonly DoorStyle[];
+  /**
+   * The runner and hinge systems this job's boxes are cut to and its carcasses bored for.
+   *
+   * Snapshotted, not referenced, for the same reason the materials and the door styles are — and
+   * with a sharper edge than either. A runner system decides **how big a drawer bottom is cut**.
+   * Change your standard runner next year and a kitchen already quoted must still cut to the runner
+   * it was quoted for, or the boxes come back from the saw fitting nothing.
+   */
+  readonly hardware: HardwareLibrary;
   readonly settings: ProjectSettings;
 
   /** Default materials used when a cabinet doesn't override them. */
@@ -121,6 +138,12 @@ export interface ProjectDefaults {
   readonly edgeBandId: string;
   /** Style used for every front unless a cabinet says otherwise. */
   readonly doorStyleId: string;
+  /** Drawer runner system every drawer bank is built on unless a cabinet says otherwise. */
+  readonly runnerSystemId: string;
+  /** Which of that system's box heights — Blum's 'M', 'K', 'N'. */
+  readonly drawerSideHeightCode: string;
+  /** Hinge system every door is bored for unless a cabinet says otherwise. */
+  readonly hingeSystemId: string;
   readonly baseCabinetHeight: Mm;
   readonly baseCabinetDepth: Mm;
   readonly wallCabinetHeight: Mm;
@@ -346,6 +369,50 @@ const migrateV7toV8 = (raw: Record<string, unknown>): Record<string, unknown> =>
 };
 
 /**
+ * v8 → v9. **Hardware arrives, and this is the one migration that changes what a job costs.**
+ *
+ * Every other migration in this file was written to move nothing: an old job comes forward and cuts
+ * and prices exactly as it did. This one cannot honour that, and pretending otherwise would be the
+ * dishonest option, so it is worth being plain about what happens and why it is right.
+ *
+ * **Nothing that already existed moves.** Every panel a v8 job had comes out the same size, in the
+ * same place, with the same banding. That half of the rule is kept, and it is the half that
+ * protects a job on the saw.
+ *
+ * **What appears is what was missing.** A drawer bank now cuts the drawer boxes Phase 1 deliberately
+ * left out, because the runner that dictates their size is finally chosen. Hinges, mounting plates,
+ * runners and shelf pins now appear on a BOM and on the quote. A saved kitchen therefore gets
+ * *dearer*, and the reason is that it always had hinges and runners in it and was never being
+ * charged for them. Leaving that under-quote in place to protect a number would be the worse
+ * outcome by a wide margin.
+ *
+ * The alternative was a flag that kept hardware switched off for migrated jobs. That was rejected:
+ * it means two code paths, and it means opening last year's kitchen and finding no drawer boxes with
+ * nothing on screen to say why.
+ *
+ * The version bump does its usual job — an older build opening a v9 job would draw the drawer boxes
+ * as nothing at all and quote the hardware at zero, and refusing the file is the honest failure.
+ */
+const migrateV8toV9 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const constructions = (raw.constructions as Record<string, unknown>[] | undefined) ?? [];
+  const defaults = (raw.defaults as Record<string, unknown> | undefined) ?? {};
+  const existing = raw.hardware as HardwareLibrary | undefined;
+  return {
+    ...raw,
+    schemaVersion: 9,
+    constructions: constructions.map(withSystemHoles),
+    hardware:
+      existing && existing.runnerSystems?.length > 0 ? existing : BLUM_HARDWARE_LIBRARY,
+    defaults: {
+      ...defaults,
+      runnerSystemId: defaults.runnerSystemId ?? DEFAULT_RUNNER_SYSTEM_ID,
+      drawerSideHeightCode: defaults.drawerSideHeightCode ?? DEFAULT_DRAWER_SIDE_HEIGHT_CODE,
+      hingeSystemId: defaults.hingeSystemId ?? DEFAULT_HINGE_SYSTEM_ID,
+    },
+  };
+};
+
+/**
  * Load a project from stored JSON, migrating older schema versions forward.
  *
  * Migrations run in sequence, so a v1 file loaded after several schema changes still arrives
@@ -373,6 +440,7 @@ export const migrateProject = (raw: unknown): Project => {
   if (data.schemaVersion === 5) data = migrateV5toV6(data);
   if (data.schemaVersion === 6) data = migrateV6toV7(data);
   if (data.schemaVersion === 7) data = migrateV7toV8(data);
+  if (data.schemaVersion === 8) data = migrateV8toV9(data);
 
   if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`migrateProject: could not migrate schema version ${String(version)}`);
