@@ -42,6 +42,12 @@ export const AU_PROJECT_DEFAULTS: ProjectDefaults = {
   // A plain slab, because a door style is a choice a client makes rather than something the
   // shop assumes. It machines nothing, so a new job cuts exactly as jobs always have.
   doorStyleId: 'slab',
+  // MERIVOBOX at M height is the shop's standard drawer, so every drawer bank is built on it
+  // unless a cabinet says otherwise. Its nominal length is *not* a default: it is chosen to suit
+  // each cabinet's real depth, which is what a 560 carcass and a 460 carcass need it to be.
+  runnerSystemId: 'merivobox',
+  drawerSideHeightCode: 'M',
+  hingeSystemId: 'clip-top-blumotion',
   baseCabinetHeight: AU_BASE_CARCASS_HEIGHT,
   baseCabinetDepth: AU_BASE_CARCASS_DEPTH,
   wallCabinetHeight: AU_WALL_CARCASS_HEIGHT,

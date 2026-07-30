@@ -12,6 +12,7 @@
  */
 
 import { type MaterialLibrary, actualThicknessOf } from '../model/material.ts';
+import type { HardwareLibrary } from '../model/hardware.ts';
 import type { ConstructionMethod } from '../model/construction.ts';
 import type { Project, ProjectDefaults, ProjectSettings } from '../model/project.ts';
 import type { SavedCabinetType } from './savedTypes.ts';
@@ -20,11 +21,18 @@ import {
   DEFAULT_CONSTRUCTIONS,
   collapseThicknessFields,
   withFixingStrip,
+  withSystemHoles,
 } from '../model/construction.ts';
 import { AU_MATERIAL_LIBRARY } from '../library/materials.au.ts';
 import { AU_DEFAULT_SETTINGS, AU_PROJECT_DEFAULTS } from '../library/defaults.au.ts';
+import {
+  BLUM_HARDWARE_LIBRARY,
+  DEFAULT_DRAWER_SIDE_HEIGHT_CODE,
+  DEFAULT_HINGE_SYSTEM_ID,
+  DEFAULT_RUNNER_SYSTEM_ID,
+} from '../library/blum.ts';
 
-export const CURRENT_STANDARDS_VERSION = 4 as const;
+export const CURRENT_STANDARDS_VERSION = 5 as const;
 
 export interface ShopStandards {
   readonly version: typeof CURRENT_STANDARDS_VERSION;
@@ -46,6 +54,11 @@ export interface ShopStandards {
    */
   readonly doorStyles: readonly DoorStyle[];
   /**
+   * Runner and hinge systems. Snapshotted into a job like the door styles, and for a harder reason:
+   * a runner system decides how big a drawer bottom is cut.
+   */
+  readonly hardware: HardwareLibrary;
+  /**
    * Reusable cabinet recipes. Unlike the rest of the standards these are *not* snapshotted
    * into a job — a job records the cabinets you placed, not the catalogue you picked them
    * from, so adding a type later makes it available everywhere at once.
@@ -63,6 +76,7 @@ export const AU_SHOP_STANDARDS: ShopStandards = {
   settings: AU_DEFAULT_SETTINGS,
   materials: AU_MATERIAL_LIBRARY,
   doorStyles: DEFAULT_DOOR_STYLES,
+  hardware: BLUM_HARDWARE_LIBRARY,
   savedTypes: [],
 };
 
@@ -72,7 +86,7 @@ export const AU_SHOP_STANDARDS: ShopStandards = {
  */
 export type StandardsSnapshot = Pick<
   Project,
-  'constructions' | 'defaults' | 'settings' | 'materials' | 'doorStyles'
+  'constructions' | 'defaults' | 'settings' | 'materials' | 'doorStyles' | 'hardware'
 >;
 
 /**
@@ -86,6 +100,7 @@ const snapshotFieldsOf = (source: StandardsSnapshot): StandardsSnapshot => ({
   settings: source.settings,
   materials: source.materials,
   doorStyles: source.doorStyles,
+  hardware: source.hardware,
 });
 
 export const snapshotOf = (standards: ShopStandards): StandardsSnapshot =>
@@ -117,6 +132,7 @@ export const standardsFromProject = (
   settings: project.settings,
   materials: project.materials,
   doorStyles: project.doorStyles,
+  hardware: project.hardware,
   // Saved types belong to the catalogue, not to any one job, so promoting a job's setup
   // leaves them alone.
   savedTypes: previous?.savedTypes ?? [],
@@ -244,6 +260,9 @@ const DEFAULT_LABELS: Partial<Record<keyof ProjectDefaults, string>> = {
   edgeBandId: 'Edge banding',
   constructionId: 'Construction method',
   doorStyleId: 'Door style',
+  runnerSystemId: 'Drawer runner system',
+  drawerSideHeightCode: 'Drawer box height',
+  hingeSystemId: 'Hinge system',
   baseCabinetHeight: 'Base cabinet height',
   baseCabinetDepth: 'Base cabinet depth',
   wallCabinetHeight: 'Wall cabinet height',
@@ -270,6 +289,9 @@ export const labelForConstructionKey = (key: keyof ConstructionMethod): string =
     fixingStripWidth: 'Fixing strip at a radius',
     systemPitch: 'System hole pitch',
     systemFrontSetback: 'First hole from front',
+    systemBackSetback: 'First hole from back',
+    systemHoleDiameter: 'System hole diameter',
+    systemHoleDepth: 'System hole depth',
   };
   return labels[key] ?? String(key);
 };
@@ -293,6 +315,7 @@ export const migrateStandards = (raw: unknown): ShopStandards => {
   if (data.version === 1) data = migrateStandardsV1toV2(data);
   if (data.version === 2) data = migrateStandardsV2toV3(data);
   if (data.version === 3) data = migrateStandardsV3toV4(data);
+  if (data.version === 4) data = migrateStandardsV4toV5(data);
 
   if (data.version !== CURRENT_STANDARDS_VERSION) {
     throw new Error(`migrateStandards: could not migrate version ${String(version)}`);
@@ -341,6 +364,36 @@ const migrateStandardsV2toV3 = (raw: Record<string, unknown>): Record<string, un
 const migrateStandardsV3toV4 = (raw: Record<string, unknown>): Record<string, unknown> => {
   const constructions = (raw.constructions as Record<string, unknown>[] | undefined) ?? [];
   return { ...raw, version: 4, constructions: constructions.map(withFixingStrip) };
+};
+
+/**
+ * Standards v4 → v5: runner and hinge systems arrive, matching the project's v8 → v9.
+ *
+ * A real migration again rather than a rejection, for the reason every standards migration here is
+ * one: a shop's standards are years of accumulated kick heights, reveals, door styles and saved
+ * types, and throwing them away to add a field is a far worse outcome than the change it was
+ * protecting against.
+ *
+ * Nothing a shop has set is touched. What is added is the shipped Blum library and the three ids
+ * pointing at it, plus the system-hole figures on each construction method — and no hole had ever
+ * been bored before this version, so there is nothing for them to move.
+ */
+const migrateStandardsV4toV5 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const constructions = (raw.constructions as Record<string, unknown>[] | undefined) ?? [];
+  const defaults = (raw.defaults as Record<string, unknown> | undefined) ?? {};
+  const existing = raw.hardware as HardwareLibrary | undefined;
+  return {
+    ...raw,
+    version: 5,
+    constructions: constructions.map(withSystemHoles),
+    hardware: existing && existing.runnerSystems?.length > 0 ? existing : BLUM_HARDWARE_LIBRARY,
+    defaults: {
+      ...defaults,
+      runnerSystemId: defaults.runnerSystemId ?? DEFAULT_RUNNER_SYSTEM_ID,
+      drawerSideHeightCode: defaults.drawerSideHeightCode ?? DEFAULT_DRAWER_SIDE_HEIGHT_CODE,
+      hingeSystemId: defaults.hingeSystemId ?? DEFAULT_HINGE_SYSTEM_ID,
+    },
+  };
 };
 
 const migrateStandardsV1toV2 = (raw: Record<string, unknown>): Record<string, unknown> => {
