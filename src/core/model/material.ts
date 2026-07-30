@@ -58,6 +58,18 @@ export interface SheetMaterial {
    */
   readonly actualThickness?: Mm;
   readonly grain: GrainDirection;
+  /**
+   * Roughly what the decor looks like on screen, as a hex colour.
+   *
+   * **A screen approximation, not a colour match.** Nothing is cut, priced or ordered from it, and
+   * nobody should sign off a decor against a monitor — the decor *name* is the fact, and it is what
+   * goes on the supplier order. This is here so a walnut door does not render the same off-white as
+   * a white melamine carcass, which is most of what makes the 3D view worth showing a client.
+   *
+   * Optional, and a material without one falls back to the viewport's own colour for that kind of
+   * part, exactly as every part did before this existed.
+   */
+  readonly colour?: string;
   /** How many faces carry the decor. Single-sided stock constrains which face is the A-face. */
   readonly decorFaces: 1 | 2;
   readonly sheets: readonly SheetSize[];

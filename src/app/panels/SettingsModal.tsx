@@ -519,6 +519,31 @@ function BoardThicknessEditor({
         Changing these resizes every part made from that board. A job you have already quoted or
         cut keeps the sizes it was quoted and cut to until you change it here.
       </p>
+
+      <div className="subhead">Roughly what they look like</div>
+      {inUse.map((sheet) => (
+        <div className="setting-row" key={`${sheet.id}-colour`}>
+          <div className="setting-label">
+            <span>
+              {sheet.decor} — {sheet.thickness}mm
+            </span>
+            <em>{sheet.brand}</em>
+          </div>
+          <div className="setting-input">
+            <input
+              type="color"
+              value={sheet.colour ?? '#dcd8d0'}
+              onChange={(e) => onChange(sheet.id, { colour: e.target.value })}
+            />
+          </div>
+        </div>
+      ))}
+      <p className="note subtle">
+        Screen only. Nothing is cut, priced or ordered from a colour — the decor <em>name</em> is
+        the fact, and it is what goes on the supplier order. This is so a walnut door doesn't
+        render the same off-white as a white melamine carcass when you're showing somebody the 3D
+        view. Don't sign a decor off against a monitor.
+      </p>
     </>
   );
 }
