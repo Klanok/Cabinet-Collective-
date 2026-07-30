@@ -759,6 +759,13 @@ quoting the hardware at nothing.
   a bored door as an already-styled one and quietly ships a plain slab on a shaker kitchen — §4.3's
   failure arriving by the back door. The door-style tests now ask about `purpose === 'front-style'`
   rather than about feature counts, which is the question they always meant.
+- **A pair of doors is handed by comparing the two doors to each other**, not by comparing each one
+  to the middle of the cabinet, and **a side panel's hand is the end it is nearest**, not the half it
+  sits in. Both were wrong first time and both only showed on a radiused cabinet — see below.
+- **A mounting plate has to be within reach of the door it serves.** One system pitch. On an
+  ordinary cabinet the door's edge sits over the side panel and this never bites; on a radiused one
+  the curve pushes the door zone clear of the far side, and without the check four holes get bored
+  for a hinge that cannot reach them.
 - **Hardware is counted from the panels, never from the options.** A door too narrow to take a cup
   is not charged a hinge; a bank whose depth no runner fits does not order three runner sets. Same
   reasoning as `machinedFronts`, and it is what makes the BOM and the drilling sheet agree.
@@ -778,6 +785,29 @@ quoting the hardware at nothing.
 - **Hardware cost is rounded once, at the end.** Unlike a sheet, a hinge is not a separately priced
   item on the quote, so there is nothing to round in between — and rounding per cabinet left the
   costed hardware a cent off the BOM total for no reason anybody could explain.
+
+#### Two bugs found by reviewing the phase before merging it, both in the same family
+
+Neither was caught by the suite, and the reason is the same both times: **the count of holes and
+their diameters were all correct.** Only the coordinate showed it. This is the third time this
+codebase has learned that lesson (§4.4's former thickness axis, §5.1's flat curves) and it is why
+§7 now lists feature positions as a thing that gets asserted separately.
+
+- **Both doors of a pair hinged the same way on a radiused cabinet.** A corner radius pushes the
+  door zone to one end, so at a 350mm radius on a 900 carcass both doors sit in the left half — and
+  the hand was decided by comparing each door to the middle of the cabinet. Two doors swinging the
+  same way, and the right-hand one's plates bored into the left side panel. Fixed by handing a pair
+  **relative to each other**, after grouping by vertical band so a tall cabinet's split banks stay
+  two separate pairs.
+- **A plate could be bored hundreds of millimetres from its door.** Same cause, second effect: the
+  inner door of a pair on a radiused cabinet has no carcass beside it at all, because the curve is
+  there instead. It now reports that and bores the cups but not the plates — one door usually suits
+  a radiused cabinet, which is what the warning says.
+
+The related near-miss, fixed at the same time: a side panel's hand was "which half of the cabinet is
+its middle in", and a front-right radius pulls the end panel inward far enough that at some radii it
+would have been called a left-hand side. It is now "the end it is nearest", which cannot go wrong
+however far the curve eats.
 
 #### Something worth telling the shop
 

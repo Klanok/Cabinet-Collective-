@@ -114,12 +114,35 @@ const place = (ctx: RuleContext, instance: PartInstance, index: number): Placed 
   };
 };
 
+/**
+ * Which end of the cabinet a part belongs to — **the end it is nearest**, not the half it sits in.
+ *
+ * The difference only shows up on a radiused cabinet, and there it decides real holes. A front-right
+ * radius pulls the end panel inward: at a 450 radius on a 900 carcass it lands at x ≈ 444, so its
+ * middle is a couple of millimetres the wrong side of centre and a half-of-the-cabinet test calls
+ * the right-hand side panel a left-hand one. Measuring to the nearer end cannot do that, because a
+ * side is always closer to its own end than to the other one however far the curve has eaten it.
+ */
 const handOf = (ctx: RuleContext, box: Bounds3): Hand =>
-  (box.min.x + box.max.x) / 2 < ctx.W / 2 ? 'left' : 'right';
+  box.min.x <= ctx.W - box.max.x ? 'left' : 'right';
 
 /** The inside face of a side panel — the one that gets bored. */
 const insideFaceX = (side: Placed, hand: Hand): Mm =>
   hand === 'left' ? side.box.max.x : side.box.min.x;
+
+/**
+ * How far a door's hinged edge may be from the side panel and still be hinging onto it.
+ *
+ * On an ordinary full-overlay cabinet the door's edge sits over the side panel and this is a
+ * millimetre or two of reveal. It only ever bites where something is genuinely wrong: a corner
+ * radius pushes the door zone well clear of the far side, so the inner door of a pair can end up
+ * several hundred millimetres from any carcass — and boring a mounting plate there would put four
+ * holes in a side panel for a hinge that has nothing to reach it.
+ *
+ * One system pitch: far enough to cover any reveal or overlay a shop would build to, nowhere near
+ * far enough to swallow the case this exists to catch.
+ */
+const HINGE_PLATE_REACH: Mm = mm(32);
 
 /**
  * Bore one cabinet's parts.
@@ -160,16 +183,50 @@ export const boreCabinet = (
 // ---------------------------------------------------------------------------------------
 
 /**
- * Which end of a door its hinges are on.
+ * Which end each door hinges on, keyed by its index in the part list.
  *
- * With a pair it is decided by **where the door actually is** — the left-hand one hinges left —
- * which is what makes a tall cabinet's four split doors come out right without anybody counting
- * them. With one door there is nothing in the geometry to read, so `doorSwing` says, and it means
+ * A pair is decided by comparing the doors **to each other** — the left-hand one of the two hinges
+ * left — and *not* by comparing each one to the middle of the cabinet. That was the first version
+ * and it was wrong on a radiused cabinet: the radius pushes the door zone to one end, so at a 350mm
+ * radius on a 900 carcass both doors of a pair sit in the left half and both came out hinged left.
+ * Two doors swinging the same way, and the right-hand one's mounting plates bored into the left side
+ * panel — and it passed every test, because the count of holes and their diameters were all correct.
+ *
+ * Doors are grouped by their **vertical band** first, so a tall cabinet's upper and lower banks are
+ * two separate pairs rather than one confused foursome.
+ *
+ * A band with one door in it has nothing in the geometry to read, so `doorSwing` says — and it means
  * the side the hinges are on, facing the cabinet.
  */
-const hingeHandOf = (ctx: RuleContext, door: Placed): Hand => {
-  if ((ctx.options.doorCount ?? 2) === 1) return ctx.options.doorSwing ?? 'left';
-  return handOf(ctx, door.box);
+const hingeHands = (ctx: RuleContext, doors: readonly Placed[]): Map<number, Hand> => {
+  const hands = new Map<number, Hand>();
+  const bands = new Map<number, Placed[]>();
+
+  for (const door of doors) {
+    // Doors in one bank share a bottom edge exactly; rounding keeps arithmetic noise from
+    // splitting a pair into two bands of one, which would silently fall back to `doorSwing`.
+    const key = Math.round(door.box.min.y * 1e3);
+    const band = bands.get(key);
+    if (band) band.push(door);
+    else bands.set(key, [door]);
+  }
+
+  for (const band of bands.values()) {
+    if (band.length === 1) {
+      hands.set(band[0]!.index, ctx.options.doorSwing ?? 'left');
+      continue;
+    }
+    const sorted = [...band].sort((a, b) => a.box.min.x + a.box.max.x - (b.box.min.x + b.box.max.x));
+    sorted.forEach((door, i) => {
+      // Outermost pair hinges outward. Nothing produces more than two per band today; anything in
+      // between takes the end it is nearer, so a third door could never come out unhinged.
+      const hand: Hand =
+        i === 0 ? 'left' : i === sorted.length - 1 ? 'right' : i * 2 < sorted.length ? 'left' : 'right';
+      hands.set(door.index, hand);
+    });
+  }
+
+  return hands;
 };
 
 const boreHinges = (
@@ -182,6 +239,7 @@ const boreHinges = (
   if (doors.length === 0) return;
   const hinge = ctx.hardware.hinge;
   const inset = cupCentreFromEdge(hinge);
+  const hands = hingeHands(ctx, doors);
 
   for (const door of doors) {
     const height = mm(door.box.max.y - door.box.min.y);
@@ -196,7 +254,7 @@ const boreHinges = (
       continue;
     }
 
-    const hand = hingeHandOf(ctx, door);
+    const hand = hands.get(door.index) ?? 'left';
     const edgeX = hand === 'left' ? door.box.min.x : door.box.max.x;
     // Into the door from its hinged edge: +x on a left-hand hinge, −x on a right-hand one.
     const inward = hand === 'left' ? 1 : -1;
@@ -206,12 +264,23 @@ const boreHinges = (
 
     const count = Math.max(1, Math.round(ctx.options.hingeCount ?? hingeCountForHeight(hinge, height)));
     const centres = hingeCentres(hinge, height, count);
-    const side = sides.find((s) => handOf(ctx, s.box) === hand);
+    const candidate = sides.find((s) => handOf(ctx, s.box) === hand);
+    // The panel has to be somewhere the hinge can actually reach, not merely at the right end.
+    const reach = candidate
+      ? Math.min(Math.abs(edgeX - candidate.box.min.x), Math.abs(edgeX - candidate.box.max.x))
+      : Infinity;
+    const side = reach <= HINGE_PLATE_REACH ? candidate : undefined;
 
     if (!side) {
       warn(
-        `"${door.instance.name}" hinges on the ${hand} but there is no ${hand} side panel to screw ` +
-          `a mounting plate to — the cups are bored, the plate holes are not.`,
+        candidate
+          ? `"${door.instance.name}" hinges ${Math.round(reach)}mm clear of the nearest side panel, ` +
+              'so there is nothing there to screw a mounting plate to. On a cabinet with a rounded ' +
+              'corner the doors are pushed off the curved end, which can leave the inner one of a ' +
+              'pair with no carcass beside it — one door usually suits. The cups are bored, the ' +
+              'plate holes are not.'
+          : `"${door.instance.name}" hinges on the ${hand} but there is no ${hand} side panel to ` +
+              'screw a mounting plate to — the cups are bored, the plate holes are not.',
       );
     }
 
