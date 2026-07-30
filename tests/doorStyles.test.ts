@@ -180,7 +180,7 @@ describe('shaker recess', () => {
       (p) => p.role === 'drawer-front',
     );
     expect(fronts).toHaveLength(3);
-    expect(fronts.every((f) => f.features.length === 1)).toBe(true);
+    expect(fronts.every((f) => styleFeatures(f).length === 1)).toBe(true);
   });
 
   it('leaves the carcass alone — a style is for fronts', () => {
@@ -212,10 +212,10 @@ describe('a front too small for the style', () => {
     const narrow = byName(built.panels, 'Drawer front 2');
 
     expect(size(tall)).toEqual([mm(597), mm(300)]);
-    expect(tall.features).toHaveLength(1);
+    expect(styleFeatures(tall)).toHaveLength(1);
 
     expect(size(narrow)).toEqual([mm(597), mm(140)]);
-    expect(narrow.features).toEqual([]);
+    expect(styleFeatures(narrow)).toEqual([]);
   });
 
   it('says why, rather than quietly shipping a plain front on a shaker kitchen', () => {

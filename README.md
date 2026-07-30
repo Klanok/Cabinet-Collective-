@@ -30,7 +30,7 @@ thickness and the parts, the cutlist and the cost all move together, because the
 one copy of each part in the system.
 
 The sample kitchen is a 3000mm base run with 2400mm of wall cabinets over it: 7 cabinets,
-69 parts, 31 cutlist lines, 3 MERIVOBOX drawer sets, 20 hinges, 448 holes, ~$3,700 on the
+69 parts, 31 cutlist lines, 3 MERIVOBOX drawer sets, 20 hinges, 460 holes, ~$3,700 on the
 seeded rates.
 
 ## Hardware and drilling
@@ -41,14 +41,21 @@ bottom comes out `LW − 51` wide by `NL − 26` long and the wooden back at 83m
 Those are Blum's numbers, not conventions — which is exactly why drawer boxes waited for this
 phase rather than being guessed at in Phase 1.
 
+Everything vertical is measured from **the bottom of the runner**, which is Blum's own datum and
+the only plane the drilling and the box can both be measured from without one going through the
+other.
+
 Every hole a cabinet needs is on its panels as machining intent, not baked into a mesh:
 
 - **hinge cups** Ø35 × 13 in the back of each door, 22.5mm in from the hinged edge, 96mm from
   each end, with the two Ø8 dowels — and the count follows the door's height
 - **mounting plates** two Ø5 × 13 at 32mm centres, 37mm back from the front edge of the side
   the door actually hinges on
-- **runner fixings** two per side per drawer, at the box floor, on the spacing that nominal
-  length calls for
+- **runner fixings** two per side per drawer, on the runner's own bottom line, at the spacing
+  that nominal length calls for
+- **front fixings** four pilots in the back of each drawer front, 20.5 mm in from each outer
+  cabinet face and 33.5 mm above the bottom of the runner — Blum's `20.5 + FA`, said from the
+  cabinet so the reveal never has to be in the sum
 - **shelf pins** System 32 rows front and back, where a cabinet has adjustable shelves
 
 Every one of those is described **once, in cabinet space**, and converted into each panel's own

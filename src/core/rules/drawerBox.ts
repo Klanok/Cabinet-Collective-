@@ -22,7 +22,11 @@ import { type Mm, mm } from '../units.ts';
 import { rectProfile } from '../geom/profile.ts';
 import { placement } from '../geom/placement.ts';
 import { v3 } from '../geom/vec.ts';
-import { drawerBackSize, drawerBottomSize } from '../model/hardware.ts';
+import {
+  bottomPanelAboveFrontBottom,
+  drawerBackSize,
+  drawerBottomSize,
+} from '../model/hardware.ts';
 import type { RuleContext } from './context.ts';
 import { drawerRows } from './parts.ts';
 import { BAND_NONE, type PartInstance } from './spec.ts';
@@ -76,7 +80,12 @@ export const drawerBoxes = (ctx: RuleContext, frontHeights: readonly Mm[]): Part
   const parts: PartInstance[] = [];
 
   for (const row of drawerRows(ctx, frontHeights)) {
-    const floorY = mm(row.y + system.boxFloorAboveFrontBottom);
+    /*
+     * The **underside** of the bottom panel, which is what Blum's `20` dimensions — the bottom of
+     * the runner plus 20. Not the floor you look down on: that is a board thickness higher, and
+     * confusing the two is a box sitting 16mm out.
+     */
+    const underside = mm(row.y + bottomPanelAboveFrontBottom(system));
 
     /*
      * The bottom lies in flat, like a shelf: part +X runs across the cabinet and part +Y runs
@@ -88,7 +97,7 @@ export const drawerBoxes = (ctx: RuleContext, frontHeights: readonly Mm[]): Part
       name: 'Drawer bottom',
       role: 'drawer-bottom',
       profile: rectProfile(bottom.length, bottom.width),
-      placement: placement(v3(leftX, floorY, mm(position.bottomBackZ + bottom.width)), '+X', '-Z'),
+      placement: placement(v3(leftX, underside, mm(position.bottomBackZ + bottom.width)), '+X', '-Z'),
       material: 'carcass',
       // Nothing is banded: every edge of a drawer bottom is captured in the profile or under the
       // back. This is one of the few parts in a kitchen with no banding at all.
@@ -105,7 +114,8 @@ export const drawerBoxes = (ctx: RuleContext, frontHeights: readonly Mm[]): Part
       name: 'Drawer back',
       role: 'drawer-back',
       profile: rectProfile(back.length, back.width),
-      placement: placement(v3(leftX, floorY, position.rearZ), '+X', '+Y'),
+      // The back stands on the same plane the bottom does.
+      placement: placement(v3(leftX, underside, position.rearZ), '+X', '+Y'),
       material: 'carcass',
       bandedDirections: BAND_NONE,
       grain: 'any',

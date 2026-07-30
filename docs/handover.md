@@ -257,6 +257,30 @@ runner fixing          37mm from the front edge, then 128mm behind it at NL ≤ 
 load rating            40kg (a 70kg class exists and is not shipped)
 ```
 
+**Everything vertical about a box is measured from the bottom of the runner.** That is Blum's own
+datum on the front-installation sheet, and it is the only one that works — the runner is what is
+screwed to the cabinet, so it is the one plane the drilling and the box can both be measured from
+without one going through the other. Confirmed with the shop off that sheet:
+
+```
+bottom of runner  →  underside of the drawer bottom     20
+bottom of runner  →  front fixing screw centre          33.5   (+1 if the cabinet profile is
+                                                                fitted before the carcass is
+                                                                assembled — Blum's `*` footnote)
+first screw       →  second screw                       32
+outer face of the cabinet side  →  screw centre         20.5
+```
+
+That last one is Blum's **`20.5 + FA`**, where FA is the front overlay. The model states it from the
+cabinet instead, because that is the datum that does not need to know what the reveal is: how far
+the screw then is from the front's own edge falls out of the front's placement, so a shop that
+widens its side reveal moves the front and leaves the screw where the bracket is. FA never has to
+become a field.
+
+The check that says the chain has been read off the right datum: the screw lands 2.5mm *below* the
+top face of a 16mm bottom, which is where a front fixing bracket sits — level with the bottom of
+the box.
+
 `LW` is the clear width between the cabinet sides and `LT` the clear depth in front of the back
 panel — both come out of the rule engine from the boards that will really be cut, which is the
 whole reason drawer boxes waited for this phase.
@@ -270,11 +294,21 @@ reported and no boxes are cut — a box sized to a runner nobody can buy is wors
 of the door (96mm). Everything else on a system record is what the product *is*, and correcting one
 is a code edit in `library/blum.ts` on purpose — getting it wrong re-cuts every drawer in every job.
 
-**One MERIVOBOX figure has not been checked against the catalogue** and the app says so by name:
-`boxFloorAboveFrontBottom`, shipped at 10mm. It decides where the runner's fixing holes get drilled
-up the cabinet side, so it wants ten seconds with the planning sheet before anybody bores a
-carcass. The `unconfirmedFigures` list is the same contract `indicativePricing` has for money, and
-it is surfaced in the report, in the Hardware tab and in Settings rather than left in a comment.
+**Three MERIVOBOX figures are still unchecked** and the app names each of them, in the report, the
+Hardware tab and Settings. The `unconfirmedFigures` list is the same contract `indicativePricing`
+has for money — a figure nobody knows is unchecked is a figure that gets trusted.
+
+- **`runnerAboveFrontBottom`, 16mm.** The one link in the chain Blum's sheet does not state: how far
+  above the bottom edge of its front the runner sits. Derived rather than guessed — on the *bottom*
+  drawer the runner goes as low as it can, which is the top face of the cabinet bottom, and a front
+  flush with the carcass bottom starts a board thickness below that. **The `min. 31.5**` on the
+  front-installation sheet may well be this figure**; the footnote was cropped out of the screenshot
+  and is worth reading.
+- **`frontFixingRowSpacing`, 32mm.** Read as the second screw off the dimension chain rather than
+  off a stated figure.
+- **The runner's own fixing height above its bottom line**, taken as zero. Blum states the fixing
+  *spacing* (128/256) but not its height, so the holes go on the runner's bottom line. This is the
+  sharpest of the three: a few millimetres out is a runner that does not sit where the box expects.
 
 ---
 
@@ -678,15 +712,17 @@ pass. The short version of the phase: **a drawer box is cut to the runner, not t
 
 **What shipped.** MERIVOBOX drawer boxes on every drawer bank, with the nominal length chosen from
 the cabinet's real inner depth. Hinge cups and dowels in the back of every door, mounting plates in
-the side the door hinges on, runner fixings in both sides at each box floor, and System 32 shelf-pin
-rows where a cabinet has adjustable shelves. A hardware BOM counted from the panels and priced onto
+the side the door hinges on, runner fixings in both sides on each runner's bottom line, front fixing
+pilots in the back of every drawer front, and System 32 shelf-pin rows where a cabinet has
+adjustable shelves. A hardware BOM counted from the panels and priced onto
 the quote as its own line. Cutlist, hardware and drilling CSV export. `npm run report` prints all of
 it, which is the cheapest way to check any claim below.
 
 **The sample kitchen, before and after.** 63 parts became 69 — the six extra are a bottom and a back
 for each of D1's three drawers, and not one of the original 63 moved by a millimetre. On top of
-those: 3 MERIVOBOX sets at NL 500, 20 hinges, 20 plates, 28 shelf pins, and 448 holes of which 60
-are on the back face. Hardware adds $331.04 ex GST at the indicative rates, on a job that was
+those: 3 MERIVOBOX sets at NL 500, 20 hinges, 20 plates, 28 shelf pins, and 460 holes of which 72
+are on the back face — the cups, their dowels and the front fixings, all of which go in the back of
+a front. Hardware adds $331.04 ex GST at the indicative rates, on a job that was
 quoting the hardware at nothing.
 
 #### Decisions worth not undoing
@@ -703,6 +739,15 @@ quoting the hardware at nothing.
   and the tests assert the *coordinates*, not the counts: Door L's cups land at part y = 424.5 and
   Door R's at 22.5, and the plates come out at part y = 507 on the left side and 37 on the right.
   Those are the same 37mm from the front edge, and a hard-coded number could not produce both.
+- **The vertical chain hangs off the bottom of the runner.** See §3 for the figures. There used to be
+  a single `boxFloorAboveFrontBottom` here doing two jobs and getting both approximately right; the
+  shop supplied Blum's front-installation sheet and it is gone, replaced by the chain it stood in
+  for. The one link the sheet does not state is named for exactly what it is and flagged.
+- **FA never becomes a field.** Blum writes the front fixing's sideways position as `20.5 + FA`, from
+  the edge of the front. The model states the same place as 20.5 in from the outer face of the
+  cabinet side, so how far it is from the front's own edge falls out of the placement — which means a
+  shop that widens its side reveal moves the front and leaves the screw where the bracket is. There
+  is a test for exactly that.
 - **A cup is on the B-face and needs a flip.** See §2.
 - **`machineFront`'s guard had to change from "has features" to "has a front-style feature".** It
   used to mean "already machined deliberately". Once a door carries hinge cups, the loose test reads
@@ -740,9 +785,8 @@ warning — Settings → Hardware computes it and says which setback would do it
 
 #### What is not done, deliberately
 
-- **Drawer-front fixing-bracket boring.** The bracket positions were not confirmable, and inventing
-  hole positions in a drilling sheet is worse than leaving them out. Everything else about the front
-  is there.
+- **The EXPANDO front fixing.** The screw-on variant is modelled; EXPANDO uses a Ø8 dowel on the
+  same pattern and is the other column of the same Blum sheet. One more pair of fields.
 - **PDF export.** CSV opens in Excel, imports into a nester and pastes into an email; printing one
   from the browser gets a perfectly good PDF when somebody wants paper.
 - **Drawers inside a base cabinet.** `doorCount` and `drawerCount` are separate and only the
@@ -868,7 +912,8 @@ runner and CLIP top BLUMOTION the standard hinge. What remains:
   the planning sheet closes it, and the app is already saying so by name.
 - **`dowelOffset` on the hinge**, 9.5mm, same treatment. The 45mm spacing is the catalogue figure;
   the offset wants a real hinge and a rule.
-- **Drawer-front fixing-bracket boring**, deliberately not invented — see 4.6.
+- **The EXPANDO front fixing** — the screw-on variant is done; EXPANDO is a Ø8 dowel on the same
+  pattern.
 - **PDF export.** CSV is done. Print from the browser meanwhile.
 - **Hardware fitting time on the quote.** A `LabourRates` field when there is a figure for it.
 - **Load class.** Only the 40kg MERIVOBOX is shipped; the 70kg exists and is another entry, but
