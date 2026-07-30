@@ -32,6 +32,16 @@ export type PanelRole =
   | 'divider'
   | 'door'
   | 'drawer-front'
+  /**
+   * The bottom of a drawer box, and its wooden back.
+   *
+   * Their own roles rather than a reuse of 'bottom' and 'back', because they are sized by the
+   * **runner** and not by the carcass — a different rule set entirely — and because anything
+   * downstream that groups by role (the viewport's colours, a BOM that counts boxes) has to be
+   * able to tell a drawer bottom from a cabinet bottom.
+   */
+  | 'drawer-bottom'
+  | 'drawer-back'
   | 'false-front'
   | 'lid'
   | 'kick'

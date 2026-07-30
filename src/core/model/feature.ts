@@ -27,6 +27,15 @@ export type MachiningFace = 'A' | 'B';
 /** What a feature is for. Survives into CAM so operations can be grouped and tool-matched. */
 export type FeaturePurpose =
   | 'hinge-cup'
+  /**
+   * The two small dowel holes that locate a hinge cup.
+   *
+   * Its own purpose rather than sharing the cup's, for two reasons that both matter later: they
+   * take a different bit, so CAM groups them separately and does not tool-change three times per
+   * hinge; and counting hinges for a BOM means counting *cups*, which a shared purpose would
+   * make three times too many.
+   */
+  | 'hinge-dowel'
   | 'hinge-plate'
   | 'shelf-pin'
   | 'drawer-runner'

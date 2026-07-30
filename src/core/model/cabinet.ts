@@ -93,6 +93,38 @@ export interface CabinetOptions {
    */
   readonly carcassRadius?: Mm;
 
+  /*
+   * Hardware. Every one of these is an override: unset follows the job's default, exactly the way
+   * an unset material or door style does, so a kitchen is specified once and not per cabinet.
+   */
+
+  /** Which drawer runner system this cabinet's boxes are built on. */
+  readonly runnerSystemId?: string;
+  /** Which of that system's box side heights — Blum's 'M', 'K', 'N'. */
+  readonly drawerSideHeightCode?: string;
+  /**
+   * Nominal runner length, in the system's own steps.
+   *
+   * Unset — the usual case — takes the **longest runner the cabinet's real inner depth will
+   * hold**, which is what you want on a standard 560 carcass and is derived rather than typed.
+   * Set it when a service, a waste pipe or a pull-out behind the drawer means the deepest runner
+   * that fits is not the one going in. A length the system doesn't make, or one too long for the
+   * cabinet, is reported rather than quietly rounded — a runner is one of a fixed list of lengths
+   * or it does not exist.
+   */
+  readonly drawerNominalLength?: Mm;
+
+  /** Which hinge system this cabinet's doors are bored for. */
+  readonly hingeSystemId?: string;
+  /**
+   * Hinges per door, overriding the count the system derives from the door's height.
+   *
+   * The derived count goes on height alone, and weight is the other half of it — a 2000mm solid
+   * door wants more than a 2000mm MDF one. So this exists, and it is per cabinet rather than per
+   * door because a cabinet's doors are the same size as each other.
+   */
+  readonly hingeCount?: number;
+
   /** Radiused end only. Plan radius of the curve. Unset follows the cabinet's depth. */
   readonly endRadius?: Mm;
   /** Radiused end only. Greatest clear gap between formers before another one is added. */

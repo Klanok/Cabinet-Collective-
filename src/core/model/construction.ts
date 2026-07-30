@@ -91,6 +91,24 @@ export interface ConstructionMethod {
   readonly systemPitch: Mm;
   /** Distance from the front edge to the front line of system holes. */
   readonly systemFrontSetback: Mm;
+  /**
+   * Distance from the **back** edge of a side panel to the rear line of system holes.
+   *
+   * Its own number rather than a reuse of the front setback, because the two are measured off
+   * different edges and a shop that moves one has not necessarily moved the other. It ships equal
+   * to the front setback, which is what the 32mm system assumes.
+   */
+  readonly systemBackSetback: Mm;
+  /**
+   * Diameter and depth of a system hole — a shelf pin, a hinge plate screw, a runner fixing.
+   *
+   * These belong to the *construction method* rather than to a piece of hardware, because Ø5 at
+   * 13mm deep is what a frameless 32mm carcass is bored to whoever made the hinge. A hardware
+   * system that genuinely wants something else says so on its own record; the runner system does,
+   * because a runner's fixing hole is the runner's business.
+   */
+  readonly systemHoleDiameter: Mm;
+  readonly systemHoleDepth: Mm;
 }
 
 /**
@@ -118,6 +136,9 @@ export const FRAMELESS_32: ConstructionMethod = {
   fixingStripWidth: mm(50),
   systemPitch: mm(32),
   systemFrontSetback: mm(37),
+  systemBackSetback: mm(37),
+  systemHoleDiameter: mm(5),
+  systemHoleDepth: mm(13),
 };
 
 export const DEFAULT_CONSTRUCTIONS: readonly ConstructionMethod[] = [FRAMELESS_32];
@@ -133,6 +154,26 @@ export const withFixingStrip = (c: Record<string, unknown>): Record<string, unkn
   ...c,
   fixingStripWidth: typeof c.fixingStripWidth === 'number' ? c.fixingStripWidth : 50,
 });
+
+/**
+ * Fill in the system-hole figures on a stored method that predates them.
+ *
+ * Shared by the project and the standards migration, as `withFixingStrip` is. **No part moves**:
+ * these three numbers decide where holes are *bored*, and nothing that existed before this could
+ * have had a hole bored in it — Phase 1 emitted no drilling at all.
+ *
+ * The rear setback follows whatever the method's front setback already is rather than the shipped
+ * 37, because a shop that had moved its front line to 40 means both lines.
+ */
+export const withSystemHoles = (c: Record<string, unknown>): Record<string, unknown> => {
+  const front = typeof c.systemFrontSetback === 'number' ? c.systemFrontSetback : 37;
+  return {
+    ...c,
+    systemBackSetback: typeof c.systemBackSetback === 'number' ? c.systemBackSetback : front,
+    systemHoleDiameter: typeof c.systemHoleDiameter === 'number' ? c.systemHoleDiameter : 5,
+    systemHoleDepth: typeof c.systemHoleDepth === 'number' ? c.systemHoleDepth : 13,
+  };
+};
 
 /** Ids the shipped methods used to have, and the one they all become. */
 export const LEGACY_CONSTRUCTION_IDS: readonly string[] = ['frameless-32-16', 'frameless-32-18'];
