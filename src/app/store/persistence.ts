@@ -80,6 +80,27 @@ export const exportProjectFile = (project: Project): void => {
   URL.revokeObjectURL(url);
 };
 
+/**
+ * Download a generated text file — a cutlist, a hardware order, a drilling sheet.
+ *
+ * The CSV itself is built in `src/core`, which is why it can be tested in Node. All that happens
+ * here is a Blob and a click. The BOM in `text/csv` opens straight into Excel on Windows, which is
+ * where this one actually gets used.
+ */
+export const downloadTextFile = (name: string, contents: string, mime = 'text/csv'): void => {
+  const blob = new Blob([contents], { type: `${mime};charset=utf-8` });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+/** A filename stem from a job's name, safe on every platform. */
+export const fileStem = (project: Project): string =>
+  project.name.replace(/[^\w-]+/g, '-').toLowerCase() || 'job';
+
 /** Read a job back from a file the user picks. */
 export const importProjectFile = async (file: File): Promise<Project> =>
   migrateProject(JSON.parse(await file.text()));
