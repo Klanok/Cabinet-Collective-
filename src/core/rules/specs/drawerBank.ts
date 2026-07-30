@@ -1,17 +1,18 @@
 /**
  * Drawer bank — a base carcass fronted by a stack of drawer fronts instead of doors.
  *
- * Phase 1 produces the carcass and the fronts. Drawer *boxes* and runners are hardware: their
- * sizes are dictated by the runner system (Blum Legrabox/Tandembox nominal lengths, side
- * thicknesses, and the clearances each demands), so they belong with the Phase 2 hardware
- * rule sets rather than being guessed at here. Sizing a drawer box against the wrong runner
- * spec is exactly the kind of error that wastes material.
+ * The carcass and the fronts are Phase 1. The **boxes** are Phase 2, and they are sized by the
+ * runner rather than by the cabinet: a MERIVOBOX bottom is `LW − 51` wide and `NL − 26` long, where
+ * `LW` is the clear opening the boards leave and `NL` is one of the lengths Blum actually makes. So
+ * this spec asks for boxes and `rules/drawerBox.ts` reads the runner system for the numbers —
+ * which is why they waited, rather than being guessed at against a runner nobody had chosen.
  */
 
 import { type Mm, mm } from '../../units.ts';
 import { equalDrawerFronts } from '../../model/cabinet.ts';
 import type { CabinetSpec } from '../spec.ts';
 import type { RuleContext } from '../context.ts';
+import { drawerBoxes } from '../drawerBox.ts';
 import {
   backPanel,
   bottomPanel,
@@ -86,6 +87,9 @@ export const DRAWER_BANK_SPEC: CabinetSpec = {
     },
     { key: 'back', produce: backPanel },
     { key: 'fronts', produce: (ctx) => drawerFronts(ctx, resolveFrontHeights(ctx)) },
+    // The same heights feed both, so a box and the front it is screwed to cannot disagree about
+    // where the drawer is.
+    { key: 'boxes', produce: (ctx) => drawerBoxes(ctx, resolveFrontHeights(ctx)) },
     {
       key: 'kick',
       produce: (ctx) => (ctx.options.hasKick === false ? [] : kickPanel(ctx)),

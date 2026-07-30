@@ -14,7 +14,13 @@ import {
   sideDepth,
 } from '../model/construction.ts';
 import { type MaterialLibrary, actualThicknessOf, findSheet } from '../model/material.ts';
+import type { HardwareLibrary } from '../model/hardware.ts';
 import { type CornerRadius, resolveCornerRadius, substrateRadius } from './radius.ts';
+import {
+  type HardwareDefaultIds,
+  type ResolvedHardware,
+  resolveHardware,
+} from './hardware.ts';
 
 /** The resolved material ids for one cabinet, defaults already applied. */
 export interface ResolvedMaterials {
@@ -101,6 +107,21 @@ export interface RuleContext {
    * which is what protects every job already quoted.
    */
   readonly radius: CornerRadius | null;
+
+  /**
+   * The runner and hinge systems this cabinet is built and bored to — resolved once, so no
+   * builder and no boring rule has to work out a nominal length and get a different answer.
+   *
+   * Never null. Which *runner length* fits can be null, and that lives inside — see
+   * `ResolvedHardware.runner`.
+   */
+  readonly hardware: ResolvedHardware;
+}
+
+/** Everything `buildContext` needs to resolve hardware, which is the job's library and its ids. */
+export interface HardwareSelection {
+  readonly library: HardwareLibrary;
+  readonly defaults: HardwareDefaultIds;
 }
 
 /**
@@ -147,10 +168,16 @@ export const buildContext = (
   construction: ConstructionMethod,
   materials: ResolvedMaterials,
   thicknesses: BuildThicknesses,
+  hardware: HardwareSelection,
 ): RuleContext => {
   const t = thicknesses.carcass;
   const tb = thicknesses.back;
   const { width: W, height: H, depth: D } = cabinet;
+  const interiorWidth = mm(W - 2 * t);
+  // The clear run a runner has to live in: front edge of the carcass back to the front face of the
+  // back panel. The same figure under both back styles, because the back occupies z ∈ [0, tb]
+  // either way — what changes between them is how deep the *side* runs, not the opening.
+  const innerDepth = horizontalDepth(D, tb);
 
   return {
     cabinet,
@@ -164,10 +191,10 @@ export const buildContext = (
     tb,
     td: thicknesses.door,
     ts: thicknesses.skin,
-    interiorWidth: mm(W - 2 * t),
+    interiorWidth,
     interiorHeight: mm(H - 2 * t),
     sideDepth: sideDepth(construction, D, tb),
-    horizontalDepth: horizontalDepth(D, tb),
+    horizontalDepth: innerDepth,
     // Under both back styles the back occupies z ∈ [0, tb], so the interior starts at tb.
     interiorBackZ: tb,
     radius: resolveRadius(cabinet.options, construction, {
@@ -176,6 +203,10 @@ export const buildContext = (
       t,
       tb,
       ts: thicknesses.skin,
+    }),
+    hardware: resolveHardware(cabinet.options, hardware.library, hardware.defaults, {
+      innerWidth: interiorWidth,
+      innerDepth,
     }),
   };
 };
