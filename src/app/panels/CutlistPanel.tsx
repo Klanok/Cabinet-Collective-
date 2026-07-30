@@ -1,11 +1,15 @@
 import type { CutlistLine } from '../../core/cutlist/cutlist.ts';
 import { cutlistTotals } from '../../core/cutlist/cutlist.ts';
+import { cutlistCsv } from '../../core/cutlist/export.ts';
+import type { Project } from '../../core/model/project.ts';
+import { downloadTextFile, fileStem } from '../store/persistence.ts';
 
 interface Props {
   lines: readonly CutlistLine[];
+  project: Project;
 }
 
-export function CutlistPanel({ lines }: Props) {
+export function CutlistPanel({ lines, project }: Props) {
   const totals = cutlistTotals(lines);
 
   return (
@@ -54,6 +58,13 @@ export function CutlistPanel({ lines }: Props) {
         edge banding. Banding is named by cutlist edge: L1/L2 run along the length, W1/W2 across
         the width.
       </p>
+
+      <button
+        className="btn full"
+        onClick={() => downloadTextFile(`${fileStem(project)}-cutlist.csv`, cutlistCsv(project))}
+      >
+        Cutlist as CSV
+      </button>
     </section>
   );
 }
