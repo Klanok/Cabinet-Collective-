@@ -148,6 +148,34 @@ export const boundsFromPoints = (points: readonly Vec3[]): Bounds3 => {
   };
 };
 
+/**
+ * The cabinet-space box a placed part occupies, from its bounding size and its placement.
+ *
+ * This is the quantity worth reasoning in when something has to be positioned *relative to the
+ * cabinet* rather than relative to a part — where a hinge goes, which end of the run a side is.
+ * A part's own size says nothing about that: a left side carrying a right side's placement is
+ * exactly the same size, which is why the tests assert occupancy and why the hardware rules work
+ * this way round too.
+ */
+export const placedBounds = (
+  p: PanelPlacement,
+  length: Mm,
+  width: Mm,
+  thickness: Mm,
+): Bounds3 =>
+  boundsFromPoints(
+    [
+      v3(0, 0, 0),
+      v3(length, 0, 0),
+      v3(length, width, 0),
+      v3(0, width, 0),
+      v3(0, 0, thickness),
+      v3(length, 0, thickness),
+      v3(length, width, thickness),
+      v3(0, width, thickness),
+    ].map((corner) => partToCabinet(p, corner)),
+  );
+
 export const boundsSize = (b: Bounds3): { w: Mm; h: Mm; d: Mm } => ({
   w: mm(b.max.x - b.min.x),
   h: mm(b.max.y - b.min.y),
