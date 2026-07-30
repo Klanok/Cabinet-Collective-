@@ -131,16 +131,21 @@ export const MERIVOBOX: DrawerRunnerSystem = {
       'cabinet floor with its front flush below it. Everything else in the chain is off Blum’s ' +
       'sheet; this link is not, and it is what moves the box and the runner holes together. The ' +
       '"min. 31.5" on the front-installation sheet may well be it — worth reading the footnote.',
-    'frontFixingRowSpacing — the second front fixing screw is read as 32mm above the first, off ' +
-      'the dimension chain rather than off a stated figure. Check before boring a set of fronts.',
     'runnerFixing height — the runner’s own fixing holes are put on the bottom line of the runner, ' +
       'because Blum states the fixing spacing but not its height above that line. A few ' +
       'millimetres out here is a runner that does not sit where the box expects it.',
+    'fixingSpacings — the 128/256 table is taken as the spacing of the runner’s two fixings in the ' +
+      'cabinet side. Blum’s own sheet heads that table "Drilling distances – base", and on the same ' +
+      'page "base" is the drawer bottom panel — so this table may belong to a different part ' +
+      'entirely, and the cabinet side may have no confirmed spacing at all.',
   ],
   specNote:
-    'Wooden bottom and wooden back, 16mm chipboard. A steel back is a different cut list and is ' +
-    'not modelled. Front fixing figures are the screw-on variant; EXPANDO takes a Ø8 dowel on the ' +
-    'same pattern and is not modelled.',
+    'Wooden bottom and wooden back, 16mm chipboard. A steel back is a shorter base — NL − 22 rather ' +
+    'than NL − 26 — and is not modelled. Front fixing figures are the screw-on variant. INSERTA and ' +
+    'EXPANDO T use the same vertical chain but a Ø10 (+0.2/−0.1) bore 12mm in from the edge of the ' +
+    'front (min. 6mm for EXPANDO T), and are not modelled. A high front built up to E height with a ' +
+    'BOXCAP takes a third fixing 128mm above the lowest and a 184mm back; only M height is shipped, ' +
+    'so neither is here.',
 };
 
 /**
