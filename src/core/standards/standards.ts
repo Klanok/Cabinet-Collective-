@@ -194,6 +194,18 @@ export const differencesFromStandards = (
         `${standardSheet.decor} ${standardSheet.thickness}mm is cut at ${jobActual}mm, standard is ${standardActual}mm.`,
       );
     }
+    /*
+     * A colour is screen-only and nothing is cut from it — but `matchesStandards` compares the whole
+     * snapshot, so a changed colour already makes a job read as out of sync. Reporting it keeps the
+     * two from disagreeing: "this job has drifted" with an empty list of differences is worse than
+     * either answer on its own.
+     */
+    if (jobSheet.colour !== standardSheet.colour) {
+      notes.push(
+        `${standardSheet.decor} is drawn in ${jobSheet.colour ?? 'the default colour'}, standard is ` +
+          `${standardSheet.colour ?? 'the default'}. Screen only — nothing is cut from it.`,
+      );
+    }
   }
 
   /*

@@ -44,13 +44,21 @@ const DRAW_INSET: Mm = mm(0.3);
 interface Props {
   panel: Panel;
   thickness: Mm;
+  /**
+   * What the board this part is cut from looks like, if its material says.
+   *
+   * Preferred over the role colour when present, so a kitchen reads as the decors it is actually
+   * made from rather than as a uniform off-white. The role colours below are the fallback and stay
+   * exactly as they were — a material with no colour draws precisely as it always did.
+   */
+  colour?: string;
   selected: boolean;
   onSelect: () => void;
   /** Pointer-down on the panel — the start of a possible drag of its whole cabinet. */
   onGrab: (event: ThreeEvent<PointerEvent>) => void;
 }
 
-export function PanelMesh({ panel, thickness, selected, onSelect, onGrab }: Props) {
+export function PanelMesh({ panel, thickness, colour: boardColour, selected, onSelect, onGrab }: Props) {
   /*
    * A routed front is drawn as the board that is actually left: a slab of the reduced
    * thickness, with the border standing back up to full thickness around it. So the recess is
@@ -85,7 +93,9 @@ export function PanelMesh({ panel, thickness, selected, onSelect, onGrab }: Prop
 
   const matrix: Matrix4 = useMemo(() => panelMatrix(panel.placement), [panel.placement]);
 
-  const colour = selected ? '#ff9640' : ROLE_COLOURS[panel.role] ?? '#dcd8d0';
+  // Selection wins over everything: it has to be unmistakable on a walnut door as well as a
+  // white one, which is exactly why it is not just a tint of the board colour.
+  const colour = selected ? '#ff9640' : boardColour ?? ROLE_COLOURS[panel.role] ?? '#dcd8d0';
   // Fronts sit proud of the carcass; making them slightly translucent keeps the interior
   // readable without having to hide them. A routed front stays solid — the whole point of it
   // is the shadow the recess throws, and that doesn't read through a translucent panel.

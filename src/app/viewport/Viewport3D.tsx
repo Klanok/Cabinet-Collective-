@@ -15,7 +15,7 @@ import { actualThicknessOf, findSheet } from '../../core/model/material.ts';
 import { AU_BENCHTOP_THICKNESS } from '../../core/library/defaults.au.ts';
 import { benchtopRuns } from '../../core/project/benchtop.ts';
 import { yawCosSin } from '../../core/geom/placement.ts';
-import { snapToWall } from '../../core/project/wallPlacement.ts';
+import { snapToNeighbour, snapToWall } from '../../core/project/wallPlacement.ts';
 import { PanelMesh } from './PanelMesh.tsx';
 import { RoomShell } from './RoomShell.tsx';
 import { FlyControls } from './FlyControls.tsx';
@@ -34,6 +34,16 @@ const MM_TO_SCENE = 0.001;
  * do. Dragging it back out into the room is one gesture away.
  */
 const WALL_SNAP_GAP: Mm = 200;
+
+/**
+ * How close a dragged cabinet has to get to a neighbour before it butts up against it.
+ *
+ * Much tighter than the wall gap, and deliberately. A wall is somewhere a cabinet nearly always
+ * wants to be, so being greedy about it costs nothing. A *neighbour* is one of several nearby, and
+ * a greedy snap would keep grabbing the wrong one — 60mm is close enough that you have clearly
+ * aimed at it.
+ */
+const NEIGHBOUR_SNAP_GAP: Mm = 60;
 
 interface Props {
   built: readonly BuiltCabinet[];
@@ -66,6 +76,9 @@ function CabinetGroup({
           key={panel.id}
           panel={panel}
           thickness={actualThicknessOf(findSheet(project.materials, panel.materialId))}
+          // What the board actually looks like, where the material says. A part cut from a decor
+          // nobody has given a colour to falls back to the viewport's own colour for its role.
+          colour={findSheet(project.materials, panel.materialId).colour}
           selected={selected}
           onSelect={onSelect}
           onGrab={(e) => onGrab(built.cabinet, e)}
@@ -136,9 +149,21 @@ function Scene({
     (cabinetId: string, x: Mm, z: Mm) => {
       const cabinet = project.cabinets.find((c) => c.id === cabinetId);
       if (!cabinet) return;
-      const snap = snapToWall(project.room, cabinet, x, z, WALL_SNAP_GAP);
-      if (snap) {
-        onMoveCabinet(cabinetId, snap.placement.anchor.x, snap.placement.anchor.z, snap.placement.yawDeg);
+
+      /*
+       * A neighbour is tried first, and wins when it is close enough.
+       *
+       * It is the more specific answer: butting onto a cabinet that is itself against a wall puts
+       * you against that wall too, and butting onto one out in the room is a deliberate thing to
+       * do that a wall snap would undo. The wall is the fallback, which is also the order you
+       * would do it by hand — set one cabinet, then push the rest up to it.
+       */
+      const neighbour = snapToNeighbour(project.cabinets, cabinet, x, z, NEIGHBOUR_SNAP_GAP);
+      const placement =
+        neighbour?.placement ?? snapToWall(project.room, cabinet, x, z, WALL_SNAP_GAP)?.placement;
+
+      if (placement) {
+        onMoveCabinet(cabinetId, placement.anchor.x, placement.anchor.z, placement.yawDeg);
       } else {
         onMoveCabinet(cabinetId, x, z, cabinet.placement.yawDeg);
       }
