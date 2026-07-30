@@ -43,8 +43,18 @@ describe('the kitchen run builds', () => {
     expect(walls.reduce((s, c) => s + c.width, 0)).toBe(2400);
   });
 
-  it('produces 63 parts', () => {
-    expect(allPanels(kitchen)).toHaveLength(63);
+  /**
+   * 63 was the Phase 1 figure and every one of those parts is still here, the same size and in the
+   * same place. The extra six are the drawer boxes Phase 1 deliberately did not cut: D1 has three
+   * drawers, and a Blum box contributes a bottom and a wooden back each. The steel sides are bought,
+   * not cut, so they are on the hardware BOM and not on this list.
+   */
+  it('produces 69 parts — the Phase 1 63, plus a bottom and a back for each of D1\'s three drawers', () => {
+    const panels = allPanels(kitchen);
+    expect(panels).toHaveLength(69);
+    expect(panels.filter((p) => p.role === 'drawer-bottom')).toHaveLength(3);
+    expect(panels.filter((p) => p.role === 'drawer-back')).toHaveLength(3);
+    expect(panels.filter((p) => p.role !== 'drawer-bottom' && p.role !== 'drawer-back')).toHaveLength(63);
   });
 
   it('builds every cabinet without a dimensional warning', () => {
@@ -115,9 +125,9 @@ describe('the cutlist reads like a real one', () => {
     const lines = buildCutlist(kitchen);
     const totals = cutlistTotals(lines);
 
-    expect(totals.partCount).toBe(63);
+    expect(totals.partCount).toBe(69);
     // Identical parts repeat across cabinets, so there must be fewer lines than parts.
-    expect(totals.lineCount).toBeLessThan(63);
+    expect(totals.lineCount).toBeLessThan(69);
     expect(totals.lineCount).toBeGreaterThan(0);
   });
 
@@ -152,10 +162,10 @@ describe('the run costs out', () => {
     const c = costProject(kitchen);
 
     expect(c.cabinetCount).toBe(7);
-    expect(c.panelCount).toBe(63);
+    expect(c.panelCount).toBe(69);
     expect(c.warnings).toEqual([]);
 
-    expect(c.materialCost).toBe(c.sheetCost + c.edgeBandCost);
+    expect(c.materialCost).toBe(c.sheetCost + c.edgeBandCost + c.hardwareCost);
     expect(c.totalCost).toBe(c.materialCost + c.labourCost + c.installCost);
     expect(c.subtotalExGst).toBe(c.totalCost + c.marginAmount);
     expect(c.sellExGst).toBe(c.subtotalExGst + c.deliveryFee);
@@ -165,8 +175,8 @@ describe('the run costs out', () => {
   it('lands in a believable range for a 3m kitchen on indicative rates', () => {
     const c = costProject(kitchen);
     const sell = centsToAud(c.totalIncGst);
-    // Carcasses and fronts only — no hardware, benchtop, appliances or installation, all of
-    // which arrive in later phases. Around $1,800 on the seeded rates.
+    // Carcasses, fronts, drawer boxes and hardware. No benchtop, appliances or joinery beyond the
+    // cabinets, which arrive in later phases.
     expect(sell).toBeGreaterThan(1_200);
     expect(sell).toBeLessThan(10_000);
   });

@@ -127,6 +127,13 @@ describe('drawer bank', () => {
       'Drawer front 1',
       'Drawer front 2',
       'Drawer front 3',
+      // A Blum box is a bottom and a wooden back; the sides are steel and are bought.
+      'Drawer bottom',
+      'Drawer back',
+      'Drawer bottom',
+      'Drawer back',
+      'Drawer bottom',
+      'Drawer back',
       'Kick',
     ]);
   });
