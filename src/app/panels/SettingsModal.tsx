@@ -223,12 +223,13 @@ function HardwareEditor({
             onChange={(n) => patchRunner({ runnerAboveFrontBottom: mm(n) })}
           />
           <NumberRow
-            label="Second front fixing screw"
-            hint="Second front fixing screw, this far above the first"
-            value={runner.frontFixingRowSpacing}
+            label="Runner screws above the rail's bottom"
+            hint="How far up the runner its own fixing screws sit — Blum's min. 54"
+            value={runner.runnerFixingAboveRunnerBottom}
             min={0}
-            max={96}
-            onChange={(n) => patchRunner({ frontFixingRowSpacing: mm(n) })}
+            max={120}
+            step={0.5}
+            onChange={(n) => patchRunner({ runnerFixingAboveRunnerBottom: mm(n) })}
           />
 
           <p className="note subtle">
@@ -245,7 +246,8 @@ function HardwareEditor({
           <p className="note subtle">
             Measured up from <strong>the bottom of the runner</strong>, which is Blum's own datum:
             the underside of the drawer bottom sits {runner.bottomPanelAboveRunner}mm above it, and
-            the front fixing screws {runner.frontFixingAboveRunner}mm and{' '}
+            the runner's own fixing screws {runner.runnerFixingAboveRunnerBottom}mm, and the front
+            fixing screws {runner.frontFixingAboveRunner}mm and{' '}
             {runner.frontFixingAboveRunner + runner.frontFixingRowSpacing}mm — plus{' '}
             {runner.preAssembledProfileAllowance}mm if the cabinet profile goes on before the
             carcass is assembled, which the model does not know and does not apply. Sideways, the

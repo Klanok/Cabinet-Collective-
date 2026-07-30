@@ -267,7 +267,8 @@ bottom of runner  →  underside of the drawer bottom     20
 bottom of runner  →  front fixing screw centre          33.5   (+1 if the cabinet profile is
                                                                 fitted before the carcass is
                                                                 assembled — Blum's `*` footnote)
-first screw       →  second screw                       32
+first screw       →  second screw                       32     (vertical, off the drawing)
+bottom of runner  →  the runner's own fixing screws     54     (Blum's `min. 54*`)
 outer face of the cabinet side  →  screw centre         20.5
 ```
 
@@ -304,11 +305,18 @@ has for money — a figure nobody knows is unchecked is a figure that gets trust
   flush with the carcass bottom starts a board thickness below that. **The `min. 31.5**` on the
   front-installation sheet may well be this figure**; the footnote was cropped out of the screenshot
   and is worth reading.
-- **`frontFixingRowSpacing`, 32mm.** Read as the second screw off the dimension chain rather than
-  off a stated figure.
-- **The runner's own fixing height above its bottom line**, taken as zero. Blum states the fixing
-  *spacing* (128/256) but not its height, so the holes go on the runner's bottom line. This is the
-  sharpest of the three: a few millimetres out is a runner that does not sit where the box expects.
+- **`runnerFixingAboveRunnerBottom`, 54mm.** Read off Blum's `min. 54*`, per the shop. The same 54
+  could instead be the minimum height of the **runner** above the cabinet floor, which would make it
+  `runnerAboveFrontBottom` rather than this. The `*` footnote does not discriminate — the confirmed
+  33.5 carries it too and is runner-relative. Settled with a tape against a real runner: measure its
+  bottom edge to the screw centre. About 54 confirms it here; 10 to 15 means it is the other one.
+- **`fixingSpacings`, the 128/256 table.** Taken as the spacing of the runner's two fixings in the
+  cabinet side. Blum heads that table **"Drilling distances – base"**, and on the same page "base" is
+  the *drawer bottom panel* — so it may belong to a different part entirely, and the cabinet side may
+  have no confirmed spacing at all. This is the sharpest of them.
+
+**Confirmed and off the list:** the 32mm between the two front fixing screws is vertical, from the
+INSERTA/EXPANDO drawing showing the two Ø10 bores one directly above the other.
 
 ---
 
