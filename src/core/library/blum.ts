@@ -20,7 +20,8 @@
  *   wooden back, M         83mm high, cut from 16mm chipboard
  *   drawer bottom          LW − 51 wide  ×  NL − 26 long, from 16mm chipboard
  *   minimum inner depth    LT min = NL + 3
- *   fixing spacing         128mm at NL ≤ 300, 256mm at NL 350–600
+ *   fixing distribution    128mm at NL ≤ 300, 256mm at NL 350–600 — a short runner is drilled
+ *                          differently from a long one, which is why it steps rather than scaling
  *   load rating            40kg (a 70kg class also exists and is not shipped here)
  *
  * `LW` is the clear width between the cabinet sides and `LT` the clear depth in front of the
@@ -133,11 +134,6 @@ export const MERIVOBOX: DrawerRunnerSystem = {
       'cabinet floor with its front flush below it. Everything else in the chain is off Blum’s ' +
       'sheet; this link is not, and it is what moves the box and the runner holes together. The ' +
       '"min. 31.5" on the front-installation sheet may well be it — worth reading the footnote.',
-    'fixingSpacings — the 128/256 table is taken as the spacing of the runner’s two fixings in the ' +
-      'cabinet side, and both figures being whole multiples of the 32mm pitch is the argument for ' +
-      'that. But Blum heads the table "Drilling distances – base", and on the same page "base" is ' +
-      'the drawer bottom panel — so it may belong to a different part entirely, in which case the ' +
-      'cabinet side has no confirmed spacing at all and the drawer bottom is missing its holes.',
   ],
   specNote:
     'Wooden bottom and wooden back, 16mm chipboard. A steel back is a shorter base — NL − 22 rather ' +

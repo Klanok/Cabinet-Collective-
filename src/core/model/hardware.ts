@@ -83,11 +83,17 @@ export interface DrawerSideHeight {
 }
 
 /**
- * How far apart the two fixing points on a cabinet profile sit, for a given nominal length.
+ * How far apart the runner's two fixing points sit, for a given nominal length.
  *
- * Both figures are multiples of 32 — 128 is four holes on the system pitch and 256 is eight —
- * which is not a coincidence: the runner is designed to land on the same grid as everything
- * else in a frameless carcass.
+ * Blum's `X`. It is the **distribution of the fixings** — a short runner is drilled differently from
+ * a long one, which is why the figure steps rather than scaling — and it belongs to the runner in
+ * the cabinet side, confirmed by the shop.
+ *
+ * Both figures are whole multiples of 32 — 128 is four holes on the system pitch and 256 is eight —
+ * which is not a coincidence: the runner is designed to land on the same grid as everything else in
+ * a frameless carcass. That was the argument for reading it this way before it was confirmed, and it
+ * is worth keeping, because it is also the check that a *different* runner system's figures have
+ * been read off the right table.
  */
 export interface RunnerFixingSpacing {
   /** Applies to nominal lengths up to and including this. */
