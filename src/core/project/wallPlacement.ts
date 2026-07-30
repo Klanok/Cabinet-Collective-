@@ -181,6 +181,119 @@ export const snapToWall = (
 const clamp = (n: number, low: number, high: number): number =>
   Math.min(Math.max(n, low), Math.max(low, high));
 
+// ---------------------------------------------------------------------------------------
+// Butting one cabinet against the next
+// ---------------------------------------------------------------------------------------
+
+/**
+ * A cabinet's own axes in the world: along its run, and out through its front.
+ *
+ * These are the images of cabinet +X and +Z under `cabinetToWorld`, and they are an orthonormal
+ * pair — so a world point resolves into (along, across) by two dot products and back again by
+ * scaling them. That is the whole of the arithmetic below.
+ */
+const runAxes = (yawDeg: number) => {
+  const { c, s } = yawCosSin(yawDeg);
+  return { along: { x: c, z: -s }, across: { x: s, z: c } };
+};
+
+export interface NeighbourSnap {
+  readonly neighbour: Cabinet;
+  /** Which end of the neighbour the cabinet has been butted against. */
+  readonly end: 'left' | 'right';
+  readonly placement: CabinetPlacement;
+  /** How far the cabinet moved to close up — along the run and across it, as one distance. */
+  readonly gap: Mm;
+}
+
+/**
+ * The cabinet a dragged one should butt up against, if any.
+ *
+ * Asked for from the bench, and it is how a run actually gets laid out: you put the sink base
+ * where it goes and then push everything else up against it. It is also what removes the last
+ * reason to type an X.
+ *
+ * **Measured along the cabinet's own run axis, not along world X.** Down the return leg of an L
+ * two touching cabinets share an X entirely, so a world-axis test would call them neighbours when
+ * they are one behind the other, and would never call them neighbours when they are side by side.
+ * That is exactly the lesson `project/benchtop.ts` had to learn about finding a run, and it is the
+ * same fix: resolve into the run's own frame first.
+ *
+ * Three things have to agree before two cabinets are in the same run, and each rules out a real
+ * mistake rather than being a tidiness check:
+ *
+ * - **the same yaw**, or a base cabinet on the return leg of an L would butt into the back of one
+ *   on the main run;
+ * - **the same height off the floor**, or a wall unit would snap to the base cabinet under it;
+ * - **the same line across the run**, or a cabinet out in the room would jump back to the wall.
+ *
+ * The line is compared at the **back** of the carcass, which is the anchor's own plane — so a 400
+ * deep cabinet butts against a 560 one flush at the back and proud at the front, which is what
+ * happens against a wall.
+ */
+export const snapToNeighbour = (
+  cabinets: readonly Cabinet[],
+  cabinet: Cabinet,
+  x: Mm,
+  z: Mm,
+  maxGap: Mm,
+): NeighbourSnap | null => {
+  let best: NeighbourSnap | null = null;
+
+  for (const neighbour of cabinets) {
+    if (neighbour.id === cabinet.id) continue;
+    if (angularDistance(neighbour.placement.yawDeg, cabinet.placement.yawDeg) > YAW_TOLERANCE_DEG) {
+      continue;
+    }
+    // Height is typed, never dragged, so two cabinets at different heights are two different runs.
+    if (Math.abs(neighbour.placement.anchor.y - cabinet.placement.anchor.y) > 0.5) continue;
+
+    // Both resolve in the *neighbour's* frame. It is the one standing still, so it is the one that
+    // decides where the run is.
+    const axes = runAxes(neighbour.placement.yawDeg);
+    const resolve = (px: number, pz: number) => ({
+      along: px * axes.along.x + pz * axes.along.z,
+      across: px * axes.across.x + pz * axes.across.z,
+    });
+
+    const dragged = resolve(x, z);
+    const fixed = resolve(neighbour.placement.anchor.x, neighbour.placement.anchor.z);
+    const acrossGap = Math.abs(dragged.across - fixed.across);
+    if (acrossGap > maxGap) continue;
+
+    // Butt to either end of the neighbour: the dragged cabinet's left end onto the neighbour's
+    // right, or its right end onto the neighbour's left.
+    const candidates: { end: 'left' | 'right'; along: number }[] = [
+      { end: 'right', along: fixed.along + neighbour.width },
+      { end: 'left', along: fixed.along - cabinet.width },
+    ];
+
+    for (const candidate of candidates) {
+      const alongGap = Math.abs(dragged.along - candidate.along);
+      if (alongGap > maxGap) continue;
+      const gap = mm(round(Math.hypot(alongGap, acrossGap)));
+      if (best && gap >= best.gap) continue;
+
+      best = {
+        neighbour,
+        end: candidate.end,
+        placement: {
+          anchor: v3(
+            mm(round(candidate.along * axes.along.x + fixed.across * axes.across.x)),
+            cabinet.placement.anchor.y,
+            mm(round(candidate.along * axes.along.z + fixed.across * axes.across.z)),
+          ),
+          // Square with the neighbour, not merely near it — the point of snapping.
+          yawDeg: neighbour.placement.yawDeg,
+        },
+        gap,
+      };
+    }
+  }
+
+  return best;
+};
+
 /**
  * The footprint of a cabinet's carcass on the floor, as four world X/Z corners in order.
  * Front-left, front-right, back-right, back-left — so it draws as a closed shape on a plan.
