@@ -24,11 +24,14 @@ import type { GstMode, Project } from '../model/project.ts';
 import { buildProject } from '../rules/build.ts';
 import { machinedFronts } from '../rules/frontStyle.ts';
 import { type HardwareBomLine, hardwareForCabinet } from '../hardware/bom.ts';
+import { buildRunUnits } from '../rules/runUnits.ts';
+import { benchtopChargeTotal, benchtopCharges, benchtopProblems } from './benchtopCost.ts';
 import { effectiveCost, gstOnSale } from './gst.ts';
 
 export interface PanelCost {
   readonly panelId: string;
-  readonly cabinetId: string;
+  /** The cabinet, benchtop or ladder base the part was cut for. */
+  readonly ownerId: string;
   readonly name: string;
   readonly materialId: string;
   readonly lengthMm: number;
@@ -69,6 +72,15 @@ export interface CostBreakdown {
    * quoted as though the hardware were free.
    */
   readonly hardwareCost: Cents;
+  /**
+   * Benchtops bought in rather than cut — stone, postformed laminate.
+   *
+   * Its own line, and **not** part of `sheetCost`, because it is not a sheet: it is a fabricator's
+   * invoice, per square metre with the cutouts, the joins, the edge profiling and a minimum all
+   * charged on top. A shop-made top is not here — that one is a cut part and is in `sheetCost` with
+   * everything else, which is the whole point of `supply` being a property of the top.
+   */
+  readonly benchtopCost: Cents;
   readonly materialCost: Cents;
 
   readonly labourMinutes: number;
@@ -168,7 +180,7 @@ const costPanel = (
 
   return {
     panelId: panel.id,
-    cabinetId: panel.cabinetId,
+    ownerId: panel.ownerId,
     name: panel.name,
     materialId: panel.materialId,
     lengthMm: length,
@@ -214,8 +226,15 @@ const summariseMaterials = (
 
 export const costProject = (project: Project): CostBreakdown => {
   const built = buildProject(project);
-  const panels = built.flatMap((b) => b.panels);
-  const warnings: string[] = built.flatMap((b) => b.warnings);
+  const units = buildRunUnits(project);
+  // Shop-made tops and ladder bases are cut parts, so they go through the same sheet-and-banding
+  // arithmetic as everything else. Bought-in tops produce none, and are charged separately below.
+  const panels = [...built.flatMap((b) => b.panels), ...units.flatMap((u) => u.panels)];
+  const warnings: string[] = [
+    ...built.flatMap((b) => b.warnings),
+    ...units.flatMap((u) => u.warnings),
+    ...benchtopProblems(project),
+  ];
 
   const { settings, materials: library } = project;
   const mode = settings.gstMode;
@@ -252,13 +271,30 @@ export const costProject = (project: Project): CostBreakdown => {
    */
   const hardwareCost: Cents = effectiveCost(hardwareExGst, mode);
 
-  const materialCost = sheetCost + edgeBandCost + hardwareCost;
+  /*
+   * Bought-in benchtops. Not sheet goods and not hardware — a service somebody else invoices, on
+   * their own rates, with their own minimum. Its own line for the same reason hardware got one: it
+   * is large enough that folding it into another number hides it.
+   */
+  const charges = benchtopCharges(project);
+  const benchtopCost: Cents = benchtopChargeTotal(charges);
+
+  const materialCost = sheetCost + edgeBandCost + hardwareCost + benchtopCost;
 
   const bandedEdges = panels.reduce((s, p) => s + bandedEdgeCount(p), 0);
+  /*
+   * Assembly time is per **thing that got assembled**, which is not the same as per row in the
+   * cabinet list. An appliance space produces no parts and takes no assembly; so does a cabinet
+   * whose dimensions don't work. A ladder base very much does take assembly, and it is not in the
+   * cabinet list at all. Counting produced parts rather than list length gets all three right.
+   */
+  const assemblies =
+    built.filter((b) => b.panels.length > 0).length +
+    units.filter((u) => u.panels.length > 0).length;
   const labourMinutes =
     panels.length * settings.labour.minutesPerPanel +
     bandedEdges * settings.labour.minutesPerBandedEdge +
-    project.cabinets.length * settings.labour.minutesPerCabinet;
+    assemblies * settings.labour.minutesPerCabinet;
   // Labour is charged out at an ex-GST rate under both registration contexts — there is no
   // input credit to claim on your own time.
   const labourCost = roundCents((labourMinutes / 60) * settings.labour.ratePerHourExGst * 100);
@@ -302,6 +338,7 @@ export const costProject = (project: Project): CostBreakdown => {
     sheetCost,
     edgeBandCost,
     hardwareCost,
+    benchtopCost,
     materialCost,
     labourMinutes,
     labourCost,
@@ -322,7 +359,8 @@ export const costProject = (project: Project): CostBreakdown => {
     cabinetCount: project.cabinets.length,
     usesIndicativePricing:
       byMaterial.some((m) => m.indicativePricing) ||
-      hardwareLines.some((l) => l.indicativePricing),
+      hardwareLines.some((l) => l.indicativePricing) ||
+      charges.some((c) => c.indicativePricing),
     warnings,
   };
 };

@@ -7,7 +7,7 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import { type Mm, mm } from '../src/core/units.ts';
-import { benchtopRuns } from '../src/core/project/benchtop.ts';
+import { benchtopRuns } from '../src/core/project/runs.ts';
 import { placeAgainstWall } from '../src/core/project/wallPlacement.ts';
 import { rectangularRoom } from '../src/core/model/room.ts';
 import { createCabinet, createEmptyProject, resetIdCounter } from '../src/core/project/factory.ts';
@@ -37,7 +37,7 @@ describe('benchtop runs', () => {
     expect(runs).toHaveLength(1);
     expect(runs[0]!.startX).toBe(0);
     expect(runs[0]!.length).toBe(2400);
-    expect(runs[0]!.cabinetIds).toHaveLength(3);
+    expect(runs[0]!.memberIds).toHaveLength(3);
   });
 
   it('does not run benchtop across a tall cabinet', () => {
@@ -56,7 +56,7 @@ describe('benchtop runs', () => {
     expect(runs[1]!.startX).toBe(1500);
     expect(runs[1]!.length).toBe(900);
     // The tall cabinet is under no benchtop at all.
-    const covered = runs.flatMap((r) => r.cabinetIds);
+    const covered = runs.flatMap((r: { memberIds: readonly string[] }) => r.memberIds);
     const tall = p.cabinets.find((c) => c.typeId === 'tall')!;
     expect(covered).not.toContain(tall.id);
   });
@@ -83,7 +83,7 @@ describe('benchtop runs', () => {
     );
     const runs = benchtopRuns(p);
     expect(runs).toHaveLength(1);
-    expect(runs[0]!.cabinetIds).toHaveLength(1);
+    expect(runs[0]!.memberIds).toHaveLength(1);
   });
 
   it('gives no benchtop at all when there are no bench-height cabinets', () => {
@@ -120,7 +120,7 @@ describe('benchtop runs', () => {
     );
     const run = benchtopRuns(p)[0]!;
     // 150 kick + 720 carcass.
-    expect(run.carcassTopY).toBe(870);
+    expect(run.datumY).toBe(870);
     expect(run.carcassDepth).toBe(600);
     expect(run.backZ).toBe(0);
   });
@@ -170,7 +170,7 @@ describe('benchtop runs', () => {
     expect(runs[0]!.startX).toBe(4200);
     expect(runs[0]!.backZ).toBe(900);
     expect(runs[0]!.yawDeg).toBe(270);
-    expect(runs[0]!.carcassTopY).toBe(870);
+    expect(runs[0]!.datumY).toBe(870);
   });
 
   it('still breaks that run over a gap', () => {

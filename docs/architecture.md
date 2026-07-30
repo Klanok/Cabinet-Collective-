@@ -23,6 +23,9 @@ src/core/                        pure model layer
     feature.ts                   parametric machining intent (the Phase 4 interface);
                                  also the tool profile — a cutter's cross-section
     hardware.ts                  runner and hinge systems as data; box and boring arithmetic
+    runUnit.ts                   what a benchtop and a ladder base share: how they are *owned*
+    benchtop.ts                  a benchtop: supply, overhangs, ends, joins, cutouts
+    kickBase.ts                  a ladder base: ribs to the floor, rails cut short
     forming.ts                   how a flat part bends after it is cut; developed length
     material.ts                  sheet goods, edge banding, grain, nominal vs actual thickness
     panel.ts                     Panel — the single source of truth for a part
@@ -40,6 +43,7 @@ src/core/                        pure model layer
     hardware.ts                  a cabinet's runner and hinge, resolved once into the context
     drawerBox.ts                 the two parts a Blum box contributes to the cutlist
     boring.ts                     the drilling — hinge, runner and System 32, in cabinet space
+    runUnits.ts                  benchtop and ladder base → Panel[], in the unit's own space
     build.ts                     cabinet + project → Panel[]
   standards/
     standards.ts                 shop standards; snapshot into a job, and drift from it
@@ -47,6 +51,7 @@ src/core/                        pure model layer
     doorStyles.ts                door styles — parametric front recipes (snapshotted)
   costing/
     gst.ts                       10% GST, both registration contexts
+    benchtopCost.ts              a bought-in top: m², cutouts, joins, edge, minimum
     costing.ts                   panels → cost breakdown
   cutlist/
     cutlist.ts                   panels → grouped cutlist lines
@@ -58,7 +63,8 @@ src/core/                        pure model layer
     layout.ts                    cross-cabinet checks (overlap, below floor, outside room)
     plan.ts                      editing walls as a walk: typed lengths, turns, closing
     wallPlacement.ts             cabinet ⇄ "which wall, how far along"; drag snapping
-    benchtop.ts                  runs of touching bench-height cabinets, along any axis
+    runs.ts                      runs of touching bench-height cabinets, along any axis
+    generate.ts                  run → benchtop / ladder base, and regenerating one
 
 src/app/                         React; depends on core, never the reverse
   store/projectStore.ts          zustand: project + selection only, nothing derived
@@ -70,7 +76,7 @@ src/app/                         React; depends on core, never the reverse
     RoomShell.tsx                floor polygon and wall planes
     Viewport3D.tsx               scene, camera, lighting; mm → metres happens once here
   plan/PlanView.tsx              the 2D plan: draw the room, lengths typed not dragged
-  panels/                        cabinet list, inspector, cutlist, cost
+  panels/                        cabinet list, inspector, cutlist, hardware, tops, cost
 
 scripts/report.ts                terminal cutlist + costing for the sample kitchen
 docs/coordinate-convention.md    the three coordinate spaces — read this first
@@ -111,6 +117,30 @@ that line), and walls run so the **room is on the left**, which makes the inward
 left normal with no per-wall "which side is in?" flag to get wrong.
 
 ## Decisions worth knowing about
+
+**A benchtop and a ladder base are the one place a derived thing is stored, and it is deliberate.**
+Everywhere else, a part is regenerated from its cabinet on every build and never written back —
+that is what stops a saved job carrying stale geometry. A run unit is the exception and it earns it:
+a panel is derived from a cabinet *every time* because nothing else decides it, and a benchtop
+**stops** being derived the moment somebody sets a 40mm overhang on one end or puts the sink 300mm
+off centre. The alternative was keying those overrides on a run identity — and a run identity
+changes the moment a cabinet moves, so the overhang set last week would silently detach from the top
+it was set on. `project/runs.ts` is therefore the **generator**, not the definition, and
+`fromCabinetIds` is read by "regenerate" and by nothing else. The argument is written out in
+`model/runUnit.ts`; if anything else starts reading that field, the ownership is a fiction.
+
+**A part names its owner, not its cabinet.** `Panel.ownerId` and `ownerKind`, because a benchtop and
+a plinth are cut from sheet stock exactly as a carcass part is and belong on the same list. A
+parallel part record for run units was the alternative and is the thing this codebase exists not to
+do — a costed part and a cut part have to be the same part. No migration was needed: panels are
+derived and never stored.
+
+**Some distinctions are not geometric, and the model has to let somebody state them.** A dishwasher
+space and a fridge space are the same gap of the same width in the same place; the top runs over one
+and not the other. No amount of cleverness in the run finder can tell them apart, so
+`rules/specs/applianceSpace.ts` is a placed unit that produces zero parts and carries the answer —
+and it carries the two answers separately, because "does the top run over it" and "does the plinth
+run under it" are different questions with different answers for the same appliance.
 
 **Edge banding is expressed directionally.** A spec says "band the edge facing the front of
 the cabinet", not "band edge L2". Which named edge that resolves to depends on the panel's

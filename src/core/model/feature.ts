@@ -19,8 +19,10 @@ import type { RectEdge } from '../geom/profile.ts';
  * Which face a feature is machined from. Depths are always measured into the material from
  * the named face (see docs/coordinate-convention.md).
  *
- * 'B' requires the part to be flipped on the machine — a real setup cost, and a real chance
- * to machine the wrong side, so it is explicit in the data rather than inferred.
+ * It is explicit in the data rather than inferred, because machining the wrong side of a part is a
+ * real and expensive mistake. It is **not** on its own a statement about setups: the face being
+ * machined is the face that goes up on the bed, so a part with work on the B face and nothing on
+ * the A face is one setup. See `requiresFlip`, which asks that question of the part.
  */
 export type MachiningFace = 'A' | 'B';
 

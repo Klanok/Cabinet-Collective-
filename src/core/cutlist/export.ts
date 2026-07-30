@@ -55,7 +55,7 @@ export const cutlistCsv = (project: Project): string => {
       'Banding',
       'Banded mm',
       'Grain',
-      'Cabinets',
+      'For',
       'Note',
     ],
     ...lines.map((l) => [
@@ -68,7 +68,7 @@ export const cutlistCsv = (project: Project): string => {
       l.banding === '—' ? '' : l.banding,
       round1(l.bandedLengthMm),
       l.grain,
-      l.cabinetNames.join(' '),
+      l.ownerNames.join(' '),
       l.note,
     ]),
   ]);

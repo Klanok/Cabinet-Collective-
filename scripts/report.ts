@@ -22,7 +22,16 @@ import { buildCutlist, cutlistTotals } from '../src/core/cutlist/cutlist.ts';
 import { drillingTotals } from '../src/core/cutlist/export.ts';
 import { buildHardwareBom, drillingSummary, hardwareBomTotals } from '../src/core/hardware/bom.ts';
 import { unconfirmedHardwareFigures } from '../src/core/model/hardware.ts';
+import {
+  benchtopDepth,
+  benchtopLength,
+  benchtopSections,
+} from '../src/core/model/benchtop.ts';
+import { findBenchtopMaterial } from '../src/core/model/material.ts';
+import { unconfirmedLadderFigures } from '../src/core/model/construction.ts';
+import { benchtopCharges } from '../src/core/costing/benchtopCost.ts';
 import { buildProject } from '../src/core/rules/build.ts';
+import { buildRunUnits } from '../src/core/rules/runUnits.ts';
 import { formatAud } from '../src/core/units.ts';
 import { gstModeLabel } from '../src/core/costing/gst.ts';
 
@@ -120,6 +129,57 @@ console.log(
         'second setup on each.'),
 );
 
+rule('BENCHTOPS AND PLINTHS');
+if (project.benchtops.length === 0 && project.kickBases.length === 0) {
+  console.log('  None on this job.');
+}
+for (const top of project.benchtops) {
+  const material = findBenchtopMaterial(project.materials, top.materialId);
+  console.log(
+    `  ${top.name.padEnd(10)} ${String(Math.round(benchtopLength(top))).padStart(5)} × ` +
+      `${String(Math.round(benchtopDepth(top))).padStart(4)}   ` +
+      `${material.brand} ${material.decor}  (${material.supply})`,
+  );
+  const sections = benchtopSections(top);
+  console.log(
+    `             ${sections.length} ${sections.length === 1 ? 'piece' : 'pieces'}` +
+      `${sections.length > 1 ? ` — ${sections.map((s) => Math.round(s)).join(' + ')}` : ''}` +
+      `, ${top.cutouts.length} cutouts, ends ${top.ends.left}/${top.ends.right}`,
+  );
+}
+/*
+ * The charges, itemised.
+ *
+ * Printed as a breakdown rather than a total because it is the breakdown that gets checked against
+ * the fabricator's quote — and because a top where the *minimum* is the price is worth seeing as
+ * such rather than as a number that happens to be higher than the area suggests.
+ */
+for (const c of benchtopCharges(project)) {
+  console.log(
+    `  ${c.name} — ${c.materialLabel}: ${c.areaM2.toFixed(2)}m² ${formatAud(c.areaCost)}` +
+      `, ${c.cutoutCount} ${c.cutoutCount === 1 ? 'cutout' : 'cutouts'} ${formatAud(c.cutoutCost)}` +
+      `, ${c.joinCount} ${c.joinCount === 1 ? 'join' : 'joins'} ${formatAud(c.joinCost)}` +
+      `, ${c.edgeMetres.toFixed(1)}m ${c.edgeProfileName} ${formatAud(c.edgeCost)}`,
+  );
+  console.log(
+    `             ${c.minimumApplied ? 'MINIMUM CHARGE APPLIES — ' : ''}` +
+      `${formatAud(c.totalExGst)} ex GST`,
+  );
+}
+const runUnits = buildRunUnits(project);
+for (const base of project.kickBases) {
+  const built = runUnits.find((u) => u.id === base.id);
+  console.log(
+    `  ${base.name.padEnd(10)} ${String(Math.round(base.length)).padStart(5)} × ` +
+      `${String(Math.round(base.depth)).padStart(4)} × ${String(Math.round(base.height)).padStart(3)}` +
+      ` high   ${built?.panels.length ?? 0} parts` +
+      `${base.hasFace ? ', kick face on' : ', no face'}`,
+  );
+}
+for (const unit of runUnits) {
+  for (const w of unit.warnings) console.log(`      ! ${w}`);
+}
+
 rule('MATERIALS');
 for (const m of cost.byMaterial) {
   console.log(
@@ -134,6 +194,7 @@ const row = (label: string, value: string) => console.log(`  ${label.padEnd(30)}
 row('Sheet goods', formatAud(cost.sheetCost));
 row('Edge banding', formatAud(cost.edgeBandCost));
 row('Hardware', formatAud(cost.hardwareCost));
+if (cost.benchtopCost > 0) row('Benchtops (bought in)', formatAud(cost.benchtopCost));
 row('Material', formatAud(cost.materialCost));
 row(`Labour (${(cost.labourMinutes / 60).toFixed(1)} h)`, formatAud(cost.labourCost));
 if (cost.machiningMinutes > 0) {
@@ -164,7 +225,14 @@ if (cost.usesIndicativePricing) {
  * unchecked and *says* it is unchecked costs ten seconds with a catalogue, and one that is unchecked
  * and silent costs a carcass.
  */
-const unchecked = unconfirmedHardwareFigures(project.hardware);
+const unchecked = [
+  ...unconfirmedHardwareFigures(project.hardware),
+  // Only when the job actually has a ladder base in it. A figure nobody's build depends on is
+  // noise, and noise is what makes a real warning get skipped over.
+  ...(project.kickBases.length > 0
+    ? project.constructions.flatMap((c) => unconfirmedLadderFigures(c))
+    : []),
+];
 if (unchecked.length > 0) {
   console.log('\n  ! Hardware figures not yet checked against the catalogue:');
   for (const note of unchecked) console.log(`      · ${note}`);

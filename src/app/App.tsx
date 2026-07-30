@@ -19,11 +19,12 @@ import { Inspector } from './panels/Inspector.tsx';
 import { CostPanel } from './panels/CostPanel.tsx';
 import { CutlistPanel } from './panels/CutlistPanel.tsx';
 import { HardwarePanel } from './panels/HardwarePanel.tsx';
+import { BenchtopPanel } from './panels/BenchtopPanel.tsx';
 import { SettingsModal } from './panels/SettingsModal.tsx';
 import { PlanView } from './plan/PlanView.tsx';
 import { exportProjectFile, importProjectFile } from './store/persistence.ts';
 
-type Tab = 'cutlist' | 'hardware' | 'cost';
+type Tab = 'cutlist' | 'hardware' | 'tops' | 'cost';
 type View = '3d' | 'plan';
 
 export default function App() {
@@ -36,6 +37,14 @@ export default function App() {
   const removeCabinet = useProjectStore((s) => s.removeCabinet);
   const updateSettings = useProjectStore((s) => s.updateSettings);
   const loadSampleKitchen = useProjectStore((s) => s.loadSampleKitchen);
+  const generateBenchtops = useProjectStore((s) => s.generateBenchtops);
+  const regenerateBenchtop = useProjectStore((s) => s.regenerateBenchtop);
+  const updateBenchtop = useProjectStore((s) => s.updateBenchtop);
+  const deleteBenchtop = useProjectStore((s) => s.deleteBenchtop);
+  const generateKickBases = useProjectStore((s) => s.generateKickBases);
+  const regenerateKickBase = useProjectStore((s) => s.regenerateKickBase);
+  const updateKickBase = useProjectStore((s) => s.updateKickBase);
+  const deleteKickBase = useProjectStore((s) => s.deleteKickBase);
 
   const standards = useProjectStore((s) => s.standards);
   const storageError = useProjectStore((s) => s.storageError);
@@ -236,6 +245,12 @@ export default function App() {
               Hardware
             </button>
             <button
+              className={`tab${tab === 'tops' ? ' is-active' : ''}`}
+              onClick={() => setTab('tops')}
+            >
+              Tops
+            </button>
+            <button
               className={`tab${tab === 'cost' ? ' is-active' : ''}`}
               onClick={() => setTab('cost')}
             >
@@ -244,6 +259,19 @@ export default function App() {
           </nav>
           {tab === 'cutlist' && <CutlistPanel lines={cutlist} project={project} />}
           {tab === 'hardware' && <HardwarePanel project={project} />}
+          {tab === 'tops' && (
+            <BenchtopPanel
+              project={project}
+              onGenerateBenchtops={generateBenchtops}
+              onRegenerateBenchtop={regenerateBenchtop}
+              onUpdateBenchtop={updateBenchtop}
+              onDeleteBenchtop={deleteBenchtop}
+              onGenerateKickBases={generateKickBases}
+              onRegenerateKickBase={regenerateKickBase}
+              onUpdateKickBase={updateKickBase}
+              onDeleteKickBase={deleteKickBase}
+            />
+          )}
           {tab === 'cost' && (
             <CostPanel cost={cost} settings={project.settings} onUpdateSettings={updateSettings} />
           )}

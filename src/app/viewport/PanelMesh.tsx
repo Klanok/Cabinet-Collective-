@@ -54,8 +54,13 @@ interface Props {
   colour?: string;
   selected: boolean;
   onSelect: () => void;
-  /** Pointer-down on the panel — the start of a possible drag of its whole cabinet. */
-  onGrab: (event: ThreeEvent<PointerEvent>) => void;
+  /**
+   * Pointer-down on the panel — the start of a possible drag of its whole cabinet.
+   *
+   * Optional, because not every part belongs to a cabinet any more. A benchtop or a ladder base is
+   * placed by the run it was generated from, not by dragging, so its parts have nothing to grab.
+   */
+  onGrab?: (event: ThreeEvent<PointerEvent>) => void;
 }
 
 export function PanelMesh({ panel, thickness, colour: boardColour, selected, onSelect, onGrab }: Props) {

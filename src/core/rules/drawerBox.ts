@@ -85,7 +85,7 @@ export const drawerBoxes = (ctx: RuleContext, frontHeights: readonly Mm[]): Part
      * the runner plus 20. Not the floor you look down on: that is a board thickness higher, and
      * confusing the two is a box sitting 16mm out.
      */
-    const underside = mm(row.y + bottomPanelAboveFrontBottom(system));
+    const underside = mm(row.y + bottomPanelAboveFrontBottom(system, ctx.t));
 
     /*
      * The bottom lies in flat, like a shelf: part +X runs across the cabinet and part +Y runs

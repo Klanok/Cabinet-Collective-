@@ -152,18 +152,28 @@ export interface DrawerRunnerSystem {
    */
 
   /**
-   * How far above the bottom edge of its drawer front the bottom of the runner sits.
+   * How far above the **cabinet floor** the bottom of the runner has to sit — the install height.
    *
-   * **The one link in the chain that Blum's sheet does not state outright**, and it is the one that
-   * ties the hardware to the cabinet — so it is named for exactly what it is and it is flagged.
+   * This used to be a single figure called `runnerAboveFrontBottom`, fixed at 16mm, standing for
+   * the whole distance from the bottom edge of a drawer front up to the bottom of the runner. That
+   * was wrong in a way worth recording, because it was wrong by being *one* number where there are
+   * two, and only one of them belongs to the runner:
    *
-   * The shipped figure is derived rather than guessed: on the *bottom* drawer of a bank the runner
-   * goes as low as it can, which is on the top face of the cabinet bottom, and a front flush with
-   * the carcass bottom starts a board thickness below that. So on a 16mm carcass the runner sits
-   * 16mm above the bottom edge of its front, and the drawers above it keep the same relationship so
-   * the bank reads straight.
+   *   distance from the front's bottom edge to the runner
+   *     = the cabinet bottom's **board thickness** + this install height
+   *
+   * The board thickness is the cabinet's business and the rule engine already knows it, measured
+   * rather than nominal — so a 16.3mm board moves the whole bank by 0.3mm without anybody typing
+   * anything. The install height is the runner's business, and it is **not always zero**: a
+   * push-to-open runner needs clearance under it to travel, and a runner sitting straight on the
+   * cabinet floor has none.
+   *
+   * Ships at zero for the ordinary screw-fixed MERIVOBOX, which is the runner resting on the base.
+   * There is no standard default for the push-to-open case, which is exactly why it is a field.
+   *
+   * Read it through `runnerAboveFrontBottom`, never directly.
    */
-  readonly runnerAboveFrontBottom: Mm;
+  readonly runnerAboveCabinetFloor: Mm;
   /** Underside of the drawer bottom panel, above the bottom of the runner. Blum's `20`. */
   readonly bottomPanelAboveRunner: Mm;
   /**
@@ -273,18 +283,46 @@ export const drawerBottomSize = (
 });
 
 /**
+ * How far above the bottom edge of its drawer front the bottom of the runner sits.
+ *
+ * The link that ties the hardware to the cabinet, and the only one in the chain that Blum's sheet
+ * cannot state — because half of it is a fact about the *carcass*, not about the runner.
+ *
+ * On the bottom drawer of a bank the runner goes as low as it will go: onto the cabinet floor, plus
+ * whatever install height the runner itself needs. The front is flush with the carcass bottom, so it
+ * starts a board thickness below that floor. The drawers above keep the same relationship to their
+ * own fronts, so the bank reads straight.
+ *
+ * `carcassThickness` is the board that will really be cut, not the nominal — see `BuildThicknesses`.
+ * That is the whole reason this is a function taking an argument rather than a number sitting on the
+ * runner record, which is what it used to be: a runner does not know what the cabinet is made of,
+ * and a shop that moves to 18mm board must not have to re-type a hardware figure to suit.
+ */
+export const runnerAboveFrontBottom = (
+  system: DrawerRunnerSystem,
+  carcassThickness: Mm,
+): Mm => mm(carcassThickness + system.runnerAboveCabinetFloor);
+
+/**
  * Height of the **underside** of the drawer bottom panel above the bottom edge of its front.
  *
- * Two links of the chain, applied in the order Blum's sheet states them, and the reason it is a
- * function rather than a field is that a field would be a third place claiming to know a sum of two
- * numbers already here.
+ * Links of the chain applied in the order Blum's sheet states them, and the reason it is a function
+ * rather than a field is that a field would be a third place claiming to know a sum of numbers
+ * already here.
  */
-export const bottomPanelAboveFrontBottom = (system: DrawerRunnerSystem): Mm =>
-  mm(system.runnerAboveFrontBottom + system.bottomPanelAboveRunner);
+export const bottomPanelAboveFrontBottom = (
+  system: DrawerRunnerSystem,
+  carcassThickness: Mm,
+): Mm => mm(runnerAboveFrontBottom(system, carcassThickness) + system.bottomPanelAboveRunner);
 
 /** Height of the front fixing screws above the bottom edge of the front, bottom screw first. */
-export const frontFixingHeights = (system: DrawerRunnerSystem): [Mm, Mm] => {
-  const first = mm(system.runnerAboveFrontBottom + system.frontFixingAboveRunner);
+export const frontFixingHeights = (
+  system: DrawerRunnerSystem,
+  carcassThickness: Mm,
+): [Mm, Mm] => {
+  const first = mm(
+    runnerAboveFrontBottom(system, carcassThickness) + system.frontFixingAboveRunner,
+  );
   return [first, mm(first + system.frontFixingRowSpacing)];
 };
 

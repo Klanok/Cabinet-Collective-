@@ -62,6 +62,16 @@ export interface CabinetSpec {
   readonly name: string;
   /** Applied when a cabinet of this type doesn't specify them. */
   readonly defaultOptions: CabinetOptions;
+  /**
+   * False for a type that is not a box at all — an appliance space. Defaults to true, which is
+   * every spec that existed before one did.
+   *
+   * It governs whether `validateContext`'s carcass checks run. Those ask whether an interior
+   * opening survives the sides and the horizontals, which is a good question about a cupboard and
+   * a meaningless one about a gap where a dishwasher goes: a 600mm space would be told its width
+   * is "too narrow for 16mm sides" it does not have.
+   */
+  readonly isCarcass?: boolean;
   readonly parts: readonly PartRule[];
   /** Type-specific sanity checks, run before parts are produced. */
   readonly validate?: (ctx: RuleContext) => string[];

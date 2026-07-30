@@ -7,11 +7,14 @@
  */
 
 import type { Mm } from '../units.ts';
+import type { Benchtop } from './benchtop.ts';
 import type { Cabinet } from './cabinet.ts';
+import type { KickBase } from './kickBase.ts';
 import {
   type ConstructionMethod,
   collapseThicknessFields,
   withFixingStrip,
+  withLadderKick,
   withSystemHoles,
 } from './construction.ts';
 import type { HardwareLibrary } from './hardware.ts';
@@ -24,8 +27,9 @@ import {
   DEFAULT_HINGE_SYSTEM_ID,
   DEFAULT_RUNNER_SYSTEM_ID,
 } from '../library/blum.ts';
+import { AU_BENCHTOP_MATERIALS } from '../library/materials.au.ts';
 
-export const CURRENT_SCHEMA_VERSION = 9 as const;
+export const CURRENT_SCHEMA_VERSION = 10 as const;
 
 /**
  * The bendy ply an older job is given when it is migrated forward. It has no curved parts in
@@ -103,6 +107,17 @@ export interface Project {
 
   readonly room: Room;
   readonly cabinets: readonly Cabinet[];
+  /**
+   * Benchtops and ladder bases — the two things that span a run of cabinets and belong to none of
+   * them.
+   *
+   * **These are the only stored things in this file that are also derivable**, and the exception is
+   * argued in `model/runUnit.ts`. In short: a panel is derived from a cabinet every time because
+   * nothing else decides it, and a benchtop stops being derived the moment somebody sets an
+   * overhang on one end. They are generated from a run once and owned from then on.
+   */
+  readonly benchtops: readonly Benchtop[];
+  readonly kickBases: readonly KickBase[];
   readonly materials: MaterialLibrary;
   readonly constructions: readonly ConstructionMethod[];
   /**
@@ -413,6 +428,51 @@ const migrateV8toV9 = (raw: Record<string, unknown>): Record<string, unknown> =>
 };
 
 /**
+ * v9 → v10. **Benchtops and ladder bases become objects the job owns.**
+ *
+ * This one moves nothing, and unlike v9 it can honour that completely.
+ *
+ * A v9 job comes forward with **no benchtops and no ladder bases at all**. Every part is the same
+ * part, every price is the same price, and the 3D view keeps showing a top over each run — but that
+ * slab is now drawn as a **ghost**, explicitly labelled as nothing having been specified yet,
+ * rather than as a benchtop the job does not have. Generating a real one is a deliberate action.
+ *
+ * The alternative was to generate a top for every run on the way through, and it was rejected for a
+ * reason worth writing down: a benchtop's *material* is the whole question. Guessing stone would
+ * add thousands to a saved quote; guessing laminate would add hundreds; guessing nothing at all
+ * would produce an object with no price and no honest way to say so. Under-quoting a job the user
+ * has already sent is worse than showing them an empty list with a button on it.
+ *
+ * Three things arrive alongside:
+ *
+ *   - `materials.benchtops`, the shipped list of top materials, so the slot is never empty.
+ *   - the ladder-base figures on every construction method — see `withLadderKick`. No part moves;
+ *     nothing but a ladder base reads them, and no v9 job could have had one.
+ *   - `appliance` becomes a cabinet type. Nothing is migrated *to* it; it is there to be used.
+ *
+ * The version is bumped for the usual reason: an older build opening a v10 job would drop the
+ * benchtops and the plinths on the floor and quote the kitchen without them, silently. Refusing the
+ * file is the honest failure.
+ */
+const migrateV9toV10 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const constructions = (raw.constructions as Record<string, unknown>[] | undefined) ?? [];
+  const materials = (raw.materials as Record<string, unknown> | undefined) ?? {};
+  const existingTops = materials.benchtops as unknown[] | undefined;
+  return {
+    ...raw,
+    schemaVersion: 10,
+    constructions: constructions.map(withLadderKick),
+    benchtops: raw.benchtops ?? [],
+    kickBases: raw.kickBases ?? [],
+    materials: {
+      ...materials,
+      benchtops:
+        existingTops && existingTops.length > 0 ? existingTops : AU_BENCHTOP_MATERIALS,
+    },
+  };
+};
+
+/**
  * Load a project from stored JSON, migrating older schema versions forward.
  *
  * Migrations run in sequence, so a v1 file loaded after several schema changes still arrives
@@ -441,6 +501,7 @@ export const migrateProject = (raw: unknown): Project => {
   if (data.schemaVersion === 6) data = migrateV6toV7(data);
   if (data.schemaVersion === 7) data = migrateV7toV8(data);
   if (data.schemaVersion === 8) data = migrateV8toV9(data);
+  if (data.schemaVersion === 9) data = migrateV9toV10(data);
 
   if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`migrateProject: could not migrate schema version ${String(version)}`);

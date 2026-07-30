@@ -13,8 +13,11 @@ import type { BuiltCabinet } from '../../core/rules/build.ts';
 import type { Project } from '../../core/model/project.ts';
 import { actualThicknessOf, findSheet } from '../../core/model/material.ts';
 import { AU_BENCHTOP_THICKNESS } from '../../core/library/defaults.au.ts';
-import { benchtopRuns } from '../../core/project/benchtop.ts';
-import { yawCosSin } from '../../core/geom/placement.ts';
+import { type Benchtop, benchtopDepth, benchtopLength } from '../../core/model/benchtop.ts';
+import { findBenchtopMaterial } from '../../core/model/material.ts';
+import { uncoveredRuns } from '../../core/project/generate.ts';
+import { buildRunUnits } from '../../core/rules/runUnits.ts';
+import { type CabinetPlacement, yawCosSin } from '../../core/geom/placement.ts';
 import { snapToNeighbour, snapToWall } from '../../core/project/wallPlacement.ts';
 import { PanelMesh } from './PanelMesh.tsx';
 import { RoomShell } from './RoomShell.tsx';
@@ -89,14 +92,94 @@ function CabinetGroup({
 }
 
 /**
- * Benchtop slabs, one per run of touching bench-height cabinets.
+ * Benchtops and ladder bases, drawn from **their own parts**.
  *
- * The run-finding is in the model (project/benchtop.ts), not here — a tall cabinet carrying
- * no top, and a top not floating over a gap, are facts about the job rather than about how it
- * is drawn.
+ * This used to be a slab the viewport worked out for itself from the run finder. It isn't any more,
+ * and the difference is the whole of §5.5: a top is now an object the job owns, so what you see is
+ * what is on the cutlist and on the quote.
+ *
+ * A **bought-in** top is the one exception, and it is not an exception to the principle: it
+ * produces no parts because nobody in this shop cuts it, so it is drawn as the one slab that
+ * arrives on the truck, at the size the fabricator is being asked to make.
  */
-function Benchtops({ project }: { project: Project }) {
-  const runs = useMemo(() => benchtopRuns(project), [project]);
+function RunUnits({ project }: { project: Project }) {
+  const units = useMemo(() => buildRunUnits(project), [project]);
+  const placements = useMemo(() => {
+    const map = new Map<string, CabinetPlacement>();
+    for (const t of project.benchtops) map.set(t.id, t.placement);
+    for (const k of project.kickBases) map.set(k.id, k.placement);
+    return map;
+  }, [project.benchtops, project.kickBases]);
+
+  return (
+    <>
+      {units.map((unit) => {
+        const placement = placements.get(unit.id);
+        if (!placement || unit.panels.length === 0) return null;
+        return (
+          <group key={unit.id} matrixAutoUpdate={false} matrix={cabinetMatrix(placement)}>
+            {unit.panels.map((panel) => (
+              <PanelMesh
+                key={panel.id}
+                panel={panel}
+                thickness={actualThicknessOf(findSheet(project.materials, panel.materialId))}
+                colour={findSheet(project.materials, panel.materialId).colour}
+                selected={false}
+                onSelect={() => {}}
+              />
+            ))}
+          </group>
+        );
+      })}
+      {project.benchtops.map((top) => {
+        const material = findBenchtopMaterial(project.materials, top.materialId);
+        if (material.supply !== 'bought-in') return null;
+        return <BoughtInSlab key={top.id} top={top} colour={material.colour ?? '#dedbd4'} />;
+      })}
+    </>
+  );
+}
+
+/** A bought-in top: one slab, at the size the fabricator is being asked to make. */
+function BoughtInSlab({ top, colour }: { top: Benchtop; colour: string }) {
+  const { c, s } = yawCosSin(top.placement.yawDeg);
+  const length = benchtopLength(top);
+  const depth = benchtopDepth(top);
+  const thickness = AU_BENCHTOP_THICKNESS;
+  // Centre of the slab in the unit's own frame, then turned out into the room by the run's yaw.
+  const alongCentre = length / 2 - top.overhangs.left;
+  const frontCentre = (top.carcassDepth + top.overhangs.front - top.overhangs.back) / 2;
+  return (
+    <mesh
+      position={[
+        top.placement.anchor.x + alongCentre * c + frontCentre * s,
+        top.placement.anchor.y + thickness / 2,
+        top.placement.anchor.z - alongCentre * s + frontCentre * c,
+      ]}
+      rotation={[0, (top.placement.yawDeg * Math.PI) / 180, 0]}
+      receiveShadow
+      castShadow
+    >
+      <boxGeometry args={[length, thickness, depth]} />
+      <meshStandardMaterial color={colour} roughness={0.4} />
+    </mesh>
+  );
+}
+
+/**
+ * A run with no benchtop on it yet, drawn as a **ghost**.
+ *
+ * The point of this is honesty, and it is worth being explicit about why it looks the way it does.
+ * Before §5.5 the viewport drew a solid slab over every run, worked out on the fly — and that slab
+ * was never on the cutlist, never on the quote and never in the job file. It looked exactly like a
+ * benchtop the job had. It was not one.
+ *
+ * So it is still drawn, because seeing the space is genuinely useful, and it is drawn transparent
+ * so nobody can mistake it for something that has been specified. Generating a real one is one
+ * button in the Benchtops tab.
+ */
+function GhostTops({ project }: { project: Project }) {
+  const runs = useMemo(() => uncoveredRuns(project, 'benchtop'), [project]);
   const overhang = 20;
   const thickness = AU_BENCHTOP_THICKNESS;
 
@@ -111,18 +194,22 @@ function Benchtops({ project }: { project: Project }) {
         const forward = (run.carcassDepth + overhang) / 2;
         return (
           <mesh
-            key={run.cabinetIds.join('+')}
+            key={run.memberIds.join('+')}
             position={[
               run.startX + half * c + forward * s,
-              run.carcassTopY + thickness / 2,
+              run.datumY + thickness / 2,
               run.backZ - half * s + forward * c,
             ]}
             rotation={[0, (run.yawDeg * Math.PI) / 180, 0]}
-            receiveShadow
-            castShadow
           >
             <boxGeometry args={[run.length, thickness, run.carcassDepth + overhang]} />
-            <meshStandardMaterial color="#3f4248" roughness={0.55} />
+            <meshStandardMaterial
+              color="#6d7681"
+              roughness={0.9}
+              transparent
+              opacity={0.2}
+              depthWrite={false}
+            />
           </mesh>
         );
       })}
@@ -188,7 +275,8 @@ function Scene({
       <Suspense fallback={null}>
         <group scale={MM_TO_SCENE}>
           <RoomShell room={project.room} showWalls={showWalls} />
-          <Benchtops project={project} />
+          <RunUnits project={project} />
+          <GhostTops project={project} />
           {built.map((b) => (
             <CabinetGroup
               key={b.cabinet.id}

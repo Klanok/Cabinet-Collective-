@@ -29,9 +29,9 @@ driving dimensions plus a construction method. Change a width, a drawer count or
 thickness and the parts, the cutlist and the cost all move together, because there is only
 one copy of each part in the system.
 
-The sample kitchen is a 3000mm base run with 2400mm of wall cabinets over it: 7 cabinets,
-69 parts, 31 cutlist lines, 3 MERIVOBOX drawer sets, 20 hinges, 460 holes, ~$3,700 on the
-seeded rates.
+The sample kitchen is a 4200mm base run with 2400mm of wall cabinets over it: 8 cabinets and a
+dishwasher space, 87 parts, 37 cutlist lines, 3 MERIVOBOX drawer sets, 22 hinges, 554 holes, one
+stone benchtop and two ladder bases, ~$7,400 on the seeded rates.
 
 ## Hardware and drilling
 
@@ -71,6 +71,51 @@ The Blum figures live in one file, `src/core/library/blum.ts`. Anything in there
 been checked against the catalogue is listed by name on screen and in the terminal report, the
 same way indicative pricing is — because a figure nobody knows is unchecked is a figure that
 gets trusted.
+
+## Benchtops and ladder bases
+
+These two are the only things in the tool that span a **run** of cabinets and belong to none of
+them, and they're the only things that are **saved rather than worked out**. Everything else is
+regenerated from its cabinet on every build, which is what stops a job carrying stale parts. A
+benchtop stops being something that can be worked out the moment you set a 40mm overhang on one end
+or put the sink 300mm off centre — so it's generated from a run once, and yours from then on.
+Move a cabinet and the top stays exactly where it is, until you press **Regenerate**.
+
+**The dishwasher.** A gap between two cabinets used to break the run — right for a fridge, wrong for
+a dishwasher, and there's nothing you can *measure* that tells them apart. So you place an
+**appliance space**: a named gap of a known width that nothing is cut for, and that carries the
+answer. It asks two questions separately, because they are two questions — does the top run over it,
+and does the plinth run under it. A dishwasher is yes and no: the top goes straight over, and the
+plinth stops either side because the machine stands on the floor. The sample kitchen has one in it,
+and comes out as **one 4200mm top and two plinths**.
+
+**Cut or bought.** Which one a top is comes off the material you pick, and it changes everything
+downstream. A shop-made top — laminated MDF, timber — is a cut part: it's on the cutlist in as many
+pieces as you've joined it into, the sink hole is machining, and it's priced as sheet and banding
+like a door. A stone top isn't a part at all: it's templated on site after the cabinets are in, and
+it's quoted the way the fabricator quotes it — per square metre, **plus** a charge for each cutout
+by what the cutout is for, plus a charge per join, plus edge profiling by the metre, all against a
+**minimum**. Costed as bare area × rate, a 900mm vanity comes out at about a third of the real
+number.
+
+You set the overhangs on each edge independently — a breakfast bar is one edge, not four — say what
+happens at each end (into a wall, exposed, waterfall, mitred), put the joins where they'll be least
+visible, and add sink, hob and tap-hole cutouts. A run with no top on it yet is still drawn in 3D,
+but as a **ghost**: see-through, so it can't be mistaken for something you've specified. Nothing is
+cut or quoted for it until you generate one.
+
+**The ladder base** is the alternative to a kick panel per cabinet: a frame on the floor that a whole
+run sits on, with the kick face applied to the front. The ribs run to the floor and are what the run
+stands and gets levelled on; the front and back rails are cut 10mm short so they hang clear and the
+frame beds down on the ribs alone — on a floor that's never flat, that's the difference between
+packing three ribs and fighting a rail that rocks. The face is cut 10mm over-height to be planed in
+on site. Generating one switches the individual kick off every cabinet over it, because a run on a
+continuous plinth doesn't also carry a kick panel each.
+
+Which *end* of the kick face that extra 10mm sits at is the one figure here that hasn't been
+confirmed — it ships as the floor, as a scribe allowance — and the app says so by name, on screen
+and in the report, until somebody checks it. Cutting it at the wrong end is a whole run of kick
+faces.
 
 ## Drawing the room
 
@@ -304,9 +349,10 @@ builders, which is the test of whether that's actually true.
 - That each reveal applies to the edge it names — swapping which one is large swaps which door
   dimension shrinks.
 - That a job saved before reveals were split still cuts identically after migration.
-- The full kitchen run: 69 parts — the Phase 1 63 with a bottom and a back for each of D1's three
-  drawers, and not one of the original 63 moved — no warnings, everything inside the room, cabinets
-  butted without gaps or overlaps.
+- The full kitchen run: 87 parts, with the arithmetic from the Phase 1 63 written out step by step
+  — drawer boxes in, per-cabinet kicks out and onto the ladder base, an end base added, nothing cut
+  for the dishwasher space and nothing cut for the stone top — and not one of the original parts
+  moved. No warnings, everything inside the room, cabinets butted without gaps or overlaps.
 - That a job and the shop standards stay isolated: editing one never touches the other, two
   jobs from the same standards stay independent, and a shop building to an 18mm carcass on a
   100mm kick gets parts and placements to match.
@@ -349,8 +395,10 @@ having something other than memory re-checking it.
 | — | PDF export (CSV is done; print from the browser meanwhile) | not started |
 | — | Cabinets butting up against each other on a drag, not just against walls | **done** |
 | — | Decor colours in the 3D view, so a walnut door doesn't render as white melamine | **done** |
-| — | Benchtops as their own unit, rather than derived from the cabinets under them | not started |
-| — | A separate ladder kick under a run, rather than a kick per cabinet | not started |
+| — | Benchtops as their own unit, rather than derived from the cabinets under them | **done** |
+| — | A separate ladder kick under a run, rather than a kick per cabinet | **done** |
+| — | An appliance space, so a top runs over a dishwasher and not over a fridge | **done** |
+| — | Waterfall and mitred benchtop corners linked to each other, not just flagged per top | not started |
 | — | Wall openings — bulkheads, windows, out-of-square walls and scribes | not started |
 | 3 | Guillotine nesting for sheet goods, offcut tracking | not started |
 | 4 | CAM feature layer — toolpaths from the features Phase 2 and the door styles emit | not started |

@@ -1181,3 +1181,58 @@ tbody td {
   background: var(--accent-dim);
   color: #fff;
 }
+
+/* ── Benchtops and ladder bases ──────────────────────────────────────────── */
+
+/*
+ * A run unit is the one thing in this app that is *stored* rather than derived, so it gets a card
+ * of its own rather than a row in a table: it is an object you edit, not a line that was worked
+ * out for you.
+ */
+.unit-card {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px;
+  margin: 10px 0;
+  background: var(--bg-raised);
+}
+
+.unit-card > select {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.row-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: flex-end;
+  margin: 6px 0;
+}
+
+.row-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.row-grid input,
+.row-grid select {
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.btn.small {
+  padding: 3px 8px;
+  font-size: 11px;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  margin: 6px 0;
+}

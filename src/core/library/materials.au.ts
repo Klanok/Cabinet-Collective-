@@ -19,7 +19,13 @@
  */
 
 import { mm } from '../units.ts';
-import type { EdgeBandMaterial, MaterialLibrary, SheetMaterial, SheetSize } from '../model/material.ts';
+import type {
+  BenchtopMaterial,
+  EdgeBandMaterial,
+  MaterialLibrary,
+  SheetMaterial,
+  SheetSize,
+} from '../model/material.ts';
 
 const sheet = (length: number, width: number, priceExGst: number): SheetSize => ({
   length: mm(length),
@@ -366,11 +372,83 @@ export const AU_EDGE_BANDS: readonly EdgeBandMaterial[] = [
   },
 ];
 
+/**
+ * Benchtop materials.
+ *
+ * Note what the two `bought-in` records carry that no sheet material does: a square-metre rate, a
+ * minimum, and separate charges for the cutouts, the joins and the edge. That is not decoration —
+ * it is how the quote actually arrives, and a stone top costed as area × rate comes out under on
+ * every small job and under by a long way on any job with a sink in it.
+ *
+ * The shop-made one names a sheet rather than restating one, so a laminated MDF top and an MDF
+ * door panel can never be priced off two different boards.
+ */
+export const AU_BENCHTOP_MATERIALS: readonly BenchtopMaterial[] = [
+  {
+    id: 'stone-quartz-20',
+    brand: 'Generic',
+    decor: 'Engineered stone 20mm',
+    thickness: mm(20),
+    supply: 'bought-in',
+    colour: '#dedbd4',
+    charges: {
+      ratePerM2ExGst: 55_000,
+      minimumChargeExGst: 90_000,
+      cutoutChargeExGst: {
+        sink: 18_000,
+        hob: 14_000,
+        'tap-hole': 4_500,
+        other: 12_000,
+      },
+      joinChargeExGst: 16_000,
+      edgeProfilePerMExGst: 4_500,
+      edgeProfileName: '20mm pencil round',
+    },
+    indicativePricing: true,
+  },
+  {
+    id: 'laminate-postformed-33',
+    brand: 'Laminex',
+    decor: 'Postformed laminate 33mm',
+    thickness: mm(33),
+    supply: 'bought-in',
+    colour: '#cfc9bf',
+    charges: {
+      ratePerM2ExGst: 18_000,
+      minimumChargeExGst: 25_000,
+      cutoutChargeExGst: {
+        sink: 7_500,
+        hob: 6_500,
+        'tap-hole': 2_500,
+        other: 6_000,
+      },
+      joinChargeExGst: 9_000,
+      edgeProfilePerMExGst: 2_200,
+      edgeProfileName: 'Postformed front, ABS ends',
+    },
+    indicativePricing: true,
+  },
+  {
+    id: 'shopmade-hmr-mdf-18',
+    brand: 'Generic',
+    decor: 'Shop-made HMR MDF, laminated',
+    thickness: mm(18),
+    supply: 'shop-made',
+    sheetMaterialId: 'mdf-hmr-18',
+    colour: '#cbc4b8',
+    // The sheet it is cut from carries the pricing flag; this record adds no rate of its own.
+    indicativePricing: false,
+  },
+];
+
 export const AU_MATERIAL_LIBRARY: MaterialLibrary = {
   sheets: AU_SHEET_MATERIALS,
   edgeBands: AU_EDGE_BANDS,
+  benchtops: AU_BENCHTOP_MATERIALS,
 };
 
 /** True when any material a quote depends on is still carrying placeholder pricing. */
 export const hasIndicativePricing = (lib: MaterialLibrary): boolean =>
-  lib.sheets.some((s) => s.indicativePricing) || lib.edgeBands.some((e) => e.indicativePricing);
+  lib.sheets.some((s) => s.indicativePricing) ||
+  lib.edgeBands.some((e) => e.indicativePricing) ||
+  lib.benchtops.some((b) => b.indicativePricing);
