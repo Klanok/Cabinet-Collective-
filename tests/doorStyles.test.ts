@@ -343,17 +343,18 @@ describe('costing the machine time', () => {
     const shakerJob = styled(slabJob, 'shaker-57');
     const cost = costProject(shakerJob);
 
-    // Sample kitchen fronts: B1 pair, D1 three drawers, B2 single, B3 pair, W1 pair, W2
-    // single, W3 pair = 13, all big enough to take the style.
+    // Sample kitchen fronts: B1 pair, D1 three drawers, B2 single, B3 pair, B4 single, W1 pair,
+    // W2 single, W3 pair = 14, all big enough to take the style. The dishwasher space has none —
+    // an appliance door is the appliance's, not this job's.
     const fronts = buildProject(shakerJob)
       .flatMap((b) => b.panels)
       .filter((p) => p.role === 'door' || p.role === 'drawer-front');
-    expect(fronts).toHaveLength(13);
-    expect(cost.machinedFrontCount).toBe(13);
-    expect(cost.machiningMinutes).toBe(78);
+    expect(fronts).toHaveLength(14);
+    expect(cost.machinedFrontCount).toBe(14);
+    expect(cost.machiningMinutes).toBe(84);
 
-    // 13 fronts × 6 min = 78 min at the $85/h shop rate = $110.50.
-    expect(cost.machiningCost).toBe(11050);
+    // 14 fronts × 6 min = 84 min at the $85/h shop rate = $119.00.
+    expect(cost.machiningCost).toBe(11900);
   });
 
   it('does not charge for a front that fell back to a slab', () => {

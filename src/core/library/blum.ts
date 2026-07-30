@@ -38,7 +38,9 @@
  * CLIP top BLUMOTION, 110°, the ordinary frameless overlay hinge. Ø35 cup at 13mm deep is the
  * catalogue figure (it changed from 12.5 with the older CLIP top, which is exactly the sort of
  * number worth writing down rather than remembering). The Ø8 × 11 dowels at 45mm centres are the
- * standard INSERTA/EXPANDO pattern. Their 9.5mm offset from the cup centre is flagged.
+ * standard INSERTA/EXPANDO pattern, and their 9.5mm offset from the cup centreline is off the
+ * INSERTA knock-in drilling diagram — the cup is Ø35 +0.2/0, the dowels Ø8 +0.1, and the drilling
+ * distance is the 3–7 band `cupDistance` sits in the middle of.
  *
  * Two figures here are **shop settings rather than product facts**, and are not flagged as
  * unconfirmed because there is nothing to confirm — they are choices:
@@ -110,7 +112,10 @@ export const MERIVOBOX: DrawerRunnerSystem = {
    * bracket sits — level with the bottom of the box. Worth noting because it is the check that says
    * the chain has been read off the right datum.
    */
-  runnerAboveFrontBottom: mm(16),
+  // Zero: a screw-fixed MERIVOBOX rests on the cabinet floor, so the whole distance up to the
+  // bottom edge of the front is the carcass board's own thickness. A push-to-open runner is the
+  // case that is not zero — see the field, and the note in `unconfirmedFigures`.
+  runnerAboveCabinetFloor: mm(0),
   bottomPanelAboveRunner: mm(20),
   runnerFixingAboveRunnerBottom: mm(54),
 
@@ -129,11 +134,11 @@ export const MERIVOBOX: DrawerRunnerSystem = {
   indicativePricing: true,
 
   unconfirmedFigures: [
-    'runnerAboveFrontBottom — the bottom of the runner is taken to sit 16mm above the bottom edge ' +
-      'of its drawer front, which is a board thickness, from the bottom drawer sitting on the ' +
-      'cabinet floor with its front flush below it. Everything else in the chain is off Blum’s ' +
-      'sheet; this link is not, and it is what moves the box and the runner holes together. The ' +
-      '"min. 31.5" on the front-installation sheet may well be it — worth reading the footnote.',
+    'runnerAboveCabinetFloor — how high the bottom of the runner has to sit above the cabinet ' +
+      'floor. Zero for the ordinary screw-fixed runner, which rests straight on the base, and the ' +
+      'distance up to the bottom edge of the front is then just the carcass board. A ' +
+      'push-to-open runner needs clearance under it to travel and this is not zero; there is no ' +
+      'standard figure, so it wants setting per runner before a push-to-open bank is cut.',
   ],
   specNote:
     'Wooden bottom and wooden back, 16mm chipboard. A steel back is a shorter base — NL − 22 rather ' +
@@ -181,10 +186,10 @@ export const CLIP_TOP_BLUMOTION: HingeSystem = {
   platePriceExGst: price(2.1),
   indicativePricing: true,
 
-  unconfirmedFigures: [
-    'dowelOffset — the two Ø8 dowels sit 9.5mm off the cup centre, away from the door edge. ' +
-      'The 45mm spacing is the catalogue figure; the offset wants checking against a real hinge.',
-  ],
+  // Nothing here is unchecked. `dowelOffset` was, and the INSERTA knock-in drilling pattern
+  // settled it: Ø8 +0.1 dowels at 45mm centres, 9.5mm off the cup centreline, cup Ø35 +0.2/0 at
+  // 13mm minimum depth. Every figure on this record now comes off a sheet.
+  unconfirmedFigures: [],
   specNote:
     'Boring depth is 13mm. The older CLIP top was 12.5mm on the same pattern — worth knowing if ' +
     'a job mixes old and new stock.',

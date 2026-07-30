@@ -34,27 +34,42 @@ beforeEach(() => {
 });
 
 describe('the kitchen run builds', () => {
-  it('has seven cabinets making up a 3000mm base run and 2400mm of wall units', () => {
-    expect(kitchen.cabinets).toHaveLength(7);
+  it('has nine units making up a 4200mm base run and 2400mm of wall units', () => {
+    expect(kitchen.cabinets).toHaveLength(9);
 
     const bases = kitchen.cabinets.filter((c) => c.typeId !== 'wall');
     const walls = kitchen.cabinets.filter((c) => c.typeId === 'wall');
-    expect(bases.reduce((s, c) => s + c.width, 0)).toBe(3000);
+    expect(bases.reduce((s, c) => s + c.width, 0)).toBe(4200);
     expect(walls.reduce((s, c) => s + c.width, 0)).toBe(2400);
+    // One of the nine is a hole in the run, not a cabinet — and it is 600 of the 4200.
+    expect(kitchen.cabinets.filter((c) => c.typeId === 'appliance')).toHaveLength(1);
   });
 
   /**
-   * 63 was the Phase 1 figure and every one of those parts is still here, the same size and in the
-   * same place. The extra six are the drawer boxes Phase 1 deliberately did not cut: D1 has three
-   * drawers, and a Blum box contributes a bottom and a wooden back each. The steel sides are bought,
-   * not cut, so they are on the hardware BOM and not on this list.
+   * 87, and the arithmetic from the Phase 2 figure of 69 is worth writing out, because every step is
+   * a decision rather than a coincidence:
+   *
+   *   69  where §4.6 left it — the Phase 1 63 plus a bottom and a back for each of D1's drawers
+   *   −4  the per-cabinet kick panels, which the ladder base replaces. Generating a plinth
+   *       switches `hasKick` off on every cabinet over it; leaving both on would screw a kick
+   *       panel to the front of a kick face.
+   *   +8  B4, the new end base past the dishwasher. Eight rather than nine, because it never
+   *       had a kick of its own to lose.
+   *   +0  the dishwasher space. Nothing is cut for a hole in the run.
+   *   +14 the two ladder bases — 2 rails, 6 ribs and a face on the long one, 2 rails, 2 ribs and
+   *       a face on the short one.
+   *   +0  the benchtop. It is stone, so nobody in this shop cuts it, and it appears on the quote
+   *       as a fabricator's charge instead. That zero is the whole point of `supply`.
    */
-  it('produces 69 parts — the Phase 1 63, plus a bottom and a back for each of D1\'s three drawers', () => {
+  it('produces 87 parts, including the ladder bases and none for the stone top', () => {
     const panels = allPanels(kitchen);
-    expect(panels).toHaveLength(69);
+    expect(panels).toHaveLength(87);
     expect(panels.filter((p) => p.role === 'drawer-bottom')).toHaveLength(3);
     expect(panels.filter((p) => p.role === 'drawer-back')).toHaveLength(3);
-    expect(panels.filter((p) => p.role !== 'drawer-bottom' && p.role !== 'drawer-back')).toHaveLength(63);
+    expect(panels.filter((p) => p.ownerKind === 'kick-base')).toHaveLength(14);
+    expect(panels.filter((p) => p.ownerKind === 'benchtop')).toHaveLength(0);
+    // Every cabinet in the base run is on the plinth now, so none carries its own kick.
+    expect(panels.filter((p) => p.role === 'kick' && p.ownerKind === 'cabinet')).toHaveLength(0);
   });
 
   it('builds every cabinet without a dimensional warning', () => {
@@ -95,7 +110,7 @@ describe('the run sits correctly in the room', () => {
       expect(cabinet.placement.anchor.x).toBe(x);
       x += cabinet.width;
     }
-    expect(x).toBe(3000);
+    expect(x).toBe(4200);
   });
 
   it('puts every part inside the room and above the floor', () => {
@@ -125,9 +140,9 @@ describe('the cutlist reads like a real one', () => {
     const lines = buildCutlist(kitchen);
     const totals = cutlistTotals(lines);
 
-    expect(totals.partCount).toBe(69);
+    expect(totals.partCount).toBe(87);
     // Identical parts repeat across cabinets, so there must be fewer lines than parts.
-    expect(totals.lineCount).toBeLessThan(69);
+    expect(totals.lineCount).toBeLessThan(87);
     expect(totals.lineCount).toBeGreaterThan(0);
   });
 
@@ -136,10 +151,10 @@ describe('the cutlist reads like a real one', () => {
     const baseSides = lines.filter(
       (l) => l.name.startsWith('Side') && l.length === 720 && l.width === 544,
     );
-    // Four base cabinets, two sides each — left and right band different edges, so they
-    // land on two lines of four.
+    // Five bench-height carcasses, two sides each — left and right band different edges, so they
+    // land on two lines of five.
     expect(baseSides).toHaveLength(2);
-    expect(baseSides.reduce((s, l) => s + l.quantity, 0)).toBe(8);
+    expect(baseSides.reduce((s, l) => s + l.quantity, 0)).toBe(10);
     expect(baseSides.map((l) => l.banding).sort()).toEqual(['L1', 'L2']);
   });
 
@@ -161,11 +176,13 @@ describe('the run costs out', () => {
   it('produces a coherent breakdown', () => {
     const c = costProject(kitchen);
 
-    expect(c.cabinetCount).toBe(7);
-    expect(c.panelCount).toBe(69);
+    expect(c.cabinetCount).toBe(9);
+    expect(c.panelCount).toBe(87);
     expect(c.warnings).toEqual([]);
 
-    expect(c.materialCost).toBe(c.sheetCost + c.edgeBandCost + c.hardwareCost);
+    expect(c.materialCost).toBe(
+      c.sheetCost + c.edgeBandCost + c.hardwareCost + c.benchtopCost,
+    );
     expect(c.totalCost).toBe(c.materialCost + c.labourCost + c.installCost);
     expect(c.subtotalExGst).toBe(c.totalCost + c.marginAmount);
     expect(c.sellExGst).toBe(c.subtotalExGst + c.deliveryFee);

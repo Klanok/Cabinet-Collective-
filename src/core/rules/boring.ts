@@ -42,6 +42,7 @@ import {
   cupCentreFromEdge,
   hingeCentres,
   hingeCountForHeight,
+  runnerAboveFrontBottom,
 } from '../model/hardware.ts';
 import type { RuleContext } from './context.ts';
 import type { MaterialSlot, PartInstance } from './spec.ts';
@@ -378,7 +379,9 @@ const boreRunners = (
      * runner bored 54mm out is a runner nowhere near where the box expects it.
      */
     const y = mm(
-      front.box.min.y + system.runnerAboveFrontBottom + system.runnerFixingAboveRunnerBottom,
+      front.box.min.y +
+        runnerAboveFrontBottom(system, ctx.t) +
+        system.runnerFixingAboveRunnerBottom,
     );
     boreFrontFixing(ctx, front, system, add);
 
@@ -438,7 +441,7 @@ const boreFrontFixing = (
     ['l', mm(system.frontFixingFromCabinetSide)],
     ['r', mm(ctx.W - system.frontFixingFromCabinetSide)],
   ];
-  const runnerY = mm(front.box.min.y + system.runnerAboveFrontBottom);
+  const runnerY = mm(front.box.min.y + runnerAboveFrontBottom(system, ctx.t));
   const rows: [string, Mm][] = [
     ['1', mm(runnerY + system.frontFixingAboveRunner)],
     ['2', mm(runnerY + system.frontFixingAboveRunner + system.frontFixingRowSpacing)],

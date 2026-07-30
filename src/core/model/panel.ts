@@ -44,7 +44,22 @@ export type PanelRole =
   | 'drawer-back'
   | 'false-front'
   | 'lid'
+  /**
+   * The kick face — the board you see. Shared by the per-cabinet kick and the face applied to a
+   * ladder base, because it is the same part doing the same job; what differs is what it is
+   * screwed to, and that is the owner, not the role.
+   */
   | 'kick'
+  /** A ladder base's long members, running the length of the run. Cut short of the floor. */
+  | 'kick-rail'
+  /** A ladder base's cross-members. Full kick height — these are what the run stands on. */
+  | 'kick-rib'
+  /** A length of shop-made benchtop, between joins. */
+  | 'benchtop'
+  /** A benchtop's end panel, running down to the floor and mitred into the top. */
+  | 'benchtop-waterfall'
+  /** The strip standing up at the back of a benchtop, against the wall. */
+  | 'benchtop-upstand'
   | 'filler'
   | 'end-panel'
   /** A shaped rib in the skeleton of a curved assembly — flat, with one edge on a radius. */
@@ -58,9 +73,25 @@ export type GrainConstraint =
   | 'width-along-grain'
   | 'any'; // free to rotate — the usual case for solid-colour melamine
 
+/**
+ * What kind of thing a part belongs to.
+ *
+ * For most of this codebase's life the answer was always "a cabinet", and the field was called
+ * `cabinetId`. A benchtop and a ladder base broke that: both span a *run* of cabinets and belong
+ * to none of them, and both are cut from sheet stock exactly as a carcass part is. Giving them
+ * their own parallel part record was the alternative and it is the thing this codebase exists not
+ * to do — a costed part and a cut part have to be the same part.
+ *
+ * Nothing was migrated for this. Panels are derived on every build and never stored, so renaming
+ * the field changes no saved file.
+ */
+export type PanelOwnerKind = 'cabinet' | 'benchtop' | 'kick-base';
+
 export interface Panel {
   readonly id: string;
-  readonly cabinetId: string;
+  /** The cabinet, benchtop or ladder base this part is cut for. */
+  readonly ownerId: string;
+  readonly ownerKind: PanelOwnerKind;
   readonly role: PanelRole;
   /** Short human label for the cutlist — "Side L", "Shelf", "Drawer front 2". */
   readonly name: string;

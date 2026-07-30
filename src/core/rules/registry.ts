@@ -14,6 +14,7 @@ import { DRAWER_BANK_SPEC } from './specs/drawerBank.ts';
 import { TALL_CABINET_SPEC } from './specs/tallCabinet.ts';
 import { CUSTOM_CABINET_SPEC } from './specs/customCabinet.ts';
 import { RADIUS_END_SPEC } from './specs/radiusEnd.ts';
+import { APPLIANCE_SPACE_SPEC } from './specs/applianceSpace.ts';
 
 export const CABINET_SPECS: Readonly<Record<CabinetTypeId, CabinetSpec>> = {
   base: BASE_CABINET_SPEC,
@@ -22,6 +23,7 @@ export const CABINET_SPECS: Readonly<Record<CabinetTypeId, CabinetSpec>> = {
   tall: TALL_CABINET_SPEC,
   custom: CUSTOM_CABINET_SPEC,
   'radius-end': RADIUS_END_SPEC,
+  appliance: APPLIANCE_SPACE_SPEC,
 };
 
 export const getSpec = (typeId: CabinetTypeId): CabinetSpec => {

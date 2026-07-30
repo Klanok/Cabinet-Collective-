@@ -42,6 +42,32 @@ export interface ConstructionMethod {
   readonly kickHeight: Mm;
   /** How far the kick is recessed behind the door face. */
   readonly kickSetback: Mm;
+
+  /*
+   * The ladder base — a frame on the floor that a whole run sits on, instead of a kick panel per
+   * cabinet. These live here, beside the kick height, because they are conventions a shop builds
+   * to rather than anything the geometry can work out. See model/kickBase.ts.
+   */
+
+  /**
+   * How far short of the floor the front and back rails are cut.
+   *
+   * They hang clear so the frame beds down on the **ribs alone**. On a floor that is never flat,
+   * that is the difference between packing three ribs and fighting a rail that rocks.
+   */
+  readonly ladderRailFloorGap: Mm;
+  /** How much taller than the ribs the kick face is cut, to be planed in on site. */
+  readonly ladderFaceScribeAllowance: Mm;
+  /**
+   * Which end of the face that extra sits at.
+   *
+   * **This is a reading, not a confirmed figure**, and it is reported as unconfirmed by name until
+   * somebody checks it — see `unconfirmedLadderFigures`. A scribe allowance belongs at the floor,
+   * where the out-of-true is; cutting it at the wrong end is a whole run of kick faces.
+   */
+  readonly ladderFaceScribeEnd: 'floor' | 'top';
+  /** Greatest clear gap between ribs before another one goes in. */
+  readonly ladderMaxRibGap: Mm;
   /** Depth (front-to-back size) of the top rails on a base cabinet. */
   readonly stretcherWidth: Mm;
 
@@ -125,6 +151,10 @@ export const FRAMELESS_32: ConstructionMethod = {
   backStyle: 'applied',
   kickHeight: mm(150),
   kickSetback: mm(50),
+  ladderRailFloorGap: mm(10),
+  ladderFaceScribeAllowance: mm(10),
+  ladderFaceScribeEnd: 'floor',
+  ladderMaxRibGap: mm(600),
   stretcherWidth: mm(100),
   revealTop: mm(3),
   revealBottom: mm(0),
@@ -173,6 +203,40 @@ export const withSystemHoles = (c: Record<string, unknown>): Record<string, unkn
     systemHoleDiameter: typeof c.systemHoleDiameter === 'number' ? c.systemHoleDiameter : 5,
     systemHoleDepth: typeof c.systemHoleDepth === 'number' ? c.systemHoleDepth : 13,
   };
+};
+
+/**
+ * Fill in the ladder-base figures on a stored method that predates them.
+ *
+ * Shared by the project and the standards migration, as `withFixingStrip` and `withSystemHoles`
+ * are. **No part moves.** Only a ladder base reads these, and no job saved before this version
+ * could have had one — the object did not exist.
+ */
+export const withLadderKick = (c: Record<string, unknown>): Record<string, unknown> => ({
+  ...c,
+  ladderRailFloorGap: typeof c.ladderRailFloorGap === 'number' ? c.ladderRailFloorGap : 10,
+  ladderFaceScribeAllowance:
+    typeof c.ladderFaceScribeAllowance === 'number' ? c.ladderFaceScribeAllowance : 10,
+  ladderFaceScribeEnd: c.ladderFaceScribeEnd === 'top' ? 'top' : 'floor',
+  ladderMaxRibGap: typeof c.ladderMaxRibGap === 'number' ? c.ladderMaxRibGap : 600,
+});
+
+/**
+ * The ladder-base figures nobody has checked, named as the fields they are.
+ *
+ * The same treatment the unconfirmed hardware figures get, and for the same reason: a figure that
+ * is unchecked and *says* it is unchecked costs ten seconds with a tape, and one that is unchecked
+ * and silent costs a run of kick faces.
+ *
+ * Only the scribe end is on the list. The 10mm gaps came with the spec; where the extra sits did
+ * not, and is a reading of it.
+ */
+export const unconfirmedLadderFigures = (c: ConstructionMethod): readonly string[] => {
+  const end = c.ladderFaceScribeEnd === 'top' ? 'top' : 'floor';
+  return [
+    `ladderFaceScribeEnd — the kick face is cut ${c.ladderFaceScribeAllowance}mm over-height ` +
+      `with the extra at the ${end}. Confirm which end before a run is cut.`,
+  ];
 };
 
 /** Ids the shipped methods used to have, and the one they all become. */

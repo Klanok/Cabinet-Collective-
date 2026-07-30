@@ -25,7 +25,10 @@ built radiused shelving and an enclosed radiused end on them; **a corner radius 
 ordinary carcass** (§4.5), which is the same family as that radiused end and keeps the cabinet's
 size; and **Phase 2 — hardware and joinery rules** (§4.6): MERIVOBOX drawer boxes cut to the
 runner, CLIP top hinge boring, runner and System 32 drilling, a hardware BOM on the quote, and
-CSV export. Section 4 records how each works and why; section 5 is what is actually left to do.
+CSV export; and **benchtops and ladder bases** (§4.7), the two things that span a run of cabinets
+and belong to none of them, which is also where the appliance space arrived — a dishwasher takes a
+top over it and a fridge does not, and nothing geometric tells them apart. Section 4 records how
+each works and why; section 5 is what is actually left to do.
 
 ```
 npm install
@@ -304,14 +307,25 @@ is a code edit in `library/blum.ts` on purpose — getting it wrong re-cuts ever
 and Settings. The `unconfirmedFigures` list is the same contract `indicativePricing`
 has for money — a figure nobody knows is unchecked is a figure that gets trusted.
 
-- **`runnerAboveFrontBottom`, 16mm.** The one link in the chain Blum's sheet does not state: how far
-  above the bottom edge of its front the runner sits. Derived rather than guessed — on the *bottom*
-  drawer the runner goes as low as it can, which is the top face of the cabinet bottom, and a front
-  flush with the carcass bottom starts a board thickness below that. **The `min. 31.5**` on the
-  front-installation sheet may well be this figure**; the footnote was cropped out of the screenshot
-  and is worth reading.
+- **`runnerAboveCabinetFloor`, 0mm.** How high the bottom of the runner has to sit above the cabinet
+  floor. **This field is the second version of itself, and the first one was wrong in an instructive
+  way.** It shipped as `runnerAboveFrontBottom`, a single 16mm covering the whole distance from the
+  bottom edge of a drawer front up to the runner — and the shop's correction was that there are
+  *two* numbers in there and only one of them belongs to the runner:
+
+  > "I don't think there is a standard default but I think it should be bottom thickness + height of
+  > runner install (as when using push to open runners you may need extra install height)"
+
+  So the distance is now derived: the **cabinet bottom's real board thickness**, which the rule
+  engine already knows and measures rather than nominates, plus the runner's own install height. A
+  shop moving to 18mm board no longer has to re-type a hardware figure to suit. The install height
+  ships at zero for the ordinary screw-fixed runner, which rests on the base; a **push-to-open**
+  runner needs clearance under it to travel and is not zero, and there is no standard figure — which
+  is exactly why it is a field and why it stays on the unchecked list.
 **Confirmed and off the list:** the 32mm between the two front fixing screws is vertical, from the
-INSERTA/EXPANDO drawing showing the two Ø10 bores one directly above the other; and
+INSERTA/EXPANDO drawing showing the two Ø10 bores one directly above the other; **`dowelOffset` at
+9.5mm**, off the INSERTA knock-in drilling pattern, which also confirms Ø8 +0.1 dowels at 45mm
+centres and a Ø35 +0.2/0 cup at 13mm minimum depth; and
 `runnerFixingAboveRunnerBottom` at 54mm, which is Blum's `min. 54*` — the shop's reading, confirmed
 when asked twice; and the **128/256 table**, which is the *distribution of the runner's fixings* —
 a short runner is drilled differently from a long one, which is why the figure steps rather than
@@ -438,11 +452,12 @@ cabinet in the Inspector, exactly as materials are. `npm run report -- shaker-57
 sample kitchen with routed fronts, which is the cheapest way to check the claim below.
 
 **The claim, and it is the whole point:** *a shaker door is the same rectangle a plain slab door
-is.* On the sample kitchen the two runs are identical — 69 parts, 31 lines, 717 × 447 doors,
-57.8m of banding, same sheet cost, same hardware, same drilling. The only thing that moves is a
-routing line on the quote. (It read 63 parts and 29 lines before §4.6 added the drawer boxes; the
-identity itself is untouched, and `npm run report -- shaker-57` against `npm run report` is still
-the cheapest way to check it.)
+is.* On the sample kitchen the two runs are identical — 87 parts, 37 lines, 717 × 447 doors,
+60.5m of banding, same sheet cost, same hardware, same drilling. The only thing that moves is a
+routing line on the quote. (The part count has walked up as the sample kitchen has grown — 63 in
+Phase 1, 69 once §4.6 added the drawer boxes, 87 once §4.7 added a dishwasher, an end base and two
+ladder bases. The *identity* is untouched by all of it, and `npm run report -- shaker-57` against
+`npm run report` is still the cheapest way to check it.)
 That is what "a style is machining, not geometry" buys, and it is worth re-checking after any
 change here, because the failure mode is a door style that quietly becomes a second way of
 describing a part.
@@ -728,7 +743,9 @@ adjustable shelves. A hardware BOM counted from the panels and priced onto
 the quote as its own line. Cutlist, hardware and drilling CSV export. `npm run report` prints all of
 it, which is the cheapest way to check any claim below.
 
-**The sample kitchen, before and after.** 63 parts became 69 — the six extra are a bottom and a back
+**The sample kitchen, before and after.** *(Figures as they stood at §4.6. The sample has since
+grown a dishwasher space, an end base and two ladder bases — see §4.7 — so the current report reads
+87 parts and 554 holes. The reasoning below is unaffected.)* 63 parts became 69 — the six extra are a bottom and a back
 for each of D1's three drawers, and not one of the original 63 moved by a millimetre. On top of
 those: 3 MERIVOBOX sets at NL 500, 20 hinges, 20 plates, 28 shelf pins, and 460 holes across 26
 parts, 72 of them in the back face. **None of those 26 parts turns over** — each is machined on one
@@ -851,17 +868,116 @@ two box parts; `rules/boring.ts` for the drilling, with the cabinet-space argume
 `tests/hardware.test.ts` and `tests/boring.test.ts` carry the longhand reference figures in their
 headers.
 
+### 4.7 Benchtops and ladder bases — the things that span a run
+
+Definition of done was stated as assertions before anything was written, per §6, and all of them
+pass. The whole of this section turns on one question, which §5.5 and §5.6 both asked and which is
+now answered: **what owns a thing that spans a run of cabinets?**
+
+The answer is a **run unit** — a first-class object on the project, generated from a run once and
+owned from then on. `Project.benchtops` and `Project.kickBases` sit beside `Project.cabinets`.
+
+**This deliberately breaks the rule in §2 that derived things are never stored, and it should.** A
+panel is derived from a cabinet every time because nothing else decides it. A benchtop *stops* being
+derived the moment somebody sets a 40mm overhang on one end, mitres a corner or puts the sink 300mm
+off centre — none of which follows from the cabinets. The alternative was keying those overrides on
+a run identity, and a run identity changes the moment a cabinet moves, so the overhang set last week
+would silently detach from the top it was set on. The run finder is the **generator**;
+`fromCabinetIds` is a record of where a unit came from, read by "regenerate" and by nothing else.
+
+**The dishwasher, which is what made §5.5 urgent.** A gap between two cabinets used to break the run
+— correct for a fridge, wrong for a dishwasher, and *the difference is not geometric*. Two gaps of
+identical width in identical places. So there is now an **appliance space**: a placed, named,
+measurable unit that produces **zero parts** and carries the answer. It answers two questions
+separately, because they are two questions:
+
+- `carriesBenchtop` — does the top run over it? True for a dishwasher, false for a fridge.
+- `standsOnKick` — does the plinth run under it? **False by default, including for a dishwasher**,
+  because a dishwasher stands on the floor.
+
+The sample kitchen has one in it, and it is the demonstration: **one 4200mm top over the dishwasher,
+two plinths either side of it.** One run finder, two answers, from the one gap.
+
+**Two supplies, one object.** `Benchtop.supply` comes off the chosen material and is the difference
+between a top that produces parts and a top that produces a purchase order:
+
+- **shop-made** — laminated MDF, timber. A cut part. Sections, waterfall ends and the upstand go on
+  the cutlist, sink and hob cutouts are `cutout` features, and it is priced as sheet and banding
+  like everything else.
+- **bought-in** — stone, postformed laminate. Templated on site *after* the cabinets are installed
+  and charged per square metre by somebody else. It produces **no parts at all**, and that zero is
+  the point rather than an omission: inventing a part so the cutlist looked complete would put a 3m
+  slab of engineered stone on a sheet order.
+
+A stone quote is **not** area × rate, and costing it that way is a real under-quote. It is area,
+plus a charge per cutout by what the cutout is *for*, plus a charge per join, plus edge profiling by
+the metre, all against a **minimum** — and on anything small the minimum is simply the price. A
+900mm vanity top costed as area × rate comes out at about a third of the real number.
+
+**The ladder base, as specified from the bench.** Three facts, and each is a working decision:
+
+- **The ribs run to the floor.** Full kick height — they are what the run stands and gets levelled
+  on, and everything else hangs off them.
+- **The rails are cut 10mm short**, so they hang clear of the floor and the frame beds down on the
+  ribs alone. On a floor that is never flat, that is the difference between packing three ribs and
+  fighting a rail that rocks.
+- **The face is cut 10mm over-height**, left long to be planed in on site.
+
+**One figure there is a reading, not a fact**, and it is flagged as such by name in the terminal
+report and on screen: `ladderFaceScribeEnd`. Which *end* the extra sits at ships as the floor, as a
+scribe allowance, and cutting it at the wrong end is a whole run of kick faces. The four ladder
+numbers live on the **construction method**, beside the kick height, because they are conventions a
+shop builds to.
+
+Generating a ladder base **switches `hasKick` off on every cabinet over it**, and it has to:
+`CabinetOptions.hasKick` has always been documented as "false for a run on a continuous plinth", and
+leaving both on screws a kick panel to the front of a kick face. It comes back as data to apply
+rather than happening out of sight.
+
+**Two supporting changes worth knowing about.**
+
+`Panel.cabinetId` became `Panel.ownerId` plus `ownerKind`. A benchtop and a plinth are cut from
+sheet stock exactly as a carcass part is, so they are `Panel` records on the same list — a parallel
+part record is the thing this codebase exists not to do. No migration: panels are derived and never
+stored, so renaming the field changed no saved file.
+
+Assembly time is now charged per **thing that got assembled** rather than per row in the cabinet
+list. An appliance space produces no parts and takes no assembly; a ladder base very much does and
+is not in the cabinet list at all.
+
+**Schema v10 and standards v6. Nothing that already existed moves.** Unlike v9 — which deliberately
+re-priced a saved job upward by the hardware it always had — this one changes nothing at all: a v9
+job comes forward with **no benchtops and no ladder bases**, so there is nothing new to cut and
+nothing new to charge, and the test asserts the total to the cent. Generating a top for every run on
+the way through was considered and rejected: a benchtop's *material* is the whole question, and
+guessing stone would add thousands to a quote the user has already sent.
+
+**The 3D view keeps drawing a top over an un-generated run, as a ghost.** Before this, the viewport
+worked out a solid slab for every run on the fly — a slab that was never on the cutlist, never on
+the quote and never in the job file, and looked exactly like a benchtop the job had. It is still
+drawn, because seeing the space is useful, and it is drawn transparent so nobody can mistake it for
+something specified.
+
+**Where to look:** `model/runUnit.ts` for the ownership argument; `model/benchtop.ts` and
+`model/kickBase.ts` for the two objects; `project/runs.ts` for the run finder, now parameterised by
+purpose; `project/generate.ts` for generate and regenerate; `rules/runUnits.ts` for the part
+builders, with each part's unit-space volume documented; `costing/benchtopCost.ts` for the
+fabricator's charges; `rules/specs/applianceSpace.ts` for the gap that is not geometric.
+`tests/runUnits.test.ts` is the contract and carries the longhand charge arithmetic in its header.
+
 ---
 
 ## 5. Open items, in the order I'd do them
 
 **5.2 has shipped — see 4.6.** What is left of it is Hettich and a handful of gaps, listed below.
 
-**If asked which to do next: 5.5, the benchtop.** It is the largest thing left, it is already
-producing *wrong* tops rather than merely incomplete ones (a dishwasher breaks a run and should not),
-and 5.6 wants the same answer to "what owns a thing that spans a run?" — so doing them together is
-cheaper than doing either alone. Phase 3, nesting, is the other honest answer: it is the next
-numbered phase and `panelFootprint` is the seam.
+**5.5 and 5.6 have shipped together — see 4.7.** They wanted the same answer to "what owns a thing
+that spans a run?", so doing them apart would have meant answering it twice.
+
+**If asked which to do next: Phase 3, nesting.** It is the next numbered phase, it is the largest
+thing left, and `panelFootprint` is the seam — it is the bounding box today, which is correct for a
+saw and wasteful for a router, and every curve in the model is waiting on a nester that can read it.
+It also replaces the sheet estimate that every quote in this tool currently carries a warning about.
 
 **5.7 is technically unblocked and should still wait.** The shared builders it wanted exist, but
 it inherits the three judgement calls listed in 5.0 — and none of those has been checked against
@@ -881,8 +997,9 @@ remains are gaps rather than missing work, and none of them blocks anything.
 - **The plan view draws a cabinet's footprint as a rectangle**, so a radiused corner reads
   square there. Cosmetic, and the same limitation `panelFootprint` has.
 - **A benchtop over a radiused base cabinet is still a rectangle.** The cabinet's box does not
-  shrink, so the top is the right size — but its corner is square over a round cabinet.
-  Belongs with 5.5, where a benchtop becomes its own unit rather than something derived.
+  shrink, so the top is the right size — but its corner is square over a round cabinet. A benchtop
+  is its own object now (§4.7), so this is a real thing to fix — give the top an arc — rather than a
+  limitation of a slab the viewport was inventing.
 - **Bendy ply is sold barrel or column form** and the model still doesn't record which; the
   wrap's note tells whoever cuts it to check the sheet. Same `SheetMaterial` field 5.1 wants.
 - **Deferred, confirmed as much later:** a shelf cannot sensibly carry a bowed front *and* a
@@ -950,10 +1067,10 @@ runner and CLIP top BLUMOTION the standard hinge. What remains:
   `library/`, and they appear in the pickers. Whether that really is all it takes is the test of
   whether 4.6's data model is honest, so it is worth doing next time a job actually wants Hettich
   rather than speculatively.
-- **The one unconfirmed MERIVOBOX figure**, `boxFloorAboveFrontBottom` — see §3. Ten seconds with
-  the planning sheet closes it, and the app is already saying so by name.
-- **`dowelOffset` on the hinge**, 9.5mm, same treatment. The 45mm spacing is the catalogue figure;
-  the offset wants a real hinge and a rule.
+- **The one unconfirmed MERIVOBOX figure**, `runnerAboveCabinetFloor` — see §3. It only bites on a
+  push-to-open bank, and the app is already saying so by name.
+- ~~`dowelOffset` on the hinge.~~ **Confirmed** at 9.5mm from the INSERTA knock-in drilling pattern,
+  and off the unchecked list.
 - **The EXPANDO front fixing** — the screw-on variant is done; EXPANDO is a Ø8 dowel on the same
   pattern.
 - **PDF export.** CSV is done. Print from the browser meanwhile.
@@ -1012,71 +1129,58 @@ speculatively.
 - Cabinets can be dragged but not rotated with the mouse; yaw is typed, or set by snapping to
   a wall.
 - The custom cabinet excludes itself from benchtop runs — a banquette shouldn't get one, but
-  a bench-height custom carcass arguably should. Needs a rule, or a per-cabinet flag.
+  a bench-height custom carcass arguably should. Needs a rule, or a per-cabinet flag. Note the
+  appliance space (§4.7) is the shape of the answer: a flag saying what a unit does, not a guess
+  from its geometry.
 - Nesting still estimates sheets from area × a yield allowance. Phase 3 replaces it.
 - A corner where two runs meet at 90° leaves whatever gap the cabinet sizes leave; there is no
   corner cabinet type and no check that the two runs don't foul each other's doors. This was waiting
   on the hardware rules, which now exist — `doorSwing` is read by the boring pass, so the information
   needed to work out whether two doors foul each other is in the model. Still nobody's asked.
-### 5.5 Benchtops should be their own unit, not something derived from the cabinets
+### 5.5 Benchtops — what is left after 4.7
 
-**Raised from the bench, and agreed.** Today `project/benchtop.ts` finds runs of touching
-bench-height cabinets and the viewport draws a slab over each. That was the right amount of
-work for making the 3D view read, and it is the wrong model for anything past that.
+**Built and merged; see 4.7 for what it does and why.** A benchtop is its own object now, generated
+from a run and then owned, and it holds both supplies — cut in the shop, or bought in per square
+metre. What remains:
 
-**It is already producing wrong tops, not just incomplete ones.** A gap between cabinets breaks
-the run — which is correct for a fridge and wrong for a dishwasher: the top runs straight over
-an integrated dishwasher, and over a bin unit, and over most under-bench appliances. There is no
-way to tell those apart from cabinet geometry alone, because the difference isn't geometric.
+- **Waterfall and mitred ends are modelled but only lightly proved.** A waterfall produces a panel
+  and is charged as extra area; a mitre is charged as a join. Neither has been checked against a
+  real job, and a mitred corner between *two* tops is not linked — each top knows its own end is
+  mitred and nothing knows they are the same corner. Worth doing when somebody actually orders one.
+- **The joins are explicit and nothing suggests them by default.** `suggestedJoins` exists and the
+  UI offers it on the "add a join" button, but where a join really goes is a judgement about what is
+  least visible and the model should keep out of it.
+- **Drainer grooves and tap-hole *sets*** are not modelled. A tap hole is a cutout like any other; a
+  drainer is a pattern of shallow grooves and would be a `groove` feature run to a recipe.
+- **A benchtop over a radiused base cabinet is still a rectangle.** The cabinet's box does not
+  shrink, so the top is the right size, but its corner is square over a round cabinet. Now that a
+  top is a first-class object with its own profile, this is a real thing to fix rather than a
+  limitation of a derived slab — §5.0's note about it can be closed by giving the top an arc.
+- **A shop-made top's *thickness* is the sheet's.** A 33mm laminate top built up from 18mm MDF and a
+  substrate strip is two parts and a lamination, and the model cuts it as one 18mm part. Fine for a
+  timber or single-thickness top; wrong for a built-up one.
+- **Nothing links a top to a splashback.** The upstand is a strip on the top. Tiled and glass
+  splashbacks are somebody else's trade and should probably stay out.
 
-**What a benchtop has that no cabinet can imply:** front and end overhangs, a breakfast-bar
-overhang on one side only, waterfall ends, mitred corners, where the joins go (decided by slab
-size and by what is least visible, not by where cabinets happen to meet), sink and hob cutouts,
-tap holes, drainer grooves, upstands, and a material that may differ along the same run.
+### 5.6 The ladder base — what is left after 4.7
 
-**And it is usually a different transaction.** Stone is templated on site *after* the cabinets
-are installed and bought in per square metre with cutouts and edge profiling charged separately
-and a minimum. That is a purchase-order line, not a part the rule engine cuts from a sheet. A
-shop-made top — laminated MDF, timber — *is* a cut part. The model needs to hold both, and which
-one it is should be a property of the top.
+**Built and merged; see 4.7.** Ribs to the floor, rails cut short, face cut over-height. What
+remains:
 
-**Recommendation: make it a first-class object, generated once and then owned.**
-`Project.benchtops` beside `Project.cabinets`, with a "generate from this run" action that reads
-the current run-finder and produces an editable top. Overhangs, joins and cutouts are then
-edited on the benchtop itself.
-
-This deliberately breaks the rule in section 2 that derived things are never stored — and it
-should. A panel is derived from a cabinet every time because nothing else decides it. A benchtop
-*stops* being derived the moment somebody sets a 40mm overhang on one end, and pretending
-otherwise would mean keying overrides on a run identity that changes the moment a cabinet moves.
-Keep the run-finder as the **generator**, not as the definition; if it records which cabinets it
-came from, that is for a "regenerate" button and nothing else should read it.
-
-Costing follows once it exists: per m² for the material, plus cutouts, plus edge treatment.
-
-### 5.6 A separate ladder kick
-
-**Asked for from the bench. No deadline attached — it just needs to be on the list.**
-
-A ladder base rather than the per-cabinet kick panel that exists now: a frame standing on the
-floor that a run of cabinets sits on, with the kick face applied to the front of it.
-
-As specified:
-
-- **Ribs run to the floor** — the cross-members are the full kick height, and they are what the
-  whole thing stands and gets levelled on.
-- **Front and back rails are 10mm short**, so they hang clear of the floor and the frame beds
-  down on the ribs alone. On a floor that is never flat, that is the difference between packing
-  three ribs and fighting a rail that rocks.
-- **The face is cut 10mm higher than the ribs**, left long to be planed in on site. My reading
-  is that the extra sits at the **floor** end as a scribe allowance — worth confirming before
-  anyone builds it, since cutting it at the wrong end is a whole run of kick faces.
-
-**Note it is a run-level object, the same shape of problem as 5.5.** A ladder base runs under
-several cabinets; it is not a part of any one of them. `CabinetOptions.hasKick` already exists
-and is already documented as "false for a run on a continuous plinth" — so the per-cabinet
-switch is in place and what's missing is the thing it defers to. Worth doing after 5.5, or
-alongside it, because both want the same answer to "what owns a thing that spans a run?"
+- **`ladderFaceScribeEnd` is unconfirmed** and says so by name in the report and on screen. Which
+  end of the kick face the 10mm sits at is a reading of the spec, and cutting it at the wrong end is
+  a whole run of kick faces. Ten seconds with a tape closes it.
+- **Ribs are evenly spaced, not seeded from the cabinet joins.** Deliberate — the frame is owned, so
+  it must not start reading the cabinets again — but a shop that wants a rib under every carcass
+  join has a case, and it would be a per-unit list of rib positions rather than a rule.
+- **Nothing joins two plinths end to end.** Either side of the sample kitchen's dishwasher there are
+  two separate frames, which is correct, but a long run broken by a fridge gets two frames with no
+  record that they are one plinth line.
+- **No levelling legs.** The ribs are what it stands on and the model says so; adjustable legs under
+  a ladder base are a different way to build it and would be hardware rather than parts.
+- **The face is not banded.** Its bottom edge is planed on site so it cannot be pre-banded and its
+  top is hidden, but the two *ends* show at the end of a run. Left alone rather than guessing a
+  convention.
 
 ### 5.7 The routed corner — the second way the shop builds a radius
 

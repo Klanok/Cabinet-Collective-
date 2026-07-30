@@ -21,9 +21,10 @@ import {
   DEFAULT_CONSTRUCTIONS,
   collapseThicknessFields,
   withFixingStrip,
+  withLadderKick,
   withSystemHoles,
 } from '../model/construction.ts';
-import { AU_MATERIAL_LIBRARY } from '../library/materials.au.ts';
+import { AU_BENCHTOP_MATERIALS, AU_MATERIAL_LIBRARY } from '../library/materials.au.ts';
 import { AU_DEFAULT_SETTINGS, AU_PROJECT_DEFAULTS } from '../library/defaults.au.ts';
 import {
   BLUM_HARDWARE_LIBRARY,
@@ -32,7 +33,7 @@ import {
   DEFAULT_RUNNER_SYSTEM_ID,
 } from '../library/blum.ts';
 
-export const CURRENT_STANDARDS_VERSION = 5 as const;
+export const CURRENT_STANDARDS_VERSION = 6 as const;
 
 export interface ShopStandards {
   readonly version: typeof CURRENT_STANDARDS_VERSION;
@@ -304,6 +305,10 @@ export const labelForConstructionKey = (key: keyof ConstructionMethod): string =
     systemBackSetback: 'First hole from back',
     systemHoleDiameter: 'System hole diameter',
     systemHoleDepth: 'System hole depth',
+    ladderRailFloorGap: 'Plinth rails cut short by',
+    ladderFaceScribeAllowance: 'Kick face scribe allowance',
+    ladderFaceScribeEnd: 'Kick face scribe end',
+    ladderMaxRibGap: 'Greatest gap between plinth ribs',
   };
   return labels[key] ?? String(key);
 };
@@ -328,6 +333,7 @@ export const migrateStandards = (raw: unknown): ShopStandards => {
   if (data.version === 2) data = migrateStandardsV2toV3(data);
   if (data.version === 3) data = migrateStandardsV3toV4(data);
   if (data.version === 4) data = migrateStandardsV4toV5(data);
+  if (data.version === 5) data = migrateStandardsV5toV6(data);
 
   if (data.version !== CURRENT_STANDARDS_VERSION) {
     throw new Error(`migrateStandards: could not migrate version ${String(version)}`);
@@ -404,6 +410,29 @@ const migrateStandardsV4toV5 = (raw: Record<string, unknown>): Record<string, un
       runnerSystemId: defaults.runnerSystemId ?? DEFAULT_RUNNER_SYSTEM_ID,
       drawerSideHeightCode: defaults.drawerSideHeightCode ?? DEFAULT_DRAWER_SIDE_HEIGHT_CODE,
       hingeSystemId: defaults.hingeSystemId ?? DEFAULT_HINGE_SYSTEM_ID,
+    },
+  };
+};
+
+/**
+ * Standards v5 → v6: benchtop materials and the ladder-base figures arrive, matching the project's
+ * v9 → v10.
+ *
+ * A real migration again, and nothing a shop has set is touched. The benchtop materials are a new
+ * list that was empty before, and the ladder figures are read by nothing except a ladder base — an
+ * object no set of standards saved before this version could have produced.
+ */
+const migrateStandardsV5toV6 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const constructions = (raw.constructions as Record<string, unknown>[] | undefined) ?? [];
+  const materials = (raw.materials as Record<string, unknown> | undefined) ?? {};
+  const existing = materials.benchtops as unknown[] | undefined;
+  return {
+    ...raw,
+    version: 6,
+    constructions: constructions.map(withLadderKick),
+    materials: {
+      ...materials,
+      benchtops: existing && existing.length > 0 ? existing : AU_BENCHTOP_MATERIALS,
     },
   };
 };

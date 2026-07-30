@@ -38,7 +38,7 @@ export function CutlistPanel({ lines, project }: Props) {
               <td className="num">{l.length}</td>
               <td className="num">{l.width}</td>
               <td className="mono">{l.banding}</td>
-              <td title={l.cabinetNames.join(', ')}>{l.name}</td>
+              <td title={l.ownerNames.join(', ')}>{l.name}</td>
               <td className="muted">{l.materialLabel}</td>
               <td className="muted">{l.grain}</td>
             </tr>

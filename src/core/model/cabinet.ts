@@ -10,7 +10,15 @@ import type { Mm } from '../units.ts';
 import type { CabinetPlacement } from '../geom/placement.ts';
 
 /** Identifies which declarative spec builds this cabinet. */
-export type CabinetTypeId = 'base' | 'wall' | 'drawer-bank' | 'tall' | 'custom' | 'radius-end';
+export type CabinetTypeId =
+  | 'base'
+  | 'wall'
+  | 'drawer-bank'
+  | 'tall'
+  | 'custom'
+  | 'radius-end'
+  /** A gap in the run that an appliance fills. Produces no parts — see specs/applianceSpace.ts. */
+  | 'appliance';
 
 /** Which way a door swings, described by the side its hinges are on, facing the cabinet. */
 export type DoorSwing = 'left' | 'right';
@@ -30,6 +38,23 @@ export interface CabinetOptions {
   readonly drawerCount?: number;
   /** Whether this cabinet sits on its own kick. False for a run on a continuous plinth. */
   readonly hasKick?: boolean;
+
+  /*
+   * Appliance spaces only — and the whole reason the type exists. See specs/applianceSpace.ts.
+   */
+
+  /**
+   * Does the benchtop run over this space? True for a dishwasher, false for a fridge.
+   *
+   * Deliberately not derivable. Two gaps of identical width in identical places, one of which
+   * takes a top and one of which doesn't, is a fact about what goes in them.
+   */
+  readonly carriesBenchtop?: boolean;
+  /**
+   * Does the ladder base run under this space? False by default, **including for a dishwasher** —
+   * it stands on the floor, so the plinth stops either side of it.
+   */
+  readonly standsOnKick?: boolean;
   /**
    * Tall cabinets only. Height above the carcass bottom where the doors break into an upper
    * and lower bank. Unset means one full-height door per column.
@@ -202,6 +227,7 @@ export const CABINET_TYPE_LABELS: Record<CabinetTypeId, string> = {
   tall: 'Tall',
   custom: 'Custom',
   'radius-end': 'Radiused end',
+  appliance: 'Appliance space',
 };
 
 /**

@@ -23,6 +23,7 @@ import { boreCabinet } from './boring.ts';
 import { type ResolvedHardware, hardwareProblems } from './hardware.ts';
 import { cornerRadiusProblems } from './parts.ts';
 import { getSpec } from './registry.ts';
+import { buildRunUnits } from './runUnits.ts';
 import { type MaterialSlot, type PartInstance, resolveBanding } from './spec.ts';
 import type { PanelFeature } from '../model/feature.ts';
 
@@ -111,14 +112,15 @@ const machineFront = (
 
 const toPanel = (
   instance: PartInstance,
-  cabinetId: string,
+  ownerId: string,
   panelId: string,
   materials: ResolvedMaterials,
   styleFeatures: StyledFront,
   boring: readonly PanelFeature[],
 ): Panel => ({
   id: panelId,
-  cabinetId,
+  ownerId,
+  ownerKind: 'cabinet',
   role: instance.role,
   name: instance.name,
   materialId: materialFor(instance.material, materials),
@@ -154,8 +156,11 @@ export const buildCabinet = (cabinet: Cabinet, project: Project): BuiltCabinet =
     defaults: project.defaults,
   });
 
+  // An appliance space is not a box, so the carcass checks are not questions about it.
+  const carcassProblems = spec.isCarcass === false ? [] : validateContext(ctx);
+
   const warnings = [
-    ...validateContext(ctx),
+    ...carcassProblems,
     ...cornerRadiusProblems(ctx),
     ...hardwareProblems(ctx),
     ...(spec.validate?.(ctx) ?? []),
@@ -163,7 +168,7 @@ export const buildCabinet = (cabinet: Cabinet, project: Project): BuiltCabinet =
 
   // A cabinet whose driving dimensions don't work can't produce meaningful parts. Report and
   // stop rather than emitting negative-sized panels that look plausible in a cutlist.
-  if (validateContext(ctx).length > 0) {
+  if (carcassProblems.length > 0) {
     return { cabinet: merged, panels: [], warnings, doorStyle, hardware: ctx.hardware };
   }
 
@@ -210,6 +215,16 @@ export const buildCabinet = (cabinet: Cabinet, project: Project): BuiltCabinet =
 export const buildProject = (project: Project): readonly BuiltCabinet[] =>
   project.cabinets.map((c) => buildCabinet(c, project));
 
-/** Every panel in the project, flattened — what costing and the cutlist consume. */
-export const allPanels = (project: Project): readonly Panel[] =>
-  buildProject(project).flatMap((b) => b.panels);
+/**
+ * Every panel in the project, flattened — what costing and the cutlist consume.
+ *
+ * **The run units are in here too.** A shop-made benchtop and a ladder base are cut from sheet
+ * stock exactly as a carcass part is, so they belong on the same list; keeping them on a parallel
+ * one would be a second representation of a part, which is the thing this codebase exists not to
+ * do. A bought-in stone top contributes nothing here and is costed in `costing/benchtopCost.ts`,
+ * which is the correct answer rather than an omission — there is no part to cut.
+ */
+export const allPanels = (project: Project): readonly Panel[] => [
+  ...buildProject(project).flatMap((b) => b.panels),
+  ...buildRunUnits(project).flatMap((u) => u.panels),
+];

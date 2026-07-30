@@ -28,7 +28,7 @@
  * yaw 270, so its **run axis is world +Z** — two cabinets side by side there share an X entirely.
  * Anything that measured "next to" along world X would call them neighbours when they are one
  * behind the other, and would never call them neighbours when they are side by side. That is the
- * same mistake `project/benchtop.ts` had to be fixed for.
+ * same mistake `project/runs.ts` had to be fixed for.
  *
  *   a 600-wide cabinet 900 along the east wall occupies z 900 → 1500 at x 4200
  *   the next one butted to its right-hand end starts at z 1500, anchor (4200, 150, 1500)

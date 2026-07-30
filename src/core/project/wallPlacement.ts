@@ -216,7 +216,7 @@ export interface NeighbourSnap {
  * **Measured along the cabinet's own run axis, not along world X.** Down the return leg of an L
  * two touching cabinets share an X entirely, so a world-axis test would call them neighbours when
  * they are one behind the other, and would never call them neighbours when they are side by side.
- * That is exactly the lesson `project/benchtop.ts` had to learn about finding a run, and it is the
+ * That is exactly the lesson `project/runs.ts` had to learn about finding a run, and it is the
  * same fix: resolve into the run's own frame first.
  *
  * Three things have to agree before two cabinets are in the same run, and each rules out a real

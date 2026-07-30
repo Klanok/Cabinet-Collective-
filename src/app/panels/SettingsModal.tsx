@@ -214,13 +214,13 @@ function HardwareEditor({
           </div>
 
           <NumberRow
-            label="Runner above the front's bottom edge"
-            hint="The one link Blum's sheet doesn't state, and everything else hangs off it"
-            value={runner.runnerAboveFrontBottom}
+            label="Runner install height above the cabinet floor"
+            hint="Zero for a screw-fixed runner resting on the base. A push-to-open runner needs clearance under it"
+            value={runner.runnerAboveCabinetFloor}
             min={0}
             max={80}
             step={0.5}
-            onChange={(n) => patchRunner({ runnerAboveFrontBottom: mm(n) })}
+            onChange={(n) => patchRunner({ runnerAboveCabinetFloor: mm(n) })}
           />
           <NumberRow
             label="Runner screws above the rail's bottom"

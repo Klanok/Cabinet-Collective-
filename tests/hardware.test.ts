@@ -165,8 +165,11 @@ describe('the MERIVOBOX spec is data, not arithmetic scattered about', () => {
   it('says out loud which of its figures have not been checked', () => {
     const notes = unconfirmedHardwareFigures(BLUM_HARDWARE_LIBRARY);
     expect(notes.length).toBeGreaterThan(0);
-    expect(notes.join(' ')).toMatch(/runnerAboveFrontBottom/);
-    expect(notes.join(' ')).toMatch(/dowelOffset/);
+    expect(notes.join(' ')).toMatch(/runnerAboveCabinetFloor/);
+    // `dowelOffset` used to be on this list and is not any more: the INSERTA knock-in drilling
+    // pattern settled it at 9.5mm off the cup centreline. A figure that has been checked coming
+    // *off* the list is as much the point of this mechanism as one going on it.
+    expect(notes.join(' ')).not.toMatch(/dowelOffset/);
   });
 });
 
@@ -342,21 +345,21 @@ describe('the hardware BOM', () => {
     kitchen = createSampleKitchen();
   });
 
-  it('orders three MERIVOBOX sets, twenty hinges and plates, and twenty-eight pins', () => {
+  it('orders three MERIVOBOX sets, twenty-two hinges and plates, and thirty-two pins', () => {
     const bom = buildHardwareBom(kitchen);
     const qty = (match: RegExp) => bom.find((l) => match.test(l.name))?.quantity;
 
     expect(qty(/MERIVOBOX drawer set/)).toBe(3);
-    expect(qty(/^Blum CLIP top/)).toBe(20);
-    expect(qty(/mounting plate/)).toBe(20);
-    expect(qty(/Shelf pin/)).toBe(28);
+    expect(qty(/^Blum CLIP top/)).toBe(22);
+    expect(qty(/mounting plate/)).toBe(22);
+    expect(qty(/Shelf pin/)).toBe(32);
     expect(bom.find((l) => /MERIVOBOX/.test(l.name))?.name).toMatch(/NL 500/);
   });
 
-  it('adds up to $331.04 ex GST on the shipped indicative rates', () => {
+  it('adds up to $348.76 ex GST on the shipped indicative rates', () => {
     const totals = hardwareBomTotals(buildHardwareBom(kitchen));
-    expect(totals.totalExGst).toBe(33_104);
-    expect(totals.pieceCount).toBe(71);
+    expect(totals.totalExGst).toBe(34_876);
+    expect(totals.pieceCount).toBe(79);
     expect(totals.indicativePricing).toBe(true);
   });
 
@@ -391,8 +394,8 @@ describe('the hardware BOM', () => {
     const bom = buildHardwareBom(kitchen);
     const hinges = bom.filter((l) => l.category === 'hinge');
     expect(hinges).toHaveLength(1);
-    // Six of the seven cabinets have doors; D1 has drawers.
-    expect(hinges[0]!.cabinetNames).toHaveLength(6);
+    // Seven cabinets have doors. D1 has drawers, and the dishwasher space has nothing at all.
+    expect(hinges[0]!.cabinetNames).toHaveLength(7);
   });
 });
 
@@ -405,8 +408,10 @@ describe('hardware on the quote', () => {
 
   it('is its own line, inside material cost, and inside the total', () => {
     const c = costProject(kitchen);
-    expect(c.hardwareCost).toBe(33_104);
-    expect(c.materialCost).toBe(c.sheetCost + c.edgeBandCost + c.hardwareCost);
+    expect(c.hardwareCost).toBe(34_876);
+    expect(c.materialCost).toBe(
+      c.sheetCost + c.edgeBandCost + c.hardwareCost + c.benchtopCost,
+    );
     expect(c.totalCost).toBe(c.materialCost + c.labourCost + c.machiningCost + c.installCost);
   });
 
@@ -419,7 +424,7 @@ describe('hardware on the quote', () => {
       ...kitchen,
       settings: { ...kitchen.settings, gstMode: 'not-registered' },
     });
-    expect(unregistered.hardwareCost).toBe(Math.round(33_104 * 1.1));
+    expect(unregistered.hardwareCost).toBe(Math.round(34_876 * 1.1));
   });
 
   it('keeps a quote flagged as indicative while the Blum prices are placeholders', () => {
@@ -433,22 +438,22 @@ describe('the drilling summary', () => {
     const groups = drillingSummary(kitchen);
     const find = (d: number) => groups.find((g) => g.diameter === d)!;
 
-    // 20 hinge cups, and two dowels each — both in the back of the door.
-    expect(find(35).count).toBe(20);
+    // 22 hinge cups, and two dowels each — both in the back of the door.
+    expect(find(35).count).toBe(22);
     expect(find(35).face).toBe('B');
-    expect(find(8).count).toBe(40);
+    expect(find(8).count).toBe(44);
     expect(find(8).face).toBe('B');
 
     /*
      * The Ø5 holes, longhand:
-     *   hinge plates   20 hinges × 2                              =  40
+     *   hinge plates   22 hinges × 2                              =  44
      *   runners         3 drawers × 2 sides × 2 fixings           =  12
-     *   shelf pins      4 cabinets with adjustable shelves
-     *                     × 2 sides × 2 rows × 21 holes           = 336
+     *   shelf pins      5 cabinets with adjustable shelves
+     *                     × 2 sides × 2 rows × 21 holes           = 420
      *                                                              ───
-     *                                                               388
+     *                                                               476
      */
-    expect(find(5).count).toBe(388);
+    expect(find(5).count).toBe(476);
     expect(find(5).face).toBe('A');
 
     // The front fixing pilots: 3 drawers x 2 brackets x 2 screws, in the back of each front.
@@ -467,15 +472,15 @@ describe('the drilling summary', () => {
   it('turns nothing over on a plain-slab kitchen, and every front on a shaker one', () => {
     const slab = createSampleKitchen();
     const plain = drillingTotals(buildProject(slab).flatMap((b) => b.panels));
-    expect(plain.holes).toBe(460);
+    expect(plain.holes).toBe(554);
     expect(plain.turnedParts).toBe(0);
 
     // A shaker front is recessed on its show face *and* bored in its back: two setups, honestly.
     const shaker: Project = { ...slab, defaults: { ...slab.defaults, doorStyleId: 'shaker-57' } };
     const routed = drillingTotals(buildProject(shaker).flatMap((b) => b.panels));
-    expect(routed.holes).toBe(460);
-    // Ten doors and three drawer fronts, all routed and all bored.
-    expect(routed.turnedParts).toBe(13);
+    expect(routed.holes).toBe(554);
+    // Eleven doors and three drawer fronts, all routed and all bored.
+    expect(routed.turnedParts).toBe(14);
   });
 });
 
@@ -489,7 +494,7 @@ describe('export', () => {
   it('writes a cutlist CSV with one row per line and a header', () => {
     const rows = cutlistCsv(kitchen).trimEnd().split('\r\n');
     expect(rows[0]).toBe(
-      'Qty,Part,Material,Thickness,Length,Width,Banding,Banded mm,Grain,Cabinets,Note',
+      'Qty,Part,Material,Thickness,Length,Width,Banding,Banded mm,Grain,For,Note',
     );
     expect(rows).toHaveLength(buildCutlist(kitchen).length + 1);
     expect(rows.join('\n')).toMatch(/^3,Drawer bottom,/m);
@@ -505,12 +510,12 @@ describe('export', () => {
 
   it('writes one row per hole on the drilling sheet, rows of system holes expanded', () => {
     const rows = drillingCsv(kitchen).trimEnd().split('\r\n');
-    // 388 + 20 + 40 + 12 = 460 holes, plus the header.
-    expect(rows).toHaveLength(461);
+    // 476 + 22 + 44 + 12 = 554 holes, plus the header.
+    expect(rows).toHaveLength(555);
     expect(rows[0]).toBe('Cabinet,Part,Purpose,Face,Turns over,X,Y,Diameter,Depth,Feature');
     // The cups, their dowels and the front fixings all go in the back of a front — but on a
     // plain-slab kitchen no part is machined on both faces, so nothing turns over.
-    expect(rows.filter((r) => r.includes(',B,'))).toHaveLength(72);
+    expect(rows.filter((r) => r.includes(',B,'))).toHaveLength(78);
     expect(rows.filter((r) => r.includes(',yes,'))).toHaveLength(0);
   });
 
@@ -603,7 +608,7 @@ describe('an older job coming forward', () => {
   it('does re-price it, upward, by the hardware it always needed', () => {
     const migrated = migrateProject(asV8(kitchen));
     const cost = costProject(migrated);
-    expect(cost.hardwareCost).toBe(33_104);
+    expect(cost.hardwareCost).toBe(34_876);
     expect(cost.totalIncGst).toBeGreaterThan(0);
   });
 
@@ -644,8 +649,13 @@ describe('nothing that existed before Phase 2 has moved', () => {
     const panels = buildProject(kitchen).flatMap((b) => b.panels);
     const old = panels.filter((p) => p.role !== 'drawer-bottom' && p.role !== 'drawer-back');
 
-    // The Phase 1 gate figures.
-    expect(old).toHaveLength(63);
+    /*
+     * 67 rather than the Phase 1 gate's 63, and none of the difference is a part that moved: the
+     * sample kitchen has since gained a dishwasher space (no parts) and an end base (+8), and the
+     * ladder base has taken over the four per-cabinet kick panels (−4). Every size below is the
+     * size it was in Phase 1, which is what this test is actually for.
+     */
+    expect(old).toHaveLength(67);
     expect(size(byName(old, 'Door L'))).toEqual([717, 447]);
     expect(size(byName(old, 'Bottom'))).toEqual([868, 544]);
     expect(size(byName(old, 'Side L'))).toEqual([720, 544]);

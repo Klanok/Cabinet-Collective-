@@ -11,6 +11,7 @@ import { type MaterialLibrary, findSheet } from '../model/material.ts';
 import { type Panel, panelExtent, bandedLength } from '../model/panel.ts';
 import type { Project } from '../model/project.ts';
 import { buildProject } from '../rules/build.ts';
+import { buildRunUnits } from '../rules/runUnits.ts';
 import { RECT_EDGES } from '../geom/profile.ts';
 
 export interface CutlistLine {
@@ -27,7 +28,14 @@ export interface CutlistLine {
   readonly banding: string;
   readonly bandedLengthMm: Mm;
   readonly grain: string;
-  readonly cabinetNames: readonly string[];
+  /**
+   * What each of these parts is for — a cabinet name, or a benchtop's, or a plinth's.
+   *
+   * Renamed from `cabinetNames` when benchtops and ladder bases started producing parts. A column
+   * headed "Cabinets" with "Plinth 1" in it is the sort of small dishonesty that ends up printed
+   * and handed to somebody.
+   */
+  readonly ownerNames: readonly string[];
   readonly note?: string;
 }
 
@@ -52,12 +60,21 @@ const grainNotation = (panel: Panel): string => {
  * that have to agree for two parts to actually be interchangeable at the saw.
  */
 export const buildCutlist = (project: Project): readonly CutlistLine[] => {
-  const built = buildProject(project);
   const library: MaterialLibrary = project.materials;
 
-  const lines = new Map<string, CutlistLine & { cabinetNames: string[] }>();
+  const lines = new Map<string, CutlistLine & { ownerNames: string[] }>();
 
-  for (const { cabinet, panels } of built) {
+  /*
+   * Cabinets first, then the run units — a benchtop and a plinth are cut from sheet stock exactly
+   * as a carcass part is, so they go on the same list rather than a second one that could disagree
+   * about a board thickness.
+   */
+  const groups: { name: string; panels: readonly Panel[] }[] = [
+    ...buildProject(project).map((b) => ({ name: b.cabinet.name, panels: b.panels })),
+    ...buildRunUnits(project).map((u) => ({ name: u.name, panels: u.panels })),
+  ];
+
+  for (const { name: ownerName, panels } of groups) {
     for (const panel of panels) {
       const material = findSheet(library, panel.materialId);
       const { length, width } = panelExtent(panel);
@@ -75,7 +92,7 @@ export const buildCutlist = (project: Project): readonly CutlistLine[] => {
 
       const existing = lines.get(key);
       if (existing) {
-        existing.cabinetNames.push(cabinet.name);
+        existing.ownerNames.push(ownerName);
         lines.set(key, { ...existing, quantity: existing.quantity + 1 });
       } else {
         lines.set(key, {
@@ -90,7 +107,7 @@ export const buildCutlist = (project: Project): readonly CutlistLine[] => {
           banding,
           bandedLengthMm: bandedLength(panel),
           grain,
-          cabinetNames: [cabinet.name],
+          ownerNames: [ownerName],
           note: panel.note,
         });
       }

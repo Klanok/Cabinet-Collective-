@@ -37,6 +37,14 @@ import {
   naturalAnchorY,
 } from '../../core/project/factory.ts';
 import { type WallAnchor, placeAgainstWall } from '../../core/project/wallPlacement.ts';
+import type { Benchtop } from '../../core/model/benchtop.ts';
+import type { KickBase } from '../../core/model/kickBase.ts';
+import {
+  generateBenchtops,
+  generateKickBases,
+  regenerateBenchtop,
+  regenerateKickBase,
+} from '../../core/project/generate.ts';
 import { loadProject, loadStandards, saveProject, saveStandards } from './persistence.ts';
 
 export interface ProjectStore {
@@ -84,6 +92,23 @@ export interface ProjectStore {
   resetToStandards: () => void;
   updateStandards: (patch: Partial<ShopStandards>) => void;
 
+  /*
+   * Benchtops and ladder bases.
+   *
+   * `generate` **adds** units for runs that haven't got one; it never replaces an existing top,
+   * because replacing one silently throws away a sink position. `regenerate` is the deliberate
+   * "the cabinets moved, put it back over them", and it keeps everything a person set. See
+   * `model/runUnit.ts`.
+   */
+  generateBenchtops: (materialId: string) => void;
+  regenerateBenchtop: (id: string) => void;
+  updateBenchtop: (id: string, patch: Partial<Benchtop>) => void;
+  deleteBenchtop: (id: string) => void;
+  generateKickBases: () => void;
+  regenerateKickBase: (id: string) => void;
+  updateKickBase: (id: string, patch: Partial<KickBase>) => void;
+  deleteKickBase: (id: string) => void;
+
   /** Save a placed cabinet as a reusable type. */
   saveCabinetAsType: (cabinetId: string, name: string, note?: string) => void;
   /** Place a new cabinet from a saved type. */
@@ -110,6 +135,7 @@ const NAME_PREFIX: Record<CabinetTypeId, string> = {
   'drawer-bank': 'D',
   custom: 'C',
   'radius-end': 'R',
+  appliance: 'A',
 };
 
 const nextName = (project: Project, typeId: CabinetTypeId): string => {
@@ -304,6 +330,98 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         }),
       );
     }),
+
+  generateBenchtops: (materialId) =>
+    set((state) =>
+      persist(
+        touchProject({
+          ...state.project,
+          benchtops: [
+            ...state.project.benchtops,
+            ...generateBenchtops(state.project, materialId),
+          ],
+        }),
+      ),
+    ),
+
+  regenerateBenchtop: (id) =>
+    set((state) =>
+      persist(
+        touchProject({
+          ...state.project,
+          benchtops: state.project.benchtops.map((t) =>
+            t.id === id ? regenerateBenchtop(state.project, t) : t,
+          ),
+        }),
+      ),
+    ),
+
+  updateBenchtop: (id, patch) =>
+    set((state) =>
+      persist(
+        touchProject({
+          ...state.project,
+          benchtops: state.project.benchtops.map((t) => (t.id === id ? { ...t, ...patch } : t)),
+        }),
+      ),
+    ),
+
+  deleteBenchtop: (id) =>
+    set((state) =>
+      persist(
+        touchProject({
+          ...state.project,
+          benchtops: state.project.benchtops.filter((t) => t.id !== id),
+        }),
+      ),
+    ),
+
+  generateKickBases: () =>
+    set((state) => {
+      // The cabinets come back changed: every member of a new frame has its own kick switched
+      // off, because a run on a continuous plinth does not also carry a kick panel each. See
+      // `GeneratedKickBases.cabinets`.
+      const { kickBases, cabinets } = generateKickBases(state.project);
+      return persist(
+        touchProject({
+          ...state.project,
+          cabinets,
+          kickBases: [...state.project.kickBases, ...kickBases],
+        }),
+      );
+    }),
+
+  regenerateKickBase: (id) =>
+    set((state) =>
+      persist(
+        touchProject({
+          ...state.project,
+          kickBases: state.project.kickBases.map((k) =>
+            k.id === id ? regenerateKickBase(state.project, k) : k,
+          ),
+        }),
+      ),
+    ),
+
+  updateKickBase: (id, patch) =>
+    set((state) =>
+      persist(
+        touchProject({
+          ...state.project,
+          kickBases: state.project.kickBases.map((k) => (k.id === id ? { ...k, ...patch } : k)),
+        }),
+      ),
+    ),
+
+  deleteKickBase: (id) =>
+    set((state) =>
+      persist(
+        touchProject({
+          ...state.project,
+          kickBases: state.project.kickBases.filter((k) => k.id !== id),
+        }),
+      ),
+    ),
 
   saveCabinetAsType: (cabinetId, name, note) =>
     set((state) => {

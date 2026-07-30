@@ -24,9 +24,13 @@ import { v3 } from '../geom/vec.ts';
 import { AU_PROJECT_DEFAULTS } from '../library/defaults.au.ts';
 import { AU_SHOP_STANDARDS, type ShopStandards, snapshotOf } from '../standards/standards.ts';
 import { getSpec } from '../rules/registry.ts';
+import { generateBenchtops, generateKickBases } from './generate.ts';
 
 let counter = 0;
 const nextId = (prefix: string): string => `${prefix}-${(++counter).toString(36)}`;
+
+/** A new id with the given prefix. Shared so benchtops and plinths number the same way. */
+export const newId = (prefix: string): string => nextId(prefix);
 
 /** Reset id generation. Tests call this so ids are stable run to run. */
 export const resetIdCounter = (): void => {
@@ -67,6 +71,9 @@ export const naturalAnchorY = (
   defaults: ProjectDefaults = AU_PROJECT_DEFAULTS,
 ): Mm => {
   if (typeId === 'wall') return defaults.wallCabinetMountHeight;
+  // An appliance space is the whole opening, floor to the underside of the top — it has no kick
+  // under it, because the appliance stands on the floor and has its own feet.
+  if (typeId === 'appliance') return mm(0);
   const construction = findConstruction(constructions, constructionId);
   return options.hasKick === false ? mm(0) : construction.kickHeight;
 };
@@ -91,7 +98,12 @@ export const createCabinet = (
       ? defaults.wallCabinetHeight
       : args.typeId === 'tall'
         ? defaults.tallCabinetHeight
-        : defaults.baseCabinetHeight;
+        : args.typeId === 'appliance'
+          ? // Floor to the underside of the benchtop: the carcass height plus the kick the
+            // cabinets either side of it are standing on. That is what makes the space line up
+            // with its neighbours' tops, which is what lets one benchtop span all three.
+            mm(defaults.baseCabinetHeight + findConstruction(constructions, constructionId).kickHeight)
+          : defaults.baseCabinetHeight;
   const naturalDepth =
     args.typeId === 'wall'
       ? defaults.wallCabinetDepth
@@ -144,6 +156,10 @@ export const createEmptyProject = (
     updatedAt: now,
     room: rectangularRoom(nextId('room'), 'Kitchen', mm(4200), mm(3600), mm(2400)),
     cabinets: [],
+    // Empty on purpose. A benchtop is generated from a run once there is a run, and a ladder base
+    // is a choice about how the job is built — neither is something a new job comes with.
+    benchtops: [],
+    kickBases: [],
     ...snapshotOf(standards),
   };
 };
@@ -151,9 +167,14 @@ export const createEmptyProject = (
 /**
  * A real kitchen run, used as the Phase 1 gate.
  *
- * A 3000mm base run against one wall — sink base, drawer bank, bin cupboard, pot drawers —
- * with 2400mm of wall cabinets over it. Widths are the ones actually ordered, not round
- * numbers chosen to make the arithmetic tidy.
+ * A 4200mm base run against one wall — sink base, drawer bank, bin cupboard, pot drawers and a
+ * dishwasher — with 2400mm of wall cabinets over it. Widths are the ones actually ordered, not
+ * round numbers chosen to make the arithmetic tidy.
+ *
+ * **The dishwasher is in it on purpose**, and it is what makes this a fair test of the run rules
+ * rather than a demonstration of the easy case: the benchtop runs straight over the space and comes
+ * out as one 3600mm top, while the plinth stops either side of it and comes out as two. One run
+ * finder, two answers, from the one gap.
  */
 export const createSampleKitchen = (standards: ShopStandards = AU_SHOP_STANDARDS): Project => {
   const base = createEmptyProject('Sample kitchen', 'Demo', standards);
@@ -166,15 +187,56 @@ export const createSampleKitchen = (standards: ShopStandards = AU_SHOP_STANDARDS
     make({ typeId: 'drawer-bank', name: 'D1 Pot drawers', width: mm(600), x: mm(900), options: { drawerCount: 3 } }),
     make({ typeId: 'base', name: 'B2 Bin cupboard', width: mm(600), x: mm(1500), options: { doorCount: 1, shelfCount: 0 } }),
     make({ typeId: 'base', name: 'B3 Pantry base', width: mm(900), x: mm(2100), options: { doorCount: 2, shelfCount: 1 } }),
+    make({ typeId: 'appliance', name: 'DW Dishwasher', width: mm(600), x: mm(3000) }),
+    make({ typeId: 'base', name: 'B4 End base', width: mm(600), x: mm(3600), options: { doorCount: 1, shelfCount: 1 } }),
 
     make({ typeId: 'wall', name: 'W1', width: mm(900), x: mm(0) }),
     make({ typeId: 'wall', name: 'W2', width: mm(600), x: mm(900), options: { doorCount: 1 } }),
     make({ typeId: 'wall', name: 'W3', width: mm(900), x: mm(1500) }),
   ];
 
-  return {
+  const placed: Project = {
     ...base,
     cabinets,
     settings: { ...base.settings, entityName: 'Ethereal', gstMode: 'registered' },
   };
+
+  /*
+   * A stone top and a ladder base — generated exactly the way the app generates them, from the run
+   * finder, rather than written out by hand here. Anything hand-written would be a second opinion
+   * about where a top goes, and the point of the sample kitchen is that it is checkable.
+   *
+   * Stone because that is what the top of an ordinary AU kitchen is, and because it exercises the
+   * half of the costing that produces no parts at all: a square-metre rate, a sink cutout, a join
+   * and a run of edge profiling, against a minimum.
+   */
+  const benchtops = generateBenchtops(placed, 'stone-quartz-20').map((top) => ({
+    ...top,
+    ends: { left: 'wall' as const, right: 'exposed' as const },
+    cutouts: [
+      {
+        id: 'sink',
+        kind: 'sink' as const,
+        along: mm(450),
+        fromBack: mm(280),
+        width: mm(820),
+        depth: mm(450),
+        cornerRadius: mm(10),
+      },
+      {
+        id: 'tap',
+        kind: 'tap-hole' as const,
+        along: mm(450),
+        fromBack: mm(60),
+        width: mm(35),
+        depth: mm(35),
+        cornerRadius: mm(17.5),
+      },
+    ],
+    joins: [mm(1800)],
+  }));
+
+  const plinths = generateKickBases(placed);
+
+  return { ...placed, cabinets: plinths.cabinets, benchtops, kickBases: plinths.kickBases };
 };

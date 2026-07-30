@@ -94,10 +94,62 @@ export interface EdgeBandMaterial {
 /** Which edges of a panel get banded, and with what. */
 export type EdgeBanding = Partial<Record<'L1' | 'L2' | 'W1' | 'W2', string>>;
 
+/**
+ * How a stone fabricator quotes.
+ *
+ * Every line here is a line on a real stone quote, and none of them is derivable from the others.
+ * A top is not simply "area × rate": the cutouts are charged, the joins are charged, the edge is
+ * charged by the metre and by what profile it is, and under about a square metre and a half none
+ * of that matters because the minimum applies.
+ */
+export interface FabricationCharges {
+  readonly ratePerM2ExGst: Cents;
+  /** Charged instead of the sum, when the sum comes to less. */
+  readonly minimumChargeExGst: Cents;
+  /** Per cutout, by what the cutout is for. A sink and a tap hole are not the same money. */
+  readonly cutoutChargeExGst: Record<'sink' | 'hob' | 'tap-hole' | 'other', Cents>;
+  /** Per join. */
+  readonly joinChargeExGst: Cents;
+  /** Per metre of finished edge — the front, and any end somebody sees. */
+  readonly edgeProfilePerMExGst: Cents;
+  /** What the profile is called on the order — "20mm pencil round", "shark nose". */
+  readonly edgeProfileName: string;
+}
+
+/**
+ * A benchtop material — and with it, whether a top of this material is **cut or bought**.
+ *
+ * Its own record rather than a `SheetMaterial` with a flag, because for most of them there is no
+ * sheet: stone is not sold in sheets this shop cuts, it is a service with a square-metre rate. The
+ * shop-made ones point *at* a sheet material rather than restating one, so a laminated MDF top and
+ * an MDF door panel can never be priced from two different boards.
+ */
+export interface BenchtopMaterial {
+  readonly id: string;
+  readonly brand: string;
+  readonly decor: string;
+  readonly thickness: Mm;
+  readonly supply: 'shop-made' | 'bought-in';
+  /** Shop-made only: the sheet it is cut from. */
+  readonly sheetMaterialId?: string;
+  /** Bought-in only: how the fabricator charges for it. */
+  readonly charges?: FabricationCharges;
+  /** A screen approximation, exactly as `SheetMaterial.colour` is. Nothing is ordered from it. */
+  readonly colour?: string;
+  readonly indicativePricing: boolean;
+}
+
 export interface MaterialLibrary {
   readonly sheets: readonly SheetMaterial[];
   readonly edgeBands: readonly EdgeBandMaterial[];
+  readonly benchtops: readonly BenchtopMaterial[];
 }
+
+export const findBenchtopMaterial = (lib: MaterialLibrary, id: string): BenchtopMaterial => {
+  const found = lib.benchtops.find((b) => b.id === id);
+  if (!found) throw new Error(`Unknown benchtop material: ${id}`);
+  return found;
+};
 
 /**
  * What this board really measures — the number everything dimensional works from.
