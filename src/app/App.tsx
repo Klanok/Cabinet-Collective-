@@ -18,11 +18,12 @@ import { CabinetList } from './panels/CabinetList.tsx';
 import { Inspector } from './panels/Inspector.tsx';
 import { CostPanel } from './panels/CostPanel.tsx';
 import { CutlistPanel } from './panels/CutlistPanel.tsx';
+import { HardwarePanel } from './panels/HardwarePanel.tsx';
 import { SettingsModal } from './panels/SettingsModal.tsx';
 import { PlanView } from './plan/PlanView.tsx';
 import { exportProjectFile, importProjectFile } from './store/persistence.ts';
 
-type Tab = 'cutlist' | 'cost';
+type Tab = 'cutlist' | 'hardware' | 'cost';
 type View = '3d' | 'plan';
 
 export default function App() {
@@ -42,6 +43,7 @@ export default function App() {
   const updateDefaults = useProjectStore((s) => s.updateDefaults);
   const updateSheet = useProjectStore((s) => s.updateSheet);
   const updateDoorStyles = useProjectStore((s) => s.updateDoorStyles);
+  const updateHardware = useProjectStore((s) => s.updateHardware);
   const updateStandards = useProjectStore((s) => s.updateStandards);
   const saveAsStandards = useProjectStore((s) => s.saveAsStandards);
   const resetToStandards = useProjectStore((s) => s.resetToStandards);
@@ -72,7 +74,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <strong>Cabinet Collective</strong>
-          <span className="muted">Phase 1 — parametric carcasses, cutlist and costing</span>
+          <span className="muted">Phase 2 — carcasses, drawer boxes, Blum hardware and drilling</span>
         </div>
         <div className="topbar-stats">
           <div className="stat">
@@ -228,15 +230,21 @@ export default function App() {
               Cutlist
             </button>
             <button
+              className={`tab${tab === 'hardware' ? ' is-active' : ''}`}
+              onClick={() => setTab('hardware')}
+            >
+              Hardware
+            </button>
+            <button
               className={`tab${tab === 'cost' ? ' is-active' : ''}`}
               onClick={() => setTab('cost')}
             >
               Cost
             </button>
           </nav>
-          {tab === 'cutlist' ? (
-            <CutlistPanel lines={cutlist} />
-          ) : (
+          {tab === 'cutlist' && <CutlistPanel lines={cutlist} project={project} />}
+          {tab === 'hardware' && <HardwarePanel project={project} />}
+          {tab === 'cost' && (
             <CostPanel cost={cost} settings={project.settings} onUpdateSettings={updateSettings} />
           )}
         </aside>
@@ -247,6 +255,7 @@ export default function App() {
           project={project}
           standards={standards}
           onClose={() => setSettingsOpen(false)}
+          onUpdateHardware={updateHardware}
           onUpdateConstruction={updateConstruction}
           onUpdateSettings={updateSettings}
           onUpdateDefaults={updateDefaults}

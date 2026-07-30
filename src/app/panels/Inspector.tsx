@@ -224,6 +224,149 @@ function PlacementEditor({
   );
 }
 
+/**
+ * The hardware on this cabinet — which runner, how long, which hinge, how many.
+ *
+ * Everything here is an *override*: blank means the job default, exactly as the material pickers
+ * work. The nominal length is the one thing with no job default at all, because the right answer
+ * depends on the cabinet's own depth — so it reads "Automatic" and says which length that came out
+ * as, rather than pretending somebody chose it.
+ *
+ * The read-out under each is the point of the panel. A drawer bank says the two cut sizes and where
+ * they came from, so the number on the cutlist can be checked against the Blum sheet without leaving
+ * the screen.
+ */
+function HardwareSection({
+  cabinet,
+  built,
+  project,
+  onUpdateOptions,
+}: {
+  cabinet: Cabinet;
+  built: BuiltCabinet;
+  project: Project;
+  onUpdateOptions: (id: string, patch: CabinetOptions) => void;
+}) {
+  const hw = built.hardware;
+  const hasDrawers = built.panels.some((p) => p.role === 'drawer-front');
+  const hasDoors = built.panels.some((p) => p.role === 'door');
+  if (!hasDrawers && !hasDoors) return null;
+
+  const cups = built.panels.reduce(
+    (sum, p) => sum + p.features.filter((f) => f.purpose === 'hinge-cup').length,
+    0,
+  );
+  const box = built.panels.find((p) => p.role === 'drawer-bottom');
+  const back = built.panels.find((p) => p.role === 'drawer-back');
+
+  return (
+    <>
+      <div className="subhead">Hardware</div>
+      <div className="fields">
+        {hasDrawers && (
+          <>
+            <OverridePicker
+              label="Runners"
+              options={project.hardware.runnerSystems.map((s) => ({ id: s.id, label: s.name }))}
+              value={cabinet.options.runnerSystemId}
+              defaultLabel={
+                project.hardware.runnerSystems.find(
+                  (s) => s.id === project.defaults.runnerSystemId,
+                )?.name ?? project.defaults.runnerSystemId
+              }
+              onChange={(runnerSystemId) => onUpdateOptions(cabinet.id, { runnerSystemId })}
+            />
+            <OverridePicker
+              label="Box height"
+              options={hw.runnerSystem.sideHeights.map((h) => ({ id: h.code, label: h.name }))}
+              value={cabinet.options.drawerSideHeightCode}
+              defaultLabel={hw.sideHeight.name}
+              onChange={(drawerSideHeightCode) =>
+                onUpdateOptions(cabinet.id, { drawerSideHeightCode })
+              }
+            />
+            <label className="field">
+              <span>Runner length</span>
+              <div className="field-input">
+                <select
+                  value={cabinet.options.drawerNominalLength ?? ''}
+                  onChange={(e) =>
+                    onUpdateOptions(cabinet.id, {
+                      drawerNominalLength: e.target.value ? mm(Number(e.target.value)) : undefined,
+                    })
+                  }
+                >
+                  <option value="">
+                    Automatic — {hw.runner ? `${hw.runner.nominalLength}mm` : 'nothing fits'}
+                  </option>
+                  {hw.runnerSystem.nominalLengths.map((nl) => (
+                    <option key={nl} value={nl}>
+                      NL {nl}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </label>
+          </>
+        )}
+
+        {hasDoors && (
+          <>
+            <OverridePicker
+              label="Hinges"
+              options={project.hardware.hingeSystems.map((s) => ({ id: s.id, label: s.name }))}
+              value={cabinet.options.hingeSystemId}
+              defaultLabel={
+                project.hardware.hingeSystems.find((s) => s.id === project.defaults.hingeSystemId)
+                  ?.name ?? project.defaults.hingeSystemId
+              }
+              onChange={(hingeSystemId) => onUpdateOptions(cabinet.id, { hingeSystemId })}
+            />
+            <label className="field">
+              <span>Hinges per door</span>
+              <div className="field-input">
+                <select
+                  value={cabinet.options.hingeCount ?? ''}
+                  onChange={(e) =>
+                    onUpdateOptions(cabinet.id, {
+                      hingeCount: e.target.value ? Number(e.target.value) : undefined,
+                    })
+                  }
+                >
+                  <option value="">By door height</option>
+                  {[2, 3, 4, 5, 6].map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </label>
+          </>
+        )}
+      </div>
+
+      {hasDrawers && box && back && (
+        <p className="note subtle">
+          {hw.runner?.system.name} {hw.runner?.sideHeight.name}, NL {hw.runner?.nominalLength} —
+          bottom {Math.round(panelExtent(box).length)} × {Math.round(panelExtent(box).width)}, back{' '}
+          {Math.round(panelExtent(back).length)} × {Math.round(panelExtent(back).width)}. Cut from
+          the clear opening less {hw.runner?.system.bottomWidthDeduction}mm, and the nominal length
+          less {hw.runner?.system.bottomLengthDeduction}mm. Sides and runners are bought.
+        </p>
+      )}
+      {hasDoors && cups > 0 && (
+        <p className="note subtle">
+          {cups} hinge{cups === 1 ? '' : 's'} and {cups} plate{cups === 1 ? '' : 's'}. The cup is
+          Ø{hw.hinge.cupDiameter} × {hw.hinge.cupDepth} deep,{' '}
+          {hw.hinge.cupDistance}mm in from the door edge and {hw.hinge.cupEndSetback}mm from each
+          end — bored in the <strong>back</strong> of the door, so it turns over on the machine.
+        </p>
+      )}
+    </>
+  );
+}
+
 export function Inspector({
   built,
   project,
@@ -599,6 +742,13 @@ export function Inspector({
           ))}
         </ul>
       )}
+
+      <HardwareSection
+        cabinet={cabinet}
+        built={built}
+        project={project}
+        onUpdateOptions={onUpdateOptions}
+      />
 
       <div className="subhead">Reuse</div>
       <button

@@ -19,6 +19,9 @@
 import { createSampleKitchen } from '../src/core/project/factory.ts';
 import { costProject } from '../src/core/costing/costing.ts';
 import { buildCutlist, cutlistTotals } from '../src/core/cutlist/cutlist.ts';
+import { drillingTotals } from '../src/core/cutlist/export.ts';
+import { buildHardwareBom, drillingSummary, hardwareBomTotals } from '../src/core/hardware/bom.ts';
+import { unconfirmedHardwareFigures } from '../src/core/model/hardware.ts';
 import { buildProject } from '../src/core/rules/build.ts';
 import { formatAud } from '../src/core/units.ts';
 import { gstModeLabel } from '../src/core/costing/gst.ts';
@@ -53,11 +56,17 @@ console.log(
 );
 
 rule('CABINETS');
-for (const { cabinet, panels, warnings } of built) {
+for (const { cabinet, panels, warnings, hardware } of built) {
+  // The runner is only worth printing where a drawer actually goes in it.
+  const drawers = panels.filter((p) => p.role === 'drawer-bottom').length;
+  const runner =
+    drawers > 0 && hardware.runner
+      ? `  ${hardware.runner.system.name} ${hardware.runner.sideHeight.code} NL ${hardware.runner.nominalLength}`
+      : '';
   console.log(
     `  ${cabinet.name.padEnd(18)} ${String(cabinet.width).padStart(4)} × ` +
       `${String(cabinet.height).padStart(4)} × ${String(cabinet.depth).padStart(4)}   ` +
-      `${String(panels.length).padStart(2)} parts`,
+      `${String(panels.length).padStart(2)} parts${runner}`,
   );
   for (const w of warnings) console.log(`      ! ${w}`);
 }
@@ -75,6 +84,34 @@ console.log(
     `${totals.bandedMetres.toFixed(1)}m of edge banding`,
 );
 
+rule('HARDWARE');
+const bom = buildHardwareBom(project);
+const bomTotals = hardwareBomTotals(bom);
+for (const l of bom) {
+  console.log(
+    `  ${String(l.quantity).padStart(4)} ${l.unit.padEnd(5)} ${l.name.padEnd(52)} ` +
+      `${formatAud(l.totalExGst).padStart(10)}`,
+  );
+}
+console.log(
+  `\n  ${bomTotals.pieceCount} pieces on ${bomTotals.lineCount} lines · ` +
+    `${formatAud(bomTotals.totalExGst)} ex GST`,
+);
+
+rule('DRILLING');
+const drill = drillingTotals(built.flatMap((b) => b.panels));
+for (const g of drillingSummary(project)) {
+  console.log(
+    `  Ø${String(g.diameter).padStart(2)} × ${String(g.depth).padStart(2)}  ` +
+      `${String(g.count).padStart(4)} holes   ${g.purposes.join(', ').padEnd(24)}` +
+      `${g.needsFlip ? '  (part flipped — B face)' : ''}`,
+  );
+}
+console.log(
+  `\n  ${drill.holes} holes, ${drill.flipped} of them on the back face — ` +
+    'those need the part turned over, which is a separate setup.',
+);
+
 rule('MATERIALS');
 for (const m of cost.byMaterial) {
   console.log(
@@ -88,6 +125,7 @@ rule('COST');
 const row = (label: string, value: string) => console.log(`  ${label.padEnd(30)} ${value.padStart(12)}`);
 row('Sheet goods', formatAud(cost.sheetCost));
 row('Edge banding', formatAud(cost.edgeBandCost));
+row('Hardware', formatAud(cost.hardwareCost));
 row('Material', formatAud(cost.materialCost));
 row(`Labour (${(cost.labourMinutes / 60).toFixed(1)} h)`, formatAud(cost.labourCost));
 if (cost.machiningMinutes > 0) {
@@ -106,9 +144,22 @@ row('TOTAL', formatAud(cost.totalIncGst));
 
 if (cost.usesIndicativePricing) {
   console.log(
-    '\n  ! Costed on indicative material rates. Load your real trade pricing into\n' +
-      '    src/core/library/materials.au.ts before quoting from this.',
+    '\n  ! Costed on indicative material and hardware rates. Load your real trade pricing\n' +
+      '    into src/core/library/materials.au.ts and src/core/library/blum.ts before quoting.',
   );
+}
+
+/*
+ * The dimensions nobody has checked yet.
+ *
+ * Printed as loudly as the pricing warning and for the same reason: a hardware figure that is
+ * unchecked and *says* it is unchecked costs ten seconds with a catalogue, and one that is unchecked
+ * and silent costs a carcass.
+ */
+const unchecked = unconfirmedHardwareFigures(project.hardware);
+if (unchecked.length > 0) {
+  console.log('\n  ! Hardware figures not yet checked against the catalogue:');
+  for (const note of unchecked) console.log(`      · ${note}`);
 }
 for (const w of cost.warnings) console.log(`  ! ${w}`);
 console.log();

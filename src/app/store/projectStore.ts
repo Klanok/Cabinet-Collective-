@@ -29,6 +29,7 @@ import {
   upsertSavedType,
 } from '../../core/standards/savedTypes.ts';
 import type { DoorStyle } from '../../core/standards/doorStyles.ts';
+import type { HardwareLibrary } from '../../core/model/hardware.ts';
 import {
   createCabinet,
   createEmptyProject,
@@ -63,6 +64,11 @@ export interface ProjectStore {
    * out the new list — adding, editing and deleting all come back through here.
    */
   updateDoorStyles: (styles: readonly DoorStyle[]) => void;
+  /**
+   * Replace this job's hardware library. The whole thing at once, as the door styles are — the
+   * editor works out the new library and hands it over.
+   */
+  updateHardware: (hardware: HardwareLibrary) => void;
   updateRoom: (room: Room) => void;
   /**
    * Move a cabinet on the floor plane, optionally turning it. Height is never changed by
@@ -255,6 +261,9 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
   updateDoorStyles: (doorStyles) =>
     set((state) => persist(touchProject({ ...state.project, doorStyles }))),
+
+  updateHardware: (hardware) =>
+    set((state) => persist(touchProject({ ...state.project, hardware }))),
 
   updateRoom: (room) => set((state) => persist(touchProject({ ...state.project, room }))),
 
