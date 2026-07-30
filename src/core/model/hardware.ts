@@ -163,15 +163,9 @@ export interface DrawerRunnerSystem {
   /**
    * Centre of the runner's own fixing screws, above the bottom of the runner.
    *
-   * Read from Blum's `min. 54*` on the space-requirement panel, per the shop. It used to be taken as
-   * zero — the holes sat on the runner's bottom line — which was the placeholder standing in for not
-   * knowing, and 54mm out is a runner nowhere near where the box expects it.
-   *
-   * There is a second reading of that same `54` worth knowing about: it could be the minimum height
-   * of the **runner itself** above the cabinet floor rather than the screw above the runner, in which
-   * case it belongs to `runnerAboveFrontBottom` instead. The `*` footnote does not settle it — the
-   * confirmed `33.5` carries the same footnote and is runner-relative. Settled with a tape against a
-   * real runner, not by reading harder.
+   * Blum's `min. 54*` on the space-requirement panel, read and confirmed by the shop. It used to be
+   * taken as zero — the holes sat on the runner's own bottom line — which was the placeholder
+   * standing in for not knowing, and 54mm out is a runner nowhere near where the box expects it.
    */
   readonly runnerFixingAboveRunnerBottom: Mm;
 

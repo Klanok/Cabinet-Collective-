@@ -133,16 +133,11 @@ export const MERIVOBOX: DrawerRunnerSystem = {
       'cabinet floor with its front flush below it. Everything else in the chain is off Blum’s ' +
       'sheet; this link is not, and it is what moves the box and the runner holes together. The ' +
       '"min. 31.5" on the front-installation sheet may well be it — worth reading the footnote.',
-    'runnerFixingAboveRunnerBottom — 54mm, read off Blum’s `min. 54*`. The same 54 could instead be ' +
-      'the minimum height of the *runner* above the cabinet floor, which would make it ' +
-      '`runnerAboveFrontBottom` rather than this. Hold a runner against a side panel and measure ' +
-      'from its bottom edge to the screw centre: about 54 confirms it here, 10 to 15 means it is the ' +
-      'other one. The `*` footnote does not settle it — the confirmed 33.5 carries the same footnote ' +
-      'and is runner-relative.',
     'fixingSpacings — the 128/256 table is taken as the spacing of the runner’s two fixings in the ' +
-      'cabinet side. Blum’s own sheet heads that table "Drilling distances – base", and on the same ' +
-      'page "base" is the drawer bottom panel — so this table may belong to a different part ' +
-      'entirely, and the cabinet side may have no confirmed spacing at all.',
+      'cabinet side, and both figures being whole multiples of the 32mm pitch is the argument for ' +
+      'that. But Blum heads the table "Drilling distances – base", and on the same page "base" is ' +
+      'the drawer bottom panel — so it may belong to a different part entirely, in which case the ' +
+      'cabinet side has no confirmed spacing at all and the drawer bottom is missing its holes.',
   ],
   specNote:
     'Wooden bottom and wooden back, 16mm chipboard. A steel back is a shorter base — NL − 22 rather ' +
