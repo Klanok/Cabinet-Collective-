@@ -220,6 +220,36 @@ export const isThroughFeature = (f: PanelFeature, thickness: Mm): boolean => {
   }
 };
 
-/** Features needing the part flipped. Phase 5's post-processor must not silently merge these. */
-export const requiresFlip = (f: PanelFeature): boolean =>
-  f.kind !== 'cutout' && f.face === 'B';
+/**
+ * Which faces of a part carry machining.
+ *
+ * A cutout goes right through, so it is reachable from either side and names no face.
+ */
+export const machinedFaces = (
+  features: readonly PanelFeature[],
+): Set<MachiningFace> => {
+  const faces = new Set<MachiningFace>();
+  for (const f of features) {
+    if (f.kind === 'cutout') continue;
+    faces.add(f.face);
+  }
+  return faces;
+};
+
+/**
+ * True when a part has to be **turned over** on the machine — because it is machined on *both*
+ * faces, and no single setup reaches both.
+ *
+ * This is a property of the **part**, not of a feature, and getting that wrong is what this
+ * function exists to record. It used to read "this feature is on the B face", which quietly assumed
+ * the A face is always the one lying upward on the bed. It isn't: **the face being machined is the
+ * face that goes up.** A plain door with hinge cups in its back and nothing on its show face is laid
+ * on the bed back-up and bored in one setup — there is no flip, and counting one per cup said a
+ * kitchen had sixty flips in it when it had none.
+ *
+ * A shaker door is the case that genuinely does turn over: a recess routed into its show face *and*
+ * cups bored into its back is two setups however you order them. That number is worth having and it
+ * moves with the door style, which is exactly right.
+ */
+export const requiresFlip = (features: readonly PanelFeature[]): boolean =>
+  machinedFaces(features).size > 1;

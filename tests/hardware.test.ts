@@ -95,7 +95,12 @@ import {
 import { buildHardwareBom, drillingSummary, hardwareBomTotals } from '../src/core/hardware/bom.ts';
 import { costProject } from '../src/core/costing/costing.ts';
 import { buildCutlist } from '../src/core/cutlist/cutlist.ts';
-import { cutlistCsv, drillingCsv, hardwareCsv } from '../src/core/cutlist/export.ts';
+import {
+  cutlistCsv,
+  drillingCsv,
+  drillingTotals,
+  hardwareCsv,
+} from '../src/core/cutlist/export.ts';
 import { byName, occupies, size } from './helpers.ts';
 
 let project: Project;
@@ -423,16 +428,16 @@ describe('hardware on the quote', () => {
 });
 
 describe('the drilling summary', () => {
-  it('groups the sample kitchen by bore and says what needs turning over', () => {
+  it('groups the sample kitchen by bore and says which face each goes in', () => {
     const kitchen = createSampleKitchen();
     const groups = drillingSummary(kitchen);
     const find = (d: number) => groups.find((g) => g.diameter === d)!;
 
-    // 20 hinge cups, and two dowels each.
+    // 20 hinge cups, and two dowels each — both in the back of the door.
     expect(find(35).count).toBe(20);
-    expect(find(35).needsFlip).toBe(true);
+    expect(find(35).face).toBe('B');
     expect(find(8).count).toBe(40);
-    expect(find(8).needsFlip).toBe(true);
+    expect(find(8).face).toBe('B');
 
     /*
      * The Ø5 holes, longhand:
@@ -444,11 +449,33 @@ describe('the drilling summary', () => {
      *                                                               388
      */
     expect(find(5).count).toBe(388);
-    expect(find(5).needsFlip).toBe(false);
+    expect(find(5).face).toBe('A');
 
     // The front fixing pilots: 3 drawers x 2 brackets x 2 screws, in the back of each front.
     expect(find(3).count).toBe(12);
-    expect(find(3).needsFlip).toBe(true);
+    expect(find(3).face).toBe('B');
+  });
+
+  /**
+   * The number that was wrong, and the one the shop caught.
+   *
+   * A hole being in the back of a part is not a flip. The face being machined is the face that goes
+   * up on the bed — so a plain door with hinge cups in its back and nothing on its show face is bored
+   * back-up in **one** setup. On a plain-slab kitchen **nothing turns over at all**; it was reporting
+   * 72 of them.
+   */
+  it('turns nothing over on a plain-slab kitchen, and every front on a shaker one', () => {
+    const slab = createSampleKitchen();
+    const plain = drillingTotals(buildProject(slab).flatMap((b) => b.panels));
+    expect(plain.holes).toBe(460);
+    expect(plain.turnedParts).toBe(0);
+
+    // A shaker front is recessed on its show face *and* bored in its back: two setups, honestly.
+    const shaker: Project = { ...slab, defaults: { ...slab.defaults, doorStyleId: 'shaker-57' } };
+    const routed = drillingTotals(buildProject(shaker).flatMap((b) => b.panels));
+    expect(routed.holes).toBe(460);
+    // Ten doors and three drawer fronts, all routed and all bored.
+    expect(routed.turnedParts).toBe(13);
   });
 });
 
@@ -480,9 +507,11 @@ describe('export', () => {
     const rows = drillingCsv(kitchen).trimEnd().split('\r\n');
     // 388 + 20 + 40 + 12 = 460 holes, plus the header.
     expect(rows).toHaveLength(461);
-    expect(rows[0]).toBe('Cabinet,Part,Purpose,Face,Flip,X,Y,Diameter,Depth,Feature');
-    // The cups, their dowels and the front fixings all go in the back of a front.
-    expect(rows.filter((r) => r.includes(',yes,'))).toHaveLength(72);
+    expect(rows[0]).toBe('Cabinet,Part,Purpose,Face,Turns over,X,Y,Diameter,Depth,Feature');
+    // The cups, their dowels and the front fixings all go in the back of a front — but on a
+    // plain-slab kitchen no part is machined on both faces, so nothing turns over.
+    expect(rows.filter((r) => r.includes(',B,'))).toHaveLength(72);
+    expect(rows.filter((r) => r.includes(',yes,'))).toHaveLength(0);
   });
 
   it('quotes a field containing a comma rather than shifting every column after it', () => {

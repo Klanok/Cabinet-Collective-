@@ -112,15 +112,19 @@ export const hardwareCsv = (project: Project): string => {
  * expansion happens: the model keeps the operation, and CAM will read the operation too rather than
  * a list of points that has forgotten it was a pitch.
  *
- * `Flip` is its own column and is not a detail. A hinge cup is bored on the back of a door, so the
- * part turns over between the front routing and the boring — that is a setup, and a sheet that
- * doesn't say so is a sheet somebody bores from the wrong side.
+ * `Face` says which side each hole goes in; `Turns over` says whether **the part** has work on both
+ * faces and so needs a second setup. They are different questions and a sheet wants both. A plain
+ * door is bored back-up in one setup even though every hole in it is on the back — the face being
+ * machined is the face that goes up. It is a shaker door, routed on the front *and* bored on the
+ * back, that genuinely turns over.
  */
 export const drillingCsv = (project: Project): string => {
   const rows: (string | number | undefined)[][] = [];
 
   for (const built of buildProject(project)) {
     for (const panel of built.panels) {
+      // Asked once per part, not once per hole: turning over is something the *part* does.
+      const turnsOver = requiresFlip(panel.features) ? 'yes' : 'no';
       for (const f of panel.features) {
         if (f.kind !== 'drill' && f.kind !== 'drill-line') continue;
         const count = f.kind === 'drill' ? 1 : f.count;
@@ -134,7 +138,7 @@ export const drillingCsv = (project: Project): string => {
             panel.name,
             f.purpose,
             f.face,
-            requiresFlip(f) ? 'yes' : 'no',
+            turnsOver,
             round1(at.x),
             round1(at.y),
             f.diameter,
@@ -147,22 +151,32 @@ export const drillingCsv = (project: Project): string => {
   }
 
   return csv([
-    ['Cabinet', 'Part', 'Purpose', 'Face', 'Flip', 'X', 'Y', 'Diameter', 'Depth', 'Feature'],
+    ['Cabinet', 'Part', 'Purpose', 'Face', 'Turns over', 'X', 'Y', 'Diameter', 'Depth', 'Feature'],
     ...rows,
   ]);
 };
 
-/** How many holes a job has, and how many of them need the part turned over. */
+/**
+ * How many holes a job has, across how many parts, and how many of those parts turn over.
+ *
+ * Counted in **parts**, not in holes. A part turning over is one setup; how many holes are in it
+ * once it is there does not change that, and counting per hole is what made a job of plain doors
+ * look like sixty separate flips.
+ */
 export const drillingTotals = (panels: readonly Panel[]) => {
   let holes = 0;
-  let flipped = 0;
+  let boredParts = 0;
+  let turnedParts = 0;
   for (const panel of panels) {
+    let onThisPart = 0;
     for (const f of panel.features) {
       if (f.kind !== 'drill' && f.kind !== 'drill-line') continue;
-      const count = f.kind === 'drill' ? 1 : f.count;
-      holes += count;
-      if (requiresFlip(f)) flipped += count;
+      onThisPart += f.kind === 'drill' ? 1 : f.count;
     }
+    if (onThisPart === 0) continue;
+    holes += onThisPart;
+    boredParts += 1;
+    if (requiresFlip(panel.features)) turnedParts += 1;
   }
-  return { holes, flipped };
+  return { holes, boredParts, turnedParts };
 };

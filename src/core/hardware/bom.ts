@@ -19,6 +19,7 @@ import {
   type HardwareUnit,
   findHardwareItem,
 } from '../model/hardware.ts';
+import type { MachiningFace } from '../model/feature.ts';
 import { PINS_PER_SHELF, SHELF_PIN_ITEM_ID } from '../library/blum.ts';
 import { type BuiltCabinet, buildProject } from '../rules/build.ts';
 
@@ -191,24 +192,29 @@ export const hardwareBomTotals = (lines: readonly HardwareBomLine[]) => ({
 });
 
 /**
- * The drilling on one job, summarised — how many holes of each diameter, and how many of them need
- * the part turned over.
+ * The drilling on one job, summarised — how many holes of each bore, and which face they go in.
  *
- * Not a BOM line and not a cost. It is the number worth looking at before sending a job to a
- * machine, because the flip count is what tells you how many setups a run really is, and a
- * diameter nobody has a bit for is worth finding out before the spindle starts.
+ * Not a BOM line and not a cost. It is what is worth looking at before sending a job to a machine: a
+ * diameter nobody has a bit for is better found out before the spindle starts.
+ *
+ * The **face** is reported, and deliberately not a "needs flipping" flag. Which face a hole goes in
+ * is a property of the hole; whether a part has to be turned over is a property of the *part*, and
+ * only parts machined on both faces do — see `requiresFlip`. `drillingTotals` counts those.
  */
 export interface DrillingSummary {
   readonly diameter: Mm;
   readonly depth: Mm;
   readonly count: number;
   readonly purposes: readonly string[];
-  /** True when this group is bored on the B-face and so needs the part flipped. */
-  readonly needsFlip: boolean;
+  /** Which face this group of holes is bored from. */
+  readonly face: MachiningFace;
 }
 
 export const drillingSummary = (project: Project): readonly DrillingSummary[] => {
-  const groups = new Map<string, { d: Mm; z: Mm; count: number; purposes: Set<string>; flip: boolean }>();
+  const groups = new Map<
+    string,
+    { d: Mm; z: Mm; face: MachiningFace; count: number; purposes: Set<string> }
+  >();
 
   for (const panel of buildProject(project).flatMap((b) => b.panels)) {
     for (const f of panel.features) {
@@ -217,7 +223,7 @@ export const drillingSummary = (project: Project): readonly DrillingSummary[] =>
       const key = `${f.diameter}|${f.depth}|${f.face}`;
       const entry =
         groups.get(key) ??
-        { d: f.diameter, z: f.depth, count: 0, purposes: new Set<string>(), flip: f.face === 'B' };
+        { d: f.diameter, z: f.depth, face: f.face, count: 0, purposes: new Set<string>() };
       entry.count += holes;
       entry.purposes.add(f.purpose);
       groups.set(key, entry);
@@ -230,7 +236,7 @@ export const drillingSummary = (project: Project): readonly DrillingSummary[] =>
       depth: g.z,
       count: g.count,
       purposes: [...g.purposes].sort(),
-      needsFlip: g.flip,
+      face: g.face,
     }))
     .sort((a, b) => b.diameter - a.diameter || b.count - a.count);
 };

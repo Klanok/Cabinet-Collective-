@@ -71,7 +71,7 @@ import { mm } from '../src/core/units.ts';
 import { createCabinet, createEmptyProject, createSampleKitchen, resetIdCounter } from '../src/core/project/factory.ts';
 import type { CabinetOptions, CabinetTypeId } from '../src/core/model/cabinet.ts';
 import type { Project } from '../src/core/model/project.ts';
-import { requiresFlip } from '../src/core/model/feature.ts';
+import { machinedFaces, requiresFlip } from '../src/core/model/feature.ts';
 import { buildCabinet, buildProject } from '../src/core/rules/build.ts';
 import { byName, drilledFor, drillingStaysOnThePart, size } from './helpers.ts';
 
@@ -107,19 +107,40 @@ describe('hinge cups', () => {
 
   /**
    * The cup goes in the *back* of the door, and the door's A-face is its show face — that follows
-   * from where the door sits and is not a choice. So it is a B-face operation, the part turns over,
-   * and the model says so rather than letting a post-processor guess.
+   * from where the door sits and is not a choice. So it is a B-face operation, and the model records
+   * that rather than letting a post-processor guess.
+   *
+   * What it is *not* is a flip. See below.
    */
-  it('bores the back face, and says the part has to be turned over', () => {
+  it('bores the back face — and a plain door still does not turn over', () => {
     const { panels } = build('base', { doorCount: 2 });
     const door = byName(panels, 'Door L');
     const cups = door.features.filter((f) => f.purpose === 'hinge-cup');
     expect(cups.every((f) => f.kind === 'drill' && f.face === 'B')).toBe(true);
-    expect(cups.every(requiresFlip)).toBe(true);
 
-    // And nothing else on the job needs a flip.
-    const plates = byName(panels, 'Side L').features;
-    expect(plates.every((f) => !requiresFlip(f))).toBe(true);
+    /*
+     * The cup is in the back of the door, but that on its own is not a flip. The face being
+     * machined is the face that goes up on the bed: a plain door with work on its back and nothing
+     * on its show face is bored back-up in **one** setup. Turning over is a property of the part —
+     * only work on both faces forces it.
+     */
+    expect(requiresFlip(door.features)).toBe(false);
+    expect(requiresFlip(byName(panels, 'Side L').features)).toBe(false);
+  });
+
+  /** The case that genuinely does turn over: routed on the front, bored on the back. */
+  it('turns a routed front over, because that one is machined on both faces', () => {
+    const shaker: Project = {
+      ...project,
+      defaults: { ...project.defaults, doorStyleId: 'shaker-57' },
+    };
+    const built = buildCabinet(
+      createCabinet({ typeId: 'base', name: 'X', width: mm(900), x: mm(0), options: { doorCount: 2 } }),
+      shaker,
+    );
+    const door = byName(built.panels, 'Door L');
+    expect(machinedFaces(door.features)).toEqual(new Set(['A', 'B']));
+    expect(requiresFlip(door.features)).toBe(true);
   });
 
   /**
@@ -404,9 +425,8 @@ describe('front fixings', () => {
     const screws = drilledFor(front, 'drawer-front-fixing');
     expect(screws).toHaveLength(4);
     expect(screws.every((s) => s.face === 'B')).toBe(true);
-    expect(front.features.filter((f) => f.purpose === 'drawer-front-fixing').every(requiresFlip)).toBe(
-      true,
-    );
+    // Back face only, so a plain drawer front is bored back-up in one setup like a plain door.
+    expect(requiresFlip(front.features)).toBe(false);
   });
 
   it('puts them 20.5 in from each outer cabinet face, which is 19 in from a 597 front’s edge', () => {

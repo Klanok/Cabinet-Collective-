@@ -62,15 +62,29 @@ consume directly**, so it is defined in machine terms, not modelling terms.
 
 ### Why the A-face matters
 
-The **A-face is the face that lies upward on the machine bed.** Consequently:
+The **A-face is the part's reference face — the one lying upward in its nominal setup.**
+Consequently:
 
 - Part space +Z is the same direction as machine +Z. No flip in the post-processor.
 - A face-side drilling operation of depth `d` starts at `z = t` and ends at `z = t - d`.
   Depths are always measured **down from the A-face**, never up from the B-face.
 - A through-cut is `d ≥ t`.
-- Machining the B-face requires the part to be flipped, which is a **distinct, explicitly
-  flagged operation** — the CAM layer must never silently emit B-face work as if it were
-  reachable in the same setup.
+- B-face work is **explicitly flagged as such** — the CAM layer must never silently emit it as
+  though it were reachable from the A side in the same pass.
+
+### What B-face work does *not* mean
+
+It does **not** mean the part turns over, and the difference is worth stating because getting it
+wrong overstates a job's setups badly. **The face being machined is the face that goes up.** A part
+with work on one face only is laid that face up and machined in a single setup, whichever face it
+happens to be — a plain door with hinge cups in its back and nothing on its show face never turns
+over.
+
+**A part turns over only when it is machined on both faces.** A shaker door — recessed on the show
+face *and* bored in the back — is the ordinary example, and it is genuinely two setups. So
+`requiresFlip` in `model/feature.ts` asks the question about a **part**, not about a feature. It
+briefly did the latter, and reported a kitchen of plain doors as having sixty flips in it when it
+had none.
 
 Panels whose visible face matters (a melamine carcass side with one decorative face, a
 routed door) record which physical face is the A-face, so this survives into nesting.
