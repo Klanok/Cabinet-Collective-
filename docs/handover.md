@@ -141,9 +141,14 @@ was quoted for, or the boxes come back from the saw fitting nothing.
 
 **A hinge cup is bored on the B-face, and that is not a mistake to fix.** A door's A-face is its
 show face, which follows from where the door sits — `w = u × v` is derived, not chosen. So the cup
-goes in the back, `requiresFlip` is true for it, and the model says plainly that the part turns
-over between routing the front and boring the back. That is a real setup and a real chance to
-machine the wrong side, which is exactly why the coordinate convention makes it explicit.
+goes in the back, and the model records that rather than letting a post-processor guess.
+
+**What it does not mean is a flip.** The face being machined is the face that goes up on the bed, so
+a plain door with cups in its back and nothing on its show face is bored back-up in *one* setup.
+`requiresFlip` therefore asks about a **part** — true only when it is machined on both faces, which
+a shaker door recessed on the front and bored on the back genuinely is. It briefly asked about a
+*feature* instead, and reported the plain-slab sample kitchen as having 72 flips in it when it has
+none. Caught from the bench: *"none of the holes should require the part to be turned over."*
 
 **A door style is machining, not geometry.** A shaker door is the *same rectangle* a plain slab
 door is; what differs is what is cut into its face. So a style produces `PanelFeature[]` and
@@ -725,9 +730,10 @@ it, which is the cheapest way to check any claim below.
 
 **The sample kitchen, before and after.** 63 parts became 69 — the six extra are a bottom and a back
 for each of D1's three drawers, and not one of the original 63 moved by a millimetre. On top of
-those: 3 MERIVOBOX sets at NL 500, 20 hinges, 20 plates, 28 shelf pins, and 460 holes of which 72
-are on the back face — the cups, their dowels and the front fixings, all of which go in the back of
-a front. Hardware adds $331.04 ex GST at the indicative rates, on a job that was
+those: 3 MERIVOBOX sets at NL 500, 20 hinges, 20 plates, 28 shelf pins, and 460 holes across 26
+parts, 72 of them in the back face. **None of those 26 parts turns over** — each is machined on one
+face only, so each is a single setup. Put the same kitchen on a shaker style and 13 do, because a
+routed front is worked on both faces. Hardware adds $331.04 ex GST at the indicative rates, on a job that was
 quoting the hardware at nothing.
 
 #### Decisions worth not undoing
@@ -753,7 +759,8 @@ quoting the hardware at nothing.
   cabinet side, so how far it is from the front's own edge falls out of the placement — which means a
   shop that widens its side reveal moves the front and leaves the screw where the bracket is. There
   is a test for exactly that.
-- **A cup is on the B-face and needs a flip.** See §2.
+- **A cup is on the B-face, which is not the same as needing a flip.** See §2 — the face being
+  machined is the face that goes up, and only a part worked on *both* faces turns over.
 - **`machineFront`'s guard had to change from "has features" to "has a front-style feature".** It
   used to mean "already machined deliberately". Once a door carries hinge cups, the loose test reads
   a bored door as an already-styled one and quietly ships a plain slab on a shaker kitchen — §4.3's

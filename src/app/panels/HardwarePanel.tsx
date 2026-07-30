@@ -5,8 +5,9 @@
  * stored BOM to go stale when a cabinet changes.
  *
  * The drilling summary is here rather than under the cutlist because it answers a different
- * question: not "what do I cut" but "how many setups is this". The flip count is the number that
- * matters, and it is why it gets a sentence of its own rather than a column.
+ * question: not "what do I cut" but "how many setups is this". Which face a hole goes in is a
+ * column; whether a **part** turns over is a sentence, because it is a different question with a
+ * different answer — a part is only turned when it is machined on both faces.
  */
 
 import type { Project } from '../../core/model/project.ts';
@@ -84,21 +85,32 @@ export function HardwarePanel({ project }: Props) {
             </thead>
             <tbody>
               {groups.map((g) => (
-                <tr key={`${g.diameter}-${g.depth}-${g.needsFlip}`}>
+                <tr key={`${g.diameter}-${g.depth}-${g.face}`}>
                   <td className="mono">
                     Ø{g.diameter} × {g.depth}
                   </td>
                   <td className="num strong">{g.count}</td>
                   <td className="muted">{g.purposes.join(', ')}</td>
-                  <td className="muted">{g.needsFlip ? 'Back — flip' : 'Front'}</td>
+                  <td className="muted">{g.face === 'B' ? 'Back' : 'Front'}</td>
                 </tr>
               ))}
             </tbody>
           </table>
           <p className="note subtle">
-            {holes.holes} holes, {holes.flipped} of them in the back face. Those are the hinge cups:
-            the part turns over between routing the front and boring the back, which is a separate
-            setup on the machine.
+            {holes.holes} holes across {holes.boredParts} parts.{' '}
+            {holes.turnedParts === 0 ? (
+              <>
+                <strong>None of them turn over.</strong> Every part is machined on one face only, so
+                each is a single setup — a door with its hinge cups in the back goes on the bed
+                back-up and gets bored, and the face being machined is the face that goes up.
+              </>
+            ) : (
+              <>
+                <strong>{holes.turnedParts}</strong> of those parts are machined on both faces and so
+                turn over — a routed front is the usual case, recessed on the show face and bored on
+                the back. That is a second setup on each.
+              </>
+            )}
           </p>
         </>
       )}

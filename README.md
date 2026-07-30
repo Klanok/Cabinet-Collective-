@@ -62,7 +62,10 @@ Every one of those is described **once, in cabinet space**, and converted into e
 part space through its placement — which is what makes a left side and a right side come out
 mirrored rather than identical. The Hardware tab shows the order and the hole count, and exports
 the cutlist, the hardware order and a drilling sheet as CSV. A hinge cup is on the back face, so
-the drilling sheet says which parts turn over: that is a setup, and it is not left to be guessed.
+the drilling sheet says which parts turn over — and on a plain-slab kitchen **none of them do**.
+The face being machined is the face that goes up, so a door with work only in its back is bored
+back-up in one setup. It is a routed front, recessed on the show face *and* bored in the back, that
+genuinely needs two.
 
 The Blum figures live in one file, `src/core/library/blum.ts`. Anything in there that has not
 been checked against the catalogue is listed by name on screen and in the terminal report, the

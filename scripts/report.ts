@@ -104,12 +104,20 @@ for (const g of drillingSummary(project)) {
   console.log(
     `  Ø${String(g.diameter).padStart(2)} × ${String(g.depth).padStart(2)}  ` +
       `${String(g.count).padStart(4)} holes   ${g.purposes.join(', ').padEnd(24)}` +
-      `${g.needsFlip ? '  (part flipped — B face)' : ''}`,
+      `${g.face === 'B' ? '  back face' : '  front face'}`,
   );
 }
+/*
+ * Turning over is counted in **parts**, not in holes, and only a part machined on *both* faces has
+ * to do it. A plain door with hinge cups in its back and nothing on its show face is bored back-up
+ * in one setup — the face being machined is the face that goes up.
+ */
 console.log(
-  `\n  ${drill.holes} holes, ${drill.flipped} of them on the back face — ` +
-    'those need the part turned over, which is a separate setup.',
+  `\n  ${drill.holes} holes across ${drill.boredParts} parts. ` +
+    (drill.turnedParts === 0
+      ? 'None of them turn over — every part is machined on one face only, so each is one setup.'
+      : `${drill.turnedParts} of those parts are machined on both faces and turn over, which is a ` +
+        'second setup on each.'),
 );
 
 rule('MATERIALS');
