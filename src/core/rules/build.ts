@@ -19,9 +19,12 @@ import {
   validateContext,
 } from './context.ts';
 import { type StyledFront, isStyledFrontRole, styleFront } from './frontStyle.ts';
+import { boreCabinet } from './boring.ts';
+import { type ResolvedHardware, hardwareProblems } from './hardware.ts';
 import { cornerRadiusProblems } from './parts.ts';
 import { getSpec } from './registry.ts';
 import { type MaterialSlot, type PartInstance, resolveBanding } from './spec.ts';
+import type { PanelFeature } from '../model/feature.ts';
 
 export interface BuiltCabinet {
   readonly cabinet: Cabinet;
@@ -33,6 +36,14 @@ export interface BuiltCabinet {
   readonly warnings: readonly string[];
   /** The style this cabinet's fronts were machined to, once the override and default resolve. */
   readonly doorStyle: DoorStyle;
+  /**
+   * The runner and hinge systems this cabinet was built and bored to.
+   *
+   * Carried out alongside the panels for the same reason `doorStyle` is: the hardware BOM has to
+   * say *which* runner at *what* length, and re-resolving it downstream would be a second place
+   * that could pick a different one.
+   */
+  readonly hardware: ResolvedHardware;
 }
 
 const resolveMaterials = (cabinet: Cabinet, project: Project): ResolvedMaterials => ({
@@ -74,8 +85,17 @@ const machineFront = (
   thicknesses: BuildThicknesses,
 ): StyledFront => {
   if (!isStyledFrontRole(instance.role)) return { features: [], warnings: [] };
-  // A part that already carries its own machining has been given it deliberately.
-  if (instance.features && instance.features.length > 0) return { features: [], warnings: [] };
+  /*
+   * A front that already carries a style of its own has been given it deliberately.
+   *
+   * Tested on the *purpose* rather than on "has any features at all", which is what it used to
+   * say. Once hardware boring exists, a door carries hinge cups — so the looser test would have
+   * read a bored door as an already-styled one and quietly shipped a plain slab on a shaker
+   * kitchen. Exactly the failure §4.3 exists to prevent, arriving by the back door.
+   */
+  if (instance.features?.some((f) => f.purpose === 'front-style')) {
+    return { features: [], warnings: [] };
+  }
 
   const { length, width } = profileExtent(instance.profile);
   const upright =
@@ -95,6 +115,7 @@ const toPanel = (
   panelId: string,
   materials: ResolvedMaterials,
   styleFeatures: StyledFront,
+  boring: readonly PanelFeature[],
 ): Panel => ({
   id: panelId,
   cabinetId,
@@ -103,7 +124,7 @@ const toPanel = (
   materialId: materialFor(instance.material, materials),
   profile: instance.profile,
   placement: instance.placement,
-  features: [...(instance.features ?? []), ...styleFeatures.features],
+  features: [...(instance.features ?? []), ...styleFeatures.features, ...boring],
   edgeBanding: resolveBanding(instance.placement, instance.bandedDirections, materials.edgeBand),
   grain: instance.grain,
   forming: instance.forming,
@@ -128,35 +149,61 @@ export const buildCabinet = (cabinet: Cabinet, project: Project): BuiltCabinet =
     options: { ...spec.defaultOptions, ...cabinet.options },
   };
   const thicknesses = thicknessesFor(materials, project.materials);
-  const ctx = buildContext(merged, construction, materials, thicknesses);
+  const ctx = buildContext(merged, construction, materials, thicknesses, {
+    library: project.hardware,
+    defaults: project.defaults,
+  });
 
   const warnings = [
     ...validateContext(ctx),
     ...cornerRadiusProblems(ctx),
+    ...hardwareProblems(ctx),
     ...(spec.validate?.(ctx) ?? []),
   ];
 
   // A cabinet whose driving dimensions don't work can't produce meaningful parts. Report and
   // stop rather than emitting negative-sized panels that look plausible in a cutlist.
   if (validateContext(ctx).length > 0) {
-    return { cabinet: merged, panels: [], warnings, doorStyle };
+    return { cabinet: merged, panels: [], warnings, doorStyle, hardware: ctx.hardware };
   }
+
+  /*
+   * Produce every part first, then machine the finished list — twice, for two different reasons
+   * that happen to share a shape.
+   *
+   * The door style is per front and needs nothing but that front's own size. The **hardware** is
+   * not: a hinge is a cup in a door and two screws in a side, so the boring pass has to see the
+   * doors and the sides at once, and it can only do that once every builder has run. Both are here
+   * rather than inside the builders because fronts and sides each come out of several places, and
+   * one resolution point cannot forget a caller.
+   */
+  const produced: { instance: PartInstance; id: string }[] = [];
+  for (const rule of spec.parts) {
+    rule.produce(ctx).forEach((instance, i) => {
+      produced.push({ instance, id: `${cabinet.id}:${rule.key}:${i}` });
+    });
+  }
+
+  const boring = boreCabinet(ctx, produced.map((p) => p.instance));
 
   const panels: Panel[] = [];
   // A bank of identical drawer fronts would otherwise report the same fallback three times.
   const styleWarnings = new Set<string>();
-  for (const rule of spec.parts) {
-    const instances = rule.produce(ctx);
-    instances.forEach((instance, i) => {
-      const styled = machineFront(instance, doorStyle, thicknesses);
-      styled.warnings.forEach((w) => styleWarnings.add(w));
-      panels.push(
-        toPanel(instance, cabinet.id, `${cabinet.id}:${rule.key}:${i}`, materials, styled),
-      );
-    });
-  }
+  produced.forEach(({ instance, id }, i) => {
+    const styled = machineFront(instance, doorStyle, thicknesses);
+    styled.warnings.forEach((w) => styleWarnings.add(w));
+    panels.push(
+      toPanel(instance, cabinet.id, id, materials, styled, boring.perInstance[i] ?? []),
+    );
+  });
 
-  return { cabinet: merged, panels, warnings: [...warnings, ...styleWarnings], doorStyle };
+  return {
+    cabinet: merged,
+    panels,
+    warnings: [...warnings, ...styleWarnings, ...boring.warnings],
+    doorStyle,
+    hardware: ctx.hardware,
+  };
 };
 
 /** Build every cabinet in the project. */

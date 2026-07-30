@@ -521,35 +521,53 @@ export const pairTooNarrowProblem = (ctx: RuleContext): string[] => {
 };
 
 /**
+ * Where each drawer front sits, bottom-first: the cabinet-space y of its bottom edge, and its
+ * height.
+ *
+ * Its own function because two things need it and they must agree: the fronts themselves, and the
+ * **drawer boxes** behind them, whose floors and whose runner holes are set out from the bottom
+ * edge of the front they belong to. Working the stack out twice is how a box ends up 3mm off the
+ * front it is screwed to.
+ */
+export interface DrawerRow {
+  /** Cabinet-space y of the front's bottom edge. */
+  readonly y: Mm;
+  readonly height: Mm;
+}
+
+export const drawerRows = (ctx: RuleContext, heights: readonly Mm[]): DrawerRow[] => {
+  const gap = ctx.construction.gapBetweenDrawers;
+  let y: Mm = ctx.construction.revealBottom;
+  return heights.map((height) => {
+    const row = { y, height };
+    y = mm(y + height + gap);
+    return row;
+  });
+};
+
+/**
  * Drawer fronts, stacked bottom to top with a gap between each.
  *
  * `heights` is ordered bottom-first. Part length is the front's width, so grain runs
  * horizontally across a bank — which is how a drawer bank is normally matched.
  *
- * Phase 1 produces the *fronts*. Drawer boxes and runners are hardware, and arrive with the
- * Phase 2 hardware rule sets.
+ * The *boxes* behind these are `drawerBoxes` in `rules/drawerBox.ts`, and they are sized by the
+ * runner rather than by the cabinet — which is why they waited for Phase 2.
  */
 export const drawerFronts = (ctx: RuleContext, heights: readonly Mm[]): PartInstance[] => {
-  const rBot = ctx.construction.revealBottom;
   const rS = ctx.construction.revealSides;
-  const gap = ctx.construction.gapBetweenDrawers;
   const width = mm(ctx.W - 2 * rS);
 
-  let y = rBot;
-  return heights.map((h, i) => {
-    const instance: PartInstance = {
-      name: `Drawer front ${i + 1}`,
-      role: 'drawer-front',
-      profile: rectProfile(width, h),
-      placement: placement(v3(rS, mm(y), ctx.D), '+X', '+Y'),
-      material: 'door',
-      bandedDirections: BAND_ALL,
-      grain: 'length-along-grain',
-      note: i === 0 ? 'Numbered from the bottom' : undefined,
-    };
-    y = mm(y + h + gap);
-    return instance;
-  });
+  return drawerRows(ctx, heights).map((row, i) => ({
+    name: `Drawer front ${i + 1}`,
+    role: 'drawer-front',
+    profile: rectProfile(width, row.height),
+    placement: placement(v3(rS, row.y, ctx.D), '+X', '+Y'),
+    material: 'door',
+    bandedDirections: BAND_ALL,
+    grain: 'length-along-grain',
+    note: i === 0 ? 'Numbered from the bottom' : undefined,
+  }));
 };
 
 /**
