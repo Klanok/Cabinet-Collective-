@@ -22,6 +22,15 @@ import {
   actualThicknessOf,
   isOversize,
 } from '../../core/model/material.ts';
+import {
+  type DrawerRunnerSystem,
+  type HardwareLibrary,
+  type HingeSystem,
+  cupSetbackForSystemGrid,
+  plateHolePositions,
+  platesOnSystemGrid,
+  unconfirmedHardwareFigures,
+} from '../../core/model/hardware.ts';
 import { EdgeBandPicker, SheetPicker } from './MaterialPicker.tsx';
 import { DoorStyleEditor } from './DoorStyleEditor.tsx';
 import { NumberRow } from './fields.tsx';
@@ -62,6 +71,8 @@ interface Props {
   onUpdateDefaults: (patch: Partial<ProjectDefaults>) => void;
   onUpdateSheet: (id: string, patch: Partial<SheetMaterial>) => void;
   onUpdateDoorStyles: (styles: readonly DoorStyle[]) => void;
+  /** Replace this job's hardware library — the whole thing, as the door styles are. */
+  onUpdateHardware: (hardware: HardwareLibrary) => void;
   onUpdateStandards: (patch: Partial<ShopStandards>) => void;
   onSaveAsStandards: (name: string) => void;
   onResetToStandards: () => void;
@@ -100,7 +111,217 @@ const CONSTRUCTION_FIELDS: {
   },
   { key: 'systemPitch', hint: 'System 32 hole spacing', min: 8, max: 64 },
   { key: 'systemFrontSetback', hint: 'First hole line in from the front edge', min: 0, max: 100 },
+  { key: 'systemBackSetback', hint: 'Second hole line in from the back edge', min: 0, max: 100 },
+  { key: 'systemHoleDiameter', hint: 'Shelf pin and system hole diameter', min: 3, max: 10 },
+  { key: 'systemHoleDepth', hint: 'How deep a system hole is bored', min: 5, max: 30 },
 ];
+
+/**
+ * The hardware screen.
+ *
+ * Split into what a shop **chooses** and what a manufacturer **decides**, because they are not the
+ * same kind of number and mixing them invites somebody to "correct" a catalogue figure to taste.
+ *
+ * Editable here: the drilling distance and the cup setback on a hinge, and the height a drawer box
+ * floor sits above its front. Those are settings — Blum gives a range and a shop picks a number.
+ *
+ * Read-only here: nominal lengths, the 51mm and 26mm box deductions, the profile heights. Those are
+ * what MERIVOBOX *is*. Correcting one is editing `library/blum.ts`, which is deliberately a code
+ * edit rather than a field, because getting it wrong re-cuts every drawer in every job.
+ */
+function HardwareEditor({
+  hardware,
+  defaults,
+  construction,
+  onChange,
+  onChangeDefaults,
+}: {
+  hardware: HardwareLibrary;
+  defaults: ProjectDefaults;
+  construction: ConstructionMethod | undefined;
+  onChange: (hardware: HardwareLibrary) => void;
+  onChangeDefaults: (patch: Partial<ProjectDefaults>) => void;
+}) {
+  const runner =
+    hardware.runnerSystems.find((s) => s.id === defaults.runnerSystemId) ??
+    hardware.runnerSystems[0];
+  const hinge =
+    hardware.hingeSystems.find((s) => s.id === defaults.hingeSystemId) ?? hardware.hingeSystems[0];
+
+  const patchRunner = (patch: Partial<DrawerRunnerSystem>) => {
+    if (!runner) return;
+    onChange({
+      ...hardware,
+      runnerSystems: hardware.runnerSystems.map((s) => (s.id === runner.id ? { ...s, ...patch } : s)),
+    });
+  };
+  const patchHinge = (patch: Partial<HingeSystem>) => {
+    if (!hinge) return;
+    onChange({
+      ...hardware,
+      hingeSystems: hardware.hingeSystems.map((s) => (s.id === hinge.id ? { ...s, ...patch } : s)),
+    });
+  };
+
+  const pitch = construction?.systemPitch ?? mm(32);
+  const datum = construction?.revealBottom ?? mm(0);
+  const onGrid = hinge ? platesOnSystemGrid(hinge, pitch, datum) : false;
+  const gridSetback = hinge ? cupSetbackForSystemGrid(hinge, pitch, datum) : mm(0);
+  const platePositions = hinge ? plateHolePositions(hinge, datum) : null;
+
+  return (
+    <>
+      <div className="subhead">Drawer runners</div>
+      {runner ? (
+        <>
+          <div className="setting-row">
+            <div className="setting-label">
+              <span>System</span>
+              <em>What every drawer bank is built on unless a cabinet says otherwise</em>
+            </div>
+            <div className="setting-input">
+              <select
+                value={defaults.runnerSystemId}
+                onChange={(e) => onChangeDefaults({ runnerSystemId: e.target.value })}
+              >
+                {hardware.runnerSystems.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.brand} {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="setting-row">
+            <div className="setting-label">
+              <span>Box height</span>
+              <em>Blum's letter. The wooden back is cut to suit it</em>
+            </div>
+            <div className="setting-input">
+              <select
+                value={defaults.drawerSideHeightCode}
+                onChange={(e) => onChangeDefaults({ drawerSideHeightCode: e.target.value })}
+              >
+                {runner.sideHeights.map((h) => (
+                  <option key={h.code} value={h.code}>
+                    {h.name} — back cut at {h.woodenBackHeight}mm
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <NumberRow
+            label="Box floor above the front"
+            hint="Where the box sits, and therefore where the runner holes are bored"
+            value={runner.boxFloorAboveFrontBottom}
+            min={0}
+            max={60}
+            onChange={(n) => patchRunner({ boxFloorAboveFrontBottom: mm(n) })}
+          />
+
+          <p className="note subtle">
+            <strong>
+              {runner.brand} {runner.name}
+            </strong>{' '}
+            comes in {runner.nominalLengths.join(', ')}mm and needs{' '}
+            {runner.innerDepthAllowance}mm of clear depth beyond the length. A bottom is cut{' '}
+            {runner.bottomWidthDeduction}mm narrower than the opening and{' '}
+            {runner.bottomLengthDeduction}mm shorter than the nominal length, from{' '}
+            {runner.bottomNominalThickness}mm board. Rated {runner.loadRatingKg}kg. Those are the
+            product's numbers, not settings — correcting one means editing the hardware library.
+          </p>
+        </>
+      ) : (
+        <p className="empty">No runner systems in this library.</p>
+      )}
+
+      <div className="subhead">Hinges</div>
+      {hinge ? (
+        <>
+          <div className="setting-row">
+            <div className="setting-label">
+              <span>System</span>
+              <em>What every door is bored for unless a cabinet says otherwise</em>
+            </div>
+            <div className="setting-input">
+              <select
+                value={defaults.hingeSystemId}
+                onChange={(e) => onChangeDefaults({ hingeSystemId: e.target.value })}
+              >
+                {hardware.hingeSystems.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.brand} {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <NumberRow
+            label="Cup in from the door edge"
+            hint="To the near edge of the bore, the way a Blum jig is set. Blum allows 3–7mm"
+            value={hinge.cupDistance}
+            min={0}
+            max={12}
+            step={0.5}
+            onChange={(n) => patchHinge({ cupDistance: mm(n) })}
+          />
+          <NumberRow
+            label="Cup from the end of the door"
+            hint="To the centre of the end hinges. Others spread evenly between them"
+            value={hinge.cupEndSetback}
+            min={40}
+            max={200}
+            step={1}
+            onChange={(n) => patchHinge({ cupEndSetback: mm(n) })}
+          />
+
+          <p className="note subtle">
+            Cup Ø{hinge.cupDiameter} × {hinge.cupDepth} deep, centred{' '}
+            {hinge.cupDistance + hinge.cupDiameter / 2}mm in from the edge, with two Ø
+            {hinge.dowelDiameter} dowels at {hinge.dowelSpacing}mm centres. Hinges per door:{' '}
+            {hinge.countBands.map((b) => `${b.hinges} to ${b.maxDoorHeight}mm`).join(', ')}, and one
+            more for every 400mm above that.
+          </p>
+
+          {platePositions && (
+            <p className="note subtle">
+              The plate screws land {Math.round(platePositions[0])}mm and{' '}
+              {Math.round(platePositions[1])}mm up the side panel.{' '}
+              {onGrid ? (
+                <>
+                  Both are on the {pitch}mm system grid, so <strong>one line-boring pass</strong>{' '}
+                  covers the shelf pins and the hinge plates together.
+                </>
+              ) : (
+                <>
+                  Neither is on the {pitch}mm system grid, so the plates need their own two holes. A{' '}
+                  {Math.round(gridSetback)}mm cup setback would put both on it and save an operation
+                  on every side panel — a shop decision, not a fault.
+                </>
+              )}
+            </p>
+          )}
+        </>
+      ) : (
+        <p className="empty">No hinge systems in this library.</p>
+      )}
+
+      {unconfirmedHardwareFigures(hardware).length > 0 && (
+        <>
+          <div className="subhead">Not yet checked against the catalogue</div>
+          <ul className="warnings">
+            {unconfirmedHardwareFigures(hardware).map((note) => (
+              <li key={note}>{note}</li>
+            ))}
+          </ul>
+        </>
+      )}
+    </>
+  );
+}
 
 function ConstructionEditor({
   constructions,
@@ -574,6 +795,7 @@ export function SettingsModal({
   onUpdateDefaults,
   onUpdateSheet,
   onUpdateDoorStyles,
+  onUpdateHardware,
   onUpdateStandards,
   onSaveAsStandards,
   onResetToStandards,
@@ -581,7 +803,7 @@ export function SettingsModal({
 }: Props) {
   const [scope, setScope] = useState<Scope>('job');
   const [section, setSection] = useState<
-    'construction' | 'materials' | 'doors' | 'sizes' | 'room' | 'costing'
+    'construction' | 'materials' | 'doors' | 'hardware' | 'sizes' | 'room' | 'costing'
   >('construction');
   const [standardsName, setStandardsName] = useState(standards.name);
 
@@ -647,6 +869,12 @@ export function SettingsModal({
             onClick={() => setSection('doors')}
           >
             Door styles
+          </button>
+          <button
+            className={`seg-btn${section === 'hardware' ? ' is-active' : ''}`}
+            onClick={() => setSection('hardware')}
+          >
+            Hardware
           </button>
           <button
             className={`seg-btn${section === 'sizes' ? ' is-active' : ''}`}
@@ -723,6 +951,24 @@ export function SettingsModal({
                 editingStandards
                   ? onUpdateStandards({ defaults: { ...standards.defaults, doorStyleId } })
                   : onUpdateDefaults({ doorStyleId })
+              }
+            />
+          )}
+
+          {section === 'hardware' && (
+            <HardwareEditor
+              hardware={source.hardware}
+              defaults={source.defaults}
+              construction={source.constructions.find(
+                (c) => c.id === source.defaults.constructionId,
+              )}
+              onChange={(hardware) =>
+                editingStandards ? onUpdateStandards({ hardware }) : onUpdateHardware(hardware)
+              }
+              onChangeDefaults={(patch) =>
+                editingStandards
+                  ? onUpdateStandards({ defaults: { ...standards.defaults, ...patch } })
+                  : onUpdateDefaults(patch)
               }
             />
           )}

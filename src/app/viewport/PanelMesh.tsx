@@ -13,6 +13,7 @@ import type { Panel } from '../../core/model/panel.ts';
 import { type Mm, mm } from '../../core/units.ts';
 import { extrudeProfile } from '../../core/geom/extrude.ts';
 import { formedMesh } from '../../core/model/forming.ts';
+import { Boring } from './Boring.tsx';
 import { FrontRelief, frontRecessOf } from './FrontRelief.tsx';
 import { panelMatrix } from './transforms.ts';
 
@@ -32,6 +33,9 @@ const ROLE_COLOURS: Record<string, string> = {
   // assembly rather than as one lump.
   former: '#cfc9be',
   skin: '#ece7dd',
+  // A drawer box reads as its own object inside the carcass rather than as another shelf.
+  'drawer-bottom': '#d5d0c6',
+  'drawer-back': '#cdc8be',
 };
 
 /** Air left between stacked layers when drawing them. Rendering only — see `bodyThickness`. */
@@ -123,6 +127,7 @@ export function PanelMesh({ panel, thickness, selected, onSelect, onGrab }: Prop
       </lineSegments>
 
       <FrontRelief panel={panel} thickness={thickness} colour={colour} />
+      <Boring panel={panel} thickness={thickness} />
     </group>
   );
 }
