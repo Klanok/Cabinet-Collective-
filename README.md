@@ -3,14 +3,15 @@
 Parametric cabinet CAD, built around Australian joinery practice, with a roadmap toward
 CAM/G-code output.
 
-**Phase 1 is complete**: a room with parametric cabinets, real per-part geometry, a grouped
-cutlist, and costing that handles GST properly — all driven from one versioned project model.
+**Phases 1 and 2 are complete**: a room with parametric cabinets, real per-part geometry, a
+grouped cutlist, Blum hardware and the drilling that goes with it, and costing that handles GST
+properly — all driven from one versioned project model.
 
 ```bash
 npm install
 npm run dev       # the app
-npm test          # 388 tests
-npm run report    # cutlist + costing for the sample kitchen, in the terminal
+npm test          # 481 tests
+npm run report    # cutlist, hardware order, drilling and costing for the sample kitchen
 ```
 
 ## What it does today
@@ -29,7 +30,37 @@ thickness and the parts, the cutlist and the cost all move together, because the
 one copy of each part in the system.
 
 The sample kitchen is a 3000mm base run with 2400mm of wall cabinets over it: 7 cabinets,
-63 parts, 29 cutlist lines, ~$1,800 on the seeded rates.
+69 parts, 31 cutlist lines, 3 MERIVOBOX drawer sets, 20 hinges, 448 holes, ~$3,700 on the
+seeded rates.
+
+## Hardware and drilling
+
+Drawer boxes are cut to the **runner**, not to the cabinet. MERIVOBOX is the standard: pick a
+box height and the nominal length is chosen from the cabinet's real inner depth, then the
+bottom comes out `LW − 51` wide by `NL − 26` long and the wooden back at 83mm for an M profile.
+Those are Blum's numbers, not conventions — which is exactly why drawer boxes waited for this
+phase rather than being guessed at in Phase 1.
+
+Every hole a cabinet needs is on its panels as machining intent, not baked into a mesh:
+
+- **hinge cups** Ø35 × 13 in the back of each door, 22.5mm in from the hinged edge, 96mm from
+  each end, with the two Ø8 dowels — and the count follows the door's height
+- **mounting plates** two Ø5 × 13 at 32mm centres, 37mm back from the front edge of the side
+  the door actually hinges on
+- **runner fixings** two per side per drawer, at the box floor, on the spacing that nominal
+  length calls for
+- **shelf pins** System 32 rows front and back, where a cabinet has adjustable shelves
+
+Every one of those is described **once, in cabinet space**, and converted into each panel's own
+part space through its placement — which is what makes a left side and a right side come out
+mirrored rather than identical. The Hardware tab shows the order and the hole count, and exports
+the cutlist, the hardware order and a drilling sheet as CSV. A hinge cup is on the back face, so
+the drilling sheet says which parts turn over: that is a setup, and it is not left to be guessed.
+
+The Blum figures live in one file, `src/core/library/blum.ts`. Anything in there that has not
+been checked against the catalogue is listed by name on screen and in the terminal report, the
+same way indicative pricing is — because a figure nobody knows is unchecked is a figure that
+gets trusted.
 
 ## Drawing the room
 
@@ -250,7 +281,7 @@ builders, which is the test of whether that's actually true.
 
 ## Verification
 
-388 tests, and the ones that matter are hand-calculated rather than snapshot:
+481 tests, and the ones that matter are hand-calculated rather than snapshot:
 
 - Every part size for the reference 900×720×560 base cabinet, worked out longhand in the test
   file header and asserted individually.
@@ -263,14 +294,25 @@ builders, which is the test of whether that's actually true.
 - That each reveal applies to the edge it names — swapping which one is large swaps which door
   dimension shrinks.
 - That a job saved before reveals were split still cuts identically after migration.
-- The full kitchen run: 63 parts, no warnings, everything inside the room, cabinets butted
-  without gaps or overlaps.
+- The full kitchen run: 69 parts — the Phase 1 63 with a bottom and a back for each of D1's three
+  drawers, and not one of the original 63 moved — no warnings, everything inside the room, cabinets
+  butted without gaps or overlaps.
 - That a job and the shop standards stay isolated: editing one never touches the other, two
   jobs from the same standards stay independent, and a shop building to an 18mm carcass on a
   100mm kick gets parts and placements to match.
 - That a shaker door is the same rectangle a slab door is: same size, same placement, same
   banding, same material, same number of cutlist lines, and the same sheet cost. Only the
   routing line on the quote moves.
+- The hardware, against the Blum sheet: a 600 × 560 bank resolving NL 500 because 550 would want
+  553mm of clear depth and there is 544; its bottom at 517 × 474 and its back at 517 × 83; and the
+  same bottom coming out 516.4 wide once the carcass board is measured at 16.3.
+- The drilling **by coordinate, not by count**: Door L's cups at part y = 424.5 and Door R's at
+  22.5, and the mounting plates at part y = 507 on the left side and 37 on the right — the same
+  37mm from the front edge, which no hard-coded number could produce for both. Plus a catch-all
+  that every hole on every part of every cabinet type, at two widths and both hands, lands inside
+  the part it is bored in.
+- That the v9 migration moves no part that already existed, and *does* re-price a saved job upward
+  by the hardware it always needed — both asserted, so neither is an accident.
 - The curves, against figures worked longhand in the test headers: a circle written as two
   half-circle edges coming out at exactly πr² and 2πr rather than at zero and 400; a shelf
   bowed 50 over 900 measuring 350 deep at its middle; and the two skin layers of a radiused end
@@ -292,12 +334,14 @@ having something other than memory re-checking it.
 | — | Curved parts — arc-capable profiles, radiused shelving, radiused ends | **done** |
 | — | A rounded corner on a base, wall or tall cabinet — bendy ply and formers | **done** |
 | — | The same corner routed from door board instead of wrapped in ply | not started |
-| 2 | Hardware/joinery rules (Blum first), full cutlist/BOM export | not started |
+| 2 | Hardware/joinery rules — MERIVOBOX boxes, CLIP top boring, System 32, hardware BOM, CSV export | **done** |
+| — | Hettich as the second hardware brand | not started |
+| — | PDF export (CSV is done; print from the browser meanwhile) | not started |
 | — | Benchtops as their own unit, rather than derived from the cabinets under them | not started |
 | — | A separate ladder kick under a run, rather than a kick per cabinet | not started |
 | — | Wall openings — bulkheads, windows, out-of-square walls and scribes | not started |
 | 3 | Guillotine nesting for sheet goods, offcut tracking | not started |
-| 4 | CAM feature layer — drilling, grooving, profiling | not started |
+| 4 | CAM feature layer — toolpaths from the features Phase 2 and the door styles emit | not started |
 | 5 | One post-processor + simulation/backplot | not started |
 | 6+ | Free-form CNC nesting, more post-processors, more hardware rule sets | not started |
 

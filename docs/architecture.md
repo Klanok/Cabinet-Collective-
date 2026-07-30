@@ -1,7 +1,7 @@
-# Module Boundaries — Phase 1
+# Module Boundaries — Phases 1 and 2
 
-The eight-layer architecture describes the whole system. This document covers only what
-Phase 1 actually builds, and where the seams are that later phases attach to.
+The eight-layer architecture describes the whole system. This document covers what is actually
+built, and where the seams are that later phases attach to.
 
 The governing rule: **`src/core` never imports React or Three.js.** Geometry, rules, costing
 and the cutlist all run in Node, which is why `npm run report` can print a full cutlist with
@@ -22,6 +22,7 @@ src/core/                        pure model layer
   model/
     feature.ts                   parametric machining intent (the Phase 4 interface);
                                  also the tool profile — a cutter's cross-section
+    hardware.ts                  runner and hinge systems as data; box and boring arithmetic
     forming.ts                   how a flat part bends after it is cut; developed length
     material.ts                  sheet goods, edge banding, grain, nominal vs actual thickness
     panel.ts                     Panel — the single source of truth for a part
@@ -36,6 +37,9 @@ src/core/                        pure model layer
     frontStyle.ts                door style + front size → machining features
     specs/                       one file per cabinet type
     registry.ts                  type → spec
+    hardware.ts                  a cabinet's runner and hinge, resolved once into the context
+    drawerBox.ts                 the two parts a Blum box contributes to the cutlist
+    boring.ts                     the drilling — hinge, runner and System 32, in cabinet space
     build.ts                     cabinet + project → Panel[]
   standards/
     standards.ts                 shop standards; snapshot into a job, and drift from it
@@ -44,8 +48,11 @@ src/core/                        pure model layer
   costing/
     gst.ts                       10% GST, both registration contexts
     costing.ts                   panels → cost breakdown
-  cutlist/cutlist.ts             panels → grouped cutlist lines
-  library/                       AU seed data: materials, dimensional defaults, cutters
+  cutlist/
+    cutlist.ts                   panels → grouped cutlist lines
+    export.ts                    cutlist, hardware and drilling as CSV
+  hardware/bom.ts                panels + features → a priced hardware order, and a hole count
+  library/                       AU seed data: materials, dimensional defaults, cutters, Blum
   project/
     factory.ts                   project/cabinet construction, sample kitchen
     layout.ts                    cross-cabinet checks (overlap, below floor, outside room)
@@ -59,6 +66,7 @@ src/app/                         React; depends on core, never the reverse
     transforms.ts                Three.js matrices derived from the core's own transforms
     PanelMesh.tsx                one panel; adapts core geometry, contains none
     FrontRelief.tsx              a routed front, drawn from the panel's own features
+    Boring.tsx                   the drilling, drawn from the panel's own features
     RoomShell.tsx                floor polygon and wall planes
     Viewport3D.tsx               scene, camera, lighting; mm → metres happens once here
   plan/PlanView.tsx              the 2D plan: draw the room, lengths typed not dragged
@@ -75,10 +83,11 @@ produces it; the viewport draws it; costing prices it; Phase 3 will nest it and 
 machine it. There is deliberately no second representation of a part — no separate costing
 model, no separate CAM model — because two representations can disagree and one cannot.
 
-**`PanelFeature`** (`model/feature.ts`) is the Phase 4 interface, defined now and populated
-later. Features are parametric and attached to panels rather than baked into geometry, so CAM
-reads "35mm bore, 12.5mm deep, at (37, 96) on the A-face" instead of trying to recover that
-intent from a mesh. Phase 1 emits almost none of these; Phase 2's hardware rules fill them in.
+**`PanelFeature`** (`model/feature.ts`) is the Phase 4 interface. Features are parametric and
+attached to panels rather than baked into geometry, so CAM reads "Ø35 bore, 13mm deep, at
+(96, 424.5) on the B-face" instead of trying to recover that intent from a mesh. Phase 1 emitted
+almost none of these; **Phase 2's hardware rules fill them in**, and `cutlist/export.ts` writes a
+drilling sheet straight off them with no geometry involved.
 
 **`CabinetSpec`** (`rules/spec.ts`) is a list of part rules over a construction method. Adding
 a cabinet type means adding a spec file and a registry line — never touching the geometry
@@ -173,6 +182,36 @@ rectangle is longer. So `Panel.profile` stays the flat shape and `Panel.forming`
 dimension. Storing the curve and deriving the flat shape was the alternative, and the flat one
 is the one being cut, so it is the one that has to be exact.
 
+**A drawer box is cut to the runner, not to the cabinet.** `LW − 51` and `NL − 26` are not
+conventions somebody chose; they are what a MERIVOBOX's profiles and runners physically take out of
+the opening. So the numbers live on a `DrawerRunnerSystem` record (`model/hardware.ts`), the job
+carries its own copy of the library the way it carries its materials and its door styles, and
+`rules/drawerBox.ts` does the arithmetic once. The only figure that comes from the *cabinet* is the
+clear opening between the sides — and that comes from the boards that will really be cut, so a
+16.3mm carcass gives a bottom 0.6mm narrower. The deduction belongs to the runner and the opening
+belongs to the board.
+
+**Hardware is stated in cabinet space and converted into part space through each panel's own
+placement.** A hinge is one thing at one height: a cup in a door and two screws in a side. So it is
+described once — "22.5mm in from the left edge of that door, 96mm up from its bottom, 37mm back from
+the front of the side" — and `cabinetToPart` puts it where each panel needs it. Writing part-space
+coordinates directly is the handedness trap `resolveBanding` and `bowedFrontProfile` already exist to
+avoid: a side panel's part +Y runs toward the front on one hand and toward the *back* on the other,
+so a hard-coded `y = 37` puts the plate 37mm from the back of the left side, at the right diameter,
+in the right quantity, and passes any test that counts holes.
+
+Two consequences of that, both structural:
+
+- **Sizes resolve into `RuleContext`; boring runs as a pass over the finished part list.** A drawer
+  bottom needs one number the cabinet knows and several the runner knows, so `ctx.hardware` is
+  resolved once in `buildContext` exactly as `ctx.radius` is. A hinge cannot be bored until every
+  builder has run, because it touches two panels — so `rules/boring.ts` runs once over the whole list
+  in `build.ts`. Same argument that put the door style there.
+- **A hinge cup is on the B-face.** A door's A-face is its show face, which follows from where the
+  door sits, since `w = u × v` is derived. So the cup goes in the back, `requiresFlip` is true, and
+  the part turns over between the front routing and the boring — a real setup, stated in the data
+  rather than inferred by a post-processor.
+
 **A cutter's cross-section is the cutter's business.** A flat-bottomed groove is describable as
 a width and a depth; a V-groove is not — its shape *is* the bit's shape, and how wide it comes
 out follows from the bit and the plunge. So `ToolProfile` carries the section and
@@ -186,7 +225,7 @@ because they answer different questions.
 
 | Phase | Attaches to |
 |---|---|
-| 2 — hardware/joinery, BOM export | `PanelFeature[]` on each panel; a `HardwareRule` layer beside `rules/` keyed on panel role and construction method. `cutlist/` gains the CSV/PDF writers. |
+| 2 — hardware/joinery, BOM export | **Done.** `PanelFeature[]` on each panel, filled by `rules/boring.ts` keyed on panel role; sizes resolved into `RuleContext` by `rules/hardware.ts`. `cutlist/export.ts` has the CSV writers; PDF is not done. Hettich is the remaining brand. |
 | 3 — guillotine nesting | Consumes `Panel` + `SheetMaterial`. `costing.ts` swaps its yield estimate for a real sheet count — the `sheetWastageFactor` path is the seam. |
 | 4 — CAM feature layer | Reads `PanelFeature[]` directly and emits a machine-independent operation list. Nothing upstream changes. Door styles are already emitting `pocket` and `profiled-cut` features with a tool id on them; turning those into toolpaths is this phase's work, and `library/tools.ts` is the seam the real tool library grows from. |
 | 5 — post-processor + simulation | Consumes the operation list only. One machine first. |

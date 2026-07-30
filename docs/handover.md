@@ -16,21 +16,23 @@ Read alongside:
 cutlist against how he would hand-write it for a real cabinet and confirmed it tracks with no
 obvious errors.
 
-Since then, five more pieces have shipped: **room plans** you draw with typed wall lengths,
+Since then, six more pieces have shipped: **room plans** you draw with typed wall lengths,
 with cabinets standing against named walls; **nominal vs actual board thickness**, so a board
 can be told what it really measures and parts are cut to that; **door styles**, the first half
 of §5.3 — shaker and V-groove fronts as machining rather than geometry, saved to the shop
 standards, priced; and **curved parts** (§5.1), which put real circular arcs in the model and
-built radiused shelving and an enclosed radiused end on them; and **a corner radius on an
+built radiused shelving and an enclosed radiused end on them; **a corner radius on an
 ordinary carcass** (§4.5), which is the same family as that radiused end and keeps the cabinet's
-size. Section 4 records how each works and why; section 5 is what is actually left to do.
+size; and **Phase 2 — hardware and joinery rules** (§4.6): MERIVOBOX drawer boxes cut to the
+runner, CLIP top hinge boring, runner and System 32 drilling, a hardware BOM on the quote, and
+CSV export. Section 4 records how each works and why; section 5 is what is actually left to do.
 
 ```
 npm install
 npm run dev       # the app
-npm test          # 388 tests
+npm test          # 481 tests
 npm run build
-npm run report    # cutlist + costing for the sample kitchen, in the terminal
+npm run report    # cutlist, hardware BOM, drilling and costing for the sample kitchen
 npm run report -- shaker-57    # the same kitchen with routed fronts
 ```
 
@@ -52,19 +54,23 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | Coordinate convention (world / cabinet / part, A-face) | Fixed and documented |
 | Geometry engine — profile + extrude, ear-clipping | Straight edges **and circular arcs** |
 | Rule engine — specs as data over a construction method | base, wall, tall, drawer-bank, custom, radius-end |
-| Panel features (the Phase 4 CAM interface) | Types defined; door styles now populate pocket and profiled-cut |
+| Panel features (the Phase 4 CAM interface) | Types defined; door styles populate pocket and profiled-cut, **hardware rules populate the drilling** |
 | Door styles — shaker, V-groove, routed MDF | **Model half done — toolpaths are Phase 4, see 5.3** |
 | Tool profiles — a cutter's cross-section | Defined; a short shipped list, no editor |
 | Costing — GST both contexts, install, delivery | Working, on placeholder pricing |
 | Nominal vs actual board thickness | Working, off until you measure a board |
-| Cutlist — grouped lines | Working, no CSV/PDF export yet |
+| Cutlist — grouped lines | Working, CSV export; no PDF |
 | Shop standards + per-job settings | Working, persisted to browser |
 | Saved cabinet types | Working |
 | Viewport — R3F, orbit + WASD/QE, drag to move, walls | Working |
 | Room — any shape, drawn in a 2D plan with typed lengths | Working |
 | Cabinets placed against a named wall, at any angle | Working |
 | CI — typecheck, tests, build, cutlist smoke run on every PR | Working, `.github/workflows/ci.yml` |
-| Hardware / joinery rules (Blum) | **Not started — this is Phase 2, see 5.2** |
+| Drawer boxes and runners — MERIVOBOX | Working, see 4.6 |
+| Hinge, runner and System 32 drilling | Working, see 4.6 |
+| Hardware BOM, priced onto the quote | Working, indicative Blum pricing |
+| Cutlist / hardware / drilling CSV export | Working. **PDF not done — print from the browser** |
+| Hettich, the second hardware brand | Not started — one more record in `library/`, see 5.2 |
 | Curved / radiused parts — arcs, bowed shelves, radiused ends | Working, see 4.4 |
 | A corner radius on a base, wall or tall cabinet | Working — bendy ply and formers, see 4.5 |
 | The same corner routed from door board instead | **Not started — see 5.7, now unblocked** |
@@ -84,8 +90,9 @@ deliberately no second representation, because two can disagree and one cannot. 
 always regenerated from the project, never stored in it.
 
 **Panel features are parametric and attached to panels, never baked into geometry.** A hinge
-cup is "35mm bore, 12.5mm deep, at (37, 96) on the A-face". Phase 4 must read machining
-intent directly, not reverse-engineer it from a mesh.
+cup is "Ø35 bore, 13mm deep, at (96, 424.5) on the B-face". Phase 4 must read machining intent
+directly, not reverse-engineer it from a mesh. As of §4.6 this is no longer a promise: the hardware
+rules populate it in bulk and the drilling CSV is written straight off it.
 
 **Edge banding is expressed directionally** — "band the edge facing the front", not "band
 edge L2". Which named edge that resolves to differs between a left and a right side, so
@@ -104,10 +111,39 @@ materials.
 
 **Migrations must never quietly change anyone's parts.** Every migration carries old values
 forward so a saved job cuts exactly as it did; adopting a new default is then a deliberate
-edit. Schema is at **v8**; migrations run in sequence in `model/project.ts`. Shop standards are
-versioned separately and are at **v4** — and they get a *real* migration rather than a
+edit. Schema is at **v9**; migrations run in sequence in `model/project.ts`. Shop standards are
+versioned separately and are at **v5** — and they get a *real* migration rather than a
 rejection, because refusing to load them silently replaces a shop's accumulated kick heights,
 reveals, door styles and saved cabinet types with the shipped Australian defaults.
+
+**v9 is the one exception, and it says so out loud.** No part that already existed moves — that
+half of the rule is kept, and it is the half that protects a job on the saw. But a migrated job
+gets *dearer*, because a drawer bank now cuts the boxes Phase 1 left out and the hinges and
+runners now appear on the quote. A kitchen with ten hinges and three drawer sets in it was being
+quoted as though the hardware were free, and leaving that under-quote in place to protect a number
+would be the worse outcome by a wide margin. Both halves are asserted separately in
+`tests/hardware.test.ts` so nobody has to wonder whether it was an accident.
+
+**Hardware is stated in cabinet space and converted into part space through each panel's own
+placement.** A hinge is one thing at one height: it puts a cup in a door and two screws in a side,
+so it is described once — "22.5mm in from the left edge of that door, 96mm up, 37mm back from the
+front of the side" — and `cabinetToPart` puts it where each panel needs it. Writing part-space
+coordinates directly is the handedness trap this codebase already has scar tissue for: a side
+panel's part +Y runs toward the front on one hand and toward the *back* on the other, so a
+hard-coded `y = 37` puts the mounting plate 37mm from the back of the left side, at the right
+diameter, in the right quantity, passing any test that counts holes. See §4.6.
+
+**A runner system decides how big a drawer bottom is cut, so it is snapshotted into the job** —
+the same class of fact as a board thickness or a shaker border, and a harder one. `LW − 51` is not
+a convention somebody chose; it is what MERIVOBOX's profiles physically take out of the opening.
+Change your standard runner next year and a kitchen already quoted must still cut to the runner it
+was quoted for, or the boxes come back from the saw fitting nothing.
+
+**A hinge cup is bored on the B-face, and that is not a mistake to fix.** A door's A-face is its
+show face, which follows from where the door sits — `w = u × v` is derived, not chosen. So the cup
+goes in the back, `requiresFlip` is true for it, and the model says plainly that the part turns
+over between routing the front and boring the back. That is a real setup and a real chance to
+machine the wrong side, which is exactly why the coordinate convention makes it explicit.
 
 **A door style is machining, not geometry.** A shaker door is the *same rectangle* a plain slab
 door is; what differs is what is cut into its face. So a style produces `PanelFeature[]` and
@@ -205,7 +241,40 @@ is hand-banded and priced at true arc length rather than the chord (§4.4).
 
 **Pricing in `library/materials.au.ts` is indicative.** Decor names and sheet sizes are real;
 the dollars are placeholders, flagged `indicativePricing` and surfaced on screen. The user's
-real trade pricing has not been loaded yet.
+real trade pricing has not been loaded yet. The same is true of `library/blum.ts`.
+
+**MERIVOBOX is the standard drawer runner** — the user's call, made when Phase 2 was scoped. It is
+Blum's mid-range box system, between TANDEMBOX and LEGRABOX. The figures that matter, and they are
+the *input* to a drawer box rather than something to derive:
+
+```
+nominal lengths        270, 300, 350, 400, 450, 500, 550, 600
+M profile              91mm high; wooden back cut at 83mm from 16mm chipboard
+drawer bottom          LW − 51 wide  ×  NL − 26 long, 16mm chipboard
+minimum inner depth    LT min = NL + 3
+runner fixing          37mm from the front edge, then 128mm behind it at NL ≤ 300
+                       and 256mm behind it at NL 350–600
+load rating            40kg (a 70kg class exists and is not shipped)
+```
+
+`LW` is the clear width between the cabinet sides and `LT` the clear depth in front of the back
+panel — both come out of the rule engine from the boards that will really be cut, which is the
+whole reason drawer boxes waited for this phase.
+
+**A runner is one of those lengths or it does not exist.** There is no rounding a 512mm cabinet
+down to a 512mm runner. A length the system doesn't make, or one too long for the cabinet, is
+reported and no boxes are cut — a box sized to a runner nobody can buy is worse than no box.
+
+**Two hardware figures are shop settings rather than product facts** and are editable in Settings
+→ Hardware: the hinge's drilling distance (5mm; Blum allows 3–7) and the cup setback from the end
+of the door (96mm). Everything else on a system record is what the product *is*, and correcting one
+is a code edit in `library/blum.ts` on purpose — getting it wrong re-cuts every drawer in every job.
+
+**One MERIVOBOX figure has not been checked against the catalogue** and the app says so by name:
+`boxFloorAboveFrontBottom`, shipped at 10mm. It decides where the runner's fixing holes get drilled
+up the cabinet side, so it wants ten seconds with the planning sheet before anybody bores a
+carcass. The `unconfirmedFigures` list is the same contract `indicativePricing` has for money, and
+it is surfaced in the report, in the Hardware tab and in Settings rather than left in a comment.
 
 ---
 
@@ -325,8 +394,11 @@ cabinet in the Inspector, exactly as materials are. `npm run report -- shaker-57
 sample kitchen with routed fronts, which is the cheapest way to check the claim below.
 
 **The claim, and it is the whole point:** *a shaker door is the same rectangle a plain slab door
-is.* On the sample kitchen the two runs are identical — 63 parts, 29 lines, 717 × 447 doors,
-57.8m of banding, same sheet cost. The only thing that moves is a routing line on the quote.
+is.* On the sample kitchen the two runs are identical — 69 parts, 31 lines, 717 × 447 doors,
+57.8m of banding, same sheet cost, same hardware, same drilling. The only thing that moves is a
+routing line on the quote. (It read 63 parts and 29 lines before §4.6 added the drawer boxes; the
+identity itself is untouched, and `npm run report -- shaker-57` against `npm run report` is still
+the cheapest way to check it.)
 That is what "a style is machining, not geometry" buys, and it is worth re-checking after any
 change here, because the failure mode is a door style that quietly becomes a second way of
 describing a part.
@@ -598,12 +670,112 @@ and the mirroring reasoned out; `rules/parts.ts` for the shared builders — `co
 resolves itself through the same description. `tests/cornerRadius.test.ts` is the contract, and
 `tests/cornerRadiusParts.test.ts` carries the longhand reference figures in its header.
 
+### 4.6 Hardware and joinery rules — Phase 2, Blum first
+
+Definition of done was stated as assertions before anything was written, per §6, and all of them
+pass. The short version of the phase: **a drawer box is cut to the runner, not to the cabinet**, and
+**every hole is described once in cabinet space** so the two hands cannot drift apart.
+
+**What shipped.** MERIVOBOX drawer boxes on every drawer bank, with the nominal length chosen from
+the cabinet's real inner depth. Hinge cups and dowels in the back of every door, mounting plates in
+the side the door hinges on, runner fixings in both sides at each box floor, and System 32 shelf-pin
+rows where a cabinet has adjustable shelves. A hardware BOM counted from the panels and priced onto
+the quote as its own line. Cutlist, hardware and drilling CSV export. `npm run report` prints all of
+it, which is the cheapest way to check any claim below.
+
+**The sample kitchen, before and after.** 63 parts became 69 — the six extra are a bottom and a back
+for each of D1's three drawers, and not one of the original 63 moved by a millimetre. On top of
+those: 3 MERIVOBOX sets at NL 500, 20 hinges, 20 plates, 28 shelf pins, and 448 holes of which 60
+are on the back face. Hardware adds $331.04 ex GST at the indicative rates, on a job that was
+quoting the hardware at nothing.
+
+#### Decisions worth not undoing
+
+- **Sizes resolve into `RuleContext`; boring runs as a pass over the finished part list.** Two
+  different problems with two different shapes. A drawer bottom needs one number the cabinet knows
+  (the opening) and several the runner knows, so `ctx.hardware` is resolved once in `buildContext`
+  exactly as `ctx.radius` is, and `rules/drawerBox.ts` is an ordinary builder. A **hinge** is not
+  like that: it is a cup in a door and two screws in a side, so nothing can bore it until every
+  builder has run. `rules/boring.ts` therefore runs once over the whole list in `build.ts` — the same
+  argument that put the door style there, and for the same reason: fronts and sides each come out of
+  several places, and one resolution point cannot forget a caller.
+- **Every hole is stated in cabinet space.** See §2. This is the load-bearing decision of the phase
+  and the tests assert the *coordinates*, not the counts: Door L's cups land at part y = 424.5 and
+  Door R's at 22.5, and the plates come out at part y = 507 on the left side and 37 on the right.
+  Those are the same 37mm from the front edge, and a hard-coded number could not produce both.
+- **A cup is on the B-face and needs a flip.** See §2.
+- **`machineFront`'s guard had to change from "has features" to "has a front-style feature".** It
+  used to mean "already machined deliberately". Once a door carries hinge cups, the loose test reads
+  a bored door as an already-styled one and quietly ships a plain slab on a shaker kitchen — §4.3's
+  failure arriving by the back door. The door-style tests now ask about `purpose === 'front-style'`
+  rather than about feature counts, which is the question they always meant.
+- **Hardware is counted from the panels, never from the options.** A door too narrow to take a cup
+  is not charged a hinge; a bank whose depth no runner fits does not order three runner sets. Same
+  reasoning as `machinedFronts`, and it is what makes the BOM and the drilling sheet agree.
+- **A drawer bottom and a wooden back are the whole cutlist contribution of a Blum box.** The sides
+  are steel and are bought, so they are a BOM line. A shop cutting its own timber sides is building a
+  different drawer and would be a different builder.
+- **Dowels have their own `FeaturePurpose`.** They take a different bit, so CAM groups them
+  separately — and counting hinges means counting *cups*, which a shared purpose would make three
+  times too many.
+- **A row of system holes stays one `drill-line`.** That is what the operation is. Expanding it into
+  twenty-one drills happens in exactly one place, the drilling CSV, because a person at a borer wants
+  positions and a machine wants the pitch.
+- **System-hole diameter, depth and both setbacks live on the `ConstructionMethod`**, beside the
+  pitch that was already there. Ø5 at 13mm deep is what a frameless 32mm carcass is bored to whoever
+  made the hinge. A hardware system that genuinely wants something else says so on its own record,
+  and the runner does.
+- **Hardware cost is rounded once, at the end.** Unlike a sheet, a hinge is not a separately priced
+  item on the quote, so there is nothing to round in between — and rounding per cabinet left the
+  costed hardware a cent off the BOM total for no reason anybody could explain.
+
+#### Something worth telling the shop
+
+**The plate screws do not land on the System 32 grid at a 96mm cup setback.** They come out at 80 and
+112, and the grid is at multiples of 32. A **112mm setback** would put both on it, and then *one*
+line-boring pass covers the shelf pins and the hinge plates together instead of two operations on
+every side panel in the job. That is a shop decision about a number, not a fault, so it is not a
+warning — Settings → Hardware computes it and says which setback would do it
+(`platesOnSystemGrid` / `cupSetbackForSystemGrid`).
+
+#### What is not done, deliberately
+
+- **Drawer-front fixing-bracket boring.** The bracket positions were not confirmable, and inventing
+  hole positions in a drilling sheet is worse than leaving them out. Everything else about the front
+  is there.
+- **PDF export.** CSV opens in Excel, imports into a nester and pastes into an email; printing one
+  from the browser gets a perfectly good PDF when somebody wants paper.
+- **Drawers inside a base cabinet.** `doorCount` and `drawerCount` are separate and only the
+  drawer-bank spec reads the second, so a drawer over a door is not modelled. It is a spec change,
+  not a hardware one.
+- **Shelf-pin rows run the full height of the side** — 21 holes on a 720 carcass, which is what a
+  line borer produces and what makes a shelf adjustable. On a CNC that is a lot of holes for one
+  shelf; a *range* would be a construction-method field, and nobody has asked.
+- **Hettich.** One more record in `library/` and a second entry in the runner and hinge lists. The
+  model was built so that is all it is; whether that is true is the test of this phase.
+- **Hardware fitting time is not costed.** `minutesPerPanel` picks up the new box parts and
+  `minutesPerCabinet` covers assembly, but hanging a door and fitting a runner are not their own
+  allowances. Worth a `LabourRates` field when there is a real figure for it.
+
+**Where to look:** `model/hardware.ts` for the vocabulary and the pure arithmetic;
+`library/blum.ts` for the shipped MERIVOBOX and CLIP top records, with the source of every figure
+written out; `rules/hardware.ts` for how a cabinet resolves its runner; `rules/drawerBox.ts` for the
+two box parts; `rules/boring.ts` for the drilling, with the cabinet-space argument reasoned out;
+`hardware/bom.ts` for the order and the drilling summary; `cutlist/export.ts` for the CSVs.
+`tests/hardware.test.ts` and `tests/boring.test.ts` carry the longhand reference figures in their
+headers.
+
 ---
 
 ## 5. Open items, in the order I'd do them
 
-**If asked which to do next: 5.2.** It is the largest, it is what the machine ultimately
-depends on, and it is the only one here that depends on nothing unsettled.
+**5.2 has shipped — see 4.6.** What is left of it is Hettich and a handful of gaps, listed below.
+
+**If asked which to do next: 5.5, the benchtop.** It is the largest thing left, it is already
+producing *wrong* tops rather than merely incomplete ones (a dishwasher breaks a run and should not),
+and 5.6 wants the same answer to "what owns a thing that spans a run?" — so doing them together is
+cheaper than doing either alone. Phase 3, nesting, is the other honest answer: it is the next
+numbered phase and `panelFootprint` is the seam.
 
 **5.7 is technically unblocked and should still wait.** The shared builders it wanted exist, but
 it inherits the three judgement calls listed in 5.0 — and none of those has been checked against
@@ -683,18 +855,26 @@ typing a rounded literal.
   radius about one axis, which is what bendy ply over formers makes. A dome is a different
   trade.
 
-### 5.2 Phase 2 — hardware and joinery rules
+### 5.2 Hardware and joinery rules — what is left after 4.6
 
-Per the original architecture: Blum first, Hettich second. This is on the critical path to
-trustworthy CAM output, and drilling accuracy is what actually stops material being ruined.
-Also in Phase 2: full cutlist/BOM export (CSV/PDF).
+**Phase 2 is built and merged; see 4.6 for what it does and why.** MERIVOBOX is the standard drawer
+runner and CLIP top BLUMOTION the standard hinge. What remains:
 
-Drawer **boxes** were deliberately left out of Phase 1 — their sizes are dictated by runner
-specs (Legrabox/Tandembox nominal lengths, side thicknesses, clearances), and guessing them
-ahead of the hardware rules is how material gets wasted.
-
-Door styles touch this only lightly: a thicker or profiled front shifts hinge boring a little.
-There is nothing to design for it ahead of time.
+- **Hettich, the second brand.** One more `DrawerRunnerSystem` and one more `HingeSystem` in
+  `library/`, and they appear in the pickers. Whether that really is all it takes is the test of
+  whether 4.6's data model is honest, so it is worth doing next time a job actually wants Hettich
+  rather than speculatively.
+- **The one unconfirmed MERIVOBOX figure**, `boxFloorAboveFrontBottom` — see §3. Ten seconds with
+  the planning sheet closes it, and the app is already saying so by name.
+- **`dowelOffset` on the hinge**, 9.5mm, same treatment. The 45mm spacing is the catalogue figure;
+  the offset wants a real hinge and a rule.
+- **Drawer-front fixing-bracket boring**, deliberately not invented — see 4.6.
+- **PDF export.** CSV is done. Print from the browser meanwhile.
+- **Hardware fitting time on the quote.** A `LabourRates` field when there is a figure for it.
+- **Load class.** Only the 40kg MERIVOBOX is shipped; the 70kg exists and is another entry, but
+  choosing between them properly means knowing what goes in the drawer, which the model doesn't.
+- **Door styles touch this only lightly**, as predicted: a thicker front shifts nothing here,
+  because the cup depth is measured into the board from its own face. Nothing to design for.
 
 ### 5.3 Door styles — what is left
 
@@ -747,8 +927,9 @@ speculatively.
   a bench-height custom carcass arguably should. Needs a rule, or a per-cabinet flag.
 - Nesting still estimates sheets from area × a yield allowance. Phase 3 replaces it.
 - A corner where two runs meet at 90° leaves whatever gap the cabinet sizes leave; there is no
-  corner cabinet type and no check that the two runs don't foul each other's doors. Worth a
-  look once the hardware rules exist, since door swing is what actually decides it.
+  corner cabinet type and no check that the two runs don't foul each other's doors. This was waiting
+  on the hardware rules, which now exist — `doorSwing` is read by the boring pass, so the information
+  needed to work out whether two doors foul each other is in the model. Still nobody's asked.
 ### 5.5 Benchtops should be their own unit, not something derived from the cabinets
 
 **Raised from the bench, and agreed.** Today `project/benchtop.ts` finds runs of touching
@@ -871,9 +1052,13 @@ browser, which catches a break that typechecks and has no unit test aimed at it.
 run independently rather than stopping at the first failure, so one push reports everything that
 is wrong.
 
-Two things get asserted separately and both matter:
+Three things get asserted separately and all of them matter:
 - **part size** — what goes on the cutlist
 - **the cabinet-space box each panel occupies** — a left side carrying a right side's
   placement is the same size and completely wrong
+- **where each feature lands, in part-space coordinates** — added in §4.6. A mounting plate
+  measured from the wrong edge of a side panel is the same number of holes at the same diameter, so
+  a test that counts them passes. `drillingStaysOnThePart` in `tests/helpers.ts` is the catch-all
+  version of this and runs over every cabinet type at two widths and both hands.
 
 Keep that standard. It is what made the errors found from the bench cheap to fix.
