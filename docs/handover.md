@@ -295,8 +295,8 @@ reported and no boxes are cut — a box sized to a runner nobody can buy is wors
 of the door (96mm). Everything else on a system record is what the product *is*, and correcting one
 is a code edit in `library/blum.ts` on purpose — getting it wrong re-cuts every drawer in every job.
 
-**Three MERIVOBOX figures are still unchecked** and the app names each of them, in the report, the
-Hardware tab and Settings. The `unconfirmedFigures` list is the same contract `indicativePricing`
+**One MERIVOBOX figure is still unchecked**, and the app names it in the report, the Hardware tab
+and Settings. The `unconfirmedFigures` list is the same contract `indicativePricing`
 has for money — a figure nobody knows is unchecked is a figure that gets trusted.
 
 - **`runnerAboveFrontBottom`, 16mm.** The one link in the chain Blum's sheet does not state: how far
@@ -305,15 +305,15 @@ has for money — a figure nobody knows is unchecked is a figure that gets trust
   flush with the carcass bottom starts a board thickness below that. **The `min. 31.5**` on the
   front-installation sheet may well be this figure**; the footnote was cropped out of the screenshot
   and is worth reading.
-- **`fixingSpacings`, the 128/256 table.** Taken as the spacing of the runner's two fixings in the
-  cabinet side. Blum heads that table **"Drilling distances – base"**, and on the same page "base" is
-  the *drawer bottom panel* — so it may belong to a different part entirely, and the cabinet side may
-  have no confirmed spacing at all. This is the sharpest of them.
-
 **Confirmed and off the list:** the 32mm between the two front fixing screws is vertical, from the
 INSERTA/EXPANDO drawing showing the two Ø10 bores one directly above the other; and
 `runnerFixingAboveRunnerBottom` at 54mm, which is Blum's `min. 54*` — the shop's reading, confirmed
-when asked twice.
+when asked twice; and the **128/256 table**, which is the *distribution of the runner's fixings* —
+a short runner is drilled differently from a long one, which is why the figure steps rather than
+scaling. That one had been doubted because Blum heads the table "Drilling distances – base" and the
+same page calls the drawer bottom panel the "base"; the shop settled it, and it agrees with the
+other evidence, that both figures are whole multiples of the 32mm pitch and a loose drawer bottom
+has no reason to be on the system grid.
 
 ---
 
