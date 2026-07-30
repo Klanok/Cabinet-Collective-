@@ -28,7 +28,19 @@
  *
  *   Three equal fronts on a 720 carcass with a 3 top reveal and 3 between:
  *     opening 717, gaps 2 × 3 = 6, so 711 / 3 = 237 each
- *     front bottoms at y = 0, 240, 480 → box floors at 10, 250, 490
+ *     front bottoms at y = 0, 240, 480
+ *
+ * ── The vertical chain, off the bottom of the runner ───────────────────────────────────────
+ *
+ *   bottom of runner  →  underside of the drawer bottom     20
+ *   bottom of runner  →  front fixing screw centre          33.5   (+1 if the profile is on first)
+ *   first screw       →  second screw                       32
+ *   outer face of the cabinet side  →  screw centre         20.5   (Blum's `20.5 + FA`)
+ *
+ *   The runner itself sits 16 above the bottom edge of its front — a board thickness, from the
+ *   bottom drawer sitting on the cabinet floor with its front flush below it. So:
+ *     underside of the bottom panel   16 + 20   = **36** above each front's bottom edge
+ *     front fixing screws             16 + 33.5 = **49.5** and **81.5**
  *
  * ── Measured board, the whole point of taking LW off the sheet ─────────────────────────────
  *
@@ -148,7 +160,7 @@ describe('the MERIVOBOX spec is data, not arithmetic scattered about', () => {
   it('says out loud which of its figures have not been checked', () => {
     const notes = unconfirmedHardwareFigures(BLUM_HARDWARE_LIBRARY);
     expect(notes.length).toBeGreaterThan(0);
-    expect(notes.join(' ')).toMatch(/boxFloorAboveFrontBottom/);
+    expect(notes.join(' ')).toMatch(/runnerAboveFrontBottom/);
     expect(notes.join(' ')).toMatch(/dowelOffset/);
   });
 });
@@ -175,13 +187,19 @@ describe('a drawer box is cut to the runner, not to the cabinet', () => {
     }
   });
 
-  it('stacks the boxes on their own fronts, ten millimetres up', () => {
+  /**
+   * Blum dimensions a box off **the bottom of the runner**: the underside of the bottom panel is 20
+   * above it. The runner in turn sits a board thickness above the bottom edge of its front, which is
+   * where the bottom drawer lands when it sits on the cabinet floor with its front flush below.
+   * So 16 + 20 = 36 above each front's bottom edge.
+   */
+  it('stacks the boxes off the bottom of the runner, not off a made-up offset', () => {
     const { panels } = bank();
-    const floors = panels
+    const undersides = panels
       .filter((p) => p.role === 'drawer-bottom')
       .map((p) => occupies(p, project).y[0]);
-    // Fronts sit at 0, 240 and 480; the box floor is 10 above each.
-    expect(floors).toEqual([10, 250, 490]);
+    // Fronts sit at 0, 240 and 480.
+    expect(undersides).toEqual([36, 276, 516]);
   });
 
   it('centres the box in the opening — the runner takes the same bite off each side', () => {
@@ -427,6 +445,10 @@ describe('the drilling summary', () => {
      */
     expect(find(5).count).toBe(388);
     expect(find(5).needsFlip).toBe(false);
+
+    // The front fixing pilots: 3 drawers x 2 brackets x 2 screws, in the back of each front.
+    expect(find(3).count).toBe(12);
+    expect(find(3).needsFlip).toBe(true);
   });
 });
 
@@ -456,10 +478,11 @@ describe('export', () => {
 
   it('writes one row per hole on the drilling sheet, rows of system holes expanded', () => {
     const rows = drillingCsv(kitchen).trimEnd().split('\r\n');
-    // 388 + 20 + 40 = 448 holes, plus the header.
-    expect(rows).toHaveLength(449);
+    // 388 + 20 + 40 + 12 = 460 holes, plus the header.
+    expect(rows).toHaveLength(461);
     expect(rows[0]).toBe('Cabinet,Part,Purpose,Face,Flip,X,Y,Diameter,Depth,Feature');
-    expect(rows.filter((r) => r.includes(',yes,'))).toHaveLength(60);
+    // The cups, their dowels and the front fixings all go in the back of a front.
+    expect(rows.filter((r) => r.includes(',yes,'))).toHaveLength(72);
   });
 
   it('quotes a field containing a comma rather than shifting every column after it', () => {

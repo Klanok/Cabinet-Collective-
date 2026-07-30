@@ -95,7 +95,28 @@ export const MERIVOBOX: DrawerRunnerSystem = {
   fixingHoleDiameter: mm(5),
   fixingHoleDepth: mm(13),
 
-  boxFloorAboveFrontBottom: mm(10),
+  /*
+   * The vertical chain, off the bottom of the runner. `20` and `33.5` are read straight off Blum's
+   * "Installation dimensions – front – screw-on" sheet and confirmed by the shop:
+   *
+   *     bottom of runner  →  underside of the drawer bottom     20
+   *     bottom of runner  →  front fixing screw centre          33.5   (+1, see the footnote)
+   *     first screw       →  second screw                       32
+   *     outer face of the cabinet side  →  screw centre         20.5   (Blum's `20.5 + FA`)
+   *
+   * The screw ends up 2.5mm below the top face of a 16mm bottom, which is where a front fixing
+   * bracket sits — level with the bottom of the box. Worth noting because it is the check that says
+   * the chain has been read off the right datum.
+   */
+  runnerAboveFrontBottom: mm(16),
+  bottomPanelAboveRunner: mm(20),
+
+  frontFixingAboveRunner: mm(33.5),
+  frontFixingRowSpacing: mm(32),
+  frontFixingFromCabinetSide: mm(20.5),
+  frontFixingPilotDiameter: mm(3),
+  frontFixingPilotDepth: mm(12),
+  preAssembledProfileAllowance: mm(1),
 
   loadRatingKg: 40,
 
@@ -105,13 +126,21 @@ export const MERIVOBOX: DrawerRunnerSystem = {
   indicativePricing: true,
 
   unconfirmedFigures: [
-    'boxFloorAboveFrontBottom — the box floor sits 10mm above the bottom edge of its drawer ' +
-      'front here, and that is what puts the runner holes at the height they get drilled. ' +
-      'Check it on the MERIVOBOX planning sheet before boring a carcass.',
+    'runnerAboveFrontBottom — the bottom of the runner is taken to sit 16mm above the bottom edge ' +
+      'of its drawer front, which is a board thickness, from the bottom drawer sitting on the ' +
+      'cabinet floor with its front flush below it. Everything else in the chain is off Blum’s ' +
+      'sheet; this link is not, and it is what moves the box and the runner holes together. The ' +
+      '"min. 31.5" on the front-installation sheet may well be it — worth reading the footnote.',
+    'frontFixingRowSpacing — the second front fixing screw is read as 32mm above the first, off ' +
+      'the dimension chain rather than off a stated figure. Check before boring a set of fronts.',
+    'runnerFixing height — the runner’s own fixing holes are put on the bottom line of the runner, ' +
+      'because Blum states the fixing spacing but not its height above that line. A few ' +
+      'millimetres out here is a runner that does not sit where the box expects it.',
   ],
   specNote:
     'Wooden bottom and wooden back, 16mm chipboard. A steel back is a different cut list and is ' +
-    'not modelled.',
+    'not modelled. Front fixing figures are the screw-on variant; EXPANDO takes a Ø8 dowel on the ' +
+    'same pattern and is not modelled.',
 };
 
 /**

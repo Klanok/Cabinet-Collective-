@@ -47,7 +47,13 @@
  *
  * ── Reference cabinet: drawer bank 600 × 720 × 560, three drawers, MERIVOBOX NL 500 ────────
  *
- *   box floors at y = 10, 250, 490     (fronts at 0, 240, 480, floor 10 above each)
+ *   Everything vertical hangs off **the bottom of the runner**, which is Blum's own datum. The
+ *   runner sits 16 above the bottom edge of its front, so with fronts at 0, 240 and 480:
+ *
+ *     runner bottoms at y = **16, 256, 496**  ← where the fixing holes go
+ *     front fixing screws  16 + 33.5 = **49.5** and + 32 = **81.5** above each front's own bottom
+ *     sideways, 20.5 in from each outer cabinet face → part x **19** and **578** on a 597 front
+ *
  *   fixing z:   front  560 − 37 = 523   →  Side L part y 507, Side R part y 37
  *               rear   523 − 256 = 267  →  Side L part y 251, Side R part y 293
  *
@@ -226,7 +232,7 @@ describe('mounting plates', () => {
 });
 
 describe('runner fixings', () => {
-  it('bores two holes per side per drawer, on the box floor', () => {
+  it('bores two holes per side per drawer, on the bottom line of the runner', () => {
     const { panels } = buildCabinet(
       createCabinet({
         typeId: 'drawer-bank',
@@ -239,8 +245,8 @@ describe('runner fixings', () => {
     );
     const left = drilledFor(byName(panels, 'Side L'), 'drawer-runner');
     expect(left).toHaveLength(6);
-    // Three drawers, floors at 10 / 250 / 490, front and rear fixing at each.
-    expect(left.map((p) => p.x)).toEqual([10, 10, 250, 250, 490, 490]);
+    // Three drawers, runner bottoms at 16 / 256 / 496, front and rear fixing at each.
+    expect(left.map((p) => p.x)).toEqual([16, 16, 256, 256, 496, 496]);
     // 37mm from the front, then 256mm behind it at NL 500.
     expect(left.map((p) => p.y)).toEqual([507, 251, 507, 251, 507, 251]);
     expect(left.every((p) => p.diameter === 5 && p.depth === 13)).toBe(true);
@@ -281,6 +287,115 @@ describe('runner fixings', () => {
       project,
     );
     expect(drilledFor(byName(panels, 'Side L'), 'drawer-runner')).toHaveLength(0);
+  });
+});
+
+/**
+ * The front fixing — two brackets, one at each end of the box, two screws each, in the **back** of
+ * the drawer front.
+ *
+ * Blum gives the sideways position as `20.5 + FA` from the edge of the front, where FA is the front
+ * overlay. Stated from the cabinet instead — 20.5 in from each outer face — which is the same place
+ * without needing to know the reveal, and which is why widening the side reveal moves the front and
+ * leaves the screw where the bracket is.
+ */
+describe('front fixings', () => {
+  const drawerBank = (options: Record<string, unknown> = {}) =>
+    buildCabinet(
+      createCabinet({
+        typeId: 'drawer-bank',
+        name: 'D',
+        width: mm(600),
+        x: mm(0),
+        options: { drawerCount: 3, ...options },
+      }),
+      project,
+    );
+
+  it('bores four pilots in the back of each front, two per bracket', () => {
+    const { panels } = drawerBank();
+    const front = byName(panels, 'Drawer front 1');
+    const screws = drilledFor(front, 'drawer-front-fixing');
+    expect(screws).toHaveLength(4);
+    expect(screws.every((s) => s.face === 'B')).toBe(true);
+    expect(front.features.filter((f) => f.purpose === 'drawer-front-fixing').every(requiresFlip)).toBe(
+      true,
+    );
+  });
+
+  it('puts them 20.5 in from each outer cabinet face, which is 19 in from a 597 front’s edge', () => {
+    const { panels } = drawerBank();
+    const front = byName(panels, 'Drawer front 1');
+    expect(size(front)).toEqual([597, 237]);
+    // The front runs from cabinet x 1.5 to 598.5, so 20.5 and 579.5 land at part x 19 and 578 —
+    // symmetric about the front, and 19 + 578 = 597.
+    expect([...new Set(drilledFor(front, 'drawer-front-fixing').map((s) => s.x))].sort((a, b) => a - b))
+      .toEqual([19, 578]);
+  });
+
+  it('sets the height off the bottom of the runner, not off the cabinet', () => {
+    const { panels } = drawerBank();
+    // Runner 16 above the front's own bottom edge, screw 33.5 above that, second 32 above it.
+    for (const name of ['Drawer front 1', 'Drawer front 2', 'Drawer front 3']) {
+      const heights = [
+        ...new Set(drilledFor(byName(panels, name), 'drawer-front-fixing').map((s) => s.y)),
+      ].sort((a, b) => a - b);
+      expect(heights).toEqual([49.5, 81.5]);
+    }
+  });
+
+  it('moves the screw with the reveal, because the front moves and the bracket does not', () => {
+    const wideReveal: Project = {
+      ...project,
+      constructions: project.constructions.map((c) => ({ ...c, revealSides: mm(3) })),
+    };
+    const built = buildCabinet(
+      createCabinet({
+        typeId: 'drawer-bank',
+        name: 'D',
+        width: mm(600),
+        x: mm(0),
+        options: { drawerCount: 1 },
+      }),
+      wideReveal,
+    );
+    // The front is now 594 wide starting at cabinet x 3, so 20.5 lands at part x 17.5.
+    const front = byName(built.panels, 'Drawer front 1');
+    expect(size(front)[0]).toBe(594);
+    expect(drilledFor(front, 'drawer-front-fixing').map((s) => s.x)).toContain(17.5);
+  });
+
+  it('bores none when no runner fits — there is no box to fix a front to', () => {
+    const built = buildCabinet(
+      createCabinet({
+        typeId: 'drawer-bank',
+        name: 'D',
+        width: mm(600),
+        depth: mm(200),
+        x: mm(0),
+        options: { drawerCount: 2 },
+      }),
+      project,
+    );
+    expect(drilledFor(byName(built.panels, 'Drawer front 1'), 'drawer-front-fixing')).toHaveLength(0);
+  });
+
+  it('drops a screw that would fall off a front too short for the bracket', () => {
+    // Six 100mm fronts: the second screw sits 81.5 up, which clears; a 60mm front would not.
+    const built = buildCabinet(
+      createCabinet({
+        typeId: 'drawer-bank',
+        name: 'D',
+        width: mm(600),
+        x: mm(0),
+        options: { drawerFrontHeights: [mm(60), mm(654)] },
+      }),
+      project,
+    );
+    const shallow = byName(built.panels, 'Drawer front 1');
+    expect(size(shallow)[1]).toBe(60);
+    // 49.5 is on the part, 81.5 is not.
+    expect(drilledFor(shallow, 'drawer-front-fixing').map((s) => s.y)).toEqual([49.5, 49.5]);
   });
 });
 

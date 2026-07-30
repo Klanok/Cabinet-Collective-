@@ -122,8 +122,9 @@ const CONSTRUCTION_FIELDS: {
  * Split into what a shop **chooses** and what a manufacturer **decides**, because they are not the
  * same kind of number and mixing them invites somebody to "correct" a catalogue figure to taste.
  *
- * Editable here: the drilling distance and the cup setback on a hinge, and the height a drawer box
- * floor sits above its front. Those are settings — Blum gives a range and a shop picks a number.
+ * Editable here: the drilling distance and the cup setback on a hinge, and the two figures in the
+ * runner's vertical chain that Blum's sheet does not state outright. Those are settings or
+ * unconfirmed readings — the kind of number a shop picks or corrects.
  *
  * Read-only here: nominal lengths, the 51mm and 26mm box deductions, the profile heights. Those are
  * what MERIVOBOX *is*. Correcting one is editing `library/blum.ts`, which is deliberately a code
@@ -213,12 +214,21 @@ function HardwareEditor({
           </div>
 
           <NumberRow
-            label="Box floor above the front"
-            hint="Where the box sits, and therefore where the runner holes are bored"
-            value={runner.boxFloorAboveFrontBottom}
+            label="Runner above the front's bottom edge"
+            hint="The one link Blum's sheet doesn't state, and everything else hangs off it"
+            value={runner.runnerAboveFrontBottom}
             min={0}
-            max={60}
-            onChange={(n) => patchRunner({ boxFloorAboveFrontBottom: mm(n) })}
+            max={80}
+            step={0.5}
+            onChange={(n) => patchRunner({ runnerAboveFrontBottom: mm(n) })}
+          />
+          <NumberRow
+            label="Second front fixing screw"
+            hint="Second front fixing screw, this far above the first"
+            value={runner.frontFixingRowSpacing}
+            min={0}
+            max={96}
+            onChange={(n) => patchRunner({ frontFixingRowSpacing: mm(n) })}
           />
 
           <p className="note subtle">
@@ -231,6 +241,16 @@ function HardwareEditor({
             {runner.bottomLengthDeduction}mm shorter than the nominal length, from{' '}
             {runner.bottomNominalThickness}mm board. Rated {runner.loadRatingKg}kg. Those are the
             product's numbers, not settings — correcting one means editing the hardware library.
+          </p>
+          <p className="note subtle">
+            Measured up from <strong>the bottom of the runner</strong>, which is Blum's own datum:
+            the underside of the drawer bottom sits {runner.bottomPanelAboveRunner}mm above it, and
+            the front fixing screws {runner.frontFixingAboveRunner}mm and{' '}
+            {runner.frontFixingAboveRunner + runner.frontFixingRowSpacing}mm — plus{' '}
+            {runner.preAssembledProfileAllowance}mm if the cabinet profile goes on before the
+            carcass is assembled, which the model does not know and does not apply. Sideways, the
+            screws sit {runner.frontFixingFromCabinetSide}mm in from the outside of each cabinet
+            side, which is Blum's <em>20.5 + FA</em> said without needing to know the reveal.
           </p>
         </>
       ) : (

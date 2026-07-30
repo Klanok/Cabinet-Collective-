@@ -133,16 +133,61 @@ export interface DrawerRunnerSystem {
   readonly fixingHoleDiameter: Mm;
   readonly fixingHoleDepth: Mm;
 
-  /**
-   * Height of the drawer box's floor above the bottom edge of the drawer front it carries.
+  /*
+   * ── The vertical chain, all measured from the bottom of the runner ─────────────────────────
    *
-   * This one number does two jobs, and they are the same job seen from two sides: it puts the box
-   * where it sits inside the cabinet, and — because the cabinet profile is fixed at the level the
-   * box floor lands on — it puts the runner's fixing holes at the height they get drilled. The
-   * fraction of a millimetre between the profile's fixing axis and the floor it carries is inside
-   * the steel and is not a cut size.
+   * Blum's front-installation sheet dimensions everything about a box off **the bottom of the
+   * runner**, and so does this record. That is not a stylistic choice: the runner is the thing
+   * screwed to the cabinet, so it is the only datum that both the drilling and the box can be
+   * measured from without one of them going through the other.
+   *
+   * There used to be a single `boxFloorAboveFrontBottom` here doing two jobs at once and getting
+   * both approximately right. It is gone, and the chain it stood in for is written out instead.
    */
-  readonly boxFloorAboveFrontBottom: Mm;
+
+  /**
+   * How far above the bottom edge of its drawer front the bottom of the runner sits.
+   *
+   * **The one link in the chain that Blum's sheet does not state outright**, and it is the one that
+   * ties the hardware to the cabinet — so it is named for exactly what it is and it is flagged.
+   *
+   * The shipped figure is derived rather than guessed: on the *bottom* drawer of a bank the runner
+   * goes as low as it can, which is on the top face of the cabinet bottom, and a front flush with
+   * the carcass bottom starts a board thickness below that. So on a 16mm carcass the runner sits
+   * 16mm above the bottom edge of its front, and the drawers above it keep the same relationship so
+   * the bank reads straight.
+   */
+  readonly runnerAboveFrontBottom: Mm;
+  /** Underside of the drawer bottom panel, above the bottom of the runner. Blum's `20`. */
+  readonly bottomPanelAboveRunner: Mm;
+
+  /*
+   * The front fixing — where the bracket screws into the back of the drawer front.
+   */
+
+  /** Screw centre above the bottom of the runner. Blum's `33.5`. */
+  readonly frontFixingAboveRunner: Mm;
+  /** A second screw this far above the first. Blum's `32`. */
+  readonly frontFixingRowSpacing: Mm;
+  /**
+   * Screw centre measured in from the **outer face of the cabinet side**.
+   *
+   * Blum writes this as `20.5 + FA`, measured from the edge of the front, where FA is the front
+   * overlay. Stated from the cabinet instead, because that is the datum that does not need to know
+   * what the reveal is: how far the front's own edge then is from the screw falls out of the front's
+   * placement, the same way every other hole here does. A shop that widens its side reveal moves the
+   * front and the screw stays where the bracket is.
+   */
+  readonly frontFixingFromCabinetSide: Mm;
+  /** Pilot bore for a screw-on front. The EXPANDO variant takes a Ø8 dowel and is not modelled. */
+  readonly frontFixingPilotDiameter: Mm;
+  readonly frontFixingPilotDepth: Mm;
+  /**
+   * Add this to the front fixing height when the cabinet profile is fitted before the cabinet is
+   * assembled — Blum's `*` footnote, which is +1mm. Not applied automatically: nothing in the model
+   * knows the order a shop assembles in.
+   */
+  readonly preAssembledProfileAllowance: Mm;
 
   readonly loadRatingKg: number;
 
@@ -212,6 +257,22 @@ export const drawerBottomSize = (
   length: mm(innerWidth - system.bottomWidthDeduction),
   width: mm(nominalLength - system.bottomLengthDeduction),
 });
+
+/**
+ * Height of the **underside** of the drawer bottom panel above the bottom edge of its front.
+ *
+ * Two links of the chain, applied in the order Blum's sheet states them, and the reason it is a
+ * function rather than a field is that a field would be a third place claiming to know a sum of two
+ * numbers already here.
+ */
+export const bottomPanelAboveFrontBottom = (system: DrawerRunnerSystem): Mm =>
+  mm(system.runnerAboveFrontBottom + system.bottomPanelAboveRunner);
+
+/** Height of the front fixing screws above the bottom edge of the front, bottom screw first. */
+export const frontFixingHeights = (system: DrawerRunnerSystem): [Mm, Mm] => {
+  const first = mm(system.runnerAboveFrontBottom + system.frontFixingAboveRunner);
+  return [first, mm(first + system.frontFixingRowSpacing)];
+};
 
 /** Cut size of a wooden drawer back. Same width as the bottom; height is the profile's. */
 export const drawerBackSize = (

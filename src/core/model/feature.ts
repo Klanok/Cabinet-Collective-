@@ -39,6 +39,8 @@ export type FeaturePurpose =
   | 'hinge-plate'
   | 'shelf-pin'
   | 'drawer-runner'
+  /** The bracket screws that hold a drawer front onto its box. Bored in the back of the front. */
+  | 'drawer-front-fixing'
   | 'handle'
   | 'carcass-joint'
   | 'service-hole'

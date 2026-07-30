@@ -37,7 +37,12 @@ import { type Vec2, type Vec3, v2, v3 } from '../geom/vec.ts';
 import { type Bounds3, type PanelPlacement, cabinetToPart, placedBounds } from '../geom/placement.ts';
 import { profileExtent } from '../geom/profile.ts';
 import type { PanelFeature } from '../model/feature.ts';
-import { cupCentreFromEdge, hingeCentres, hingeCountForHeight } from '../model/hardware.ts';
+import {
+  type DrawerRunnerSystem,
+  cupCentreFromEdge,
+  hingeCentres,
+  hingeCountForHeight,
+} from '../model/hardware.ts';
 import type { RuleContext } from './context.ts';
 import type { MaterialSlot, PartInstance } from './spec.ts';
 
@@ -274,12 +279,17 @@ const boreHinges = (
 // ---------------------------------------------------------------------------------------
 
 /**
- * The runner's two fixing points, in both sides, for every drawer.
+ * The runner's fixing points in both sides, and the front fixing screws in the drawer front.
  *
- * The height is the box floor, which is set out from the bottom edge of the drawer front the box
- * carries — so the holes and the front cannot drift apart, because they are the same number read
- * once. See `DrawerRunnerSystem.boxFloorAboveFrontBottom`, which is flagged as wanting a check
- * against the Blum planning sheet precisely because it is the number these holes hang off.
+ * Both hang off **the bottom of the runner**, which is the datum Blum's front-installation sheet
+ * uses and the only one that works: the runner is the thing screwed to the cabinet, so it is what
+ * the drilling and the box can both be measured from without one going through the other. Its own
+ * height comes from the bottom edge of the drawer front it carries — one number read once, so the
+ * holes, the box and the front cannot drift apart.
+ *
+ * The runner's fixing holes are put on that bottom line, because Blum states the fixing *spacing*
+ * without stating its height above it. That is in `unconfirmedFigures` and it is the sharpest of
+ * them: a few millimetres out is a runner that does not sit where the box expects it.
  */
 const boreRunners = (
   ctx: RuleContext,
@@ -293,7 +303,8 @@ const boreRunners = (
   const system = runner.system;
 
   drawerFronts.forEach((front, i) => {
-    const y = mm(front.box.min.y + system.boxFloorAboveFrontBottom);
+    const y = mm(front.box.min.y + system.runnerAboveFrontBottom);
+    boreFrontFixing(ctx, front, system, add);
 
     for (const side of sides) {
       const hand = handOf(ctx, side.box);
@@ -326,6 +337,57 @@ const boreRunners = (
       }
     }
   });
+};
+
+/**
+ * The front fixing — where the bracket screws into the **back** of the drawer front.
+ *
+ * Two brackets, one at each end, two screws each. Blum gives the sideways position as `20.5 + FA`
+ * from the edge of the front, where FA is the front overlay; stated here as 20.5 in from the **outer
+ * face of the cabinet side**, which is the same place said without needing to know the reveal. How
+ * far that then is from the front's own edge falls out of the placement conversion, so widening a
+ * side reveal moves the front and leaves the screw where the bracket is.
+ *
+ * B-face, like a hinge cup, and for the same reason: it goes in the back of the front, and the front
+ * turns over on the machine.
+ */
+const boreFrontFixing = (
+  ctx: RuleContext,
+  front: Placed,
+  system: DrawerRunnerSystem,
+  add: (index: number, feature: PanelFeature) => void,
+): void => {
+  // Measured from each outer face of the carcass, so the pair is symmetric on any width.
+  const columns: [string, Mm][] = [
+    ['l', mm(system.frontFixingFromCabinetSide)],
+    ['r', mm(ctx.W - system.frontFixingFromCabinetSide)],
+  ];
+  const runnerY = mm(front.box.min.y + system.runnerAboveFrontBottom);
+  const rows: [string, Mm][] = [
+    ['1', mm(runnerY + system.frontFixingAboveRunner)],
+    ['2', mm(runnerY + system.frontFixingAboveRunner + system.frontFixingRowSpacing)],
+  ];
+  // The face of the front that looks back into the cabinet — part z = 0, the B-face.
+  const backZ = front.box.min.z;
+
+  for (const [side, x] of columns) {
+    for (const [row, y] of rows) {
+      const at = partPoint(front.instance.placement, v3(x, y, backZ));
+      // A bracket on a front too narrow or too short for it would land off the part. Dropped
+      // rather than bored outside the board, and the catch-all test is what watches for it.
+      const { length, width } = profileExtent(front.instance.profile);
+      if (at.x < 0 || at.x > length || at.y < 0 || at.y > width) continue;
+      add(front.index, {
+        id: `front-fixing-${side}${row}`,
+        kind: 'drill',
+        purpose: 'drawer-front-fixing',
+        face: 'B',
+        at,
+        diameter: system.frontFixingPilotDiameter,
+        depth: system.frontFixingPilotDepth,
+      });
+    }
+  }
 };
 
 // ---------------------------------------------------------------------------------------
