@@ -287,9 +287,9 @@ const boreHinges = (
  * height comes from the bottom edge of the drawer front it carries — one number read once, so the
  * holes, the box and the front cannot drift apart.
  *
- * The runner's fixing holes are put on that bottom line, because Blum states the fixing *spacing*
- * without stating its height above it. That is in `unconfirmedFigures` and it is the sharpest of
- * them: a few millimetres out is a runner that does not sit where the box expects it.
+ * The runner's fixing holes sit `runnerFixingAboveRunnerBottom` up the rail from that line — Blum's
+ * `min. 54*`. Both that and the runner's own height are flagged, and between them they are the
+ * sharpest figures in the record.
  */
 const boreRunners = (
   ctx: RuleContext,
@@ -303,7 +303,14 @@ const boreRunners = (
   const system = runner.system;
 
   drawerFronts.forEach((front, i) => {
-    const y = mm(front.box.min.y + system.runnerAboveFrontBottom);
+    /*
+     * Up the rail from its own bottom line, which is itself set out from the bottom edge of the
+     * drawer front. Two links, both flagged, and between them the sharpest figures in the record: a
+     * runner bored 54mm out is a runner nowhere near where the box expects it.
+     */
+    const y = mm(
+      front.box.min.y + system.runnerAboveFrontBottom + system.runnerFixingAboveRunnerBottom,
+    );
     boreFrontFixing(ctx, front, system, add);
 
     for (const side of sides) {

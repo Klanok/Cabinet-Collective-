@@ -50,7 +50,8 @@
  *   Everything vertical hangs off **the bottom of the runner**, which is Blum's own datum. The
  *   runner sits 16 above the bottom edge of its front, so with fronts at 0, 240 and 480:
  *
- *     runner bottoms at y = **16, 256, 496**  ← where the fixing holes go
+ *     runner bottoms at y = **16, 256, 496**
+ *     runner fixing screws  54 up the rail from each of those → **70, 310, 550**
  *     front fixing screws  16 + 33.5 = **49.5** and + 32 = **81.5** above each front's own bottom
  *     sideways, 20.5 in from each outer cabinet face → part x **19** and **578** on a 597 front
  *
@@ -232,7 +233,7 @@ describe('mounting plates', () => {
 });
 
 describe('runner fixings', () => {
-  it('bores two holes per side per drawer, on the bottom line of the runner', () => {
+  it('bores two holes per side per drawer, 54 up the rail from its own bottom line', () => {
     const { panels } = buildCabinet(
       createCabinet({
         typeId: 'drawer-bank',
@@ -245,8 +246,8 @@ describe('runner fixings', () => {
     );
     const left = drilledFor(byName(panels, 'Side L'), 'drawer-runner');
     expect(left).toHaveLength(6);
-    // Three drawers, runner bottoms at 16 / 256 / 496, front and rear fixing at each.
-    expect(left.map((p) => p.x)).toEqual([16, 16, 256, 256, 496, 496]);
+    // Runner bottoms at 16 / 256 / 496 above the carcass bottom, screws 54 up the rail from each.
+    expect(left.map((p) => p.x)).toEqual([70, 70, 310, 310, 550, 550]);
     // 37mm from the front, then 256mm behind it at NL 500.
     expect(left.map((p) => p.y)).toEqual([507, 251, 507, 251, 507, 251]);
     expect(left.every((p) => p.diameter === 5 && p.depth === 13)).toBe(true);
