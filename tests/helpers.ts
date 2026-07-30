@@ -54,3 +54,63 @@ export const byName = (panels: readonly Panel[], name: string): Panel => {
 };
 
 export const namesOf = (panels: readonly Panel[]): string[] => panels.map((p) => p.name);
+
+/**
+ * Every drilled position on a panel, in part space, with a row of holes expanded.
+ *
+ * Used both to check individual holes and to check that none of them fall off the part — which is
+ * the assertion that catches a handedness error a count never will. A mounting plate measured from
+ * the wrong edge of a side panel is the same number of holes at the same diameter; it is only
+ * *where* it lands that is wrong, and on a shallow part it lands outside.
+ */
+export const drilledPoints = (
+  panel: Panel,
+): { id: string; purpose: string; face: string; x: number; y: number; diameter: Mm; depth: Mm }[] => {
+  const points: {
+    id: string;
+    purpose: string;
+    face: string;
+    x: number;
+    y: number;
+    diameter: Mm;
+    depth: Mm;
+  }[] = [];
+  for (const f of panel.features) {
+    if (f.kind === 'drill') {
+      points.push({
+        id: f.id,
+        purpose: f.purpose,
+        face: f.face,
+        x: f.at.x,
+        y: f.at.y,
+        diameter: f.diameter,
+        depth: f.depth,
+      });
+    } else if (f.kind === 'drill-line') {
+      for (let i = 0; i < f.count; i++) {
+        points.push({
+          id: `${f.id}#${i + 1}`,
+          purpose: f.purpose,
+          face: f.face,
+          x: f.start.x + f.step.x * i,
+          y: f.start.y + f.step.y * i,
+          diameter: f.diameter,
+          depth: f.depth,
+        });
+      }
+    }
+  }
+  return points;
+};
+
+/** True when every drilled position on the panel lies inside the part's own bounding box. */
+export const drillingStaysOnThePart = (panel: Panel): boolean => {
+  const { length, width } = panelExtent(panel);
+  return drilledPoints(panel).every(
+    (p) => p.x >= 0 && p.x <= length && p.y >= 0 && p.y <= width,
+  );
+};
+
+/** Holes of one purpose, in the order they were emitted. */
+export const drilledFor = (panel: Panel, purpose: string) =>
+  drilledPoints(panel).filter((p) => p.purpose === purpose);

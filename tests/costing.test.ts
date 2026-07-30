@@ -132,8 +132,10 @@ describe('cost breakdown', () => {
     const c = costProject(project);
     const panelSum = c.panels.reduce((s, p) => s + p.totalCost, 0);
 
-    expect(c.materialCost).toBe(c.sheetCost + c.edgeBandCost);
-    expect(c.materialCost).toBe(panelSum);
+    expect(c.materialCost).toBe(c.sheetCost + c.edgeBandCost + c.hardwareCost);
+    // The panels account for the sheet and the banding. The hardware is bought stock counted off
+    // those same panels' features, and it is not attributed back onto any one of them.
+    expect(c.materialCost).toBe(panelSum + c.hardwareCost);
     expect(c.totalCost).toBe(c.materialCost + c.labourCost + c.installCost);
     expect(c.subtotalExGst).toBe(c.totalCost + c.marginAmount);
     expect(c.sellExGst).toBe(c.subtotalExGst + c.deliveryFee);

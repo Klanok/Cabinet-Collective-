@@ -1,0 +1,613 @@
+/**
+ * Hardware and drawer boxes — Phase 2, Blum first.
+ *
+ * Reference figures, worked longhand so they can be checked by eye against the Blum sheet and
+ * against how a drawer bank actually gets built.
+ *
+ * ── MERIVOBOX, from the catalogue and the AU planning sheet ────────────────────────────────
+ *
+ *   nominal lengths        270, 300, 350, 400, 450, 500, 550, 600
+ *   M profile              91mm high; wooden back cut at 83mm from 16mm chipboard
+ *   drawer bottom          LW − 51 wide  ×  NL − 26 long, 16mm chipboard
+ *   minimum inner depth    LT min = NL + 3
+ *   runner fixing          37mm from the front edge, then 128mm behind it at NL ≤ 300
+ *                          and 256mm behind it at NL 350–600
+ *   load rating            40kg
+ *
+ *   LW is the clear width between the cabinet sides; LT the clear depth in front of the back.
+ *
+ * ── Reference cabinet: drawer bank 600 × 720 × 560, 16mm carcass, applied 16mm back ────────
+ *
+ *   LW  = 600 − 2 × 16          = 568
+ *   LT  = 560 − 16              = 544
+ *   NL  → largest with NL + 3 ≤ 544, so NL ≤ 541, so **NL 500**
+ *         (550 would want 553 and does not go in)
+ *   bottom = (568 − 51) × (500 − 26)  = **517 × 474**
+ *   back   =  568 − 51  ×  83         = **517 × 83**
+ *   fixing spacing at NL 500          = **256**
+ *
+ *   Three equal fronts on a 720 carcass with a 3 top reveal and 3 between:
+ *     opening 717, gaps 2 × 3 = 6, so 711 / 3 = 237 each
+ *     front bottoms at y = 0, 240, 480 → box floors at 10, 250, 490
+ *
+ * ── Measured board, the whole point of taking LW off the sheet ─────────────────────────────
+ *
+ *   carcass measured at 16.3:  LW = 600 − 32.6 = 567.4  →  bottom **516.4** × 474
+ *   the deduction is the runner's and does not move; the opening is the board's and does
+ *
+ * ── The sample kitchen's hardware ──────────────────────────────────────────────────────────
+ *
+ *   3 drawers in D1                       → 3 MERIVOBOX sets, M, NL 500
+ *   10 doors × 2 hinges (all 717 tall)    → 20 hinges + 20 plates
+ *   7 adjustable shelves × 4              → 28 shelf pins
+ *
+ *   at the shipped indicative rates:
+ *     3 × $52.00 + 20 × $6.40 + 20 × $2.10 + 28 × $0.18
+ *       = 156.00 + 128.00 + 42.00 + 5.04  = **$331.04 ex GST**
+ */
+
+import { beforeEach, describe, expect, it } from 'vitest';
+import { mm } from '../src/core/units.ts';
+import { createCabinet, createEmptyProject, createSampleKitchen, resetIdCounter } from '../src/core/project/factory.ts';
+import type { CabinetOptions } from '../src/core/model/cabinet.ts';
+import {
+  CURRENT_SCHEMA_VERSION,
+  type Project,
+  migrateProject,
+} from '../src/core/model/project.ts';
+import {
+  AU_SHOP_STANDARDS,
+  CURRENT_STANDARDS_VERSION,
+  migrateStandards,
+} from '../src/core/standards/standards.ts';
+import { buildCabinet, buildProject } from '../src/core/rules/build.ts';
+import {
+  MERIVOBOX,
+  CLIP_TOP_BLUMOTION,
+  BLUM_HARDWARE_LIBRARY,
+} from '../src/core/library/blum.ts';
+import {
+  cupCentreFromEdge,
+  cupSetbackForSystemGrid,
+  drawerBackSize,
+  drawerBottomSize,
+  hingeCentres,
+  hingeCountForHeight,
+  largestRunnerFitting,
+  minInnerDepthFor,
+  plateHolePositions,
+  platesOnSystemGrid,
+  runnerFixingSpacing,
+  unconfirmedHardwareFigures,
+} from '../src/core/model/hardware.ts';
+import { buildHardwareBom, drillingSummary, hardwareBomTotals } from '../src/core/hardware/bom.ts';
+import { costProject } from '../src/core/costing/costing.ts';
+import { buildCutlist } from '../src/core/cutlist/cutlist.ts';
+import { cutlistCsv, drillingCsv, hardwareCsv } from '../src/core/cutlist/export.ts';
+import { byName, occupies, size } from './helpers.ts';
+
+let project: Project;
+
+beforeEach(() => {
+  resetIdCounter();
+  project = createEmptyProject('Hardware');
+});
+
+const bank = (options: CabinetOptions = {}, depth = mm(560)) =>
+  buildCabinet(
+    createCabinet({
+      typeId: 'drawer-bank',
+      name: 'D',
+      width: mm(600),
+      depth,
+      x: mm(0),
+      options: { drawerCount: 3, ...options },
+    }),
+    project,
+  );
+
+describe('the MERIVOBOX spec is data, not arithmetic scattered about', () => {
+  it('is made in the lengths Blum makes it in, and no others', () => {
+    expect(MERIVOBOX.nominalLengths).toEqual([270, 300, 350, 400, 450, 500, 550, 600]);
+    expect(MERIVOBOX.sideHeights.map((h) => [h.code, h.height, h.woodenBackHeight])).toEqual([
+      ['M', 91, 83],
+    ]);
+  });
+
+  it('needs three more millimetres of clear depth than its nominal length', () => {
+    expect(minInnerDepthFor(MERIVOBOX, mm(500))).toBe(503);
+    expect(minInnerDepthFor(MERIVOBOX, mm(270))).toBe(273);
+  });
+
+  it('picks the longest runner that fits, and nothing when none does', () => {
+    expect(largestRunnerFitting(MERIVOBOX, mm(544))).toBe(500);
+    // One millimetre short of what a 550 needs.
+    expect(largestRunnerFitting(MERIVOBOX, mm(552))).toBe(500);
+    expect(largestRunnerFitting(MERIVOBOX, mm(553))).toBe(550);
+    expect(largestRunnerFitting(MERIVOBOX, mm(272))).toBeNull();
+  });
+
+  it('steps its fixing spacing at 300, on the 32mm grid either side of it', () => {
+    expect(runnerFixingSpacing(MERIVOBOX, mm(270))).toBe(128);
+    expect(runnerFixingSpacing(MERIVOBOX, mm(300))).toBe(128);
+    expect(runnerFixingSpacing(MERIVOBOX, mm(350))).toBe(256);
+    expect(runnerFixingSpacing(MERIVOBOX, mm(600))).toBe(256);
+    // Both are whole numbers of the 32mm pitch — 4 and 8. Not a coincidence.
+    expect(128 / 32).toBe(4);
+    expect(256 / 32).toBe(8);
+  });
+
+  it('sizes a bottom and a back from the opening and the length', () => {
+    expect(drawerBottomSize(MERIVOBOX, mm(568), mm(500))).toEqual({ length: 517, width: 474 });
+    expect(drawerBackSize(MERIVOBOX, MERIVOBOX.sideHeights[0]!, mm(568))).toEqual({
+      length: 517,
+      width: 83,
+    });
+  });
+
+  it('says out loud which of its figures have not been checked', () => {
+    const notes = unconfirmedHardwareFigures(BLUM_HARDWARE_LIBRARY);
+    expect(notes.length).toBeGreaterThan(0);
+    expect(notes.join(' ')).toMatch(/boxFloorAboveFrontBottom/);
+    expect(notes.join(' ')).toMatch(/dowelOffset/);
+  });
+});
+
+describe('a drawer box is cut to the runner, not to the cabinet', () => {
+  it('cuts a bottom 517 × 474 and a back 517 × 83 on a 600 × 560 bank', () => {
+    const { panels, hardware } = bank();
+    expect(hardware.runner?.nominalLength).toBe(500);
+    expect(hardware.runner?.automatic).toBe(true);
+    expect(size(byName(panels, 'Drawer bottom'))).toEqual([517, 474]);
+    expect(size(byName(panels, 'Drawer back'))).toEqual([517, 83]);
+  });
+
+  it('produces one bottom and one back per drawer, and no more', () => {
+    const { panels } = bank({ drawerCount: 4 });
+    expect(panels.filter((p) => p.role === 'drawer-bottom')).toHaveLength(4);
+    expect(panels.filter((p) => p.role === 'drawer-back')).toHaveLength(4);
+  });
+
+  it('bands nothing — every edge of a box part is captured', () => {
+    const { panels } = bank();
+    for (const name of ['Drawer bottom', 'Drawer back']) {
+      expect(byName(panels, name).edgeBanding).toEqual({});
+    }
+  });
+
+  it('stacks the boxes on their own fronts, ten millimetres up', () => {
+    const { panels } = bank();
+    const floors = panels
+      .filter((p) => p.role === 'drawer-bottom')
+      .map((p) => occupies(p, project).y[0]);
+    // Fronts sit at 0, 240 and 480; the box floor is 10 above each.
+    expect(floors).toEqual([10, 250, 490]);
+  });
+
+  it('centres the box in the opening — the runner takes the same bite off each side', () => {
+    const { panels } = bank();
+    // Opening runs x ∈ [16, 584]; a 517 bottom centred in 568 leaves 25.5 each side.
+    expect(occupies(byName(panels, 'Drawer bottom'), project).x).toEqual([41.5, 558.5]);
+  });
+
+  /**
+   * The deduction belongs to the runner and the opening belongs to the board. Measure the carcass
+   * at 16.3 and the bottom follows, because that is the gap the box has to go into.
+   */
+  it('follows the board a job is really cut from, not the board it is called', () => {
+    const measured: Project = {
+      ...project,
+      materials: {
+        ...project.materials,
+        sheets: project.materials.sheets.map((s) =>
+          s.id === 'hmr-white-16' ? { ...s, actualThickness: mm(16.3) } : s,
+        ),
+      },
+    };
+    const built = buildCabinet(
+      createCabinet({
+        typeId: 'drawer-bank',
+        name: 'D',
+        width: mm(600),
+        x: mm(0),
+        options: { drawerCount: 3 },
+      }),
+      measured,
+    );
+    // LW = 600 − 32.6 = 567.4, so the bottom is 516.4. The length off the runner does not move.
+    expect(size(byName(built.panels, 'Drawer bottom'))).toEqual([516.4, 474]);
+  });
+});
+
+describe('a runner that cannot go in', () => {
+  it('cuts no boxes on a carcass too shallow for the shortest runner, and says why', () => {
+    const built = bank({ drawerCount: 2 }, mm(200));
+    expect(built.hardware.runner).toBeNull();
+    expect(built.panels.filter((p) => p.role === 'drawer-bottom')).toHaveLength(0);
+    // The fronts still come out, so it still reads as a drawer bank while it is being fixed.
+    expect(built.panels.filter((p) => p.role === 'drawer-front')).toHaveLength(2);
+    expect(built.warnings.join(' ')).toMatch(/not enough for any MERIVOBOX runner/);
+    expect(built.warnings.join(' ')).toMatch(/shortest is 270mm and needs 273mm/);
+  });
+
+  it('refuses a length Blum does not make rather than rounding to the nearest', () => {
+    const built = bank({ drawerNominalLength: mm(512) });
+    expect(built.hardware.runner).toBeNull();
+    expect(built.warnings.join(' ')).toMatch(/not made at 512mm/);
+    expect(built.warnings.join(' ')).toMatch(/270, 300, 350, 400, 450, 500, 550, 600/);
+  });
+
+  it('refuses a length the cabinet will not hold, naming both figures', () => {
+    const built = bank({ drawerNominalLength: mm(600) });
+    expect(built.hardware.runner).toBeNull();
+    expect(built.warnings.join(' ')).toMatch(/needs 603mm of clear depth and this cabinet has 544mm/);
+  });
+
+  it('honours a length that is shorter than the deepest one that fits', () => {
+    const built = bank({ drawerNominalLength: mm(450) });
+    expect(built.hardware.runner?.nominalLength).toBe(450);
+    expect(built.hardware.runner?.automatic).toBe(false);
+    expect(size(byName(built.panels, 'Drawer bottom'))).toEqual([517, 424]);
+  });
+
+  it('never throws, whatever depth is typed on the way to a real one', () => {
+    // A number field fires on every keystroke: typing "560" resolves 5, then 56, then 560. The
+    // lesson §4.5 paid for, applied here before it costs anything.
+    for (const depth of [1, 5, 20, 56, 200, 300, 560, 2000]) {
+      expect(() => bank({ drawerCount: 3 }, mm(depth))).not.toThrow();
+    }
+  });
+
+  it('falls back to a shipped system when a job points at one that has been deleted', () => {
+    const built = bank({ runnerSystemId: 'nothing-like-this' });
+    expect(built.hardware.runnerSystem.id).toBe(MERIVOBOX.id);
+    expect(built.warnings.join(' ')).toMatch(/is not in this job/);
+  });
+});
+
+describe('the hinge system', () => {
+  it('centres the cup 22.5mm in from the door edge on a 5mm drilling distance', () => {
+    // Blum states the distance to the near edge of the bore. The centre is derived, so the two
+    // cannot disagree: 5 + 35/2.
+    expect(cupCentreFromEdge(CLIP_TOP_BLUMOTION)).toBe(22.5);
+  });
+
+  it('counts hinges by door height, and keeps counting above the last band', () => {
+    const h = CLIP_TOP_BLUMOTION;
+    expect(hingeCountForHeight(h, mm(400))).toBe(2);
+    expect(hingeCountForHeight(h, mm(900))).toBe(2);
+    expect(hingeCountForHeight(h, mm(901))).toBe(3);
+    expect(hingeCountForHeight(h, mm(1600))).toBe(3);
+    expect(hingeCountForHeight(h, mm(2000))).toBe(4);
+    // A 2067 tall door is not a 2000 door: 4 + one per 400mm above.
+    expect(hingeCountForHeight(h, mm(2067))).toBe(5);
+    expect(hingeCountForHeight(h, mm(2400))).toBe(5);
+    expect(hingeCountForHeight(h, mm(2401))).toBe(6);
+  });
+
+  it('sets the end hinges at the setback and spreads the rest evenly between them', () => {
+    const h = CLIP_TOP_BLUMOTION;
+    expect(hingeCentres(h, mm(717), 2)).toEqual([96, 621]);
+    // 2067 tall, five hinges: 96 to 1971 is 1875, in four steps of 468.75.
+    expect(hingeCentres(h, mm(2067), 5)).toEqual([96, 564.75, 1033.5, 1502.25, 1971]);
+  });
+
+  it('puts one hinge in the middle of a door too short for two at the setback', () => {
+    // 150 tall cannot take hinges 96 from each end; two would be on top of each other.
+    expect(hingeCentres(CLIP_TOP_BLUMOTION, mm(150), 2)).toEqual([75]);
+  });
+
+  /**
+   * Whether the plate screws land on the system grid decides whether one line-boring pass covers
+   * the shelf pins and the hinge plates together. On the shipped 96mm setback they do not — 80 and
+   * 112 are not multiples of 32 — and the function says which setback would.
+   */
+  it('reports whether the plate screws fall on the 32mm grid, and what would put them there', () => {
+    const h = CLIP_TOP_BLUMOTION;
+    expect(plateHolePositions(h, mm(0))).toEqual([80, 112]);
+    expect(platesOnSystemGrid(h, mm(32), mm(0))).toBe(false);
+    // 112 − 16 = 96 and 112 + 16 = 128: both on the grid.
+    expect(cupSetbackForSystemGrid(h, mm(32), mm(0))).toBe(112);
+    expect(platesOnSystemGrid({ ...h, cupEndSetback: mm(112) }, mm(32), mm(0))).toBe(true);
+  });
+});
+
+describe('the hardware BOM', () => {
+  let kitchen: Project;
+  beforeEach(() => {
+    resetIdCounter();
+    kitchen = createSampleKitchen();
+  });
+
+  it('orders three MERIVOBOX sets, twenty hinges and plates, and twenty-eight pins', () => {
+    const bom = buildHardwareBom(kitchen);
+    const qty = (match: RegExp) => bom.find((l) => match.test(l.name))?.quantity;
+
+    expect(qty(/MERIVOBOX drawer set/)).toBe(3);
+    expect(qty(/^Blum CLIP top/)).toBe(20);
+    expect(qty(/mounting plate/)).toBe(20);
+    expect(qty(/Shelf pin/)).toBe(28);
+    expect(bom.find((l) => /MERIVOBOX/.test(l.name))?.name).toMatch(/NL 500/);
+  });
+
+  it('adds up to $331.04 ex GST on the shipped indicative rates', () => {
+    const totals = hardwareBomTotals(buildHardwareBom(kitchen));
+    expect(totals.totalExGst).toBe(33_104);
+    expect(totals.pieceCount).toBe(71);
+    expect(totals.indicativePricing).toBe(true);
+  });
+
+  /**
+   * Counted from the features actually emitted, not from the cabinet's options. A door the rule
+   * engine could not bore must not appear on a hardware order.
+   */
+  it('does not order a hinge for a door that could not be bored', () => {
+    // A 40mm-wide door leaves nowhere for a 35mm cup 22.5mm in from the edge.
+    const narrow = buildCabinet(
+      createCabinet({
+        typeId: 'custom',
+        name: 'C',
+        width: mm(44),
+        x: mm(0),
+        options: { doorCount: 1, shelfCount: 0, hasBack: false, topStyle: 'open' },
+      }),
+      project,
+    );
+    expect(narrow.warnings.join(' ')).toMatch(/leaves nowhere for a 35mm cup/);
+    const bom = buildHardwareBom({ ...project, cabinets: [narrow.cabinet] });
+    expect(bom.filter((l) => l.category === 'hinge')).toHaveLength(0);
+  });
+
+  it('does not order a drawer set for a bank that got no boxes', () => {
+    const shallow = bank({ drawerCount: 2 }, mm(200));
+    const bom = buildHardwareBom({ ...project, cabinets: [shallow.cabinet] });
+    expect(bom.filter((l) => l.category === 'drawer-set')).toHaveLength(0);
+  });
+
+  it('groups the same hardware across cabinets onto one line', () => {
+    const bom = buildHardwareBom(kitchen);
+    const hinges = bom.filter((l) => l.category === 'hinge');
+    expect(hinges).toHaveLength(1);
+    // Six of the seven cabinets have doors; D1 has drawers.
+    expect(hinges[0]!.cabinetNames).toHaveLength(6);
+  });
+});
+
+describe('hardware on the quote', () => {
+  let kitchen: Project;
+  beforeEach(() => {
+    resetIdCounter();
+    kitchen = createSampleKitchen();
+  });
+
+  it('is its own line, inside material cost, and inside the total', () => {
+    const c = costProject(kitchen);
+    expect(c.hardwareCost).toBe(33_104);
+    expect(c.materialCost).toBe(c.sheetCost + c.edgeBandCost + c.hardwareCost);
+    expect(c.totalCost).toBe(c.materialCost + c.labourCost + c.machiningCost + c.installCost);
+  });
+
+  /**
+   * An unregistered entity cannot claim the GST back on a box of hinges any more than on a sheet,
+   * so its cost base is GST-inclusive. Getting this backwards understates the hardware by 10%.
+   */
+  it('picks up unclaimable GST for an unregistered entity', () => {
+    const unregistered = costProject({
+      ...kitchen,
+      settings: { ...kitchen.settings, gstMode: 'not-registered' },
+    });
+    expect(unregistered.hardwareCost).toBe(Math.round(33_104 * 1.1));
+  });
+
+  it('keeps a quote flagged as indicative while the Blum prices are placeholders', () => {
+    expect(costProject(kitchen).usesIndicativePricing).toBe(true);
+  });
+});
+
+describe('the drilling summary', () => {
+  it('groups the sample kitchen by bore and says what needs turning over', () => {
+    const kitchen = createSampleKitchen();
+    const groups = drillingSummary(kitchen);
+    const find = (d: number) => groups.find((g) => g.diameter === d)!;
+
+    // 20 hinge cups, and two dowels each.
+    expect(find(35).count).toBe(20);
+    expect(find(35).needsFlip).toBe(true);
+    expect(find(8).count).toBe(40);
+    expect(find(8).needsFlip).toBe(true);
+
+    /*
+     * The Ø5 holes, longhand:
+     *   hinge plates   20 hinges × 2                              =  40
+     *   runners         3 drawers × 2 sides × 2 fixings           =  12
+     *   shelf pins      4 cabinets with adjustable shelves
+     *                     × 2 sides × 2 rows × 21 holes           = 336
+     *                                                              ───
+     *                                                               388
+     */
+    expect(find(5).count).toBe(388);
+    expect(find(5).needsFlip).toBe(false);
+  });
+});
+
+describe('export', () => {
+  let kitchen: Project;
+  beforeEach(() => {
+    resetIdCounter();
+    kitchen = createSampleKitchen();
+  });
+
+  it('writes a cutlist CSV with one row per line and a header', () => {
+    const rows = cutlistCsv(kitchen).trimEnd().split('\r\n');
+    expect(rows[0]).toBe(
+      'Qty,Part,Material,Thickness,Length,Width,Banding,Banded mm,Grain,Cabinets,Note',
+    );
+    expect(rows).toHaveLength(buildCutlist(kitchen).length + 1);
+    expect(rows.join('\n')).toMatch(/^3,Drawer bottom,/m);
+  });
+
+  it('writes a hardware CSV a supplier could work from', () => {
+    const rows = hardwareCsv(kitchen).trimEnd().split('\r\n');
+    expect(rows).toHaveLength(buildHardwareBom(kitchen).length + 1);
+    expect(rows.join('\n')).toMatch(/MERIVOBOX drawer set/);
+    // Prices as dollars with two places — this goes to a person, not back into the model.
+    expect(rows.join('\n')).toMatch(/,52\.00,156\.00,/);
+  });
+
+  it('writes one row per hole on the drilling sheet, rows of system holes expanded', () => {
+    const rows = drillingCsv(kitchen).trimEnd().split('\r\n');
+    // 388 + 20 + 40 = 448 holes, plus the header.
+    expect(rows).toHaveLength(449);
+    expect(rows[0]).toBe('Cabinet,Part,Purpose,Face,Flip,X,Y,Diameter,Depth,Feature');
+    expect(rows.filter((r) => r.includes(',yes,'))).toHaveLength(60);
+  });
+
+  it('quotes a field containing a comma rather than shifting every column after it', () => {
+    const comma: Project = {
+      ...kitchen,
+      cabinets: [{ ...kitchen.cabinets[0]!, name: 'B1, sink' }],
+    };
+    expect(cutlistCsv(comma)).toMatch(/"B1, sink"/);
+  });
+});
+
+/**
+ * The v8 → v9 migration, and it is the one that does not claim to change nothing.
+ *
+ * Every other migration in this codebase was written so a saved job cuts and prices exactly as it
+ * did. This one keeps the first half of that promise and deliberately breaks the second, so both
+ * halves get asserted separately rather than being run together into "it still works".
+ */
+describe('an older job coming forward', () => {
+  /** A job saved before hardware existed. */
+  const asV8 = (p: Project): Record<string, unknown> => {
+    const { hardware, defaults, constructions, ...rest } = p;
+    void hardware;
+    const { runnerSystemId, drawerSideHeightCode, hingeSystemId, ...restDefaults } = defaults;
+    void runnerSystemId;
+    void drawerSideHeightCode;
+    void hingeSystemId;
+    return {
+      ...rest,
+      schemaVersion: 8,
+      defaults: restDefaults,
+      constructions: constructions.map((c) => {
+        const { systemBackSetback, systemHoleDiameter, systemHoleDepth, ...restC } = c;
+        void systemBackSetback;
+        void systemHoleDiameter;
+        void systemHoleDepth;
+        return restC;
+      }),
+    };
+  };
+
+  let kitchen: Project;
+  beforeEach(() => {
+    resetIdCounter();
+    kitchen = createSampleKitchen();
+  });
+
+  it('gives it the shipped Blum library and points its defaults at MERIVOBOX', () => {
+    const migrated = migrateProject(asV8(kitchen));
+    expect(migrated.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
+    expect(migrated.defaults.runnerSystemId).toBe('merivobox');
+    expect(migrated.defaults.drawerSideHeightCode).toBe('M');
+    expect(migrated.defaults.hingeSystemId).toBe('clip-top-blumotion');
+    expect(migrated.hardware.runnerSystems.map((s) => s.id)).toEqual(['merivobox']);
+  });
+
+  it('fills in the system-hole figures without touching a shop’s own front setback', () => {
+    const moved = { ...asV8(kitchen) } as Record<string, unknown>;
+    moved.constructions = (moved.constructions as Record<string, unknown>[]).map((c) => ({
+      ...c,
+      systemFrontSetback: 40,
+    }));
+    const migrated = migrateProject(moved);
+    const c = migrated.constructions[0]!;
+    expect(c.systemFrontSetback).toBe(40);
+    // The rear line follows the front one, not the shipped 37 — a shop that moved one meant both.
+    expect(c.systemBackSetback).toBe(40);
+    expect(c.systemHoleDiameter).toBe(5);
+    expect(c.systemHoleDepth).toBe(13);
+  });
+
+  /** The half of the rule that is kept, and it is the half that protects a job on the saw. */
+  it('moves no part that already existed', () => {
+    const migrated = migrateProject(asV8(kitchen));
+    const before = buildCutlist(kitchen).filter(
+      (l) => l.name !== 'Drawer bottom' && l.name !== 'Drawer back',
+    );
+    const after = buildCutlist(migrated).filter(
+      (l) => l.name !== 'Drawer bottom' && l.name !== 'Drawer back',
+    );
+    expect(after).toEqual(before);
+  });
+
+  /**
+   * The half that is deliberately broken, stated as an assertion so nobody has to wonder whether it
+   * was an accident. A saved kitchen gets dearer because it always had hinges and runners in it and
+   * was never being charged for them.
+   */
+  it('does re-price it, upward, by the hardware it always needed', () => {
+    const migrated = migrateProject(asV8(kitchen));
+    const cost = costProject(migrated);
+    expect(cost.hardwareCost).toBe(33_104);
+    expect(cost.totalIncGst).toBeGreaterThan(0);
+  });
+
+  it('refuses a job saved by a newer build rather than quoting the hardware at zero', () => {
+    expect(() => migrateProject({ ...asV8(kitchen), schemaVersion: 99 })).toThrow(/newer version/);
+  });
+
+  it('carries a shop’s standards forward rather than replacing them', () => {
+    const { hardware, defaults, ...rest } = AU_SHOP_STANDARDS;
+    void hardware;
+    const { runnerSystemId, drawerSideHeightCode, hingeSystemId, ...restDefaults } = defaults;
+    void runnerSystemId;
+    void drawerSideHeightCode;
+    void hingeSystemId;
+    const v4 = { ...rest, version: 4, defaults: restDefaults, savedTypes: [] };
+
+    const migrated = migrateStandards(v4);
+    expect(migrated.version).toBe(CURRENT_STANDARDS_VERSION);
+    expect(migrated.defaults.runnerSystemId).toBe('merivobox');
+    expect(migrated.hardware.hingeSystems.map((s) => s.id)).toEqual(['clip-top-blumotion']);
+    // Kick height, reveals and shelf clearances all untouched.
+    expect(migrated.constructions[0]!.kickHeight).toBe(AU_SHOP_STANDARDS.constructions[0]!.kickHeight);
+  });
+
+  it('keeps a shop’s edited hardware rather than overwriting it with the shipped library', () => {
+    const mine = {
+      ...BLUM_HARDWARE_LIBRARY,
+      hingeSystems: [{ ...CLIP_TOP_BLUMOTION, cupEndSetback: mm(112) }],
+    };
+    const migrated = migrateProject({ ...asV8(kitchen), hardware: mine });
+    expect(migrated.hardware.hingeSystems[0]!.cupEndSetback).toBe(112);
+  });
+});
+
+describe('nothing that existed before Phase 2 has moved', () => {
+  it('keeps every pre-Phase-2 part at exactly the size and place it had', () => {
+    const kitchen = createSampleKitchen();
+    const panels = buildProject(kitchen).flatMap((b) => b.panels);
+    const old = panels.filter((p) => p.role !== 'drawer-bottom' && p.role !== 'drawer-back');
+
+    // The Phase 1 gate figures.
+    expect(old).toHaveLength(63);
+    expect(size(byName(old, 'Door L'))).toEqual([717, 447]);
+    expect(size(byName(old, 'Bottom'))).toEqual([868, 544]);
+    expect(size(byName(old, 'Side L'))).toEqual([720, 544]);
+    expect(size(byName(old, 'Drawer front 1'))).toEqual([597, 237]);
+    // Banding is unchanged: hardware adds machining, never an edge.
+    expect(byName(old, 'Door L').edgeBanding).toEqual({
+      L1: 'eb-white-1mm',
+      L2: 'eb-white-1mm',
+      W1: 'eb-white-1mm',
+      W2: 'eb-white-1mm',
+    });
+  });
+
+  it('builds the sample kitchen with no warnings, hardware and all', () => {
+    expect(buildProject(createSampleKitchen()).flatMap((b) => b.warnings)).toEqual([]);
+  });
+});

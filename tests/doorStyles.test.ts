@@ -91,6 +91,16 @@ const pocketOn = (panel: { features: readonly { kind: string }[] }): PocketFeatu
   return found as PocketFeature;
 };
 
+/**
+ * Just the machining a door *style* put on a panel.
+ *
+ * Phase 2 puts hinge cups and system holes on the same panels, so "what did the style do?" and
+ * "what features has this panel got?" are no longer the same question. Every assertion about a
+ * style asks the first one.
+ */
+const styleFeatures = (panel: { features: readonly { purpose: string }[] }) =>
+  panel.features.filter((f) => f.purpose === 'front-style');
+
 const groovesOn = (panel: { features: readonly { kind: string }[] }): ProfiledCutFeature[] =>
   panel.features.filter((f) => f.kind === 'profiled-cut') as ProfiledCutFeature[];
 
@@ -103,7 +113,10 @@ describe('a style changes machining and nothing else', () => {
   it('leaves the sample kitchen exactly as it was, because it ships on a plain slab', () => {
     expect(slabJob.defaults.doorStyleId).toBe(PLAIN_SLAB_STYLE.id);
     const door = byName(panelsOf(slabJob, 'B1').panels, 'Door L');
-    expect(door.features).toEqual([]);
+    // Nothing the *style* put there. The door does carry hinge boring — it is a door — so this
+    // asks the question it means rather than "has no features at all", which stopped being the
+    // same question the moment hardware rules existed.
+    expect(styleFeatures(door)).toEqual([]);
   });
 
   it('cuts a shaker door to the same size as a slab door', () => {
@@ -173,7 +186,7 @@ describe('shaker recess', () => {
   it('leaves the carcass alone — a style is for fronts', () => {
     const built = panelsOf(styled(slabJob, 'shaker-57'), 'B1');
     const carcass = built.panels.filter((p) => p.role !== 'door');
-    expect(carcass.every((p) => p.features.length === 0)).toBe(true);
+    expect(carcass.every((p) => styleFeatures(p).length === 0)).toBe(true);
   });
 });
 
@@ -295,8 +308,8 @@ describe('choosing a style', () => {
       ),
     };
 
-    expect(byName(panelsOf(withOverride, 'B1').panels, 'Door L').features).toHaveLength(1);
-    expect(byName(panelsOf(withOverride, 'B2').panels, 'Door').features).toEqual([]);
+    expect(styleFeatures(byName(panelsOf(withOverride, 'B1').panels, 'Door L'))).toHaveLength(1);
+    expect(styleFeatures(byName(panelsOf(withOverride, 'B2').panels, 'Door'))).toEqual([]);
   });
 
   it('falls back to a plain slab when a style has been deleted out from under a cabinet', () => {
