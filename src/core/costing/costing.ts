@@ -23,6 +23,7 @@ import { type Panel, bandedEdgeCount, bandedLength, panelExtent, panelFootprint 
 import type { GstMode, Project } from '../model/project.ts';
 import { buildProject } from '../rules/build.ts';
 import { machinedFronts } from '../rules/frontStyle.ts';
+import { type HardwareBomLine, hardwareForCabinet } from '../hardware/bom.ts';
 import { effectiveCost, gstOnSale } from './gst.ts';
 
 export interface PanelCost {
@@ -59,6 +60,15 @@ export interface CostBreakdown {
 
   readonly sheetCost: Cents;
   readonly edgeBandCost: Cents;
+  /**
+   * Runners, hinges, plates and pins.
+   *
+   * Part of `materialCost`, because it is bought stock and it picks up unclaimable GST exactly as a
+   * sheet does for an unregistered entity — but on its own line, because it is the biggest thing a
+   * Phase 1 quote was missing. A kitchen with ten hinges and three drawer sets in it was being
+   * quoted as though the hardware were free.
+   */
+  readonly hardwareCost: Cents;
   readonly materialCost: Cents;
 
   readonly labourMinutes: number;
@@ -215,7 +225,34 @@ export const costProject = (project: Project): CostBreakdown => {
 
   const sheetCost = panelCosts.reduce((s, p) => s + p.sheetCost, 0);
   const edgeBandCost = panelCosts.reduce((s, p) => s + p.edgeBandCost, 0);
-  const materialCost = sheetCost + edgeBandCost;
+
+  /*
+   * Hardware, counted from the panels each cabinet really produced — see `hardwareForCabinet`.
+   * Costed per cabinet rather than off the grouped BOM so the whole breakdown comes out of one pass
+   * over `built`, which is what stops the quote and the order form disagreeing about how many
+   * hinges there are.
+   */
+  const hardwareLines: HardwareBomLine[] = [];
+  let hardwareExGst = 0;
+  for (const b of built) {
+    for (const line of hardwareForCabinet(b, project)) {
+      hardwareExGst += line.quantity * line.unitPriceExGst;
+      hardwareLines.push({
+        ...line,
+        cabinetNames: [b.cabinet.name],
+        totalExGst: roundCents(line.quantity * line.unitPriceExGst),
+      });
+    }
+  }
+  /*
+   * Rounded **once**, at the end, for the reason `effectiveCost` states: rounding per line and then
+   * applying GST rounds twice. Unlike a sheet, a hinge is not a separately priced item on the quote
+   * — it is part of one hardware figure — so there is nothing to round in between, and doing it
+   * anyway leaves the costed hardware a cent off the BOM total for no reason anybody could explain.
+   */
+  const hardwareCost: Cents = effectiveCost(hardwareExGst, mode);
+
+  const materialCost = sheetCost + edgeBandCost + hardwareCost;
 
   const bandedEdges = panels.reduce((s, p) => s + bandedEdgeCount(p), 0);
   const labourMinutes =
@@ -264,6 +301,7 @@ export const costProject = (project: Project): CostBreakdown => {
     byMaterial,
     sheetCost,
     edgeBandCost,
+    hardwareCost,
     materialCost,
     labourMinutes,
     labourCost,
@@ -282,7 +320,9 @@ export const costProject = (project: Project): CostBreakdown => {
     gstMode: mode,
     panelCount: panels.length,
     cabinetCount: project.cabinets.length,
-    usesIndicativePricing: byMaterial.some((m) => m.indicativePricing),
+    usesIndicativePricing:
+      byMaterial.some((m) => m.indicativePricing) ||
+      hardwareLines.some((l) => l.indicativePricing),
     warnings,
   };
 };
