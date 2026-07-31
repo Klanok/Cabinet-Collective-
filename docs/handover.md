@@ -1114,10 +1114,13 @@ the features are already there waiting — a `pocket` with a tool id and an inte
 Nothing upstream has to change, which is the whole point of §2's rule that features are parametric
 and attached to panels. `library/tools.ts` is the seam the real tool library grows from.
 
-**Worth checking before Phase 5, and possibly before Phase 4:** whether the Mozaik machine can
-import a DXF or CSV cutlist. Phase 3's nest CSV and cut sequence are now real output; if that
-machine will take them, the loop closes at the saw years before a custom post-processor is
-trustworthy, and Phase 4 becomes an improvement rather than a prerequisite.
+**A note that was here has been removed, and it is worth saying why rather than leaving a gap.**
+Both this document and `docs/architecture.md` carried a suggestion that Phase 3's CSVs could be
+imported into a third-party CAM package the user's contact runs, closing the loop at the saw
+without waiting for Phases 4 and 5. It traced back to the very first commit, nothing in the repo
+sourced it, and when it was put to the user they did not recognise it. **Do not reintroduce it.**
+If a bridge to somebody else's CAM is ever worth building, it starts with the user saying whose
+and what it imports — not with a session inferring a piece of shop equipment.
 
 **5.7 is technically unblocked and should still wait.** The shared builders it wanted exist, but
 it inherits the three judgement calls listed in 5.0 — and none of those has been checked against

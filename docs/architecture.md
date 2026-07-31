@@ -265,12 +265,6 @@ because they answer different questions.
 | 4 — CAM feature layer | Reads `PanelFeature[]` directly and emits a machine-independent operation list. Nothing upstream changes. Door styles are already emitting `pocket` and `profiled-cut` features with a tool id on them; turning those into toolpaths is this phase's work, and `library/tools.ts` is the seam the real tool library grows from. |
 | 5 — post-processor + simulation | Consumes the operation list only. One machine first. |
 
-The pragmatic bridge worth checking before Phase 5, and now before Phase 4: if the Mozaik machine
-your friend runs accepts a DXF or CSV cutlist import, that gets real parts cut years before a
-custom post-processor is trustworthy. Phase 3's nest and cut-sequence CSVs are that output — the
-loop is one import away from closing at the saw, which would make Phase 4 an improvement rather
-than a prerequisite.
-
 ## Nesting, and why it is its own layer
 
 **`nest/guillotine.ts` knows about rectangles and nothing else** — no panels, no materials, no
