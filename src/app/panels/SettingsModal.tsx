@@ -98,6 +98,13 @@ const CONSTRUCTION_FIELDS: {
   { key: 'revealTop', hint: 'Above a front — under the benchtop on a base cabinet', min: 0, max: 20, step: 0.5 },
   { key: 'revealBottom', hint: 'Below a front. Zero means flush with the carcass', min: 0, max: 20, step: 0.5 },
   { key: 'revealSides', hint: 'At the left and right edge of a front', min: 0, max: 20, step: 0.5 },
+  {
+    key: 'frontStandoff',
+    hint: 'Gap behind a front — 2mm is the hinge’s natural position and leaves room for a bump stop. Push-to-open generally wants 4mm',
+    min: 0,
+    max: 20,
+    step: 0.5,
+  },
   { key: 'gapBetweenDoors', hint: 'Between two doors side by side', min: 0, max: 20, step: 0.5 },
   { key: 'gapBetweenDrawers', hint: 'Between stacked drawer fronts', min: 0, max: 20, step: 0.5 },
   { key: 'shelfSetback', hint: 'How much shallower a shelf is than the opening', min: 0, max: 60 },
@@ -114,6 +121,19 @@ const CONSTRUCTION_FIELDS: {
   { key: 'systemBackSetback', hint: 'Second hole line in from the back edge', min: 0, max: 100 },
   { key: 'systemHoleDiameter', hint: 'Shelf pin and system hole diameter', min: 3, max: 10 },
   { key: 'systemHoleDepth', hint: 'How deep a system hole is bored', min: 5, max: 30 },
+  {
+    key: 'ladderRailFloorGap',
+    hint: 'How far short of the floor a plinth’s rails are cut, so it beds on the ribs',
+    min: 0,
+    max: 40,
+  },
+  {
+    key: 'ladderFaceScribeAllowance',
+    hint: 'How much over-height the kick face is cut, to be planed in on site',
+    min: 0,
+    max: 40,
+  },
+  { key: 'ladderMaxRibGap', hint: 'Greatest clear gap between plinth ribs', min: 100, max: 1200, step: 10 },
 ];
 
 /**
@@ -386,6 +406,26 @@ function ConstructionEditor({
           >
             <option value="applied">Applied — covers the whole rear face</option>
             <option value="inset">Inset — fits between the sides</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="setting-row">
+        <div className="setting-label">
+          <span>{labelForConstructionKey('ladderFaceScribeEnd')}</span>
+          <em>Which end of the kick face the extra sits at. Not yet confirmed against a real run</em>
+        </div>
+        <div className="setting-input">
+          <select
+            value={active.ladderFaceScribeEnd ?? 'floor'}
+            onChange={(e) =>
+              onChange(active.id, {
+                ladderFaceScribeEnd: e.target.value as ConstructionMethod['ladderFaceScribeEnd'],
+              })
+            }
+          >
+            <option value="floor">At the floor — a scribe allowance</option>
+            <option value="top">At the top — under the carcass</option>
           </select>
         </div>
       </div>

@@ -300,6 +300,7 @@ export const labelForConstructionKey = (key: keyof ConstructionMethod): string =
     revealTop: 'Reveal — top',
     revealBottom: 'Reveal — bottom',
     revealSides: 'Reveal — left and right',
+    frontStandoff: 'Front standoff behind a front',
     gapBetweenDoors: 'Gap between doors',
     gapBetweenDrawers: 'Gap between drawer fronts',
     shelfSetback: 'Shelf setback',
