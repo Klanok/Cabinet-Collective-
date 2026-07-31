@@ -14,7 +14,12 @@
 import { type MaterialLibrary, actualThicknessOf } from '../model/material.ts';
 import type { HardwareLibrary } from '../model/hardware.ts';
 import type { ConstructionMethod } from '../model/construction.ts';
-import type { Project, ProjectDefaults, ProjectSettings } from '../model/project.ts';
+import {
+  DEFAULT_NESTING_SETTINGS,
+  type Project,
+  type ProjectDefaults,
+  type ProjectSettings,
+} from '../model/project.ts';
 import type { SavedCabinetType } from './savedTypes.ts';
 import { type DoorStyle, DEFAULT_DOOR_STYLES, PLAIN_SLAB_STYLE } from './doorStyles.ts';
 import {
@@ -33,7 +38,7 @@ import {
   DEFAULT_RUNNER_SYSTEM_ID,
 } from '../library/blum.ts';
 
-export const CURRENT_STANDARDS_VERSION = 6 as const;
+export const CURRENT_STANDARDS_VERSION = 7 as const;
 
 export interface ShopStandards {
   readonly version: typeof CURRENT_STANDARDS_VERSION;
@@ -45,7 +50,7 @@ export interface ShopStandards {
   readonly constructions: readonly ConstructionMethod[];
   /** Standard sizes and default materials for new cabinets. */
   readonly defaults: ProjectDefaults;
-  /** Margin, labour rates, GST context, yield allowance. */
+  /** Margin, labour rates, GST context, and the saw figures a nest depends on. */
   readonly settings: ProjectSettings;
   /** The price list. */
   readonly materials: MaterialLibrary;
@@ -334,6 +339,7 @@ export const migrateStandards = (raw: unknown): ShopStandards => {
   if (data.version === 3) data = migrateStandardsV3toV4(data);
   if (data.version === 4) data = migrateStandardsV4toV5(data);
   if (data.version === 5) data = migrateStandardsV5toV6(data);
+  if (data.version === 6) data = migrateStandardsV6toV7(data);
 
   if (data.version !== CURRENT_STANDARDS_VERSION) {
     throw new Error(`migrateStandards: could not migrate version ${String(version)}`);
@@ -434,6 +440,28 @@ const migrateStandardsV5toV6 = (raw: Record<string, unknown>): Record<string, un
       ...materials,
       benchtops: existing && existing.length > 0 ? existing : AU_BENCHTOP_MATERIALS,
     },
+  };
+};
+
+/**
+ * Standards v6 → v7: the yield allowance is replaced by the saw's own figures, matching the
+ * project's v10 → v11.
+ *
+ * A real migration again rather than a rejection, for the reason every standards migration here is
+ * one. This is the first one that **takes a setting away**: `sheetWastageFactor` goes, because the
+ * sheet count it was guessing at is now counted. A shop that had tuned it to its own experience is
+ * losing a knob for estimating something that no longer needs estimating, and gains two facts about
+ * its saw instead — the kerf and whatever it trims off a sheet edge. Both ship at the figures in
+ * `DEFAULT_NESTING_SETTINGS`, and the trim ships at zero so a shop that does not trim is not
+ * silently charged for it.
+ */
+const migrateStandardsV6toV7 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const settings = (raw.settings as Record<string, unknown> | undefined) ?? {};
+  const { sheetWastageFactor: _dropped, ...rest } = settings;
+  return {
+    ...raw,
+    version: 7,
+    settings: { ...rest, nesting: rest.nesting ?? DEFAULT_NESTING_SETTINGS },
   };
 };
 

@@ -1,4 +1,4 @@
-# Module Boundaries — Phases 1 and 2
+# Module Boundaries — Phases 1 to 3
 
 The eight-layer architecture describes the whole system. This document covers what is actually
 built, and where the seams are that later phases attach to.
@@ -53,9 +53,12 @@ src/core/                        pure model layer
     gst.ts                       10% GST, both registration contexts
     benchtopCost.ts              a bought-in top: m², cutouts, joins, edge, minimum
     costing.ts                   panels → cost breakdown
+  nest/
+    guillotine.ts                the packer: a tree of cuts, kerf, and the replay that proves it
+    nest.ts                      panels + materials → sheets; grain, sheet size, offcuts, yield
   cutlist/
     cutlist.ts                   panels → grouped cutlist lines
-    export.ts                    cutlist, hardware and drilling as CSV
+    export.ts                    cutlist, hardware, drilling, the nest and the cut sequence as CSV
   hardware/bom.ts                panels + features → a priced hardware order, and a hole count
   library/                       AU seed data: materials, dimensional defaults, cutters, Blum
   project/
@@ -76,7 +79,7 @@ src/app/                         React; depends on core, never the reverse
     RoomShell.tsx                floor polygon and wall planes
     Viewport3D.tsx               scene, camera, lighting; mm → metres happens once here
   plan/PlanView.tsx              the 2D plan: draw the room, lengths typed not dragged
-  panels/                        cabinet list, inspector, cutlist, hardware, tops, cost
+  panels/                        cabinet list, inspector, cutlist, nest, hardware, tops, cost
 
 scripts/report.ts                terminal cutlist + costing for the sample kitchen
 docs/coordinate-convention.md    the three coordinate spaces — read this first
@@ -85,9 +88,11 @@ docs/coordinate-convention.md    the three coordinate spaces — read this first
 ## The interfaces that matter
 
 **`Panel`** (`model/panel.ts`) is the contract everything downstream shares. The rule engine
-produces it; the viewport draws it; costing prices it; Phase 3 will nest it and Phase 4 will
-machine it. There is deliberately no second representation of a part — no separate costing
-model, no separate CAM model — because two representations can disagree and one cannot.
+produces it; the viewport draws it; costing prices it; **the nester lays it on a sheet**; and Phase
+4 will machine it. There is deliberately no second representation of a part — no separate costing
+model, no separate CAM model, no separate nesting model — because two representations can disagree
+and one cannot. The nester consumes `panelExtent`, which is the blank measured round the outside of
+every arc, and that is the only thing about a part it needs to know.
 
 **`PanelFeature`** (`model/feature.ts`) is the Phase 4 interface. Features are parametric and
 attached to panels rather than baked into geometry, so CAM reads "Ø35 bore, 13mm deep, at
@@ -256,11 +261,42 @@ because they answer different questions.
 | Phase | Attaches to |
 |---|---|
 | 2 — hardware/joinery, BOM export | **Done.** `PanelFeature[]` on each panel, filled by `rules/boring.ts` keyed on panel role; sizes resolved into `RuleContext` by `rules/hardware.ts`. `cutlist/export.ts` has the CSV writers; PDF is not done. Hettich is the remaining brand. |
-| 3 — guillotine nesting | Consumes `Panel` + `SheetMaterial`. `costing.ts` swaps its yield estimate for a real sheet count — the `sheetWastageFactor` path is the seam. |
+| 3 — guillotine nesting | **Done.** `nest/` consumes `Panel` + `SheetMaterial` and produces sheets, placements, an ordered cut sequence and offcuts. `costing.ts` charges whole sheets off the count; `sheetWastageFactor` is gone at schema v11. True-shape nesting for a router is a second nester, not an extension of this one. |
 | 4 — CAM feature layer | Reads `PanelFeature[]` directly and emits a machine-independent operation list. Nothing upstream changes. Door styles are already emitting `pocket` and `profiled-cut` features with a tool id on them; turning those into toolpaths is this phase's work, and `library/tools.ts` is the seam the real tool library grows from. |
 | 5 — post-processor + simulation | Consumes the operation list only. One machine first. |
 
-The pragmatic bridge worth checking before Phase 5: if the Mozaik machine your friend runs
-accepts a DXF or CSV cutlist import, that gets real parts cut years before a custom
-post-processor is trustworthy — and it turns Phase 3's output into a working end-to-end loop
-rather than an intermediate step.
+The pragmatic bridge worth checking before Phase 5, and now before Phase 4: if the Mozaik machine
+your friend runs accepts a DXF or CSV cutlist import, that gets real parts cut years before a
+custom post-processor is trustworthy. Phase 3's nest and cut-sequence CSVs are that output — the
+loop is one import away from closing at the saw, which would make Phase 4 an improvement rather
+than a prerequisite.
+
+## Nesting, and why it is its own layer
+
+**`nest/guillotine.ts` knows about rectangles and nothing else** — no panels, no materials, no
+project. What a part is, whether it may be turned and which sheet it goes on are `nest/nest.ts`'s
+questions. That split is what lets the packer be tested against hand-built cases with figures
+somebody can check in their head, which is not possible against a kitchen.
+
+**Every cut runs edge to edge, and the structure enforces it rather than a checker.** A guillotine
+cut is what a panel saw physically does, so a nest that is not guillotine-cuttable is not a nest
+this shop can cut. The packer therefore builds a **tree of cuts** rather than the usual list of free
+rectangles: placing a part *is* cutting a piece in two, so the cut sequence falls out of the packing
+with nothing to derive and nothing to get out of step. The usual list is faster and cannot say how
+the parts come off the sheet, which is the whole deliverable at the saw.
+
+`replayCuts` is the proof and is deliberately ignorant of the tree — it takes the sheet, the cuts
+and the kerf, puts the sheet on the bench and follows the instructions. What is left has to be
+exactly the parts plus the offcuts.
+
+**A nest is of blanks, not of shapes.** A radiused shelf does not come off a sheet as a curve: a
+rectangle comes off the sheet and the curve is cut from the rectangle. So `panelExtent` is the right
+input and the bounding box is not an approximation here — it is the part. A router *can* cut a shape
+out of the middle of a sheet, and nesting for one is a second nester with a different validity rule
+and no cut sequence at all, not a better version of this one.
+
+**Kerf and edge trim are shop settings, not material ones.** A sheet size and a price belong to the
+board; what your blade takes out belongs to your saw. Same split as the hinge drilling distance
+living on the construction method rather than on the hinge. Kerf ships at 3.2mm rather than at zero,
+which breaks this codebase's usual "ships off until measured" rule for one reason: zero is not a
+conservative default for a blade, it is a claim that the saw removes no material.

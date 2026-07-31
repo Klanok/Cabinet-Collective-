@@ -57,9 +57,9 @@ jobs:
         run: npm run build
 
       # The core is pure TypeScript and runs in Node, so the whole model — rule engine,
-      # costing, cutlist — can be exercised end to end without a browser. This catches a
-      # break that typechecks and has no unit test pointed at it. The second run puts a
-      # routed door style through the same path.
+      # nesting, costing, cutlist — can be exercised end to end without a browser. This
+      # catches a break that typechecks and has no unit test pointed at it. The second run
+      # puts a routed door style through the same path, and both nest the job.
       - name: Cutlist smoke run
         if: '!cancelled()'
         run: |

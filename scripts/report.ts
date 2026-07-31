@@ -30,6 +30,7 @@ import {
 import { findBenchtopMaterial } from '../src/core/model/material.ts';
 import { unconfirmedLadderFigures } from '../src/core/model/construction.ts';
 import { benchtopCharges } from '../src/core/costing/benchtopCost.ts';
+import { deepestStage, nestAreaM2, usableOffcuts } from '../src/core/nest/nest.ts';
 import { buildProject } from '../src/core/rules/build.ts';
 import { buildRunUnits } from '../src/core/rules/runUnits.ts';
 import { formatAud } from '../src/core/units.ts';
@@ -184,9 +185,43 @@ rule('MATERIALS');
 for (const m of cost.byMaterial) {
   console.log(
     `  ${m.label.padEnd(36)} ${String(m.panelCount).padStart(3)} parts  ` +
-      `${m.footprintM2.toFixed(2).padStart(6)}m²  ~${String(m.estimatedSheets).padStart(2)} sheets  ` +
+      `${m.footprintM2.toFixed(2).padStart(6)}m²  ${String(m.sheets).padStart(2)} × ` +
+      `${m.sheetLabel.padEnd(9)} ${(m.yield * 100).toFixed(0).padStart(3)}% yield  ` +
       `${formatAud(m.cost).padStart(10)}`,
   );
+}
+
+/*
+ * The nest.
+ *
+ * Printed sheet by sheet because that is the unit somebody works in: one sheet on the bench, its
+ * parts, and what is left of it. The cut sequence is in the CSV rather than here — a hundred lines
+ * of "cut at 717" is not something anybody reads off a terminal, and the drawing on the Nest tab
+ * is the version worth looking at.
+ */
+rule('NEST');
+console.log(
+  `  ${cost.nest.sheetCount} sheets, ${nestAreaM2(cost.nest).toFixed(2)}m² of board · ` +
+    `${cost.nest.kerf}mm kerf` +
+    `${cost.nest.edgeTrim > 0 ? `, ${cost.nest.edgeTrim}mm trimmed off each edge` : ', no edge trim'}` +
+    ` · deepest cut ${deepestStage(cost.nest)} stages`,
+);
+for (const m of cost.nest.byMaterial) {
+  console.log(`\n  ${m.label} — ${m.sheetCount} × ${m.sheet.length}×${m.sheet.width}`);
+  for (const sheet of m.sheets) {
+    const keepers = usableOffcuts(sheet, project.settings.nesting.usableOffcutMin);
+    console.log(
+      `    Sheet ${sheet.index}:  ${String(sheet.placements.length).padStart(3)} ` +
+        `${sheet.placements.length === 1 ? 'part ' : 'parts'}  ` +
+        `${(sheet.yield * 100).toFixed(0).padStart(3)}% used  ` +
+        `${String(sheet.cuts.length).padStart(3)} cuts  ` +
+        (keepers.length > 0
+          ? `offcuts ${keepers
+              .map((o) => `${Math.round(o.length)}×${Math.round(o.width)}`)
+              .join(', ')}`
+          : 'no offcut worth keeping'),
+    );
+  }
 }
 
 rule('COST');

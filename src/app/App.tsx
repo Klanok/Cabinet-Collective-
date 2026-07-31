@@ -18,13 +18,14 @@ import { CabinetList } from './panels/CabinetList.tsx';
 import { Inspector } from './panels/Inspector.tsx';
 import { CostPanel } from './panels/CostPanel.tsx';
 import { CutlistPanel } from './panels/CutlistPanel.tsx';
+import { NestPanel } from './panels/NestPanel.tsx';
 import { HardwarePanel } from './panels/HardwarePanel.tsx';
 import { BenchtopPanel } from './panels/BenchtopPanel.tsx';
 import { SettingsModal } from './panels/SettingsModal.tsx';
 import { PlanView } from './plan/PlanView.tsx';
 import { exportProjectFile, importProjectFile } from './store/persistence.ts';
 
-type Tab = 'cutlist' | 'hardware' | 'tops' | 'cost';
+type Tab = 'cutlist' | 'nest' | 'hardware' | 'tops' | 'cost';
 type View = '3d' | 'plan';
 
 export default function App() {
@@ -239,6 +240,12 @@ export default function App() {
               Cutlist
             </button>
             <button
+              className={`tab${tab === 'nest' ? ' is-active' : ''}`}
+              onClick={() => setTab('nest')}
+            >
+              Nest
+            </button>
+            <button
               className={`tab${tab === 'hardware' ? ' is-active' : ''}`}
               onClick={() => setTab('hardware')}
             >
@@ -258,6 +265,8 @@ export default function App() {
             </button>
           </nav>
           {tab === 'cutlist' && <CutlistPanel lines={cutlist} project={project} />}
+          {/* The nest the quote was costed from, not a second one — see `CostBreakdown.nest`. */}
+          {tab === 'nest' && <NestPanel project={project} nest={cost.nest} />}
           {tab === 'hardware' && <HardwarePanel project={project} />}
           {tab === 'tops' && (
             <BenchtopPanel

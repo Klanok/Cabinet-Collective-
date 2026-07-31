@@ -3,15 +3,16 @@
 Parametric cabinet CAD, built around Australian joinery practice, with a roadmap toward
 CAM/G-code output.
 
-**Phases 1 and 2 are complete**: a room with parametric cabinets, real per-part geometry, a
-grouped cutlist, Blum hardware and the drilling that goes with it, and costing that handles GST
-properly — all driven from one versioned project model.
+**Phases 1, 2 and 3 are complete**: a room with parametric cabinets, real per-part geometry, a
+grouped cutlist, Blum hardware and the drilling that goes with it, a guillotine nest with the cut
+sequence to work from at the saw, and costing that handles GST properly — all driven from one
+versioned project model.
 
 ```bash
 npm install
 npm run dev       # the app
-npm test          # 481 tests
-npm run report    # cutlist, hardware order, drilling and costing for the sample kitchen
+npm test          # 596 tests
+npm run report    # cutlist, hardware order, drilling, nest and costing for the sample kitchen
 ```
 
 ## What it does today
@@ -31,7 +32,7 @@ one copy of each part in the system.
 
 The sample kitchen is a 4200mm base run with 2400mm of wall cabinets over it: 8 cabinets and a
 dishwasher space, 87 parts, 37 cutlist lines, 3 MERIVOBOX drawer sets, 22 hinges, 554 holes, one
-stone benchtop and two ladder bases, ~$7,400 on the seeded rates.
+stone benchtop and two ladder bases, 5 sheets of board, ~$7,600 on the seeded rates.
 
 ## Hardware and drilling
 
@@ -224,6 +225,42 @@ Setting a radius **defaults the cabinet to no doors and no shelves**, because th
 for one is a decorative end rather than a cupboard. Ask for a door and you'll get one, sized to
 what the curve left.
 
+## Nesting
+
+The **Nest** tab lays the job out on real sheets and shows you each one, coloured by which cabinet
+the parts belong to. Two CSVs come off it: the layout, and the **cut sequence** — what to do at the
+saw, in order, with the fence setting for every cut.
+
+Every cut runs **edge to edge**, because that is what a panel saw does. You cannot cut a shape out
+of the middle of a sheet with one, so the nest never asks you to: each cut splits a piece in two,
+and the sequence you get is the sequence that made it. A curved part is nested as the **rectangular
+blank** it is cut from, measured round the outside of the curve, and the curve is cut from the
+blank afterwards — which is how you'd make it anyway.
+
+Three numbers are yours, under **Settings**:
+
+- **Saw kerf** — what the blade takes out on every cut. Ships at 3.2mm, a thin-kerf panel saw
+  blade. This one is *not* optional: two 600mm parts fit across a 1200mm sheet at zero kerf and
+  don't at 3.2, so leaving it at zero would nest parts into space that isn't there.
+- **Sheet edge trim** — what you take off each edge to square a sheet up. Ships at **0**, because a
+  shop that doesn't trim isn't trimming, and guessing 10mm would shrink every sheet in every job.
+- **Smallest useful offcut** — what's worth putting back on the rack. Reporting only; nothing is
+  cut from an offcut.
+
+Grain is respected in both directions. On a grained board a part whose grain runs along it is never
+turned, and a part whose grain runs *across* it always is — that second case is why this isn't a
+"can it rotate?" flag.
+
+**The quote charges whole sheets.** It used to charge part area with a wastage allowance over it,
+which billed 3.23 sheets on a job whose own materials table said four. Nobody sells a third of a
+sheet. The nest counts them, you're charged for what you buy, and what's left over shows up as
+offcut rather than being quietly deducted from board that's already in the van. A saved job opened
+in this version gets **dearer** for that reason, and the version number changes so an older build
+refuses the file rather than quoting it the old way.
+
+The sample kitchen comes out at 5 sheets: four of carcass board at 95/93/80/6% used, and one of
+door board at 75%.
+
 ## What the board measures, not what it's called
 
 Nominal 16mm melamine runs about 16.3. Anything that has to fit *between* two boards depends on
@@ -328,7 +365,7 @@ Two more documents are worth reading before changing anything:
   spaces (world, cabinet, part) and why the A-face is defined the way it is. This is the
   decision that's painful to change later, so it's fixed and written down.
 - **[docs/architecture.md](docs/architecture.md)** — module boundaries, the interfaces that
-  matter, and where phases 2–5 attach.
+  matter, and where phases 4–5 attach.
 
 Adding a cabinet type is a spec file plus a registry line. It does not touch the geometry
 engine, the viewport or costing — `base`, `wall` and `drawer-bank` already share their carcass
@@ -336,7 +373,7 @@ builders, which is the test of whether that's actually true.
 
 ## Verification
 
-481 tests, and the ones that matter are hand-calculated rather than snapshot:
+596 tests, and the ones that matter are hand-calculated rather than snapshot:
 
 - Every part size for the reference 900×720×560 base cabinet, worked out longhand in the test
   file header and asserted individually.
@@ -356,6 +393,10 @@ builders, which is the test of whether that's actually true.
 - That a job and the shop standards stay isolated: editing one never touches the other, two
   jobs from the same standards stay independent, and a shop building to an 18mm carcass on a
   100mm kick gets parts and placements to match.
+- That the **nest is a nest you can cut**: no two blanks overlap, none hangs off the board, and
+  the cut sequence replays — starting from a bare sheet and following the list — back to exactly
+  the parts and the offcuts. Move one cut 5mm and the replay finds six problems, which is what
+  makes that a proof rather than a claim.
 - That a shaker door is the same rectangle a slab door is: same size, same placement, same
   banding, same material, same number of cutlist lines, and the same sheet cost. Only the
   routing line on the quote moves.
@@ -400,10 +441,12 @@ having something other than memory re-checking it.
 | — | An appliance space, so a top runs over a dishwasher and not over a fridge | **done** |
 | — | Waterfall and mitred benchtop corners linked to each other, not just flagged per top | not started |
 | — | Wall openings — bulkheads, windows, out-of-square walls and scribes | not started |
-| 3 | Guillotine nesting for sheet goods, offcut tracking | not started |
+| 3 | Guillotine nesting — real sheets, an ordered cut sequence, offcuts, whole-sheet costing | **done** |
+| — | Mixing sheet sizes within one material, so a nearly-empty last sheet can be a small one | not started |
+| — | Nesting into offcuts you actually have on the rack | not started |
 | 4 | CAM feature layer — toolpaths from the features Phase 2 and the door styles emit | not started |
 | 5 | One post-processor + simulation/backplot | not started |
-| 6+ | Free-form CNC nesting, more post-processors, more hardware rule sets | not started |
+| 6+ | True-shape nesting for a router, more post-processors, more hardware rule sets | not started |
 
 Material pricing is still indicative — the decor names and sheet sizes are real, the dollars are
 placeholders. Load your trade pricing before quoting from this.

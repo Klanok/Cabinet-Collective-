@@ -27,15 +27,21 @@ size; and **Phase 2 — hardware and joinery rules** (§4.6): MERIVOBOX drawer b
 runner, CLIP top hinge boring, runner and System 32 drilling, a hardware BOM on the quote, and
 CSV export; and **benchtops and ladder bases** (§4.7), the two things that span a run of cabinets
 and belong to none of them, which is also where the appliance space arrived — a dishwasher takes a
-top over it and a fridge does not, and nothing geometric tells them apart. Section 4 records how
-each works and why; section 5 is what is actually left to do.
+top over it and a fridge does not, and nothing geometric tells them apart.
+
+**Phase 3 — guillotine nesting (§4.8) has since shipped.** The job is laid out on real sheets, the
+cut sequence comes out of the packing rather than being derived from it, and the quote charges
+**whole sheets** off the count instead of fractional ones off an assumed yield. That is the second
+migration in the file that deliberately re-prices a saved job, and it says so out loud.
+
+Section 4 records how each works and why; section 5 is what is actually left to do.
 
 ```
 npm install
 npm run dev       # the app
-npm test          # 481 tests
+npm test          # 596 tests
 npm run build
-npm run report    # cutlist, hardware BOM, drilling and costing for the sample kitchen
+npm run report    # cutlist, hardware BOM, drilling, nest and costing for the sample kitchen
 npm run report -- shaker-57    # the same kitchen with routed fronts
 ```
 
@@ -61,6 +67,7 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | Door styles — shaker, V-groove, routed MDF | **Model half done — toolpaths are Phase 4, see 5.3** |
 | Tool profiles — a cutter's cross-section | Defined; a short shipped list, no editor |
 | Costing — GST both contexts, install, delivery | Working, on placeholder pricing |
+| Sheet cost | **Whole sheets, counted off a real nest.** The yield allowance is gone — see 4.8 |
 | Nominal vs actual board thickness | Working, off until you measure a board |
 | Cutlist — grouped lines | Working, CSV export; no PDF |
 | Shop standards + per-job settings | Working, persisted to browser |
@@ -77,8 +84,10 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | Curved / radiused parts — arcs, bowed shelves, radiused ends | Working, see 4.4 |
 | A corner radius on a base, wall or tall cabinet | Working — bendy ply and formers, see 4.5 |
 | The same corner routed from door board instead | **Not started — see 5.7, now unblocked** |
-| Nesting a curved part | **Still bounding-box only — see 5.1** |
-| Nesting, CAM, post-processor | Not started |
+| Guillotine nesting — sheets, cut sequence, offcuts | **Working, see 4.8.** Nest tab, two CSVs |
+| Nesting a curved part | **Nested as its blank, which is right for a saw — see 4.8** |
+| True-shape nesting for a router | Not started — a different cutting model, see 5.8 |
+| CAM, post-processor | Not started |
 
 ---
 
@@ -114,12 +123,18 @@ materials.
 
 **Migrations must never quietly change anyone's parts.** Every migration carries old values
 forward so a saved job cuts exactly as it did; adopting a new default is then a deliberate
-edit. Schema is at **v9**; migrations run in sequence in `model/project.ts`. Shop standards are
-versioned separately and are at **v5** — and they get a *real* migration rather than a
+edit. Schema is at **v11**; migrations run in sequence in `model/project.ts`. Shop standards are
+versioned separately and are at **v7** — and they get a *real* migration rather than a
 rejection, because refusing to load them silently replaces a shop's accumulated kick heights,
 reveals, door styles and saved cabinet types with the shipped Australian defaults.
 
-**v9 is the one exception, and it says so out loud.** No part that already existed moves — that
+**v9 and v11 are the two exceptions, and both say so out loud.** They are the same argument twice:
+no part that already existed moves, and the job gets dearer because it was being quoted for less
+than it takes to build. v9 added the hardware a kitchen always had; v11 charges the board a
+kitchen always took. Both halves of each are asserted separately — `tests/hardware.test.ts` and
+`tests/nesting.test.ts` — so nobody has to wonder whether a re-price was an accident.
+
+**v9, in detail.** No part that already existed moves — that
 half of the rule is kept, and it is the half that protects a job on the saw. But a migrated job
 gets *dearer*, because a drawer bank now cuts the boxes Phase 1 left out and the hinges and
 runners now appear on the quote. A kitchen with ten hinges and three drawer sets in it was being
@@ -203,6 +218,28 @@ actual one (what it measures). Every part is calculated from the actual figure, 
 what a part has to fit between. A construction method describes how parts go together and has
 no thickness field at all; it briefly had one, "the nominal it was built around", and that was
 one place too many claiming to know a single fact.
+
+**Board is bought by the sheet, so the quote charges whole sheets.** It used to charge part area
+divided by an assumed yield, which had two faults and only one of them was that it was a guess: it
+billed **fractional sheets** — 3.23 of them on a sample kitchen whose own materials table said four
+— and it applied one allowance to every material and every part size. Nobody sells a third of a
+sheet. The nest counts them, the count is what is charged, and what is left over is reported as
+offcut rather than quietly deducted from the price of board that was bought. A smaller part is not
+a cheaper part; it is a part with more offcut beside it, and the offcut is on the rack either way.
+
+**A nest is of blanks, not of shapes, and for a saw that is correct rather than a shortcut.** A
+guillotine cut runs edge to edge, so a radiused shelf does not come off the sheet as a curve — a
+rectangle comes off the sheet and the curve is cut from the rectangle afterwards. The blank is
+therefore what the sheet has to hold, which is `panelExtent`, measured round the *outside* of every
+arc. §5.1 read this as a gap waiting for true-shape nesting; it is a gap for a **router**, and a
+router nest is a different cutting model rather than a better version of this one.
+
+**The cut sequence falls out of the packing; it is never derived from it.** Placing a part *is*
+cutting a piece in two, so the packer builds a tree of cuts rather than the usual list of free
+rectangles. That costs some speed and buys the thing the shop actually needs — an ordered list of
+cuts that is guillotine-valid by construction rather than by a checker bolted on afterwards.
+`replayCuts` puts the sheet back on the bench, follows the instructions knowing nothing about the
+tree, and reports what comes off. Move one cut 5mm and it finds six problems.
 
 **A cabinet's position is its placement — anchor and yaw — and nothing else.** "Against the
 north wall, 600 from the corner" is computed from that every time it's shown, never stored
@@ -965,6 +1002,100 @@ builders, with each part's unit-space volume documented; `costing/benchtopCost.t
 fabricator's charges; `rules/specs/applianceSpace.ts` for the gap that is not geometric.
 `tests/runUnits.test.ts` is the contract and carries the longhand charge arithmetic in its header.
 
+### 4.8 Guillotine nesting — Phase 3
+
+Definition of done was stated as ten assertions before anything was written, per §6, and all of them
+pass. The short version: **every cut runs edge to edge, because that is what a panel saw does**, and
+**the cut sequence falls out of the packing rather than being derived from it**.
+
+**What shipped.** Every part in a job laid onto real sheets, per material, with the sheet size
+chosen by what the job costs. A **Nest** tab drawing each sheet, coloured by which cabinet a part
+belongs to. Two CSVs — the layout, and the cut sequence to work from at the saw. A NEST section in
+`npm run report`. Offcuts reported above the shop's own smallest-useful figure. And the quote's
+sheet cost is now whole sheets off the count instead of fractional ones off an assumed yield.
+
+**The sample kitchen.** 87 parts onto 5 sheets: four of white HMR 16mm at 95/93/80/6% and one of
+Classic White 18mm door board at 75%. Sheet goods went from **$593.93 to $720.00**, and the whole
+job from $7,449.31 to $7,636.52 — 2.5% on a job that was being quoted a third of a sheet short.
+
+#### Decisions worth not undoing
+
+- **The packer builds a tree of cuts, not a list of free rectangles.** The list is the usual way to
+  write this and it is faster, but it cannot say how the parts come off the sheet — and "how it
+  comes off" is the entire deliverable at the saw. Placing a part *is* cutting a piece in two, so
+  the sequence is produced rather than reconstructed, and nothing can get out of step with it.
+- **`replayCuts` is the proof, and it is deliberately ignorant.** It knows the sheet, the cuts and
+  the kerf, and nothing about the tree. It puts the sheet on the bench and follows the list; a cut
+  that names a piece not there, or lands outside it, or fails to span it, has nowhere to be made.
+  What is left at the end has to be exactly the parts plus the offcuts. Corrupting one cut by 5mm
+  produces six complaints; swapping two produces nine; pretending the kerf is zero produces
+  twenty-nine. **That is what makes this checkable rather than plausible**, and it is the §7 lesson
+  for the fourth time — a nest with a part 8mm out looks exactly as convincing as a correct one.
+- **Kerf does not ship at zero.** Every other figure in this codebase that changes a saved job ships
+  off until somebody enters it — `actualThickness`, `sheetEdgeTrim`. Kerf cannot, because zero is
+  not a conservative default here, it is a *claim*: that the saw removes no material. Two 600mm
+  parts fit across a 1200mm sheet at zero kerf and do not at 3.2. It ships at 3.2, a thin-kerf panel
+  saw blade; a router nest wants the cutter diameter.
+- **Kerf and edge trim are the shop's, not the board's.** A sheet size and a price belong to the
+  material; what your blade takes out belongs to your saw. Same split as the hinge drilling distance
+  living on the construction method rather than on the hinge.
+- **Grain is a lookup, not a boolean.** "May this part rotate?" is the wrong question, because two
+  of the six cases *require* rotation — a part whose grain runs across it, on a board whose grain
+  runs along, has to be turned. A nester that only knows how to decline rotation lays those the
+  wrong way round and passes every test that checks the part fits. `orientationsFor` takes both
+  records and returns the ways round that are legal, which may be one, and which one it is matters.
+- **One sheet size per material, chosen by cost.** Every size the material comes in is nested in
+  full and the cheapest wins; a size that cannot hold every part loses to one that can, however
+  cheap it is per square metre. A sheet size is what goes on the supplier order, and a nest mixing
+  3600×1800 and 2400×1200 across one material is an order whose first line is "work out which of
+  these is which". See §5.8 — there is a real cost to this and it is written down.
+- **Eighteen strategies are run and the best kept.** A nest is a search, and no single heuristic
+  wins on every job — that is the state of the art, not a gap here. The packer is cheap enough to
+  run eighteen times on a kitchen, and picking one in advance costs sheets to save microseconds.
+  The comparison is fewest unplaced, then fewest sheets, then **biggest single offcut** — between
+  two nests that buy the same board, the one that leaves its waste in one piece is worth more,
+  because that piece goes on the rack and gets used. Every comparison is strict and the strategy
+  order is fixed, so the same job nests the same way every time it is opened.
+- **The quote carries the nest it was costed from.** `CostBreakdown.nest`, read by the report and by
+  the Nest tab. Nesting the job twice and comparing the numbers is the kind of thing that agrees
+  until the day it doesn't.
+- **A part too big for any sheet is charged one, as a floor.** It cannot be cut as drawn, so there
+  is no honest figure — but a zero would quietly take the part off the quote. It is warned about by
+  name, it is on the nest CSV marked `NOT NESTED`, and the warning says the figure is a floor.
+- **Costing no longer asks whether a part fits.** It used to, with `smallestSheetFitting`; the nest
+  answers it now. Two places testing the same thing is two places that can disagree.
+- **A part's share of the board is a share, not a price.** Which part pushed a job onto its fifth
+  sheet is not a question with an answer. The shares are apportioned by blank area with the rounding
+  remainder **carried** rather than dropped, so the parts column sums to the material's cost
+  exactly — a table a few cents off the quote is the sort of thing that costs an afternoon and
+  cannot be defended when somebody finds it.
+
+#### What this found, which is worth knowing
+
+**Measuring a board no longer changes what a job costs.** Two tests used to assert the opposite, and
+they were right at the time: when sheet cost was a continuous function of area, 0.6mm off every
+carcass part moved the money. Under whole sheets it does not, unless it happens to tip a part onto
+or off one. Both tests were rewritten to assert the truer thing — the parts move, the sheet order
+does not — because the tempting reading of a nest is that a smaller part is a cheaper part, and it
+is not.
+
+#### What is not done, deliberately
+
+- **True-shape nesting.** See §5.8. It is a router's problem and a different cutting model.
+- **Mixing sheet sizes within one material.** See §5.8, with the sample kitchen's own example.
+- **Offcuts are not stock.** They are reported, never consumed. A nest that quietly ate last job's
+  leftovers would be a nest nobody could check against the board actually in the shop.
+- **Nothing enforces a stage limit.** The sample kitchen's deepest cut is 16 stages, which a beam
+  saw does happily and a basic two-stage saw does not. `Cut.stage` is on every cut and the report
+  prints the deepest, so a shop with that constraint can see it. Inventing a limit nobody has asked
+  for would be worse than reporting the number.
+
+**Where to look:** `nest/guillotine.ts` for the packer, the cut tree and the replay, with each
+heuristic's reasoning written out; `nest/nest.ts` for materials, grain and sheet-size choice;
+`costing/costing.ts` for the apportionment; `cutlist/export.ts` for the two CSVs;
+`app/panels/NestPanel.tsx` for the drawing. `tests/nesting.test.ts` is the contract and carries the
+longhand reference figures in its header.
+
 ---
 
 ## 5. Open items, in the order I'd do them
@@ -974,10 +1105,19 @@ fabricator's charges; `rules/specs/applianceSpace.ts` for the gap that is not ge
 **5.5 and 5.6 have shipped together — see 4.7.** They wanted the same answer to "what owns a thing
 that spans a run?", so doing them apart would have meant answering it twice.
 
-**If asked which to do next: Phase 3, nesting.** It is the next numbered phase, it is the largest
-thing left, and `panelFootprint` is the seam — it is the bounding box today, which is correct for a
-saw and wasteful for a router, and every curve in the model is waiting on a nester that can read it.
-It also replaces the sheet estimate that every quote in this tool currently carries a warning about.
+**Phase 3 has shipped — see 4.8.** What is left of it is in the new §5.8, and none of it blocks
+anything.
+
+**If asked which to do next: Phase 4, the CAM feature layer.** It is the next numbered phase and
+the features are already there waiting — a `pocket` with a tool id and an internal corner radius, a
+`profiled-cut` with a tool and a path, and every hole in the job as a `drill` or a `drill-line`.
+Nothing upstream has to change, which is the whole point of §2's rule that features are parametric
+and attached to panels. `library/tools.ts` is the seam the real tool library grows from.
+
+**Worth checking before Phase 5, and possibly before Phase 4:** whether the Mozaik machine can
+import a DXF or CSV cutlist. Phase 3's nest CSV and cut sequence are now real output; if that
+machine will take them, the loop closes at the saw years before a custom post-processor is
+trustworthy, and Phase 4 becomes an improvement rather than a prerequisite.
 
 **5.7 is technically unblocked and should still wait.** The shared builders it wanted exist, but
 it inherits the three judgement calls listed in 5.0 — and none of those has been checked against
@@ -992,10 +1132,14 @@ What is left of 5.3 is mostly Phase 4 work. 5.1 and 5.0 are both small tails.
 The feature is built and merged; see **4.5** for what it does and why it is that way. What
 remains are gaps rather than missing work, and none of them blocks anything.
 
-- **Nesting reads a radiused corner as its bounding box**, the same as every other curve. 5.1's
-  known gap and Phase 3's problem.
+- ~~**Nesting reads a radiused corner as its bounding box.**~~ **Answered, and the answer is that
+  this was never a gap for a saw.** A guillotine cut cannot follow a curve, so the sheet has to hold
+  the blank and the curve is cut from the blank afterwards — see 4.8. What the nest does have to get
+  right is that the blank is measured round the *outside* of the arc, which `panelExtent` has done
+  since §4.4 and `tests/nesting.test.ts` now asserts on a skin and a bowed shelf. A router nest that
+  reads the true shape is §5.8.
 - **The plan view draws a cabinet's footprint as a rectangle**, so a radiused corner reads
-  square there. Cosmetic, and the same limitation `panelFootprint` has.
+  square there. Cosmetic.
 - **A benchtop over a radiused base cabinet is still a rectangle.** The cabinet's box does not
   shrink, so the top is the right size — but its corner is square over a round cabinet. A benchtop
   is its own object now (§4.7), so this is a real thing to fix — give the top an arc — rather than a
@@ -1037,11 +1181,12 @@ that is wrong**, because the vertices were never what broke. Measure the thing i
 centroids against the true radius — and derive test dimensions the way the code does rather than
 typing a rounded literal.
 
-- **Nesting doesn't understand a curve.** `panelFootprint` is the bounding box, so a radiused
-  shelf reserves the rectangle it fits inside and the offcut between the curve and the corner
-  is invisible. That is correct for a saw and wasteful for a router, and it is Phase 3's
-  problem rather than something to pre-solve — the arc is in the model now, so a nester can
-  read it when there is one.
+- ~~**Nesting doesn't understand a curve.**~~ **Half of this was a misreading and is now
+  corrected.** A radiused shelf reserving the rectangle it fits inside is not a gap for a *saw*, it
+  is what cutting one on a saw means: the blank comes off the sheet and the curve is cut from the
+  blank. §4.8 says so at length. The offcut between the curve and the corner is genuinely invisible
+  to a **router**, which could nest another part into it — and that is §5.8, a different cutting
+  model rather than a better version of the same one.
 - **The pocketed melamine panel** — pocketing the back of a panel leaving straight fixing
   sections — is still deferred, and was deferred by the user as too complicated for now. The
   ground is prepared: it is a flat part plus a groove pattern the feature system already holds,
@@ -1132,7 +1277,7 @@ speculatively.
   a bench-height custom carcass arguably should. Needs a rule, or a per-cabinet flag. Note the
   appliance space (§4.7) is the shape of the answer: a flag saying what a unit does, not a guess
   from its geometry.
-- Nesting still estimates sheets from area × a yield allowance. Phase 3 replaces it.
+- ~~Nesting still estimates sheets from area × a yield allowance.~~ **Done — see 4.8.**
 - A corner where two runs meet at 90° leaves whatever gap the cabinet sizes leave; there is no
   corner cabinet type and no check that the two runs don't foul each other's doors. This was waiting
   on the hardware rules, which now exist — `doorSwing` is read by the boring pass, so the information
@@ -1212,6 +1357,41 @@ and no schema change — which is the opposite of bendy ply, which earned its ow
 machined from something thicker, or something else again. That decides the parts, and it is not
 worth guessing — the developed length only means something if the piece actually bends.
 
+### 5.8 Nesting — what is left after 4.8
+
+**Built and merged; see 4.8 for what it does and why.** What remains, none of it blocking:
+
+- **One sheet size per material, and it costs something real.** The sample kitchen's fourth carcass
+  sheet holds a single 720×544 side panel. A 3600×1800 costs $138 and a 2400×1200 costs $63, so
+  finishing that job on a small sheet would save $75 — and the model will not, because it picks one
+  size per material. That is a defensible ordering decision (§4.8) rather than an oversight, but the
+  number is real and the fix is bounded: `MaterialNest.sheet` becomes plural, `NestedSheet` already
+  carries its own `usable` rectangle, and the search gains a per-sheet size choice. **Worth doing
+  the next time somebody actually looks at a sheet order and asks about it.**
+- **True-shape nesting, for a router.** A CNC can cut a part out of the middle of a sheet, so a
+  radiused shelf's corner offcut could take another part — which a guillotine can never do. This is
+  Phase 6 in the README's roadmap and it is genuinely a *second* nester rather than an improvement
+  to this one: different cutting model, different validity rule, and no cut sequence at all because
+  a router has a toolpath instead. The arcs are all in the model waiting for it. Do not try to make
+  one nester do both.
+- **The last sheet is not balanced.** First-fit fills sheets 1 to 3 and leaves the remainder on the
+  last one, which is why the sample's fourth sheet is at 6%. Spreading the parts evenly would look
+  tidier and cost exactly the same, so it is deliberately not done — but a shop that wants to cut
+  one sheet a day rather than all four might disagree.
+- **Offcuts are reported, never used.** Recording what is actually on the rack and nesting into it
+  is a real feature and a big one: it needs stock to be a thing the app owns, with offcuts consumed,
+  returned and going stale. Until then a nest can be checked against the shop; after it, it cannot
+  unless the stock record is right.
+- **Nothing enforces a two- or three-stage limit.** `Cut.stage` is reported and the sample reaches
+  16. A shop whose saw cannot do that needs the packer constrained rather than the number printed,
+  and it is a real constraint to add — but nobody has said their saw has it.
+- **Bendy ply's barrel/column form still isn't recorded**, and now it matters more: it constrains
+  which way a skin may be turned on the sheet, which is exactly what `orientationsFor` decides. It
+  is *not* `GrainDirection` — see 5.1 — so the nester currently turns bendy ply freely. On a job
+  with a radius in it, check the sheet before cutting; the parts carry a note saying so.
+- **No labels or barcodes on the nest.** A part's position is on the CSV and on screen. A shop that
+  wants a printed label per part is asking for a layout job rather than a nesting one.
+
 ---
 
 ---
@@ -1244,7 +1424,7 @@ browser, which catches a break that typechecks and has no unit test aimed at it.
 run independently rather than stopping at the first failure, so one push reports everything that
 is wrong.
 
-Three things get asserted separately and all of them matter:
+Four things get asserted separately and all of them matter:
 - **part size** — what goes on the cutlist
 - **the cabinet-space box each panel occupies** — a left side carrying a right side's
   placement is the same size and completely wrong
@@ -1252,5 +1432,16 @@ Three things get asserted separately and all of them matter:
   measured from the wrong edge of a side panel is the same number of holes at the same diameter, so
   a test that counts them passes. `drillingStaysOnThePart` in `tests/helpers.ts` is the catch-all
   version of this and runs over every cabinet type at two widths and both hands.
+- **where each blank lands on its sheet, and that the cuts really make it** — added in §4.8. This
+  is the same lesson a fourth time: a nest with a part 8mm out, or two parts overlapping by a
+  millimetre, or a cut no saw could make, looks exactly as convincing as a correct one. So nothing
+  asserts that a nest looks reasonable. `auditNest` in `tests/nesting.test.ts` checks overlap and
+  containment, and `replayCuts` follows the cut list knowing nothing about how it was produced.
 
 Keep that standard. It is what made the errors found from the bench cheap to fix.
+
+One more thing worth keeping, from §4.8: **the app was checked by reading the rendered SVG back**,
+not by looking at the screenshot. 87 rectangles came out of the Nest tab's DOM and were asserted
+not to overlap and not to hang off the board — the same question the suite asks of the model, asked
+of what is actually on screen. A picture is the right thing to *show* somebody and the wrong thing
+to verify against.
