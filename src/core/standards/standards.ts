@@ -11,7 +11,7 @@
  * visible as such.
  */
 
-import { type MaterialLibrary, actualThicknessOf } from '../model/material.ts';
+import { type MaterialLibrary, actualThicknessOf, withResolvedColours } from '../model/material.ts';
 import type { HardwareLibrary } from '../model/hardware.ts';
 import type { ConstructionMethod } from '../model/construction.ts';
 import type { Project, ProjectDefaults, ProjectSettings } from '../model/project.ts';
@@ -24,7 +24,11 @@ import {
   withLadderKick,
   withSystemHoles,
 } from '../model/construction.ts';
-import { AU_BENCHTOP_MATERIALS, AU_MATERIAL_LIBRARY } from '../library/materials.au.ts';
+import {
+  AU_BENCHTOP_MATERIALS,
+  AU_MATERIAL_LIBRARY,
+  AU_SHEET_MATERIALS,
+} from '../library/materials.au.ts';
 import { AU_DEFAULT_SETTINGS, AU_PROJECT_DEFAULTS } from '../library/defaults.au.ts';
 import {
   BLUM_HARDWARE_LIBRARY,
@@ -33,7 +37,7 @@ import {
   DEFAULT_RUNNER_SYSTEM_ID,
 } from '../library/blum.ts';
 
-export const CURRENT_STANDARDS_VERSION = 6 as const;
+export const CURRENT_STANDARDS_VERSION = 7 as const;
 
 export interface ShopStandards {
   readonly version: typeof CURRENT_STANDARDS_VERSION;
@@ -334,6 +338,7 @@ export const migrateStandards = (raw: unknown): ShopStandards => {
   if (data.version === 3) data = migrateStandardsV3toV4(data);
   if (data.version === 4) data = migrateStandardsV4toV5(data);
   if (data.version === 5) data = migrateStandardsV5toV6(data);
+  if (data.version === 6) data = migrateStandardsV6toV7(data);
 
   if (data.version !== CURRENT_STANDARDS_VERSION) {
     throw new Error(`migrateStandards: could not migrate version ${String(version)}`);
@@ -434,6 +439,25 @@ const migrateStandardsV5toV6 = (raw: Record<string, unknown>): Record<string, un
       ...materials,
       benchtops: existing && existing.length > 0 ? existing : AU_BENCHTOP_MATERIALS,
     },
+  };
+};
+
+/**
+ * Standards v6 → v7: the screen colours backfilled, matching the project's v10 → v11.
+ *
+ * A shop that saved its standards before `SheetMaterial.colour` existed has the same hole a job
+ * does, and it is worse here — every job started from those standards inherits the colourless list
+ * and renders every decor the same. Filling it at the source stops that repeating.
+ *
+ * A colour a shop has deliberately set is left alone. Nothing is cut, priced or ordered from one.
+ */
+const migrateStandardsV6toV7 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const materials = (raw.materials as Record<string, unknown> | undefined) ?? {};
+  const sheets = (materials.sheets as Record<string, unknown>[] | undefined) ?? [];
+  return {
+    ...raw,
+    version: 7,
+    materials: { ...materials, sheets: withResolvedColours(sheets, AU_SHEET_MATERIALS) },
   };
 };
 

@@ -1127,9 +1127,10 @@ speculatively.
   it — the decor name is the fact. Editable per job under Settings → Materials, and reported in
   the standards diff so a changed colour cannot make a job read as drifted with nothing listed.
   **One flat hex per decor was always the cheap version**, and the bench has since asked for real
-  textures — see §5.8. Note also that nothing backfills this field onto a job saved before it
-  existed, so such a job renders every decor in its role colour and changing a decor appears to do
-  nothing. Resetting the job to standards fixes it; a migration should.
+  textures — see §5.8. ~~Nothing backfills this field onto a job saved before it existed.~~ **Fixed
+  in project v11 / standards v7**, after it was reported from the bench as "changing the door to
+  Notaio Walnut has done nothing" — the picker was working the whole time and the picture was not
+  moving, because the job's own copy of the material list had no colours in it at all.
 - Cabinets can be dragged but not rotated with the mouse; yaw is typed, or set by snapping to
   a wall.
 - The custom cabinet excludes itself from benchtop runs — a banquette shouldn't get one, but

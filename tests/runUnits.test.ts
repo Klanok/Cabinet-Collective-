@@ -42,10 +42,15 @@ import {
   createSampleKitchen,
   resetIdCounter,
 } from '../src/core/project/factory.ts';
-import { buildCabinet } from '../src/core/rules/build.ts';
+import { allPanels, buildCabinet } from '../src/core/rules/build.ts';
 import { buildBenchtop, buildKickBase, buildRunUnits } from '../src/core/rules/runUnits.ts';
 import { benchtopCharges } from '../src/core/costing/benchtopCost.ts';
 import { costProject } from '../src/core/costing/costing.ts';
+import {
+  AU_SHOP_STANDARDS,
+  CURRENT_STANDARDS_VERSION,
+  migrateStandards,
+} from '../src/core/standards/standards.ts';
 import { byName, occupies, size } from './helpers.ts';
 
 let project: Project;
@@ -686,7 +691,7 @@ describe('a v9 job coming forward', () => {
    */
   it('arrives with no benchtops and no plinths', () => {
     const migrated = migrateProject(asV9(createSampleKitchen()));
-    expect(migrated.schemaVersion).toBe(10);
+    expect(migrated.schemaVersion).toBe(11);
     expect(migrated.benchtops).toEqual([]);
     expect(migrated.kickBases).toEqual([]);
   });
@@ -721,5 +726,98 @@ describe('a v9 job coming forward', () => {
     expect(() => migrateProject({ ...asV9(createSampleKitchen()), schemaVersion: 99 })).toThrow(
       /newer version/,
     );
+  });
+});
+
+/*
+ * ── The colours, backfilled ───────────────────────────────────────────────────────────────────
+ */
+
+describe('a job saved before the screen colours existed', () => {
+  /**
+   * The bug this covers, stated as the bench stated it: *"changing the door to Notaio Walnut has
+   * done nothing."*
+   *
+   * The material picker was working the whole time — the cutlist changed, the price changed, the
+   * decor on the order changed. What did not change was the picture, because a job carries its own
+   * copy of the material list and a job saved before `colour` existed has a copy with none in it.
+   * Every part then falls back to the viewport's colour for its role, so every decor draws the same.
+   */
+  const withoutColours = (p: Project): Record<string, unknown> => ({
+    ...p,
+    schemaVersion: 10,
+    materials: {
+      ...p.materials,
+      sheets: p.materials.sheets.map((sheet) => {
+        const { colour, ...rest } = sheet;
+        void colour;
+        return rest;
+      }),
+    },
+  });
+
+  it('gets its colours back, matched by material id', () => {
+    const kitchen = createSampleKitchen();
+    const stripped = withoutColours(kitchen);
+    // The state that produced the report: not one colour anywhere in the job.
+    expect(
+      (stripped.materials as { sheets: { colour?: string }[] }).sheets.every((s) => !s.colour),
+    ).toBe(true);
+
+    const migrated = migrateProject(stripped);
+    const walnut = migrated.materials.sheets.find((s) => s.id === 'poly-notaio-walnut-16')!;
+    expect(walnut.colour).toBe('#7a5a42');
+    expect(migrated.materials.sheets.every((s) => s.colour)).toBe(true);
+  });
+
+  it('never overwrites a colour a shop has deliberately set', () => {
+    const kitchen = createSampleKitchen();
+    const mine: Record<string, unknown> = {
+      ...withoutColours(kitchen),
+      materials: {
+        ...kitchen.materials,
+        sheets: kitchen.materials.sheets.map((s) =>
+          s.id === 'poly-notaio-walnut-16' ? { ...s, colour: '#123456' } : { ...s, colour: undefined },
+        ),
+      },
+    };
+    const migrated = migrateProject(mine);
+    expect(migrated.materials.sheets.find((s) => s.id === 'poly-notaio-walnut-16')!.colour).toBe(
+      '#123456',
+    );
+  });
+
+  /**
+   * The half that matters most, and the reason this migration is safe to make at all: a colour is
+   * screen-only. Nothing is cut, priced or ordered from one — the decor *name* is the fact.
+   */
+  it('does not move a part or a cent', () => {
+    const kitchen = createSampleKitchen();
+    const migrated = migrateProject(withoutColours(kitchen));
+    expect(costProject(migrated).totalIncGst).toBe(costProject(kitchen).totalIncGst);
+    expect(allPanels(migrated).map((p) => [p.name, ...size(p)])).toEqual(
+      allPanels(kitchen).map((p) => [p.name, ...size(p)]),
+    );
+  });
+
+  it('fills a shop’s standards at the source, so new jobs stop inheriting the hole', () => {
+    const { materials, ...rest } = AU_SHOP_STANDARDS;
+    const v6 = {
+      ...rest,
+      version: 6,
+      savedTypes: [],
+      materials: {
+        ...materials,
+        sheets: materials.sheets.map(({ colour, ...s }) => {
+          void colour;
+          return s;
+        }),
+      },
+    };
+    const migrated = migrateStandards(v6);
+    expect(migrated.version).toBe(CURRENT_STANDARDS_VERSION);
+    expect(migrated.materials.sheets.every((s) => s.colour)).toBe(true);
+    // Everything a shop actually set is untouched.
+    expect(migrated.constructions[0]!.kickHeight).toBe(AU_SHOP_STANDARDS.constructions[0]!.kickHeight);
   });
 });

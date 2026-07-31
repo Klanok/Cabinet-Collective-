@@ -145,6 +145,34 @@ export interface MaterialLibrary {
   readonly benchtops: readonly BenchtopMaterial[];
 }
 
+/**
+ * Fill in the screen colours on stored sheets that predate the field.
+ *
+ * `SheetMaterial.colour` arrived as an optional field with no migration behind it, and that was a
+ * mistake with a very specific and very confusing symptom: a job stores its **own copy** of the
+ * material list, so a job saved before the field existed has a list with no colours anywhere in it.
+ * Every part then falls back to the viewport's colour for its role — and changing a door from white
+ * melamine to walnut moves the cutlist, moves the price, and does not move a single pixel. It looks
+ * exactly like the material picker is broken.
+ *
+ * Matched by **id** against the shipped library, and only where the job has none. A colour a shop
+ * has deliberately set is never overwritten.
+ *
+ * This is the safest possible thing for a migration to change, and worth saying why: nothing is
+ * cut, priced or ordered from a colour. The decor *name* is the fact. So unlike every other
+ * migration in this codebase, there is no part to protect here — the only risk was leaving it
+ * broken.
+ */
+export const withResolvedColours = (
+  sheets: readonly Record<string, unknown>[],
+  reference: readonly SheetMaterial[],
+): Record<string, unknown>[] =>
+  sheets.map((sheet) => {
+    if (typeof sheet.colour === 'string' && sheet.colour.length > 0) return sheet;
+    const known = reference.find((r) => r.id === sheet.id);
+    return known?.colour ? { ...sheet, colour: known.colour } : sheet;
+  });
+
 export const findBenchtopMaterial = (lib: MaterialLibrary, id: string): BenchtopMaterial => {
   const found = lib.benchtops.find((b) => b.id === id);
   if (!found) throw new Error(`Unknown benchtop material: ${id}`);

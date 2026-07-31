@@ -18,7 +18,7 @@ import {
   withSystemHoles,
 } from './construction.ts';
 import type { HardwareLibrary } from './hardware.ts';
-import type { MaterialLibrary } from './material.ts';
+import { type MaterialLibrary, withResolvedColours } from './material.ts';
 import type { Room } from './room.ts';
 import { type DoorStyle, DEFAULT_DOOR_STYLES, PLAIN_SLAB_STYLE } from '../standards/doorStyles.ts';
 import {
@@ -27,9 +27,9 @@ import {
   DEFAULT_HINGE_SYSTEM_ID,
   DEFAULT_RUNNER_SYSTEM_ID,
 } from '../library/blum.ts';
-import { AU_BENCHTOP_MATERIALS } from '../library/materials.au.ts';
+import { AU_BENCHTOP_MATERIALS, AU_SHEET_MATERIALS } from '../library/materials.au.ts';
 
-export const CURRENT_SCHEMA_VERSION = 10 as const;
+export const CURRENT_SCHEMA_VERSION = 11 as const;
 
 /**
  * The bendy ply an older job is given when it is migrated forward. It has no curved parts in
@@ -473,6 +473,36 @@ const migrateV9toV10 = (raw: Record<string, unknown>): Record<string, unknown> =
 };
 
 /**
+ * v10 → v11. **The screen colours, backfilled onto jobs that never had them.**
+ *
+ * Reported from the bench as "changing the door to Notaio Walnut has done nothing", and the
+ * diagnosis is worth keeping because the symptom points away from the cause. The material picker
+ * was working perfectly: the cutlist changed, the price changed, the decor on the order changed.
+ * What did not change was the picture — because a job carries its **own copy** of the material
+ * list, and a job saved before `SheetMaterial.colour` existed has a copy with no colours in it at
+ * all. Every part falls back to the viewport's colour for its role, so every decor draws the same.
+ *
+ * `colour` was added as an optional field with no migration behind it. This is that migration.
+ *
+ * **Nothing is cut, priced or ordered from a colour** — the decor name is the fact — so this is the
+ * safest change a migration in this file has ever made. A colour a shop has deliberately set is
+ * left alone; only an absent one is filled, and only from the shipped material of the same id.
+ *
+ * The version is bumped for the ordinary reason, even though an older build would read a v11 job
+ * quite happily: a file that has been repaired should say so, and running the repair once on load
+ * is better than running it on every render.
+ */
+const migrateV10toV11 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const materials = (raw.materials as Record<string, unknown> | undefined) ?? {};
+  const sheets = (materials.sheets as Record<string, unknown>[] | undefined) ?? [];
+  return {
+    ...raw,
+    schemaVersion: 11,
+    materials: { ...materials, sheets: withResolvedColours(sheets, AU_SHEET_MATERIALS) },
+  };
+};
+
+/**
  * Load a project from stored JSON, migrating older schema versions forward.
  *
  * Migrations run in sequence, so a v1 file loaded after several schema changes still arrives
@@ -502,6 +532,7 @@ export const migrateProject = (raw: unknown): Project => {
   if (data.schemaVersion === 7) data = migrateV7toV8(data);
   if (data.schemaVersion === 8) data = migrateV8toV9(data);
   if (data.schemaVersion === 9) data = migrateV9toV10(data);
+  if (data.schemaVersion === 10) data = migrateV10toV11(data);
 
   if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`migrateProject: could not migrate schema version ${String(version)}`);
