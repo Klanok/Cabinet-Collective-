@@ -330,10 +330,15 @@ describe('the blade takes material out', () => {
     expect(second!.at.x - (first!.at.x + first!.at.length)).toBeCloseTo(3.2, 9);
   });
 
-  it('ships at 3.2mm rather than at zero, because zero is a claim not a default', () => {
-    expect(DEFAULT_NESTING_SETTINGS.kerf).toBe(3.2);
-    // The trim, by contrast, does ship at zero — a shop that does not trim is not trimming.
-    expect(DEFAULT_NESTING_SETTINGS.sheetEdgeTrim).toBe(0);
+  it('never ships at zero, because zero is a claim and not a default', () => {
+    // Zero kerf is not a conservative default — it is a statement that the saw removes no
+    // material, which nests two parts into a space that only holds one.
+    expect(DEFAULT_NESTING_SETTINGS.kerf).toBeGreaterThan(0);
+    // 6mm: the shipped figures are the **router's**, because that is what this shop cuts nested
+    // sheets on. See `DEFAULT_NESTING_SETTINGS` for why, and `post/check.ts` for what goes wrong
+    // when a job nested for a saw meets a 6mm cutter.
+    expect(DEFAULT_NESTING_SETTINGS.kerf).toBe(6);
+    expect(DEFAULT_NESTING_SETTINGS.sheetEdgeTrim).toBe(6);
   });
 });
 

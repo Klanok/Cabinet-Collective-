@@ -29,19 +29,27 @@ CSV export; and **benchtops and ladder bases** (§4.7), the two things that span
 and belong to none of them, which is also where the appliance space arrived — a dishwasher takes a
 top over it and a fridge does not, and nothing geometric tells them apart.
 
-**Phase 3 — guillotine nesting (§4.8) has since shipped.** The job is laid out on real sheets, the
-cut sequence comes out of the packing rather than being derived from it, and the quote charges
-**whole sheets** off the count instead of fractional ones off an assumed yield. That is the second
-migration in the file that deliberately re-prices a saved job, and it says so out loud.
+**Phases 3, 4 and 5 have since shipped.** §4.8 is **guillotine nesting**: the job is laid out on
+real sheets, the cut sequence comes out of the packing rather than being derived from it, and the
+quote charges **whole sheets** off the count instead of fractional ones off an assumed yield — the
+second migration in this file that deliberately re-prices a saved job, and it says so out loud.
+§4.9 is **CAM and a post-processor**: an ordered, machine-independent operation list, and G-code for
+a named machine — one `.nc` per nested sheet.
+
+**One thing from §4.9 must not get lost.** The G-code has **never been run on a machine** and its
+*dialect* is unverified — the geometry is asserted and can be trusted, but whether this controller
+wants `G81`, and where its Z zero is, cannot be known from here. Every program says so in its own
+header. Getting one `.nc` file off the machine to compare against is ten minutes' work and is worth
+more than any other open item in this document.
 
 Section 4 records how each works and why; section 5 is what is actually left to do.
 
 ```
 npm install
 npm run dev       # the app
-npm test          # 596 tests
+npm test          # 625 tests
 npm run build
-npm run report    # cutlist, hardware BOM, drilling, nest and costing for the sample kitchen
+npm run report    # cutlist, hardware BOM, drilling, nest, G-code and costing for the sample kitchen
 npm run report -- shaker-57    # the same kitchen with routed fronts
 ```
 
@@ -85,9 +93,12 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | A corner radius on a base, wall or tall cabinet | Working — bendy ply and formers, see 4.5 |
 | The same corner routed from door board instead | **Not started — see 5.7, now unblocked** |
 | Guillotine nesting — sheets, cut sequence, offcuts | **Working, see 4.8.** Nest tab, two CSVs |
+| CAM — panels + nest → machine-independent operations | **Working, see 4.9** |
+| G-code — a post-processor per machine, `.nc` per sheet | **Working, see 4.9. Dialect UNVERIFIED — simulate first** |
 | Nesting a curved part | **Nested as its blank, which is right for a saw — see 4.8** |
 | True-shape nesting for a router | Not started — a different cutting model, see 5.8 |
-| CAM, post-processor | Not started |
+| The drill bank — a System 32 row in one hit | Off until its codes are read off the machine |
+| Simulation / backplot | Not started, and it is the gate before anything runs |
 
 ---
 
@@ -1096,6 +1107,121 @@ heuristic's reasoning written out; `nest/nest.ts` for materials, grain and sheet
 `app/panels/NestPanel.tsx` for the drawing. `tests/nesting.test.ts` is the contract and carries the
 longhand reference figures in its header.
 
+### 4.9 G-code — Phases 4 and 5
+
+**Asked for directly**, after Phase 3 shipped. The machine was named as a **KDT nesting router**, with
+a **boring head**, and the output wanted **per nested sheet**. Everything below follows from those
+three answers.
+
+**Read this first, and do not let it get lost.** *None of this has been run on a machine.* The
+**geometry** is asserted and can be trusted as far as tests go — a hole is where the model says, a
+part is offset by exactly the cutter's radius, an arc arrives as an arc, the ordering is safe. The
+**dialect** is not: whether this controller wants `G81` or explicit plunges, whether Z zero is the
+material or the table, what selects a drill spindle. Those are unknowable from here and knowable in
+about ten minutes from one `.nc` file the machine already runs. Until one has been compared against
+`post/iso.ts`, treat the output as a draft and simulate or air-cut it.
+
+`.nc` is a file extension, not a dialect. What it does tell us is worth something — the machine
+takes plain-text ISO G-code rather than a proprietary format the way a Homag (`.mpr`) or a Biesse
+(`.bpp`) does — so the *shape* of what is written is right even where the detail is not.
+
+**What shipped.** `cam/` turns panels plus the nest into an ordered, machine-independent operation
+list. `post/` turns that into G-code for a named machine. A machine picker and a `.nc` download per
+sheet on the Nest tab, a CAM section in `npm run report`, and two shipped profiles: the KDT, and a
+generic ISO one for simulating. The sample kitchen comes out as **5 programs, 641 operations, 554
+holes** — the same 554 the drilling sheet has had since §4.6, because CAM reads the features rather
+than inventing any.
+
+#### Decisions worth not undoing
+
+- **The operation list is a layer, not a step.** Nothing in `cam/` mentions a G-code word, and that
+  is the test of whether a second machine is a second *profile* or a second CAM layer. If something
+  in there ever needs to know what controller it is talking to, the split has failed.
+- **The machine is data.** `MachineProfile` carries the dialect, the datum, the tool table, the
+  envelope and the code words. A second machine is a record.
+- **Which face goes up is CAM's decision and nobody else's.** The nest does not care — a saw cuts a
+  rectangle whichever way up it is. A router cares completely, because the spindle reaches the face
+  that is upward and nothing else. So a part is laid with its machined face up, which for a door
+  means **back up**, because that is where the cups are.
+- **Turning a part over mirrors it, and that is the most dangerous line in the phase.** A cup 22.5mm
+  from the left edge of a door is 22.5mm from the *right* edge once the door is face-down on the
+  bed. Get it backwards and every handed part in the job is bored on the wrong end — same holes,
+  same diameters, same count, passing any test that counts them. This is §4.4's former axis and
+  §4.6's mounting plate for the third time. `cam/sheetSpace.ts` owns the mapping and everything goes
+  through it.
+- **A mirror reverses an arc, and two negations cancel.** Worth writing out because it was wrong
+  first time. Mirroring a ring negates every bulge; reversing the traversal to put the winding back
+  counter-clockwise negates them again. So the bulge carried across is the **original number**.
+  Negating once — the obvious thing to write — produces an arc bowing the other way, which is not a
+  slightly different curve but the complement, cutting through the part. Caught by working a
+  quarter disc through by hand before the code ran, and pinned by a test that measures where the
+  arc's *centre* lands rather than reading the number back.
+- **The tool offset is computed here, not left to the machine.** Every controller has G41/G42 and
+  every one implements it slightly differently. A compensation bug is a crash, it happens at the
+  machine, and no test written here could see it. An offset computed in the model is geometry, and
+  geometry can be asserted: a 500×300 part with a 6mm bit gives a 506×312 centreline with 3mm
+  corners, which is a thing a person can check in their head.
+- **Boring first, perimeters last.** A part that has been cut out is loose. Boring one the vacuum
+  is no longer holding is how a bit breaks and a part becomes a projectile. This is the one ordering
+  rule that is a safety rule rather than an efficiency one.
+- **A hole with no bit for it is named, never bored with the nearest one.** A Ø35 cup needs a 35mm
+  boring bit; substituting a 12mm cutter would need a helical path this does not generate, and doing
+  it silently would make the wrong hole.
+- **The post refuses rather than warning.** A page that warns you and still offers the file is a
+  page where somebody clicks the file. A refused program is not written at all.
+
+#### The check that connects Phase 3 to Phase 5, and what it found
+
+**A job nested for a saw cannot be cut on a router**, and there are two independent reasons that
+are both invisible on screen:
+
+- **kerf.** The gap between parts has to be at least the cutter. Nested at 3.2mm and cut with a 6mm
+  bit, the toolpath separating two parts is wider than the gap it runs in — it takes 1.4mm off
+  *each neighbour*, on every shared edge, on every sheet. Every part undersize, not one of them
+  looking it.
+- **sheet edge trim.** A part sitting hard against the sheet edge has to be cut from outside itself,
+  and outside the sheet edge there is no sheet. The trim has to be at least the cutter's radius.
+
+The first was designed for; **the second was found by running it** and is the more interesting one,
+because nothing about a nest suggests it. Both are reported as one problem, because it is one
+decision.
+
+**The shipped defaults were changed as a result.** They went out at 3.2mm and 0 — saw figures — and
+they were wrong for a shop with a nesting machine: the refusal was firing on the defaults, which is
+a poor default. They are now 6 and 6. It costs nothing: the sample kitchen nests onto the same five
+sheets at 3.2/0, 6/6 and 8/8, for the same $720.
+
+#### The other bug worth recording
+
+**Onion skin and spoilboard overcut are mutually exclusive, and were being applied together.** The
+perimeter depth came out as `thickness + overcut − leaveUncut` = 16.3mm into 16mm board, which is
+not an onion skin at all — it is a clean through cut with a smaller overcut, and every small part
+would have come loose under the spindle exactly as if the setting had been left at zero. Leave
+material and you never reach the underside; leave none and you go past it. There is no arithmetic
+that does both. It now cuts to 15.8mm, and `perimeterDepth` is the one place that decides.
+
+#### What is not done, deliberately
+
+- **The drill bank is switched off.** It is the single biggest time saving available here — a
+  System 32 row in one hit instead of twenty-one plunges — and it is the part of a machine that is
+  least standard. A bank configured wrong fires a spindle that is not over the hole it thinks it is,
+  so it stays off until somebody reads the codes off the machine. `DrillBank` is the field waiting.
+- **Rebates are not machined.** They want a stepover pass and nothing in the shipped specs emits
+  one. Reported, so a part with one says to cut it on the saw.
+- **A groove wider than the cutter** is reported rather than cut in several passes.
+- **Pockets are cleared only when rectangular.** Every pocket this codebase produces is one — a
+  shaker recess — and a clearing path for a general outline would be written on guesswork.
+- **No ramping into a plunge**, no lead-in or lead-out arcs, no climb/conventional choice. All real
+  refinements; none of them is a correctness problem.
+- **No simulation or backplot.** Still the hard gate before anything runs.
+
+**Where to look:** `cam/sheetSpace.ts` for the transform and the flip, with the arc reversal reasoned
+out; `cam/offset.ts` for the cutter offset; `cam/operation.ts` for the vocabulary and the ordering
+rule; `cam/operations.ts` for the generator; `post/machine.ts` for what a machine is;
+`post/iso.ts` for the writer; `post/check.ts` for what it refuses; `library/machines.ts` for the
+KDT profile and, at the top, **how to make it real from one `.nc` file**. `tests/cam.test.ts` is the
+contract and carries the longhand figures in its header.
+
 ---
 
 ## 5. Open items, in the order I'd do them
@@ -1108,11 +1234,13 @@ that spans a run?", so doing them apart would have meant answering it twice.
 **Phase 3 has shipped — see 4.8.** What is left of it is in the new §5.8, and none of it blocks
 anything.
 
-**If asked which to do next: Phase 4, the CAM feature layer.** It is the next numbered phase and
-the features are already there waiting — a `pocket` with a tool id and an internal corner radius, a
-`profiled-cut` with a tool and a path, and every hole in the job as a `drill` or a `drill-line`.
-Nothing upstream has to change, which is the whole point of §2's rule that features are parametric
-and attached to panels. `library/tools.ts` is the seam the real tool library grows from.
+**Phases 4 and 5 have shipped — see 4.9.** What is left of them is §5.9, and the first item on it is
+the only one that matters.
+
+**If asked which to do next: get one `.nc` file off the KDT and pin the dialect.** It is not a
+phase, it is ten minutes, and until it is done every program this tool writes is a draft that has to
+be simulated. `library/machines.ts` says at the top exactly what to compare and in what order. Every
+other open item in this document is worth less than that one.
 
 **A note that was here has been removed, and it is worth saying why rather than leaving a gap.**
 Both this document and `docs/architecture.md` carried a suggestion that Phase 3's CSVs could be
@@ -1394,6 +1522,31 @@ worth guessing — the developed length only means something if the piece actual
   with a radius in it, check the sheet before cutting; the parts carry a note saying so.
 - **No labels or barcodes on the nest.** A part's position is on the CSV and on screen. A shop that
   wants a printed label per part is asking for a layout job rather than a nesting one.
+
+### 5.9 G-code — what is left after 4.9
+
+**Built and merged; see 4.9.** In rough order of what it is worth doing:
+
+- **Pin the dialect against a real `.nc` file.** The one item that matters, and it is not
+  development work. Take one program the KDT already runs — ideally one with drilling and one that
+  cuts parts out — and compare it line for line against what `post/iso.ts` writes. The five things
+  to check, in order, are listed at the top of `library/machines.ts`: **Z datum**, tool change,
+  drilling style, the drill bank, then feeds. Until that is done, `unconfirmed` stays populated and
+  every program says so in its own header.
+- **Turn the drill bank on**, once its codes are known. Biggest time saving available: a System 32
+  row in one hit instead of twenty-one plunges, on every side panel in every job. `DrillBank` is the
+  field and `post/iso.ts` is where the grouping would go — bores on the same line, at the bank's
+  pitch, become one selection and one plunge.
+- **Ramp into a plunge**, and lead-in/lead-out arcs on a perimeter. A full-width plunge at the start
+  of a cut is hard on a bit and leaves a mark. Real, and not a correctness problem.
+- **Second setups are named but not produced.** A shaker door is machined on both faces; the nested
+  program does one and lists the door. Producing the *second* program means a second nest of the
+  parts that need turning over, which is a real piece of work and only bites on a routed kitchen.
+- **Rebates, wide grooves and non-rectangular pockets** are each reported and not machined. See 4.9.
+- **Simulation.** The hard gate, and still nothing here does it. Free simulators read the generic
+  ISO profile's output, which is what that profile is for.
+- **Feeds and speeds are guesses.** Deliberately slow ones — a feed too low wastes time, a feed too
+  high breaks a bit. Copy the machine's own numbers when the `.nc` file arrives.
 
 ---
 

@@ -43,8 +43,22 @@ export const DEFAULT_SKIN_MATERIAL_ID = 'bendy-ply-3';
  * values, and that module imports this one for its types.
  */
 export const DEFAULT_NESTING_SETTINGS: NestingSettings = {
-  kerf: mm(3.2),
-  sheetEdgeTrim: mm(0),
+  /*
+   * **Router figures, not saw figures**, because this shop cuts nested sheets on a CNC.
+   *
+   * These shipped at 3.2 and 0 — a thin-kerf panel saw blade, and no edge trim — for one version,
+   * and they were the wrong defaults for a shop with a nesting machine. On a router the gap between
+   * parts has to be at least the cutter, or the toolpath separating two parts takes the difference
+   * off each of them; and the sheet edge has to be trimmed by at least the cutter's radius, or a
+   * part on the edge has to be cut from outside the sheet. `post/check.ts` refuses a program on
+   * either count, and the refusal was firing on the shipped defaults, which is a poor default.
+   *
+   * They cost nothing to change: the sample kitchen nests onto the same five sheets at 3.2/0, 6/6
+   * and 8/8. A shop that really is cutting on a panel saw sets the kerf back to its blade and the
+   * trim to zero, and gets a slightly tighter nest.
+   */
+  kerf: mm(6),
+  sheetEdgeTrim: mm(6),
   usableOffcutMin: mm(300),
 };
 

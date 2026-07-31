@@ -1,4 +1,4 @@
-# Module Boundaries — Phases 1 to 3
+# Module Boundaries — Phases 1 to 5
 
 The eight-layer architecture describes the whole system. This document covers what is actually
 built, and where the seams are that later phases attach to.
@@ -56,6 +56,16 @@ src/core/                        pure model layer
   nest/
     guillotine.ts                the packer: a tree of cuts, kerf, and the replay that proves it
     nest.ts                      panels + materials → sheets; grain, sheet size, offcuts, yield
+  cam/
+    sheetSpace.ts                part → machine bed: the nest placement, the flip, the mirror
+    offset.ts                    a part outline offset by the cutter's radius
+    operation.ts                 the machine-independent operation vocabulary, and the safe order
+    operations.ts                panels + nest → operations
+  post/
+    machine.ts                   a machine as data: datum, envelope, tool table, code words
+    iso.ts                       operations → ISO G-code. Arcs stay arcs
+    check.ts                     what a program is refused for
+    post.ts                      job → programs, checked before written
   cutlist/
     cutlist.ts                   panels → grouped cutlist lines
     export.ts                    cutlist, hardware, drilling, the nest and the cut sequence as CSV
@@ -88,17 +98,26 @@ docs/coordinate-convention.md    the three coordinate spaces — read this first
 ## The interfaces that matter
 
 **`Panel`** (`model/panel.ts`) is the contract everything downstream shares. The rule engine
-produces it; the viewport draws it; costing prices it; **the nester lays it on a sheet**; and Phase
-4 will machine it. There is deliberately no second representation of a part — no separate costing
+produces it; the viewport draws it; costing prices it; **the nester lays it on a sheet**; and **the
+CAM layer machines it**. There is deliberately no second representation of a part — no separate costing
 model, no separate CAM model, no separate nesting model — because two representations can disagree
 and one cannot. The nester consumes `panelExtent`, which is the blank measured round the outside of
 every arc, and that is the only thing about a part it needs to know.
 
-**`PanelFeature`** (`model/feature.ts`) is the Phase 4 interface. Features are parametric and
-attached to panels rather than baked into geometry, so CAM reads "Ø35 bore, 13mm deep, at
-(96, 424.5) on the B-face" instead of trying to recover that intent from a mesh. Phase 1 emitted
-almost none of these; **Phase 2's hardware rules fill them in**, and `cutlist/export.ts` writes a
-drilling sheet straight off them with no geometry involved.
+**`PanelFeature`** (`model/feature.ts`) is the CAM interface, and it has now been used as one.
+Features are parametric and attached to panels rather than baked into geometry, so CAM reads
+"Ø35 bore, 13mm deep, at (96, 424.5) on the B-face" instead of trying to recover that intent from a
+mesh. Phase 1 emitted almost none of these; **Phase 2's hardware rules fill them in**;
+`cutlist/export.ts` writes a drilling sheet straight off them; and **Phase 4 needed no change to
+either the feature model or anything that produces one**, which is the test of whether the promise
+this interface was built on was real.
+
+**`MachineProfile`** (`post/machine.ts`) is what makes a second machine cheap. The dialect, the Z
+datum, the tool table, the envelope and the code words are all data, so `post/iso.ts` knows how to
+turn a contour into moves and nothing about any brand. Every profile also carries an `unconfirmed`
+list — the same contract `indicativePricing` has for money and `unconfirmedFigures` has for hardware
+— and it is printed in a comment at the top of every program the profile writes, because a wrong Z
+datum costs a spindle.
 
 **`CabinetSpec`** (`rules/spec.ts`) is a list of part rules over a construction method. Adding
 a cabinet type means adding a spec file and a registry line — never touching the geometry
@@ -262,8 +281,8 @@ because they answer different questions.
 |---|---|
 | 2 — hardware/joinery, BOM export | **Done.** `PanelFeature[]` on each panel, filled by `rules/boring.ts` keyed on panel role; sizes resolved into `RuleContext` by `rules/hardware.ts`. `cutlist/export.ts` has the CSV writers; PDF is not done. Hettich is the remaining brand. |
 | 3 — guillotine nesting | **Done.** `nest/` consumes `Panel` + `SheetMaterial` and produces sheets, placements, an ordered cut sequence and offcuts. `costing.ts` charges whole sheets off the count; `sheetWastageFactor` is gone at schema v11. True-shape nesting for a router is a second nester, not an extension of this one. |
-| 4 — CAM feature layer | Reads `PanelFeature[]` directly and emits a machine-independent operation list. Nothing upstream changes. Door styles are already emitting `pocket` and `profiled-cut` features with a tool id on them; turning those into toolpaths is this phase's work, and `library/tools.ts` is the seam the real tool library grows from. |
-| 5 — post-processor + simulation | Consumes the operation list only. One machine first. |
+| 4 — CAM feature layer | **Done.** `cam/` reads `PanelFeature[]` directly and emits an ordered, machine-independent operation list. Nothing upstream changed to allow it, which is the test of §2's rule that features are parametric and attached to panels. |
+| 5 — post-processor | **Written, dialect unverified.** `post/` turns operations into ISO G-code for a `MachineProfile`. A second machine is a second profile, not a second writer. The KDT profile has never been checked against a program the machine runs, and every file it writes says so. **Simulation is still not done, and is the gate before anything runs.** |
 
 ## Nesting, and why it is its own layer
 
@@ -288,6 +307,35 @@ rectangle comes off the sheet and the curve is cut from the rectangle. So `panel
 input and the bounding box is not an approximation here — it is the part. A router *can* cut a shape
 out of the middle of a sheet, and nesting for one is a second nester with a different validity rule
 and no cut sequence at all, not a better version of this one.
+
+## CAM and the post-processor, and where the line is between them
+
+**`cam/` never mentions a G-code word.** That is the test of whether a second machine is a second
+profile or a second CAM layer. An operation is "bore Ø35, 13 deep, at (412.5, 96)" — the same
+instruction on a KDT, a Biesse and a hobby router — and whether it comes out as `G81 Z-13 R2` or as
+a plunge and a retract belongs entirely to `post/`.
+
+What that split leaves out of `cam/` is worth naming, because each was tempting to put there:
+**passes** (a property of the tool and the machine, not the job), **feeds and speeds** (the tool
+table's), and **lead-ins, ramps and retracts** (machine-shaped, and the post has the clearances).
+
+**Which way up a part is laid is CAM's decision and nobody else's.** The nest does not care — a saw
+cuts a rectangle whichever face is up. A router cares completely, because the spindle reaches the
+face that is upward and nothing else. So a part is laid with its machined face up, which for a door
+means back up. **Turning it over mirrors it**, and that is the most dangerous transform in the
+codebase: a cup 22.5mm from the left edge of a door is 22.5mm from the *right* edge once the door is
+face-down, and getting it backwards bores every handed part on the wrong end with the right count
+and the right diameters. `cam/sheetSpace.ts` owns it and everything goes through it.
+
+**An arc reaches the machine as an arc.** `G2`/`G3` with an incremental centre, derived from the
+endpoints and the bulge so `I` and `J` cannot disagree with where the arc starts and ends. That is
+what `geom/arc.ts` was built for and it is why `flattenPolygonSegments` says in its own docstring
+that the CAM layer must not call it.
+
+**The tool offset is computed in the model, not by the machine.** Every controller has cutter
+compensation and every one implements it slightly differently; a compensation bug is a crash, it
+happens at the machine, and no test written here could see it. An offset computed in `cam/offset.ts`
+is geometry, and geometry can be asserted.
 
 **Kerf and edge trim are shop settings, not material ones.** A sheet size and a price belong to the
 board; what your blade takes out belongs to your saw. Same split as the hinge drilling distance

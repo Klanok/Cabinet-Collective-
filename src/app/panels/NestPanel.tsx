@@ -15,7 +15,12 @@ import type { MaterialNest, NestPart, NestedSheet, ProjectNest } from '../../cor
 import { usableOffcuts } from '../../core/nest/nest.ts';
 import type { Project } from '../../core/model/project.ts';
 import { cutSequenceCsv, nestCsv } from '../../core/cutlist/export.ts';
+import { postProject, postedTotals } from '../../core/post/post.ts';
+import { findMachine, MACHINE_PROFILES } from '../../core/library/machines.ts';
+import { kerfForMachine } from '../../core/post/check.ts';
 import { downloadTextFile, fileStem } from '../store/persistence.ts';
+import { SettingRow } from './fields.tsx';
+import { useState } from 'react';
 
 interface Props {
   project: Project;
@@ -176,6 +181,89 @@ export function NestPanel({ project, nest }: Props) {
       >
         Cut sequence as CSV
       </button>
+
+      <GcodePanel project={project} nest={nest} />
     </section>
+  );
+}
+
+/**
+ * G-code, and the reasons it might not come out.
+ *
+ * The refusals are shown **instead of** a download button rather than beside one. A page that
+ * warns you and still offers the file is a page where somebody clicks the file.
+ */
+function GcodePanel({ project, nest }: Props) {
+  const [machineId, setMachineId] = useState(MACHINE_PROFILES[0]!.id);
+  const machine = findMachine(machineId);
+  const job = postProject(project, machine, nest);
+  const totals = postedTotals(job);
+  const refusals = [...new Set(job.refused.map((r) => r.message))];
+
+  return (
+    <>
+      <div className="subhead">G-code</div>
+
+      <SettingRow label="Machine" hint="Decides the dialect, the tool table and the Z datum">
+        <select value={machineId} onChange={(e) => setMachineId(e.target.value)}>
+          {MACHINE_PROFILES.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.name}
+            </option>
+          ))}
+        </select>
+      </SettingRow>
+
+      {machine.unconfirmed.length > 0 && (
+        <p className="note warning">
+          <strong>{machine.name} has not been checked against this machine.</strong> Simulate or
+          air-cut before running anything. What is a guess:
+          <br />
+          {machine.unconfirmed.map((u) => (
+            <span key={u}>
+              · {u}
+              <br />
+            </span>
+          ))}
+        </p>
+      )}
+
+      {refusals.length > 0 ? (
+        <p className="note warning">
+          No program written.
+          <br />
+          {refusals.map((r) => (
+            <span key={r}>
+              · {r}
+              <br />
+            </span>
+          ))}
+        </p>
+      ) : (
+        <>
+          <p className="note subtle">
+            {totals.written} programs · {totals.operationCount} operations ·{' '}
+            {totals.boreCount} holes. Parts are cut with a {kerfForMachine(machine)}mm bit, boring
+            first and perimeters last so nothing is machined after it has been cut loose.
+            {totals.needsSecondSetup.length > 0 &&
+              ` Machined on both faces and not finished in one program: ${totals.needsSecondSetup.join(', ')}.`}
+          </p>
+          {job.sheets.map(
+            (sheet) =>
+              sheet.output && (
+                <button
+                  key={sheet.output.filename}
+                  className="btn full"
+                  onClick={() =>
+                    downloadTextFile(sheet.output!.filename, sheet.output!.text, 'text/plain')
+                  }
+                >
+                  {sheet.output.filename}
+                </button>
+              ),
+          )}
+        </>
+      )}
+    </>
   );
 }
