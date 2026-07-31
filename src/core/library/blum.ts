@@ -96,27 +96,35 @@ export const MERIVOBOX: DrawerRunnerSystem = {
    * column — cabinet profile 450, 40 kg, which is the class shipped here. The 70 kg profile 453 is
    * a different pattern and is not modelled.
    *
+   * **These are the system-screw positions.** The sheet gives two fixing options per profile, rows
+   * A and B — chipboard screws and system screws — which is why the front bracket carries a chain
+   * of three dimensions rather than two. Reading across both patterns at once is what made the
+   * front pair look ambiguous; they are two answers to two different questions. The shop fixes with
+   * system screws, so that is what ships, and the 18 belongs to the chipboard option and is not
+   * modelled.
+   *
    * **The same sheet exists for TIP-ON BLUMOTION and carries identical figures**, which is worth
    * recording rather than rediscovering: where the profile is screwed to the side does not change
    * between push-to-open and the ordinary runner. One table covers both.
    *
    * Every figure is a distance back from the **front edge of the side panel**, which is how the
-   * sheet dimensions them. The rear pair steps with the length band and the front pair does not:
+   * sheet dimensions them. Four screws; each pair 32 apart; the rear pair steps with the length
+   * band and the front pair does not:
    *
+   *     front         37 and 69, at every length
    *     NL 270–350    rear screws at 160 and 192
    *     NL 400–600    rear screws at 224 and 256
    *
-   * Both rear pairs are 32 apart and both are exact multiples of 32 off the front edge. Which pair
-   * belongs to which band is settled by the extension lines on the sheet: 160 and 192 run up into
-   * the NL 270–350 diagram's rear bracket, 224 and 256 into the NL 400–600 one's.
+   * Which rear pair belongs to which band is settled by the extension lines on the sheet: 160 and
+   * 192 run up into the NL 270–350 diagram's rear bracket, 224 and 256 into the NL 400–600 one's.
    *
    * This replaces a single "128 or 256 behind the front fixing" that produced **two** holes. It
    * came off the wrong table and the shop caught it. See `RunnerFixingPositions` for the reasoning
    * error, which is the part worth not repeating.
    */
   fixingPositions: [
-    { maxNominalLength: mm(350), positions: [mm(37), mm(55), mm(160), mm(192)] },
-    { maxNominalLength: mm(600), positions: [mm(37), mm(55), mm(224), mm(256)] },
+    { maxNominalLength: mm(350), positions: [mm(37), mm(69), mm(160), mm(192)] },
+    { maxNominalLength: mm(600), positions: [mm(37), mm(69), mm(224), mm(256)] },
   ],
   fixingHoleDiameter: mm(5),
   fixingHoleDepth: mm(13),
@@ -157,11 +165,6 @@ export const MERIVOBOX: DrawerRunnerSystem = {
   indicativePricing: true,
 
   unconfirmedFigures: [
-    'fixingPositions, the front pair — the rear pair (160/192 and 224/256 back from the front ' +
-      'edge of the side) is read straight off the cabinet profile sheet and is solid. The front ' +
-      'bracket carries a chain of 32, 18 and 37 and only the 37 is certain, so the second front ' +
-      'screw is here at 55 (37 + 18) rather than 69 (37 + 32). Measure one built drawer bank: ' +
-      'front edge of the side panel to the two screws in the front bracket.',
     'runnerAboveCabinetFloor — how high the bottom of the runner has to sit above the cabinet ' +
       'floor. Zero for the ordinary screw-fixed runner, which rests straight on the base, and the ' +
       'distance up to the bottom edge of the front is then just the carcass board. A ' +
@@ -174,7 +177,8 @@ export const MERIVOBOX: DrawerRunnerSystem = {
     'EXPANDO T use the same vertical chain but a Ø10 (+0.2/−0.1) bore 12mm in from the edge of the ' +
     'front (min. 6mm for EXPANDO T), and are not modelled. A high front built up to E height with a ' +
     'BOXCAP takes a third fixing 128mm above the lowest and a 184mm back; only M height is shipped, ' +
-    'so neither is here.',
+    'so neither is here. The cabinet profile is fixed with system screws; the sheet\'s chipboard-screw ' +
+    'option is a different pattern at the front bracket and is not modelled.',
 };
 
 /**

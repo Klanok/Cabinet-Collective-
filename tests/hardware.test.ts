@@ -152,12 +152,16 @@ it('fixes the cabinet profile at four points, stepping the rear pair at 350', ()
      * Those figures came off the table for the drawer bottom, and the profile takes four screws.
      *
      * Every figure is a distance back from the front edge of the side panel, which is the datum
-     * the sheet uses. The rear pair steps with the length band; the front pair does not.
+     * the sheet uses. These are the **system-screw** positions — the sheet gives two options per
+     * profile and the chipboard-screw one is a different pattern at the front bracket. Reading
+     * across both at once is what made the front pair look ambiguous.
+     *
+     * The rear pair steps with the length band; the front pair does not.
      */
-    expect(runnerFixingPositions(MERIVOBOX, mm(270))).toEqual([37, 55, 160, 192]);
-    expect(runnerFixingPositions(MERIVOBOX, mm(350))).toEqual([37, 55, 160, 192]);
-    expect(runnerFixingPositions(MERIVOBOX, mm(400))).toEqual([37, 55, 224, 256]);
-    expect(runnerFixingPositions(MERIVOBOX, mm(600))).toEqual([37, 55, 224, 256]);
+    expect(runnerFixingPositions(MERIVOBOX, mm(270))).toEqual([37, 69, 160, 192]);
+    expect(runnerFixingPositions(MERIVOBOX, mm(350))).toEqual([37, 69, 160, 192]);
+    expect(runnerFixingPositions(MERIVOBOX, mm(400))).toEqual([37, 69, 224, 256]);
+    expect(runnerFixingPositions(MERIVOBOX, mm(600))).toEqual([37, 69, 224, 256]);
   });
 
   it('puts four screws in every band, front-most first', () => {
@@ -170,14 +174,14 @@ it('fixes the cabinet profile at four points, stepping the rear pair at 350', ()
     }
   });
 
-  it('keeps the rear pair 32 apart, and on the 32mm grid off the front edge', () => {
-    // The check that a band has been read off the right row of the sheet: 160/192 and 224/256 are
-    // 5, 6, 7 and 8 pitches back from the front edge.
-    for (const nl of [mm(270), mm(600)]) {
-      const [, , third, fourth] = runnerFixingPositions(MERIVOBOX, nl);
-      expect(fourth! - third!).toBe(32);
-      expect(third! % 32).toBe(0);
-      expect(fourth! % 32).toBe(0);
+  it('keeps both pairs 32 apart, which is what fixing with system screws means', () => {
+    // Stated as the property rather than as more numbers. It is not a validation of the reading —
+    // that lesson has been learned once already — but it is what distinguishes the system-screw
+    // pattern from the chipboard one, and it holds at every length.
+    for (const nl of MERIVOBOX.nominalLengths) {
+      const [first, second, third, fourth] = runnerFixingPositions(MERIVOBOX, nl);
+      expect(second! - first!, `NL ${nl} front pair`).toBe(32);
+      expect(fourth! - third!, `NL ${nl} rear pair`).toBe(32);
     }
   });
 
@@ -743,7 +747,7 @@ describe('a job saved while the profile had two fixings', () => {
     expect(migrated.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
     const merivobox = migrated.hardware.runnerSystems.find((r) => r.id === MERIVOBOX.id)!;
     expect(merivobox.fixingPositions).toEqual(MERIVOBOX.fixingPositions);
-    expect(runnerFixingPositions(merivobox, mm(500))).toEqual([37, 55, 224, 256]);
+    expect(runnerFixingPositions(merivobox, mm(500))).toEqual([37, 69, 224, 256]);
   });
 
   it('leaves a shop’s own runner system alone, restated in the new shape', () => {
