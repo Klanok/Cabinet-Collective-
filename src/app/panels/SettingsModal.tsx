@@ -126,6 +126,13 @@ const CONSTRUCTION_FIELDS: {
   { key: 'systemHoleDiameter', hint: 'Shelf pin and system hole diameter', min: 3, max: 10 },
   { key: 'systemHoleDepth', hint: 'How deep a system hole is bored', min: 5, max: 30 },
   {
+    key: 'systemHoleEndClearance',
+    hint: 'How far the first and last shelf-pin hole keep off the ends of a panel, and off a fixed shelf. The run is centred in what is left, so a panel turned end-for-end still lines up',
+    min: 0,
+    max: 300,
+    step: 8,
+  },
+  {
     key: 'ladderRailFloorGap',
     hint: 'How far short of the floor a plinth’s rails are cut, so it beds on the ribs',
     min: 0,

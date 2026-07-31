@@ -16,6 +16,7 @@ import {
   withFixingStrip,
   withAppliedEnds,
   withFrontStandoff,
+  withShelfPinClearance,
   withLadderKick,
   withSystemHoles,
 } from './construction.ts';
@@ -31,7 +32,7 @@ import {
 } from '../library/blum.ts';
 import { AU_BENCHTOP_MATERIALS, AU_SHEET_MATERIALS } from '../library/materials.au.ts';
 
-export const CURRENT_SCHEMA_VERSION = 13 as const;
+export const CURRENT_SCHEMA_VERSION = 14 as const;
 
 /**
  * The bendy ply an older job is given when it is migrated forward. It has no curved parts in
@@ -550,6 +551,28 @@ const migrateV12toV13 = (raw: Record<string, unknown>): Record<string, unknown> 
 };
 
 /**
+ * v13 → v14. **The shelf-pin rows stop short of the ends, and are centred.**
+ *
+ * > "adjustable shelf holes should not go full height in the end panel, it should have a setting
+ * > that sets how far off the top, bottom and fixed shelves. we also need to ensure that they are
+ * > always equidistant so you can't end up with a flipped back and the holes offset."
+ *
+ * **This moves holes and cannot pretend otherwise**, which makes it the second of its kind after
+ * `withFrontStandoff`. Every shelf-pin row in every saved job gets shorter at both ends, and the
+ * holes that remain move, because the run is now centred rather than indexed off the bottom edge.
+ *
+ * **No part changes size and no part moves.** A side panel is the same rectangle in the same place
+ * with a different set of Ø5 holes in it; nothing else in the cabinet reads those holes, and no
+ * cutlist line changes. Migrating to a zero clearance would not have preserved the old positions
+ * either — a zero clearance is centred too — so there was nothing to preserve them for. The reason
+ * centring is the correct answer rather than a preference is argued in `rules/shelfPins.ts`.
+ */
+const migrateV13toV14 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const constructions = (raw.constructions as Record<string, unknown>[] | undefined) ?? [];
+  return { ...raw, schemaVersion: 14, constructions: constructions.map(withShelfPinClearance) };
+};
+
+/**
  * Load a project from stored JSON, migrating older schema versions forward.
  *
  * Migrations run in sequence, so a v1 file loaded after several schema changes still arrives
@@ -582,6 +605,7 @@ export const migrateProject = (raw: unknown): Project => {
   if (data.schemaVersion === 10) data = migrateV10toV11(data);
   if (data.schemaVersion === 11) data = migrateV11toV12(data);
   if (data.schemaVersion === 12) data = migrateV12toV13(data);
+  if (data.schemaVersion === 13) data = migrateV13toV14(data);
 
   if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`migrateProject: could not migrate schema version ${String(version)}`);

@@ -60,8 +60,30 @@
  *
  * ── System holes ───────────────────────────────────────────────────────────────────────────
  *
- *   pitch 32, Ø5 × 13, from one pitch above the bottom edge of the side to one pitch short of
- *   the top:  floor(720 / 32) − 1 = 22 − 1 = **21 holes**, at part x = 32, 64, … 672
+ * The row used to run the full height — one pitch up from the bottom edge to one pitch short of
+ * the top, 21 holes at 32, 64 … 672 on a 720 side. Two things were wrong with that, both reported
+ * from the bench, and the arithmetic below is the corrected version.
+ *
+ * **It ran through the ends.** Holes in the zone where the bottom panel is housed and more in the
+ * zone the rails occupy: no shelf can use them, and they sit exactly where a dowel or a confirmat
+ * wants to be. `systemHoleEndClearance` — 96mm, three pitches — is how far the first and last keep
+ * clear.
+ *
+ * **It was indexed off the bottom edge, so a flipped panel did not line up.** Turning a panel
+ * end-for-end puts a hole that was at `y` at `H − y`, which is only the same set of holes when the
+ * height is a whole number of pitches. A 720 side is 22.5 pitches, so the old row's hole at 672
+ * landed at 48 when the panel was turned over — every hole out by half a pitch on a part that is
+ * otherwise identical either way up. The run is now **centred in its clear span** instead.
+ *
+ *   usable   720 − 2 × 96                = 528
+ *   holes    floor(528 / 32) + 1         = **17**
+ *   run      16 × 32                     = 512
+ *   first    96 + (528 − 512) / 2        = **104**      last  104 + 512 = **616**
+ *   check    720 − 616                   = 104, the same gap at the top as at the bottom
+ *
+ * At a 64mm pitch the same span takes 9 holes over the same 512, so the first is still at 104 —
+ * the clearance and the centring do not move with the pitch.
+ *
  *   two rows: 37 in from the front edge and 37 in from the back edge
  *   and **none at all** on a cabinet with no adjustable shelves
  */
@@ -73,6 +95,7 @@ import type { CabinetOptions, CabinetTypeId } from '../src/core/model/cabinet.ts
 import type { Project } from '../src/core/model/project.ts';
 import { machinedFaces, requiresFlip } from '../src/core/model/feature.ts';
 import { buildCabinet, buildProject } from '../src/core/rules/build.ts';
+import { panelExtent } from '../src/core/model/panel.ts';
 import { byName, drilledFor, drillingStaysOnThePart, size } from './helpers.ts';
 
 let project: Project;
@@ -506,28 +529,81 @@ describe('front fixings', () => {
 });
 
 describe('system holes', () => {
-  it('runs 21 holes at 32mm up a 720 side, in two rows front and back', () => {
+  it('runs 17 holes at 32mm up a 720 side, in two rows front and back', () => {
     const { panels } = build('wall', { shelfCount: 2, doorCount: 0 });
     const holes = drilledFor(byName(panels, 'Side L'), 'shelf-pin');
-    expect(holes).toHaveLength(42);
-    expect(holes.slice(0, 3).map((h) => h.x)).toEqual([32, 64, 96]);
-    expect(holes[20]!.x).toBe(672);
+    expect(holes).toHaveLength(34);
+    expect(holes.slice(0, 3).map((h) => h.x)).toEqual([104, 136, 168]);
+    expect(holes[16]!.x).toBe(616);
     expect(holes.every((h) => h.diameter === 5 && h.depth === 13)).toBe(true);
 
     // A wall side is 284 deep: front row 284 − 37 = 247, rear row 37 in from the back.
     expect(new Set(holes.map((h) => h.y))).toEqual(new Set([247, 37]));
   });
 
-  it('stays a drill-line rather than becoming twenty-one drills', () => {
+  it('keeps the same gap at the top as at the bottom, so a flipped panel lines up', () => {
+    /*
+     * The assertion the whole change exists for, and it is written as a property rather than as
+     * two numbers on purpose: what has to hold is that the two gaps are *equal*, at every height,
+     * not that they are 104 on this one cabinet. Heights chosen to include ones that are not a
+     * whole number of pitches, which is where indexing off the bottom edge fails.
+     */
+    for (const height of [720, 900, 1200, 2100, 717, 1015]) {
+      const built = buildCabinet(
+        createCabinet({
+          typeId: 'wall',
+          name: 'W',
+          width: mm(900),
+          height: mm(height),
+          depth: mm(300),
+          x: mm(0),
+          options: { shelfCount: 2, doorCount: 0 },
+        }),
+        project,
+      );
+      const side = byName(built.panels, 'Side L');
+      const holes = drilledFor(side, 'shelf-pin').map((h) => h.x);
+      const { length } = panelExtent(side);
+      const bottomGap = Math.min(...holes);
+      const topGap = length - Math.max(...holes);
+      expect(bottomGap, `${height}mm side`).toBeCloseTo(topGap, 9);
+      // And it really is keeping clear of the ends, not merely symmetric about the middle.
+      expect(bottomGap, `${height}mm side`).toBeGreaterThanOrEqual(96);
+    }
+  });
+
+  it('stays a drill-line rather than becoming seventeen drills', () => {
     const { panels } = build('wall', { shelfCount: 2, doorCount: 0 });
     const lines = byName(panels, 'Side L').features.filter((f) => f.kind === 'drill-line');
     expect(lines).toHaveLength(2);
-    expect(lines.every((f) => f.kind === 'drill-line' && f.count === 21)).toBe(true);
+    expect(lines.every((f) => f.kind === 'drill-line' && f.count === 17)).toBe(true);
     // The step runs *up* the panel on both hands, because it is derived from the placement.
     for (const side of ['Side L', 'Side R']) {
       const row = byName(panels, side).features.find((f) => f.kind === 'drill-line');
       expect(row?.kind === 'drill-line' && row.step).toEqual({ x: 32, y: 0 });
     }
+  });
+
+  it('follows the clearance a shop changes it to', () => {
+    const tight: Project = {
+      ...project,
+      constructions: project.constructions.map((c) => ({ ...c, systemHoleEndClearance: mm(32) })),
+    };
+    const built = buildCabinet(
+      createCabinet({
+        typeId: 'wall',
+        name: 'W',
+        width: mm(900),
+        x: mm(0),
+        options: { shelfCount: 2, doorCount: 0 },
+      }),
+      tight,
+    );
+    // usable 720 − 64 = 656; floor(656/32) + 1 = 21 holes over 640; first at 32 + 8 = 40.
+    const holes = drilledFor(byName(built.panels, 'Side L'), 'shelf-pin').map((h) => h.x);
+    expect(new Set(holes).size).toBe(21);
+    expect(Math.min(...holes)).toBe(40);
+    expect(720 - Math.max(...holes)).toBe(40);
   });
 
   it('bores no rows on a cabinet with no adjustable shelves', () => {
@@ -564,9 +640,13 @@ describe('system holes', () => {
       }),
       coarse,
     );
-    // floor(720 / 64) − 1 = 11 − 1 = 10.
+    // usable 528 again; floor(528 / 64) + 1 = 9 holes over 512, so the first is still at 104 —
+    // the clearance and the centring do not move with the pitch.
     const row = byName(built.panels, 'Side L').features.find((f) => f.kind === 'drill-line');
-    expect(row?.kind === 'drill-line' && row.count).toBe(10);
+    expect(row?.kind === 'drill-line' && row.count).toBe(9);
+    const holes = drilledFor(byName(built.panels, 'Side L'), 'shelf-pin').map((h) => h.x);
+    expect(Math.min(...holes)).toBe(104);
+    expect(720 - Math.max(...holes)).toBe(104);
   });
 });
 

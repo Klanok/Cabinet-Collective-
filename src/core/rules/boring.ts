@@ -45,6 +45,7 @@ import {
   runnerAboveFrontBottom,
 } from '../model/hardware.ts';
 import type { RuleContext } from './context.ts';
+import { shelfPinRuns } from './shelfPins.ts';
 import type { MaterialSlot, PartInstance } from './spec.ts';
 
 /** Which end of the cabinet a part is at. Derived from where it sits, never passed in. */
@@ -171,10 +172,11 @@ export const boreCabinet = (
     .filter((p) => p.instance.role === 'drawer-front')
     .sort((a, b) => a.box.min.y - b.box.min.y);
   const adjustableShelves = placed.filter((p) => p.instance.role === 'shelf-adjustable');
+  const fixedShelves = placed.filter((p) => p.instance.role === 'shelf-fixed');
 
   boreHinges(ctx, doors, sides, add, warn);
   boreRunners(ctx, drawerFronts, sides, add, warn);
-  boreSystemHoles(ctx, sides, adjustableShelves.length, add, warn);
+  boreSystemHoles(ctx, sides, fixedShelves, adjustableShelves.length, add, warn);
 
   return { perInstance, warnings };
 };
@@ -480,15 +482,24 @@ const boreFrontFixing = (
  * that were **built** rather than from `shelfCount`: a shelf the corner radius ate is not a shelf
  * that needs pins. A fixed shelf is housed and takes none.
  *
- * The holes are on the pitch measured from the bottom of the side panel, which is what a line
- * borer or a Blum jig indexed off the bottom edge actually produces. They are emitted as one
- * `drill-line` per row rather than twenty-one drills, because that is what the operation is — and
- * because the step vector is derived from the placement, so the row runs up the panel on both
- * hands rather than up one and down the other.
+ * Where the holes fall up the panel is `rules/shelfPins.ts`, and both of the things it does are
+ * corrections rather than refinements: the row keeps clear of the ends instead of running the full
+ * height, and it is **centred** rather than indexed off the bottom edge, so a panel turned
+ * end-for-end still lines up. The argument for centring — and why bottom-indexing quietly fails at
+ * any height that is not a whole number of pitches, which 720 is not — is written out there.
+ *
+ * A fixed shelf splits the row rather than ending it, so a cabinet with one gets pins above and
+ * below. Nothing produces a fixed shelf yet; reading the built parts rather than assuming none
+ * means the day something does, this is already right.
+ *
+ * They are emitted as one `drill-line` per run rather than twenty-one drills, because that is what
+ * the operation is — and because the step vector is derived from the placement, so the row runs up
+ * the panel on both hands rather than up one and down the other.
  */
 const boreSystemHoles = (
   ctx: RuleContext,
   sides: readonly Placed[],
+  fixedShelves: readonly Placed[],
   shelfCount: number,
   add: (index: number, feature: PanelFeature) => void,
   warn: (message: string) => void,
@@ -497,14 +508,27 @@ const boreSystemHoles = (
   const c = ctx.construction;
   const pitch = c.systemPitch;
   if (!pitch || pitch <= 0) return;
+  const clearance = c.systemHoleEndClearance ?? mm(96);
+
+  // In cabinet space, so the same list is right for both hands.
+  const obstructions = fixedShelves.map((s) => ({ lo: s.box.min.y, hi: s.box.max.y }));
 
   for (const side of sides) {
     const hand = handOf(ctx, side.box);
     const x = insideFaceX(side, hand);
-    const height = mm(side.box.max.y - side.box.min.y);
-    // First hole one pitch up from the bottom edge, last one a pitch short of the top.
-    const count = Math.floor(height / pitch) - 1;
-    if (count < 1) continue;
+    const runs = shelfPinRuns(
+      { lo: side.box.min.y, hi: side.box.max.y },
+      obstructions,
+      pitch,
+      clearance,
+    );
+    if (runs.length === 0) {
+      warn(
+        `A ${Math.round(side.box.max.y - side.box.min.y)}mm side keeping ${Math.round(clearance)}mm ` +
+          'clear of each end has no room for a shelf-pin hole — none are bored.',
+      );
+      continue;
+    }
 
     const frontZ = mm(side.box.max.z - c.systemFrontSetback);
     const rearZ = mm(side.box.min.z + (c.systemBackSetback ?? c.systemFrontSetback));
@@ -520,18 +544,22 @@ const boreSystemHoles = (
     }
 
     for (const [suffix, z] of rows) {
-      const first = v3(x, mm(side.box.min.y + pitch), z);
-      const second = v3(x, mm(side.box.min.y + 2 * pitch), z);
-      add(side.index, {
-        id: `system-holes-${suffix}`,
-        kind: 'drill-line',
-        purpose: 'shelf-pin',
-        face: 'A',
-        start: partPoint(side.instance.placement, first),
-        step: partStep(side.instance.placement, first, second),
-        count,
-        diameter: c.systemHoleDiameter ?? mm(5),
-        depth: c.systemHoleDepth ?? mm(13),
+      runs.forEach((run, i) => {
+        const first = v3(x, run.first, z);
+        const second = v3(x, mm(run.first + pitch), z);
+        add(side.index, {
+          // Numbered only when a fixed shelf has split the row, so an ordinary cabinet's feature
+          // ids read exactly as they always have.
+          id: runs.length === 1 ? `system-holes-${suffix}` : `system-holes-${suffix}-${i + 1}`,
+          kind: 'drill-line',
+          purpose: 'shelf-pin',
+          face: 'A',
+          start: partPoint(side.instance.placement, first),
+          step: partStep(side.instance.placement, first, second),
+          count: run.count,
+          diameter: c.systemHoleDiameter ?? mm(5),
+          depth: c.systemHoleDepth ?? mm(13),
+        });
       });
     }
   }

@@ -1012,6 +1012,54 @@ all. Both are now under **Not yet checked at the bench** in the joinery settings
 conventions and `withAppliedEnds`; `tests/appliedEnds.test.ts` for the contract, with the reference
 panel worked longhand in its header and a note on what each group of assertions is really guarding.
 
+### 4.9 Shelf-pin rows — clear of the ends, and centred
+
+Two corrections to one row of holes, both reported from the bench, and the second is the one worth
+reading.
+
+> "adjustable shelf holes should not go full height in the end panel, it should have a setting that
+> sets how far off the top, bottom and fixed shelves. we also need to ensure that they are always
+> equidistant so you can't end up with a flipped back and the holes offset."
+
+**It ran through the ends.** From one pitch above the bottom edge to one pitch short of the top:
+holes in the zone where the bottom panel is housed, more in the zone the rails occupy, none of them
+usable by a shelf and all of them exactly where a dowel or a confirmat wants to be.
+`systemHoleEndClearance` — 96mm, three pitches — is how far the first and last keep clear.
+
+**It was indexed off the bottom edge, so a flipped panel did not line up.** This is the subtle one.
+System 32 says bore at multiples of the pitch from the bottom edge, and that *is* interchangeable —
+but only when the panel height is itself a whole number of pitches. Turning a panel end-for-end
+puts a hole that was at `y` at `H − y`. A 720mm side is 22.5 pitches, so the old row's top hole at
+672 landed at 48 on the flip: every hole out by half a pitch, on a part that is otherwise identical
+either way up. Two sides cut from one programme, one of them rotated, and the shelf rocks.
+
+So the run is **centred in its clear span**: the gap at the bottom equals the gap at the top by
+construction, at any height. The holes are still on the pitch — a line borer sets one offset and
+steps — they simply no longer start at a whole multiple of it. The centring is exact and
+deliberately not rounded to a tidy number, because rounding is the one thing that would put the
+asymmetry back, silently, at some heights only.
+
+**A fixed shelf splits the run rather than ending it**, so a cabinet with one gets pins above and
+below. Nothing produces a `shelf-fixed` part yet; the borer reads the built parts rather than
+assuming none, so the day something does, this is already right. Note what it means for symmetry: a
+panel with an *off-centre* fixed shelf comes out asymmetric, and that is correct — the housing for
+that shelf is off-centre too, so the panel was never flippable. Symmetry is preserved exactly where
+it exists.
+
+**This migration moves holes and says so.** Project v14 and standards v10 fill in the 96mm; every
+saved job's rows get shorter at both ends and the remaining holes move. It is the second migration
+that cannot claim to change nothing — `withFrontStandoff` was the first. No part changes size and no
+part moves: a side panel is the same rectangle in the same place with a different set of Ø5 holes
+in it, and a cutlist comparison against a fresh job asserts exactly that. Migrating to a zero
+clearance would not have preserved the old positions either, because a zero clearance is centred
+too — so there was nothing to preserve them for.
+
+**Where to look:** `rules/shelfPins.ts` is the whole thing, pure and with the argument for centring
+written out; `rules/boring.ts` for how a side panel's span and its fixed shelves are handed to it;
+`tests/shelfPins.test.ts` tests the arithmetic directly — including a sweep of every height from 300
+to 2400, because equidistance is a property rather than a number and the heights where it fails are
+the ones nobody types into a test.
+
 ---
 
 ## 5. Open items, in the order I'd do them

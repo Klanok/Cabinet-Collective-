@@ -23,6 +23,7 @@ import {
   withFixingStrip,
   withAppliedEnds,
   withFrontStandoff,
+  withShelfPinClearance,
   withLadderKick,
   withSystemHoles,
 } from '../model/construction.ts';
@@ -39,7 +40,7 @@ import {
   DEFAULT_RUNNER_SYSTEM_ID,
 } from '../library/blum.ts';
 
-export const CURRENT_STANDARDS_VERSION = 9 as const;
+export const CURRENT_STANDARDS_VERSION = 10 as const;
 
 export interface ShopStandards {
   readonly version: typeof CURRENT_STANDARDS_VERSION;
@@ -312,6 +313,7 @@ export const labelForConstructionKey = (key: keyof ConstructionMethod): string =
     systemBackSetback: 'First hole from back',
     systemHoleDiameter: 'System hole diameter',
     systemHoleDepth: 'System hole depth',
+    systemHoleEndClearance: 'Shelf pins — clear of each end',
     ladderRailFloorGap: 'Plinth rails cut short by',
     ladderFaceScribeAllowance: 'Kick face scribe allowance',
     ladderFaceScribeEnd: 'Kick face scribe end',
@@ -347,6 +349,8 @@ export const migrateStandards = (raw: unknown): ShopStandards => {
   if (data.version === 6) data = migrateStandardsV6toV7(data);
   if (data.version === 7) data = migrateStandardsV7toV8(data);
   if (data.version === 8) data = migrateStandardsV8toV9(data);
+  if (data.version === 9) data = migrateStandardsV9toV10(data);
+  if (data.version === 9) data = migrateStandardsV9toV10(data);
 
   if (data.version !== CURRENT_STANDARDS_VERSION) {
     throw new Error(`migrateStandards: could not migrate version ${String(version)}`);
@@ -490,6 +494,17 @@ const migrateStandardsV7toV8 = (raw: Record<string, unknown>): Record<string, un
 const migrateStandardsV8toV9 = (raw: Record<string, unknown>): Record<string, unknown> => {
   const constructions = (raw.constructions as Record<string, unknown>[] | undefined) ?? [];
   return { ...raw, version: 9, constructions: constructions.map(withAppliedEnds) };
+};
+
+/**
+ * Standards v9 → v10: the shelf-pin end clearance, matching the project's v13 → v14.
+ *
+ * How far a shop keeps its pin holes off the ends of a panel is one number for the whole shop, so
+ * it belongs here beside the system pitch and the setbacks rather than on each cabinet.
+ */
+const migrateStandardsV9toV10 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const constructions = (raw.constructions as Record<string, unknown>[] | undefined) ?? [];
+  return { ...raw, version: 10, constructions: constructions.map(withShelfPinClearance) };
 };
 
 const migrateStandardsV1toV2 = (raw: Record<string, unknown>): Record<string, unknown> => {

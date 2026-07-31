@@ -449,11 +449,15 @@ describe('the drilling summary', () => {
      *   hinge plates   22 hinges × 2                              =  44
      *   runners         3 drawers × 2 sides × 2 fixings           =  12
      *   shelf pins      5 cabinets with adjustable shelves
-     *                     × 2 sides × 2 rows × 21 holes           = 420
+     *                     × 2 sides × 2 rows × 17 holes           = 340
      *                                                              ───
-     *                                                               476
+     *                                                               396
+     *
+     * The shelf-pin figure was 21 a row while the row ran the full height of the side. It is 17
+     * now that the run keeps 96mm clear of each end and is centred so a flipped panel lines up —
+     * every cabinet in this kitchen is 720 high, so every row is the same 17.
      */
-    expect(find(5).count).toBe(476);
+    expect(find(5).count).toBe(396);
     expect(find(5).face).toBe('A');
 
     // The front fixing pilots: 3 drawers x 2 brackets x 2 screws, in the back of each front.
@@ -472,13 +476,15 @@ describe('the drilling summary', () => {
   it('turns nothing over on a plain-slab kitchen, and every front on a shaker one', () => {
     const slab = createSampleKitchen();
     const plain = drillingTotals(buildProject(slab).flatMap((b) => b.panels));
-    expect(plain.holes).toBe(554);
+    // 554 while the shelf-pin rows ran the full height; 474 now that each row is 17 holes
+    // rather than 21 — 20 rows × 4 fewer.
+    expect(plain.holes).toBe(474);
     expect(plain.turnedParts).toBe(0);
 
     // A shaker front is recessed on its show face *and* bored in its back: two setups, honestly.
     const shaker: Project = { ...slab, defaults: { ...slab.defaults, doorStyleId: 'shaker-57' } };
     const routed = drillingTotals(buildProject(shaker).flatMap((b) => b.panels));
-    expect(routed.holes).toBe(554);
+    expect(routed.holes).toBe(474);
     // Eleven doors and three drawer fronts, all routed and all bored.
     expect(routed.turnedParts).toBe(14);
   });
@@ -510,8 +516,8 @@ describe('export', () => {
 
   it('writes one row per hole on the drilling sheet, rows of system holes expanded', () => {
     const rows = drillingCsv(kitchen).trimEnd().split('\r\n');
-    // 476 + 22 + 44 + 12 = 554 holes, plus the header.
-    expect(rows).toHaveLength(555);
+    // 396 + 22 + 44 + 12 = 474 holes, plus the header.
+    expect(rows).toHaveLength(475);
     expect(rows[0]).toBe('Cabinet,Part,Purpose,Face,Turns over,X,Y,Diameter,Depth,Feature');
     // The cups, their dowels and the front fixings all go in the back of a front — but on a
     // plain-slab kitchen no part is machined on both faces, so nothing turns over.

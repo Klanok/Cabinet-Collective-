@@ -187,6 +187,22 @@ export interface ConstructionMethod {
    */
   readonly systemHoleDiameter: Mm;
   readonly systemHoleDepth: Mm;
+  /**
+   * How far the first and last shelf-pin hole keep clear of the ends of a side panel — and of
+   * anything fixed across it.
+   *
+   * The row used to run the full height, starting a pitch up from the bottom edge and stopping a
+   * pitch short of the top: holes through the zone where the bottom panel is housed and more
+   * through the zone the rails occupy, which no shelf can use and which sit exactly where a dowel
+   * or a confirmat wants to be.
+   *
+   * Note what this figure does *not* do. It does not decide where the first hole lands — the run
+   * is **centred** in the clear span, so the gap at the bottom always equals the gap at the top and
+   * a panel turned end-for-end still lines up. This is the minimum kept clear; the arithmetic that
+   * turns it into hole positions is `rules/shelfPins.ts`, and the reason it has to be centred
+   * rather than indexed off the bottom edge is argued there.
+   */
+  readonly systemHoleEndClearance: Mm;
 }
 
 /**
@@ -225,6 +241,7 @@ export const FRAMELESS_32: ConstructionMethod = {
   systemBackSetback: mm(37),
   systemHoleDiameter: mm(5),
   systemHoleDepth: mm(13),
+  systemHoleEndClearance: mm(96),
 };
 
 export const DEFAULT_CONSTRUCTIONS: readonly ConstructionMethod[] = [FRAMELESS_32];
@@ -294,6 +311,29 @@ export const withLadderKick = (c: Record<string, unknown>): Record<string, unkno
     typeof c.ladderFaceScribeAllowance === 'number' ? c.ladderFaceScribeAllowance : 10,
   ladderFaceScribeEnd: c.ladderFaceScribeEnd === 'top' ? 'top' : 'floor',
   ladderMaxRibGap: typeof c.ladderMaxRibGap === 'number' ? c.ladderMaxRibGap : 600,
+});
+
+/**
+ * Give a stored method its shelf-pin end clearance.
+ *
+ * **This one moves holes, and it is the second migration that cannot pretend otherwise** — the
+ * first was `withFrontStandoff`. Filling in the shipped 96mm shortens every shelf-pin row in every
+ * saved job at both ends, and centring the row moves the holes that remain.
+ *
+ * **No part changes size and no part moves.** A side panel is the same rectangle in the same place
+ * with a different set of Ø5 holes in it, and nothing else in the cabinet reads those holes. The
+ * alternative was to migrate to zero, which would keep the full-height row — knowingly preserving
+ * a thing the shop has told us is wrong — and would *still* move every hole, because a zero
+ * clearance is centred too. There is no value that preserves the old positions, so there is
+ * nothing to preserve them for.
+ *
+ * 96mm is three pitches and is a shop figure rather than a measured one. It is on screen under
+ * Joinery, where it can be changed in one place for the whole job.
+ */
+export const withShelfPinClearance = (c: Record<string, unknown>): Record<string, unknown> => ({
+  ...c,
+  systemHoleEndClearance:
+    typeof c.systemHoleEndClearance === 'number' ? c.systemHoleEndClearance : 96,
 });
 
 /**
