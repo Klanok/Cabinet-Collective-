@@ -17,7 +17,7 @@ import {
   rectProfile,
 } from '../geom/profile.ts';
 import { placement } from '../geom/placement.ts';
-import { v3 } from '../geom/vec.ts';
+import { type SignedAxis, v3 } from '../geom/vec.ts';
 import { cylindricalForming, developedLength } from '../model/forming.ts';
 import type { PanelRole } from '../model/panel.ts';
 import type { RuleContext } from './context.ts';
@@ -31,7 +31,13 @@ import {
   substrateRadius,
   wrapLayerCount,
 } from './radius.ts';
-import { BAND_ALL, BAND_FRONT, BAND_NONE, type PartInstance } from './spec.ts';
+import {
+  BAND_ALL,
+  BAND_FRONT,
+  BAND_NONE,
+  type CabinetSpec,
+  type PartInstance,
+} from './spec.ts';
 
 /** The lower and upper of two x positions, whichever hand the cabinet is. */
 const span = (a: Mm, b: Mm): { lo: Mm; hi: Mm; length: Mm } => {
@@ -626,6 +632,158 @@ export const kickPanel = (ctx: RuleContext): PartInstance[] => {
         'Needs blocking behind it.',
     }),
   ];
+};
+
+// ---------------------------------------------------------------------------------------
+// Applied end panels
+// ---------------------------------------------------------------------------------------
+
+/** What a spec has to tell the end-panel builder that the context cannot work out for itself. */
+export interface AppliedEndSettings {
+  /**
+   * Whether this cabinet stands on something — its own kick, or a run's plinth. Mirrors
+   * `CabinetSpec.standsOnKick`, and decides whether "to the floor" means anything at all: a wall
+   * cabinet's carcass bottom is 1500 up a wall, and an end panel that ran to the floor from there
+   * would be a very expensive mistake.
+   */
+  readonly standsOnKick?: boolean;
+  /**
+   * Whether a benchtop lands on this cabinet, burying the panel's top edge.
+   *
+   * Passed in rather than read off the cabinet type, for the same reason `carcassCornerFormers`
+   * takes `hasTopPanel`: it is a fact about the *spec*, and a builder that switched on typeId
+   * would have to be edited again for every cabinet type added after it. It decides one thing —
+   * whether the top edge is banded — and banding an edge nobody sees costs a metre of tape,
+   * while missing one that is seen is a remake.
+   */
+  readonly underBenchtop?: boolean;
+}
+
+/**
+ * An applied end panel — the board laid over an exposed carcass side so the end of a run reads
+ * as the kitchen rather than as the inside of a cupboard.
+ *
+ * Four things decide its shape, and each is a decision rather than an arithmetic convenience:
+ *
+ * - **It sits outboard of the carcass and the cabinet's width does not change.** x ∈ [−t, 0] on
+ *   the left, [W, W + t] on the right. That is what "applied" means, and it is why a cabinet
+ *   with an end on it eats one board more of the run than its width says.
+ *
+ * - **Its front edge is set from the door face, not from the carcass.** The panel's entire job
+ *   is to finish in the plane the fronts finish in, so `finishedFrontZ` is what it is measured
+ *   off — the same plane a radiused corner has to land in, resolved once in the context so the
+ *   two cannot drift apart.
+ *
+ * - **It is cut long at the back** by the method's scribe allowance, to be planed into the wall.
+ *   The back edge is therefore never banded: you would be banding an edge that gets planed off.
+ *
+ * - **It runs down to the floor**, past whatever the cabinet is standing on, because stopping at
+ *   the carcass bottom leaves the kick returning across the end of the run in carcass board.
+ *
+ *   How far down is the cabinet's **own anchor height** — how high its carcass bottom sits off
+ *   the floor — and not the method's kick height. Those are the same number on a cabinet with its
+ *   own kick and are not the same number on a run standing on a ladder base, where the plinth
+ *   owns its height and is explicitly documented as not reading it back off the method. Taking
+ *   the anchor gets both right without knowing which it is, and gets a cabinet standing on
+ *   nothing right too: the drop is zero, because there is nothing to drop past.
+ *
+ * The panel is cut from the **door** slot and carries the cabinet's door style, so a shaker
+ * kitchen gets shaker ends without a second rule. That happens in `build.ts`, off the role.
+ */
+export const appliedEndPanels = (
+  ctx: RuleContext,
+  settings: AppliedEndSettings = {},
+): PartInstance[] => {
+  const c = ctx.construction;
+  const ends = ctx.options.appliedEnds ?? [];
+  if (ends.length === 0) return [];
+
+  const scribe = c.appliedEndBackScribe ?? 20;
+  const overhang = c.appliedEndFrontOverhang ?? 0;
+  const standsOn = settings.standsOnKick ?? true;
+  const drop = standsOn ? mm(Math.max(0, ctx.cabinet.placement.anchor.y)) : mm(0);
+  const toFloor = (c.appliedEndToFloor ?? true) && drop > 0;
+
+  const bottomY = toFloor ? mm(-drop) : mm(0);
+  const height = mm(ctx.H - bottomY);
+  const frontZ = mm(ctx.finishedFrontZ + overhang);
+  const backZ = mm(-scribe);
+  const depth = mm(frontZ - backZ);
+  if (height <= 0 || depth <= 0) return [];
+
+  // Front always; the bottom because it stands on the floor and a raw edge there drinks; the top
+  // only when there is no benchtop over it.
+  const banding: SignedAxis[] = ['+Z', '-Y'];
+  if (!settings.underBenchtop) banding.push('+Y');
+
+  const note =
+    `Applied end — grain vertical, finished face out. Cut ${Math.round(scribe)}mm long at the ` +
+    `back to scribe to the wall${
+      toFloor ? `, and run ${Math.round(drop)}mm past the carcass to the floor` : ''
+    }.`;
+
+  return ends
+    .filter((end) => !(ctx.radius && (ctx.radius.corner === 'front-right') === (end === 'right')))
+    .map((end) => ({
+      name: end === 'left' ? 'End panel L' : 'End panel R',
+      role: 'end-panel' as const,
+      profile: rectProfile(height, depth),
+      // The A-face is the **outboard** face either way — this is the one part in the carcass
+      // whose show face points away from the cabinet, and getting it backwards puts the decor
+      // against the melamine. As with the sides, the two hands take different axes rather than
+      // the same axes and a different origin.
+      placement:
+        end === 'left'
+          ? placement(v3(0, bottomY, frontZ), '+Y', '-Z')
+          : placement(v3(ctx.W, bottomY, backZ), '+Y', '+Z'),
+      material: 'door' as const,
+      bandedDirections: banding,
+      grain: 'length-along-grain' as const,
+      note,
+    }));
+};
+
+/**
+ * What is wrong with the applied ends asked for, in the shop's words.
+ *
+ * Run for every cabinet type from `buildCabinet`, alongside `cornerRadiusProblems`. A cabinet
+ * with no applied ends produces nothing here, so this cannot disturb a job that has none.
+ */
+export const appliedEndProblems = (ctx: RuleContext, spec: CabinetSpec): string[] => {
+  const ends = ctx.options.appliedEnds ?? [];
+  if (ends.length === 0) return [];
+  const problems: string[] = [];
+
+  if (spec.isCarcass === false) {
+    problems.push(
+      `An ${spec.name.toLowerCase()} is a gap in the run rather than a cabinet, so there is no ` +
+        'side to apply a panel to. Put the end on the cabinet beside it instead.',
+    );
+    return problems;
+  }
+
+  const rad = ctx.radius;
+  if (rad) {
+    const clashing = ends.find((end) => (rad.corner === 'front-right') === (end === 'right'));
+    if (clashing) {
+      problems.push(
+        `The ${clashing} end of this cabinet is the radiused one, so it has no flat end to ` +
+          'apply a panel to — the curve is the finish. The panel has been left off.',
+      );
+    }
+  }
+
+  /*
+   * There is deliberately nothing here about plinths.
+   *
+   * There used to be: while the drop was read off the method's kick height, a cabinet on a ladder
+   * base got a panel that stopped at the carcass bottom and a warning saying the plinth needed its
+   * own return. Reading the drop off the cabinet's anchor instead made the panel reach the floor
+   * on its own, and the warning became a false one — which is worse than none, because it teaches
+   * whoever sees it to skim past the next warning too.
+   */
+
+  return problems;
 };
 
 // ---------------------------------------------------------------------------------------

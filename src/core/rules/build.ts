@@ -21,7 +21,7 @@ import {
 import { type StyledFront, isStyledFrontRole, styleFront } from './frontStyle.ts';
 import { boreCabinet } from './boring.ts';
 import { type ResolvedHardware, hardwareProblems } from './hardware.ts';
-import { cornerRadiusProblems } from './parts.ts';
+import { appliedEndProblems, cornerRadiusProblems } from './parts.ts';
 import { getSpec } from './registry.ts';
 import { buildRunUnits } from './runUnits.ts';
 import { type MaterialSlot, type PartInstance, resolveBanding } from './spec.ts';
@@ -162,6 +162,7 @@ export const buildCabinet = (cabinet: Cabinet, project: Project): BuiltCabinet =
   const warnings = [
     ...carcassProblems,
     ...cornerRadiusProblems(ctx),
+    ...appliedEndProblems(ctx, spec),
     ...hardwareProblems(ctx),
     ...(spec.validate?.(ctx) ?? []),
   ];

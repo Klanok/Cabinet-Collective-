@@ -11,6 +11,7 @@ import { mm } from '../../units.ts';
 import type { CabinetSpec } from '../spec.ts';
 import {
   adjustableShelves,
+  appliedEndPanels,
   backPanel,
   bottomPanel,
   carcassCornerFormers,
@@ -55,5 +56,10 @@ export const WALL_CABINET_SPEC: CabinetSpec = {
     { key: 'doors', produce: (ctx) => doors(ctx, ctx.options.doorCount ?? 2) },
     { key: 'formers', produce: (ctx) => carcassCornerFormers(ctx, { hasTopPanel: true }) },
     { key: 'skin', produce: (ctx) => (ctx.radius ? wrapLayers(ctx, ctx.radius) : []) },
+    {
+      key: 'applied-ends',
+      produce: (ctx) =>
+        appliedEndPanels(ctx, { underBenchtop: false, standsOnKick: false }),
+    },
   ],
 };

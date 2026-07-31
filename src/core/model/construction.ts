@@ -72,6 +72,40 @@ export interface ConstructionMethod {
   readonly stretcherWidth: Mm;
 
   /*
+   * Applied end panels — the board that goes on the exposed end of a run so what you see is the
+   * door decor rather than the carcass melamine. These are shop conventions, which is why they
+   * live here; *which* end gets one is a fact about the cabinet and lives in its options.
+   */
+
+  /**
+   * How far past the back of the carcass an applied end is cut, to be scribed to the wall.
+   *
+   * The same idea as `ladderFaceScribeAllowance` and for the same reason: the panel is the one
+   * part of the kitchen whose back edge meets an unplanned wall in full view, so it is cut long
+   * and planed in. **Unconfirmed** — see `unconfirmedAppliedEndFigures`.
+   */
+  readonly appliedEndBackScribe: Mm;
+  /**
+   * How far the front edge of an applied end stands **proud of the door face**.
+   *
+   * Zero is flush, which is the usual detail and what ships. A shop that runs its ends proud to
+   * throw a shadow line sets it here; a negative number sets the end back behind the doors.
+   *
+   * Measured off the door face rather than off the carcass on purpose. The whole job of this
+   * panel is to finish in the same plane as the fronts either side of it — the same plane a
+   * radiused corner has to finish in — so that is the plane it is dimensioned from.
+   */
+  readonly appliedEndFrontOverhang: Mm;
+  /**
+   * Whether an applied end runs down past the kick to the floor.
+   *
+   * True ships, because that is the point of a finished end: stopping at the carcass bottom
+   * leaves the kick returning across the end of the run in carcass board, in full view. A shop
+   * that lands its ends on the plinth instead sets this false.
+   */
+  readonly appliedEndToFloor: boolean;
+
+  /*
    * Reveals and gaps are split by *where they physically are*, not by calling them
    * "horizontal" and "vertical" — those terms are read both ways in the trade (the direction
    * the gap is measured in, or the direction the gap line runs) and getting it backwards
@@ -174,6 +208,9 @@ export const FRAMELESS_32: ConstructionMethod = {
   ladderFaceScribeEnd: 'floor',
   ladderMaxRibGap: mm(600),
   stretcherWidth: mm(100),
+  appliedEndBackScribe: mm(20),
+  appliedEndFrontOverhang: mm(0),
+  appliedEndToFloor: true,
   revealTop: mm(3),
   revealBottom: mm(0),
   revealSides: mm(1.5),
@@ -258,6 +295,34 @@ export const withLadderKick = (c: Record<string, unknown>): Record<string, unkno
   ladderFaceScribeEnd: c.ladderFaceScribeEnd === 'top' ? 'top' : 'floor',
   ladderMaxRibGap: typeof c.ladderMaxRibGap === 'number' ? c.ladderMaxRibGap : 600,
 });
+
+/**
+ * Fill in the applied-end figures on a stored method that predates them.
+ *
+ * **No part moves.** Only a cabinet with `appliedEnds` on it reads these, and no job saved before
+ * this version could have had one — the option did not exist, so every stored cabinet comes
+ * forward with an empty list and cuts exactly what it cut.
+ */
+export const withAppliedEnds = (c: Record<string, unknown>): Record<string, unknown> => ({
+  ...c,
+  appliedEndBackScribe: typeof c.appliedEndBackScribe === 'number' ? c.appliedEndBackScribe : 20,
+  appliedEndFrontOverhang:
+    typeof c.appliedEndFrontOverhang === 'number' ? c.appliedEndFrontOverhang : 0,
+  appliedEndToFloor: typeof c.appliedEndToFloor === 'boolean' ? c.appliedEndToFloor : true,
+});
+
+/**
+ * The applied-end figures nobody has checked, named as the fields they are.
+ *
+ * Only the back scribe is on the list, and only because the number itself is a guess: 20mm is a
+ * reasonable allowance for planing a panel into a wall, but it is not this shop's allowance until
+ * somebody says so. Flush at the front and down to the floor are *details*, not measurements —
+ * they are either what you do or not, and they are on screen where they can be seen and changed.
+ */
+export const unconfirmedAppliedEndFigures = (c: ConstructionMethod): readonly string[] => [
+  `appliedEndBackScribe — an applied end is cut ${c.appliedEndBackScribe}mm past the back of the ` +
+    'carcass to scribe into the wall. Confirm the allowance before a run is cut.',
+];
 
 /**
  * The ladder-base figures nobody has checked, named as the fields they are.

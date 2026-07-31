@@ -23,6 +23,9 @@ export type CabinetTypeId =
 /** Which way a door swings, described by the side its hinges are on, facing the cabinet. */
 export type DoorSwing = 'left' | 'right';
 
+/** An end of a cabinet, named as you stand and look at it. */
+export type CabinetEnd = 'left' | 'right';
+
 /**
  * Per-cabinet options. Deliberately a flat optional record rather than a per-type union:
  * specs read the keys they care about and fall back to their own defaults, so adding an
@@ -38,6 +41,23 @@ export interface CabinetOptions {
   readonly drawerCount?: number;
   /** Whether this cabinet sits on its own kick. False for a run on a continuous plinth. */
   readonly hasKick?: boolean;
+
+  /**
+   * Which ends of this cabinet get an applied end panel — a board in the door decor, laid over
+   * the carcass side so what you see at the end of a run is the kitchen and not the melamine.
+   *
+   * **Named ends, with no default and nothing derived.** The same handedness rule `radiusCorner`
+   * takes its edge for, and a worse trap here, because an applied end on the wrong side of a
+   * cabinet is exactly the right part in exactly the wrong place: it is the correct size, it
+   * cuts and bands identically, and it is a remake. Nothing in the model can work out which end
+   * of a run is open — a cabinet does not know its neighbours — so nothing tries.
+   *
+   * The panel goes **outboard of the carcass**, and the cabinet's width does not change. That is
+   * what "applied" means: the carcass is the carcass, and the end is laid on it. So a cabinet
+   * with an end on it takes up its width plus a board in the run, which is the fact to hold on
+   * to when the last cabinet meets a wall.
+   */
+  readonly appliedEnds?: readonly CabinetEnd[];
 
   /*
    * Appliance spaces only — and the whole reason the type exists. See specs/applianceSpace.ts.
@@ -162,6 +182,10 @@ export interface CabinetOptions {
    */
   readonly skinLayers?: number;
 }
+
+/** Whether this cabinet carries an applied end panel on the named end. */
+export const hasAppliedEnd = (options: CabinetOptions, end: CabinetEnd): boolean =>
+  (options.appliedEnds ?? []).includes(end);
 
 /** True when both halves of a corner radius are set, which is the only way either does anything. */
 export const isRadiused = (options: CabinetOptions): boolean =>

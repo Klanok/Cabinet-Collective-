@@ -965,6 +965,53 @@ builders, with each part's unit-space volume documented; `costing/benchtopCost.t
 fabricator's charges; `rules/specs/applianceSpace.ts` for the gap that is not geometric.
 `tests/runUnits.test.ts` is the contract and carries the longhand charge arithmetic in its header.
 
+### 4.8 Applied end panels
+
+> "I also need applied end panels asap — that's a huge miss"
+
+It was. A kitchen drawn in this app ended a run in carcass melamine. The odd part is how much of
+it was already in place and waiting: `'end-panel'` had been in `PanelRole` since Phase 1,
+`STYLED_FRONT_ROLES` already listed it so a shaker kitchen would get shaker ends, and
+`machineFront`'s comment named it as the thing coming next. The only missing piece was a builder.
+
+**Which end is asked for, never derived.** `CabinetOptions.appliedEnds` is a list of named ends,
+with no default, for the same reason `radiusCorner` has none: nothing in the model can work out
+which end of a run is open, because a cabinet does not know its neighbours. And a panel on the
+wrong side is the worst kind of wrong — right size, right banding, right cutlist line, and a
+remake. Two tick boxes in the inspector; no cleverness behind them.
+
+**Applied means applied.** The panel goes *outboard* of the carcass — x ∈ [−t, 0] on the left,
+[W, W + t] on the right — and the cabinet's width does not change. The side underneath is the same
+side it always was. A test asserts every other part of the cabinet is byte-identical with and
+without the option, because applying a panel is not a change to the cabinet; the day that fails,
+some builder has started reading `appliedEnds` and quietly re-cut a kitchen.
+
+**Its front edge comes off the door face, not the carcass.** The whole job of this panel is to
+finish in the plane the fronts finish in, so it reads `finishedFrontZ` — 580 on a 560 carcass with
+18mm doors and the 2mm standoff, which is the number the shop gave. The same plane a radiused
+corner has to land in. One resolution point, so the two cannot drift apart by 2mm.
+
+**How far it drops is the cabinet's own anchor height, not the method's kick height.** This was
+wrong first time round and the unit tests did not catch it — a browser check on the sample kitchen
+did. That kitchen stands on a ladder base, which switches `hasKick` off on every member *without
+moving them*: the plinth is built to fill the gap that is already there. Reading the drop off
+`kickHeight` gave those cabinets a 720mm panel with the end of the plinth left open beside it. A
+plinth owns its height and `model/kickBase.ts` says so explicitly. The one figure that is right
+whatever is underneath — own kick, run plinth, or nothing at all — is how far the carcass bottom
+sits off the floor, which is the cabinet's anchor. Taking that gets all three right without
+knowing which it is, and it deleted a warning rather than adding one.
+
+**The back edge is cut long and never banded.** 20mm past the carcass, to be planed into the wall.
+Banding an edge that is about to be planed off is tape thrown away, and worse, it tells whoever
+fits it that the edge is finished. The 20mm is a guess and says so, on the unconfirmed list beside
+the ladder figures — which, while we were there, turned out never to have been shown on screen at
+all. Both are now under **Not yet checked at the bench** in the joinery settings.
+
+**Where to look:** `rules/parts.ts` for `appliedEndPanels` and `appliedEndProblems`;
+`model/cabinet.ts` for the option and `hasAppliedEnd`; `model/construction.ts` for the three shop
+conventions and `withAppliedEnds`; `tests/appliedEnds.test.ts` for the contract, with the reference
+panel worked longhand in its header and a note on what each group of assertions is really guarding.
+
 ---
 
 ## 5. Open items, in the order I'd do them

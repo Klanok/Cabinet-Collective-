@@ -28,6 +28,9 @@ const ROLE_COLOURS: Record<string, string> = {
   back: '#c9c4ba',
   door: '#f4f2ee',
   'drawer-front': '#f4f2ee',
+  // An applied end is cut from the door board, so it reads as a front and not as a carcass
+  // part — which is the whole point of putting one on.
+  'end-panel': '#f4f2ee',
   kick: '#8f8b84',
   // The skeleton reads darker than the skin over it, so a radiused end is legible as an
   // assembly rather than as one lump.

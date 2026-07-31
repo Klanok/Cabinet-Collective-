@@ -14,7 +14,11 @@ import { useState } from 'react';
 import { type Mm, mm } from '../../core/units.ts';
 import { type Room, isRectangularRoom, rectangularRoom, wallLength } from '../../core/model/room.ts';
 import type { Cabinet } from '../../core/model/cabinet.ts';
-import type { ConstructionMethod } from '../../core/model/construction.ts';
+import {
+  type ConstructionMethod,
+  unconfirmedAppliedEndFigures,
+  unconfirmedLadderFigures,
+} from '../../core/model/construction.ts';
 import type { GstMode, Project, ProjectDefaults, ProjectSettings } from '../../core/model/project.ts';
 import {
   type MaterialLibrary,
@@ -134,6 +138,20 @@ const CONSTRUCTION_FIELDS: {
     max: 40,
   },
   { key: 'ladderMaxRibGap', hint: 'Greatest clear gap between plinth ribs', min: 100, max: 1200, step: 10 },
+  {
+    key: 'appliedEndBackScribe',
+    hint: 'How far past the back of the carcass an applied end is cut, to plane into the wall. Not yet checked against a real run',
+    min: 0,
+    max: 60,
+    step: 5,
+  },
+  {
+    key: 'appliedEndFrontOverhang',
+    hint: 'How far an applied end stands proud of the door face. Zero is flush, which is the usual detail',
+    min: -20,
+    max: 40,
+    step: 0.5,
+  },
 ];
 
 /**
@@ -430,6 +448,25 @@ function ConstructionEditor({
         </div>
       </div>
 
+      <div className="setting-row">
+        <div className="setting-label">
+          <span>{labelForConstructionKey('appliedEndToFloor')}</span>
+          <em>
+            An applied end that stops at the carcass bottom leaves the kick returning across the
+            end of the run in carcass board
+          </em>
+        </div>
+        <div className="setting-input">
+          <select
+            value={(active.appliedEndToFloor ?? true) ? 'floor' : 'kick'}
+            onChange={(e) => onChange(active.id, { appliedEndToFloor: e.target.value === 'floor' })}
+          >
+            <option value="floor">Down to the floor, past the kick</option>
+            <option value="kick">Stops at the carcass bottom, on the plinth</option>
+          </select>
+        </div>
+      </div>
+
       {CONSTRUCTION_FIELDS.map((f) => (
         <NumberRow
           key={String(f.key)}
@@ -442,6 +479,20 @@ function ConstructionEditor({
           onChange={(n) => onChange(active.id, { [f.key]: mm(n) } as Partial<ConstructionMethod>)}
         />
       ))}
+
+      {/*
+        The same treatment the hardware figures get, and for the same reason: a number that is a
+        reading rather than a measurement costs ten seconds with a tape if it says so, and a run
+        of parts if it stays quiet. Both of these were written to be shown and never were.
+      */}
+      <div className="subhead">Not yet checked at the bench</div>
+      <ul className="warnings">
+        {[...unconfirmedLadderFigures(active), ...unconfirmedAppliedEndFigures(active)].map(
+          (note) => (
+            <li key={note}>{note}</li>
+          ),
+        )}
+      </ul>
     </>
   );
 }

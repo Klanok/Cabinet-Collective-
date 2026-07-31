@@ -20,6 +20,7 @@ import { BAND_ALL } from '../spec.ts';
 import type { RuleContext } from '../context.ts';
 import {
   adjustableShelves,
+  appliedEndPanels,
   backPanel,
   bottomPanel,
   carcassCornerFormers,
@@ -131,6 +132,11 @@ export const TALL_CABINET_SPEC: CabinetSpec = {
     {
       key: 'kick',
       produce: (ctx) => (ctx.options.hasKick === false ? [] : kickPanel(ctx)),
+    },
+    {
+      key: 'applied-ends',
+      produce: (ctx) =>
+        appliedEndPanels(ctx, { underBenchtop: false, standsOnKick: true }),
     },
   ],
 };

@@ -10,6 +10,7 @@ import { mm } from '../../units.ts';
 import type { CabinetSpec } from '../spec.ts';
 import {
   adjustableShelves,
+  appliedEndPanels,
   backPanel,
   bottomPanel,
   carcassCornerFormers,
@@ -67,6 +68,11 @@ export const BASE_CABINET_SPEC: CabinetSpec = {
     {
       key: 'kick',
       produce: (ctx) => (ctx.options.hasKick === false ? [] : kickPanel(ctx)),
+    },
+    {
+      key: 'applied-ends',
+      produce: (ctx) =>
+        appliedEndPanels(ctx, { underBenchtop: true, standsOnKick: true }),
     },
   ],
 };

@@ -23,6 +23,7 @@ import { equalDrawerFronts } from '../../model/cabinet.ts';
 import type { CabinetSpec, PartInstance } from '../spec.ts';
 import type { RuleContext } from '../context.ts';
 import {
+  appliedEndPanels,
   backPanel,
   bayShelves,
   bottomPanel,
@@ -141,6 +142,11 @@ export const CUSTOM_CABINET_SPEC: CabinetSpec = {
     {
       key: 'kick',
       produce: (ctx) => (ctx.options.hasKick === false ? [] : kickPanel(ctx)),
+    },
+    {
+      key: 'applied-ends',
+      produce: (ctx) =>
+        appliedEndPanels(ctx, { underBenchtop: false, standsOnKick: true }),
     },
   ],
 };

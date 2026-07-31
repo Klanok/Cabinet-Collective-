@@ -21,6 +21,7 @@ import {
   DEFAULT_CONSTRUCTIONS,
   collapseThicknessFields,
   withFixingStrip,
+  withAppliedEnds,
   withFrontStandoff,
   withLadderKick,
   withSystemHoles,
@@ -38,7 +39,7 @@ import {
   DEFAULT_RUNNER_SYSTEM_ID,
 } from '../library/blum.ts';
 
-export const CURRENT_STANDARDS_VERSION = 8 as const;
+export const CURRENT_STANDARDS_VERSION = 9 as const;
 
 export interface ShopStandards {
   readonly version: typeof CURRENT_STANDARDS_VERSION;
@@ -315,6 +316,9 @@ export const labelForConstructionKey = (key: keyof ConstructionMethod): string =
     ladderFaceScribeAllowance: 'Kick face scribe allowance',
     ladderFaceScribeEnd: 'Kick face scribe end',
     ladderMaxRibGap: 'Greatest gap between plinth ribs',
+    appliedEndBackScribe: 'Applied end — scribe past the back',
+    appliedEndFrontOverhang: 'Applied end — proud of the door face',
+    appliedEndToFloor: 'Applied end runs to the floor',
   };
   return labels[key] ?? String(key);
 };
@@ -342,6 +346,7 @@ export const migrateStandards = (raw: unknown): ShopStandards => {
   if (data.version === 5) data = migrateStandardsV5toV6(data);
   if (data.version === 6) data = migrateStandardsV6toV7(data);
   if (data.version === 7) data = migrateStandardsV7toV8(data);
+  if (data.version === 8) data = migrateStandardsV8toV9(data);
 
   if (data.version !== CURRENT_STANDARDS_VERSION) {
     throw new Error(`migrateStandards: could not migrate version ${String(version)}`);
@@ -473,6 +478,18 @@ const migrateStandardsV6toV7 = (raw: Record<string, unknown>): Record<string, un
 const migrateStandardsV7toV8 = (raw: Record<string, unknown>): Record<string, unknown> => {
   const constructions = (raw.constructions as Record<string, unknown>[] | undefined) ?? [];
   return { ...raw, version: 8, constructions: constructions.map(withFrontStandoff) };
+};
+
+/**
+ * Standards v8 → v9: the applied-end figures, matching the project's v12 → v13.
+ *
+ * A shop's ends are all detailed the same way — scribed the same amount, flush or proud the same
+ * amount, to the floor or not — so these belong on the method beside the kick figures, and a shop
+ * that details theirs differently changes three numbers once rather than per cabinet.
+ */
+const migrateStandardsV8toV9 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const constructions = (raw.constructions as Record<string, unknown>[] | undefined) ?? [];
+  return { ...raw, version: 9, constructions: constructions.map(withAppliedEnds) };
 };
 
 const migrateStandardsV1toV2 = (raw: Record<string, unknown>): Record<string, unknown> => {

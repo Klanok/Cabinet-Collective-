@@ -14,6 +14,7 @@ import {
   type ConstructionMethod,
   collapseThicknessFields,
   withFixingStrip,
+  withAppliedEnds,
   withFrontStandoff,
   withLadderKick,
   withSystemHoles,
@@ -30,7 +31,7 @@ import {
 } from '../library/blum.ts';
 import { AU_BENCHTOP_MATERIALS, AU_SHEET_MATERIALS } from '../library/materials.au.ts';
 
-export const CURRENT_SCHEMA_VERSION = 12 as const;
+export const CURRENT_SCHEMA_VERSION = 13 as const;
 
 /**
  * The bendy ply an older job is given when it is migrated forward. It has no curved parts in
@@ -530,6 +531,25 @@ const migrateV11toV12 = (raw: Record<string, unknown>): Record<string, unknown> 
 };
 
 /**
+ * v12 → v13. **The applied-end figures on every construction method.**
+ *
+ * "I also need applied end panels asap — that's a huge miss", and it was: the board that goes on
+ * the exposed end of a run so what you see is the door decor rather than the carcass melamine had
+ * no model at all. The role existed and `STYLED_FRONT_ROLES` already listed it; nothing produced
+ * one.
+ *
+ * **No part moves**, and unlike v12 this one can say so without qualification. The three figures
+ * added here — the back scribe, the front overhang and whether the end runs to the floor — are read
+ * by exactly one builder, and that builder produces nothing at all unless a cabinet names an end.
+ * No cabinet saved before this version could have: the option did not exist, so every stored
+ * cabinet arrives with no applied ends and cuts precisely what it cut.
+ */
+const migrateV12toV13 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const constructions = (raw.constructions as Record<string, unknown>[] | undefined) ?? [];
+  return { ...raw, schemaVersion: 13, constructions: constructions.map(withAppliedEnds) };
+};
+
+/**
  * Load a project from stored JSON, migrating older schema versions forward.
  *
  * Migrations run in sequence, so a v1 file loaded after several schema changes still arrives
@@ -561,6 +581,7 @@ export const migrateProject = (raw: unknown): Project => {
   if (data.schemaVersion === 9) data = migrateV9toV10(data);
   if (data.schemaVersion === 10) data = migrateV10toV11(data);
   if (data.schemaVersion === 11) data = migrateV11toV12(data);
+  if (data.schemaVersion === 12) data = migrateV12toV13(data);
 
   if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`migrateProject: could not migrate schema version ${String(version)}`);

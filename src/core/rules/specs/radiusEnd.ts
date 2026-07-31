@@ -41,7 +41,13 @@ import { type Mm, mm } from '../../units.ts';
 import type { RuleContext } from '../context.ts';
 import { type CabinetSpec, type PartInstance } from '../spec.ts';
 import { type CornerRadius, resolveCornerRadius } from '../radius.ts';
-import { cornerFormers, formerHeights, wrapLayers, wrapPart } from '../parts.ts';
+import {
+  appliedEndPanels,
+  cornerFormers,
+  formerHeights,
+  wrapLayers,
+  wrapPart,
+} from '../parts.ts';
 
 /** The plan radius of the curve — the outside of the finished skin. */
 const outerRadius = (ctx: RuleContext): Mm => mm(ctx.options.endRadius ?? ctx.D);
@@ -172,5 +178,10 @@ export const RADIUS_END_SPEC: CabinetSpec = {
     { key: 'formers', produce: formers },
     { key: 'skin', produce: skins },
     { key: 'kick', produce: curvedKick },
+    {
+      key: 'applied-ends',
+      produce: (ctx) =>
+        appliedEndPanels(ctx, { underBenchtop: true, standsOnKick: true }),
+    },
   ],
 };

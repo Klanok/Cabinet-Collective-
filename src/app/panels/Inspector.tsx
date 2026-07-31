@@ -6,7 +6,9 @@
 import { mm } from '../../core/units.ts';
 import {
   type Cabinet,
+  type CabinetEnd,
   type CabinetOptions,
+  hasAppliedEnd,
   radiusDefaultOptions,
 } from '../../core/model/cabinet.ts';
 import { panelExtent } from '../../core/model/panel.ts';
@@ -414,6 +416,19 @@ export function Inspector({
   const setMaterial = (patch: Partial<Cabinet['materials']>) =>
     onUpdate(cabinet.id, { materials: { ...cabinet.materials, ...patch } });
 
+  /*
+   * Applied end panels. Stored as a list of named ends, so ticking one adds it and clearing one
+   * removes it — and the list is *sorted*, so two cabinets detailed the same way compare equal
+   * however the boxes were clicked. Ends are named as you stand and look at the cabinet, which
+   * is how the model names them and how somebody at the bench would say it.
+   */
+  const ends: readonly { end: CabinetEnd; label: string }[] = [
+    { end: 'left', label: 'Applied end — left' },
+    { end: 'right', label: 'Applied end — right' },
+  ];
+  const setEnd = (end: CabinetEnd, on: boolean): CabinetEnd[] =>
+    ends.map((e) => e.end).filter((e) => (e === end ? on : hasAppliedEnd(cabinet.options, e)));
+
   /** Base, wall and tall carcasses take a rounded front corner. The quarter-round unit *is* one. */
   const canRound = cabinet.typeId === 'base' || isWall || isTall;
   const corner = cabinet.options.radiusCorner;
@@ -733,6 +748,28 @@ export function Inspector({
             <span>Own kick</span>
           </label>
         )}
+
+        {/*
+          Applied end panels.
+
+          Named ends, one tick each, and **nothing is derived**. Whether an end of a run is open
+          is not something a cabinet can know — it has no idea what is beside it — so offering
+          "outside end" or guessing from the position would be guessing, and a panel on the wrong
+          side is the right part in the wrong place: right size, right banding, and a remake.
+
+          Both are offered on every carcass, because both happen: an island is finished at both
+          ends, and a peninsula returning to a wall is finished at one.
+        */}
+        {ends.map(({ end, label }) => (
+          <label className="field field-check" key={end}>
+            <input
+              type="checkbox"
+              checked={hasAppliedEnd(cabinet.options, end)}
+              onChange={(e) => onUpdateOptions(cabinet.id, { appliedEnds: setEnd(end, e.target.checked) })}
+            />
+            <span>{label}</span>
+          </label>
+        ))}
       </div>
 
       {warnings.length > 0 && (

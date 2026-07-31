@@ -14,6 +14,7 @@ import type { CabinetSpec } from '../spec.ts';
 import type { RuleContext } from '../context.ts';
 import { drawerBoxes } from '../drawerBox.ts';
 import {
+  appliedEndPanels,
   backPanel,
   bottomPanel,
   drawerFronts,
@@ -93,6 +94,11 @@ export const DRAWER_BANK_SPEC: CabinetSpec = {
     {
       key: 'kick',
       produce: (ctx) => (ctx.options.hasKick === false ? [] : kickPanel(ctx)),
+    },
+    {
+      key: 'applied-ends',
+      produce: (ctx) =>
+        appliedEndPanels(ctx, { underBenchtop: true, standsOnKick: true }),
     },
   ],
 };
