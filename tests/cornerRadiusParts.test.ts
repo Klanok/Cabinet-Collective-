@@ -36,8 +36,8 @@
  *   wrap layer 1   50 + (194 + 1.5)·π/2 + 360     = 717.0906
  *   wrap layer 2   50 + (197 + 1.5)·π/2 + 360     = 721.8030
  *   difference     3 × π/2                        = 4.712389
- *   kick           radius 200 + 18 − 50 = 168, inner 165
- *                  700 + (165 + 1.5)·π/2 + 360    = 1321.5379
+ *   kick           radius 200 + 18 door + 2 standoff − 50 = 170, inner 167
+ *                  700 + (167 + 1.5)·π/2 + 360    = 1324.6792
  * ```
  *
  * ## The bottom, which is where the reported bug lived
@@ -317,16 +317,16 @@ describe('the wrap', () => {
     // finished curve instead and the kick steps back 18mm at every radiused cabinet.
     const { panels, project } = reference();
     const kick = byName(panels, 'Kick');
-    expect(panelExtent(kick).length).toBeCloseTo(1321.5379, 3);
-    expect(kick.forming!.innerRadius).toBe(mm(165));
+    expect(panelExtent(kick).length).toBeCloseTo(1324.6792, 3);
+    expect(kick.forming!.innerRadius).toBe(mm(167));
     expect(kick.materialId).toBe(project.defaults.skinMaterialId);
-    // The flat run sits at z = 560 + 18 − 50 = 528, exactly where `kickPanel` puts a square
+    // The flat run sits at z = 560 + 2 + 18 − 50 = 530, exactly where `kickPanel` puts a square
     // cabinet's kick face.
     const face = partToCabinet(
       kick.placement,
       formPoint(kick.forming!, mm(3), { x: mm(0), y: mm(0), z: mm(3) }),
     );
-    expect(face.z).toBeCloseTo(528, 6);
+    expect(face.z).toBeCloseTo(530, 6);
   });
 });
 

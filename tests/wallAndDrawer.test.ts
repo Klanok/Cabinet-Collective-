@@ -160,7 +160,8 @@ describe('drawer bank', () => {
 
   it('sits the fronts proud of the carcass face', () => {
     const { panels } = drawers({ drawerCount: 3 });
-    expect(occupies(byName(panels, 'Drawer front 1'), project).z).toEqual([560, 578]);
+    // 2mm standoff off the carcass, then the 18mm front — finishing at 580.
+    expect(occupies(byName(panels, 'Drawer front 1'), project).z).toEqual([562, 580]);
   });
 
   it('honours explicit front heights over an equal split', () => {

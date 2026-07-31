@@ -21,6 +21,7 @@ import {
   DEFAULT_CONSTRUCTIONS,
   collapseThicknessFields,
   withFixingStrip,
+  withFrontStandoff,
   withLadderKick,
   withSystemHoles,
 } from '../model/construction.ts';
@@ -37,7 +38,7 @@ import {
   DEFAULT_RUNNER_SYSTEM_ID,
 } from '../library/blum.ts';
 
-export const CURRENT_STANDARDS_VERSION = 7 as const;
+export const CURRENT_STANDARDS_VERSION = 8 as const;
 
 export interface ShopStandards {
   readonly version: typeof CURRENT_STANDARDS_VERSION;
@@ -339,6 +340,7 @@ export const migrateStandards = (raw: unknown): ShopStandards => {
   if (data.version === 4) data = migrateStandardsV4toV5(data);
   if (data.version === 5) data = migrateStandardsV5toV6(data);
   if (data.version === 6) data = migrateStandardsV6toV7(data);
+  if (data.version === 7) data = migrateStandardsV7toV8(data);
 
   if (data.version !== CURRENT_STANDARDS_VERSION) {
     throw new Error(`migrateStandards: could not migrate version ${String(version)}`);
@@ -459,6 +461,17 @@ const migrateStandardsV6toV7 = (raw: Record<string, unknown>): Record<string, un
     version: 7,
     materials: { ...materials, sheets: withResolvedColours(sheets, AU_SHEET_MATERIALS) },
   };
+};
+
+/**
+ * Standards v7 → v8: the front standoff, matching the project's v11 → v12.
+ *
+ * The shipped 2mm, filled in on every method. A shop that builds to a different gap changes one
+ * number in one place, which is the point of it being on the construction method at all.
+ */
+const migrateStandardsV7toV8 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const constructions = (raw.constructions as Record<string, unknown>[] | undefined) ?? [];
+  return { ...raw, version: 8, constructions: constructions.map(withFrontStandoff) };
 };
 
 const migrateStandardsV1toV2 = (raw: Record<string, unknown>): Record<string, unknown> => {

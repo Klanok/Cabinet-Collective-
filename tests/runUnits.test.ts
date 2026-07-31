@@ -691,7 +691,7 @@ describe('a v9 job coming forward', () => {
    */
   it('arrives with no benchtops and no plinths', () => {
     const migrated = migrateProject(asV9(createSampleKitchen()));
-    expect(migrated.schemaVersion).toBe(11);
+    expect(migrated.schemaVersion).toBe(12);
     expect(migrated.benchtops).toEqual([]);
     expect(migrated.kickBases).toEqual([]);
   });

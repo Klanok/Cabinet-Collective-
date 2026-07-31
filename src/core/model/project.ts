@@ -14,6 +14,7 @@ import {
   type ConstructionMethod,
   collapseThicknessFields,
   withFixingStrip,
+  withFrontStandoff,
   withLadderKick,
   withSystemHoles,
 } from './construction.ts';
@@ -29,7 +30,7 @@ import {
 } from '../library/blum.ts';
 import { AU_BENCHTOP_MATERIALS, AU_SHEET_MATERIALS } from '../library/materials.au.ts';
 
-export const CURRENT_SCHEMA_VERSION = 11 as const;
+export const CURRENT_SCHEMA_VERSION = 12 as const;
 
 /**
  * The bendy ply an older job is given when it is migrated forward. It has no curved parts in
@@ -503,6 +504,32 @@ const migrateV10toV11 = (raw: Record<string, unknown>): Record<string, unknown> 
 };
 
 /**
+ * v11 → v12. **The front standoff — the 2mm gap the model never had.**
+ *
+ * From the bench, correcting an 18mm door drawn as finishing at 578 on a 560 carcass:
+ *
+ * > "an 18mm door would land at 580 not 578 because that is the natural position of the hinge and
+ * > it also allows for a bump stop"
+ *
+ * The back of a front does not sit flat on the carcass. It stands off, and the model had that gap
+ * at zero — which put the finished face of every kitchen 2mm shallower than it really is, and put a
+ * radiused corner's finish 2mm out from the doors it is supposed to line up with.
+ *
+ * **This one moves things, and it is worth being plain rather than quiet about it.** Every door and
+ * drawer front moves 2mm forward, the kick face moves with them, and on a radiused cabinet the
+ * curved kick's developed length changes.
+ *
+ * **No cut size on a square cabinet changes.** A door is the same rectangle 2mm further forward,
+ * the carcass is untouched, and an ordinary kitchen's cutlist comes out identical — the test
+ * asserts exactly that. Migrating to zero instead would have kept every saved job's fronts flat on
+ * the carcass, which is knowingly preserving a number the shop has told us is wrong.
+ */
+const migrateV11toV12 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const constructions = (raw.constructions as Record<string, unknown>[] | undefined) ?? [];
+  return { ...raw, schemaVersion: 12, constructions: constructions.map(withFrontStandoff) };
+};
+
+/**
  * Load a project from stored JSON, migrating older schema versions forward.
  *
  * Migrations run in sequence, so a v1 file loaded after several schema changes still arrives
@@ -533,6 +560,7 @@ export const migrateProject = (raw: unknown): Project => {
   if (data.schemaVersion === 8) data = migrateV8toV9(data);
   if (data.schemaVersion === 9) data = migrateV9toV10(data);
   if (data.schemaVersion === 10) data = migrateV10toV11(data);
+  if (data.schemaVersion === 11) data = migrateV11toV12(data);
 
   if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`migrateProject: could not migrate schema version ${String(version)}`);

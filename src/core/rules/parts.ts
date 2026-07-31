@@ -472,7 +472,7 @@ export const doors = (ctx: RuleContext, count: 0 | 1 | 2): PartInstance[] => {
     name,
     role: 'door',
     profile: rectProfile(height, width),
-    placement: placement(v3(rightEdgeX, rBot, ctx.D), '+Y', '-X'),
+    placement: placement(v3(rightEdgeX, rBot, ctx.frontBackZ), '+Y', '-X'),
     material: 'door',
     bandedDirections: BAND_ALL,
     grain: 'length-along-grain',
@@ -562,7 +562,7 @@ export const drawerFronts = (ctx: RuleContext, heights: readonly Mm[]): PartInst
     name: `Drawer front ${i + 1}`,
     role: 'drawer-front',
     profile: rectProfile(width, row.height),
-    placement: placement(v3(rS, row.y, ctx.D), '+X', '+Y'),
+    placement: placement(v3(rS, row.y, ctx.frontBackZ), '+X', '+Y'),
     material: 'door',
     bandedDirections: BAND_ALL,
     grain: 'length-along-grain',
@@ -577,8 +577,9 @@ export const drawerFronts = (ctx: RuleContext, heights: readonly Mm[]): PartInst
 export const kickPanel = (ctx: RuleContext): PartInstance[] => {
   const c = ctx.construction;
   const rad = ctx.radius;
-  // The kick face sits `kickSetback` behind the door front, and the panel is `t` thick.
-  const faceZ = mm(ctx.D + ctx.td - c.kickSetback);
+  // The kick face sits `kickSetback` behind the **door front**, and the panel is `t` thick. The
+  // door front is the finished plane, standoff included — not the carcass.
+  const faceZ = mm(ctx.finishedFrontZ - c.kickSetback);
 
   if (rad === null) {
     return [
@@ -605,7 +606,7 @@ export const kickPanel = (ctx: RuleContext): PartInstance[] => {
    * lands. Setting it back from the *finished curve* instead would put the kick 18mm further
    * back than its neighbour's in a run, and you would see the step.
    */
-  const finished = mm(rad.r + ctx.td - c.kickSetback);
+  const finished = mm(rad.r + ctx.td + c.frontStandoff - c.kickSetback);
   const inner = mm(finished - ctx.ts);
   if (inner <= 0) return [];
   const flatFront = mm(Math.abs(rad.tangentX - (rad.sign > 0 ? 0 : ctx.W)));

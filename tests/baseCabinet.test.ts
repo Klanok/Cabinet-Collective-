@@ -185,14 +185,26 @@ describe('base cabinet placement', () => {
     expect(centres).toEqual([188, 360, 532]);
   });
 
-  it('hangs the doors in front of the carcass with a 3mm gap between them', () => {
+  /**
+   * The **standoff** is the figure to read here, and it came from the bench:
+   *
+   * > "an 18mm door would land at 580 not 578 because that is the natural position of the hinge and
+   * > it also allows for a bump stop"
+   *
+   * So the back of a door is not on the carcass. It stands 2mm off it, and an 18mm door on a 560
+   * carcass finishes at **580** — which is the plane the whole kitchen, radiused corners included,
+   * has to line up with.
+   */
+  it('hangs the doors 2mm off the carcass, finishing at 580, with a 3mm gap between them', () => {
     const { panels } = build({ doorCount: 2 });
     const left = occupies(byName(panels, 'Door L'), project);
     const right = occupies(byName(panels, 'Door R'), project);
 
     // Flush at the bottom, 3mm reveal at the top.
-    expect(left).toEqual({ x: [1.5, 448.5], y: [0, 717], z: [560, 578] });
-    expect(right).toEqual({ x: [451.5, 898.5], y: [0, 717], z: [560, 578] });
+    expect(left).toEqual({ x: [1.5, 448.5], y: [0, 717], z: [562, 580] });
+    expect(right).toEqual({ x: [451.5, 898.5], y: [0, 717], z: [562, 580] });
+    // The gap itself, stated on its own so it cannot drift into the numbers above.
+    expect(left.z[0] - 560).toBe(2);
     expect(left.y[0]).toBe(0);
     expect(720 - left.y[1]).toBe(3);
 
@@ -203,11 +215,11 @@ describe('base cabinet placement', () => {
 
   it('recesses the kick below the carcass and behind the door face', () => {
     const { panels } = build({ hasKick: true });
-    // Door face is at z = 560 + 18 = 578; a 50mm setback puts the kick face at 528.
+    // Door face is at 560 + 2 standoff + 18 = 580; a 50mm setback puts the kick face at 530.
     expect(occupies(byName(panels, 'Kick'), project)).toEqual({
       x: [0, 900],
       y: [-150, 0],
-      z: [512, 528],
+      z: [514, 530],
     });
   });
 });

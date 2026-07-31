@@ -90,6 +90,24 @@ export interface ConstructionMethod {
   readonly revealBottom: Mm;
   /** Reveal at the left and right edges of a front, each. */
   readonly revealSides: Mm;
+
+  /**
+   * How far the **back of a front sits off the carcass front** — the gap in the depth direction.
+   *
+   * Its own field and deliberately not called a reveal or a gap, because it is measured in a
+   * different direction from every other clearance here. `revealSides` and `gapBetweenDoors` are
+   * seen from the front of the cabinet; this one is only visible from the side, and it is the one
+   * that decides where the finished face of the kitchen actually is.
+   *
+   * **2mm, from the bench.** It is the hinge's natural position, and it leaves room for a bump
+   * stop. The model had it at zero — the back of every door flat on the carcass — which is not how
+   * a cabinet goes together and which put the finished face 2mm shallower than it really is.
+   *
+   * Nothing about a **cut size** on a square cabinet depends on it: a door is the same rectangle
+   * either way. What it moves is where fronts sit in space, where the kick face lands, and — on a
+   * radiused cabinet — where the curve has to finish, which is the reason it had to be modelled.
+   */
+  readonly frontStandoff: Mm;
   /** Gap between two doors sitting side by side — reads as a vertical line. */
   readonly gapBetweenDoors: Mm;
   /** Gap between stacked drawer fronts — reads as a horizontal line. */
@@ -159,6 +177,7 @@ export const FRAMELESS_32: ConstructionMethod = {
   revealTop: mm(3),
   revealBottom: mm(0),
   revealSides: mm(1.5),
+  frontStandoff: mm(2),
   gapBetweenDoors: mm(3),
   gapBetweenDrawers: mm(3),
   shelfSetback: mm(10),
@@ -204,6 +223,25 @@ export const withSystemHoles = (c: Record<string, unknown>): Record<string, unkn
     systemHoleDepth: typeof c.systemHoleDepth === 'number' ? c.systemHoleDepth : 13,
   };
 };
+
+/**
+ * Give a stored method its front standoff.
+ *
+ * **This one moves something, and unlike `withFixingStrip` and `withSystemHoles` it cannot pretend
+ * otherwise**, so it is worth being plain. Filling in the shipped 2mm moves every door and drawer
+ * front 2mm forward in space, moves the kick face with them, and on a radiused cabinet changes the
+ * developed length of the curved kick and the wrap.
+ *
+ * **No cut size on a square cabinet changes.** A door is the same rectangle 2mm further forward,
+ * the carcass is untouched, and the cutlist for an ordinary kitchen comes out identical. The
+ * alternative was to migrate to zero and leave every existing job with its doors flat on the
+ * carcass — which is knowingly preserving a number the shop has told us is wrong, on the same
+ * reasoning v9 used when it re-priced a job by the hardware it always had.
+ */
+export const withFrontStandoff = (c: Record<string, unknown>): Record<string, unknown> => ({
+  ...c,
+  frontStandoff: typeof c.frontStandoff === 'number' ? c.frontStandoff : 2,
+});
 
 /**
  * Fill in the ladder-base figures on a stored method that predates them.

@@ -96,6 +96,21 @@ export interface RuleContext {
   readonly horizontalDepth: Mm;
   /** Cabinet-space z of the front face of the back panel — where the interior starts. */
   readonly interiorBackZ: Mm;
+  /**
+   * Cabinet-space z of the **back of a front** — the carcass front plus the standoff.
+   *
+   * Resolved here so no builder re-derives it. A door's back face is not on the carcass: it stands
+   * off by the hinge's natural gap, which also leaves room for a bump stop.
+   */
+  readonly frontBackZ: Mm;
+  /**
+   * Cabinet-space z of the **finished face of the kitchen** — the front of a door.
+   *
+   * This is the plane a radiused corner has to finish in, which is the whole reason it is worth
+   * naming. It exists whether or not the cabinet has doors: a decorative radiused end still has to
+   * line up with the fronts either side of it.
+   */
+  readonly finishedFrontZ: Mm;
 
   /**
    * The rounded front corner, if this cabinet has one — resolved once, so no builder has to
@@ -197,6 +212,10 @@ export const buildContext = (
     horizontalDepth: innerDepth,
     // Under both back styles the back occupies z ∈ [0, tb], so the interior starts at tb.
     interiorBackZ: tb,
+    // Older methods that predate the field are migrated to the shipped 2, but a method hand-built
+    // in a test may not be, so it falls back to the same number rather than to NaN.
+    frontBackZ: mm(D + (construction.frontStandoff ?? 2)),
+    finishedFrontZ: mm(D + (construction.frontStandoff ?? 2) + thicknesses.door),
     radius: resolveRadius(cabinet.options, construction, {
       W,
       D,
