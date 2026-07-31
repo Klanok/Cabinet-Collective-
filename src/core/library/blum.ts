@@ -20,8 +20,8 @@
  *   wooden back, M         83mm high, cut from 16mm chipboard
  *   drawer bottom          LW − 51 wide  ×  NL − 26 long, from 16mm chipboard
  *   minimum inner depth    LT min = NL + 3
- *   fixing distribution    128mm at NL ≤ 300, 256mm at NL 350–600 — a short runner is drilled
- *                          differently from a long one, which is why it steps rather than scaling
+ *   profile fixing         four screws per runner per side, positioned back from the front edge
+ *                          of the cabinet side — see `fixingPositions` and the note below
  *   load rating            40kg (a 70kg class also exists and is not shipped here)
  *
  * `LW` is the clear width between the cabinet sides and `LT` the clear depth in front of the
@@ -91,9 +91,32 @@ export const MERIVOBOX: DrawerRunnerSystem = {
   innerDepthAllowance: mm(3),
 
   frontFixingSetback: mm(37),
-  fixingSpacings: [
-    { maxNominalLength: mm(300), spacing: mm(128) },
-    { maxNominalLength: mm(600), spacing: mm(256) },
+  /*
+   * Off Blum's "Box systems › MERIVOBOX › Cabinet profile fixing positions" sheet, left-hand
+   * column — cabinet profile 450, 40 kg, which is the class shipped here. The 70 kg profile 453 is
+   * a different pattern and is not modelled.
+   *
+   * **The same sheet exists for TIP-ON BLUMOTION and carries identical figures**, which is worth
+   * recording rather than rediscovering: where the profile is screwed to the side does not change
+   * between push-to-open and the ordinary runner. One table covers both.
+   *
+   * Every figure is a distance back from the **front edge of the side panel**, which is how the
+   * sheet dimensions them. The rear pair steps with the length band and the front pair does not:
+   *
+   *     NL 270–350    rear screws at 160 and 192
+   *     NL 400–600    rear screws at 224 and 256
+   *
+   * Both rear pairs are 32 apart and both are exact multiples of 32 off the front edge. Which pair
+   * belongs to which band is settled by the extension lines on the sheet: 160 and 192 run up into
+   * the NL 270–350 diagram's rear bracket, 224 and 256 into the NL 400–600 one's.
+   *
+   * This replaces a single "128 or 256 behind the front fixing" that produced **two** holes. It
+   * came off the wrong table and the shop caught it. See `RunnerFixingPositions` for the reasoning
+   * error, which is the part worth not repeating.
+   */
+  fixingPositions: [
+    { maxNominalLength: mm(350), positions: [mm(37), mm(55), mm(160), mm(192)] },
+    { maxNominalLength: mm(600), positions: [mm(37), mm(55), mm(224), mm(256)] },
   ],
   fixingHoleDiameter: mm(5),
   fixingHoleDepth: mm(13),
@@ -134,6 +157,11 @@ export const MERIVOBOX: DrawerRunnerSystem = {
   indicativePricing: true,
 
   unconfirmedFigures: [
+    'fixingPositions, the front pair — the rear pair (160/192 and 224/256 back from the front ' +
+      'edge of the side) is read straight off the cabinet profile sheet and is solid. The front ' +
+      'bracket carries a chain of 32, 18 and 37 and only the 37 is certain, so the second front ' +
+      'screw is here at 55 (37 + 18) rather than 69 (37 + 32). Measure one built drawer bank: ' +
+      'front edge of the side panel to the two screws in the front bracket.',
     'runnerAboveCabinetFloor — how high the bottom of the runner has to sit above the cabinet ' +
       'floor. Zero for the ordinary screw-fixed runner, which rests straight on the base, and the ' +
       'distance up to the bottom edge of the front is then just the carcass board. A ' +

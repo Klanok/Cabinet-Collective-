@@ -390,20 +390,25 @@ const boreRunners = (
     for (const side of sides) {
       const hand = handOf(ctx, side.box);
       const x = insideFaceX(side, hand);
-      const frontZ = mm(side.box.max.z - system.frontFixingSetback);
-      const rearZ = mm(frontZ - runner.fixingSpacing);
 
-      const points: [string, Mm][] = [['front', frontZ]];
-      if (rearZ >= side.box.min.z) {
-        points.push(['rear', rearZ]);
-      } else {
-        warn(
-          `A ${runner.nominalLength}mm ${system.name} runner fixes ${runner.fixingSpacing}mm ` +
-            `behind its front point, which falls off the back of a ${Math.round(
-              side.box.max.z - side.box.min.z,
-            )}mm side. Only the front fixing is bored — check the runner against this carcass.`,
-        );
-      }
+      /*
+       * Every position is measured back from the **front edge of the side panel**, which is the
+       * datum Blum's cabinet-profile sheet uses, so there is no arithmetic between the sheet and
+       * the drilling. Four of them on MERIVOBOX; the list is walked rather than a front/rear pair
+       * being named, so a system with a different count needs nothing here.
+       */
+      const points = runner.fixingPositions
+        .map((back, n) => [`${n + 1}`, mm(side.box.max.z - back), back] as const)
+        .filter(([, z, back]) => {
+          if (z >= side.box.min.z) return true;
+          warn(
+            `A ${runner.nominalLength}mm ${system.name} profile is screwed ${Math.round(back)}mm ` +
+              `back from the front edge, which falls off the back of a ${Math.round(
+                side.box.max.z - side.box.min.z,
+              )}mm side. That fixing is not bored — check the runner against this carcass.`,
+          );
+          return false;
+        });
 
       for (const [suffix, z] of points) {
         add(side.index, {

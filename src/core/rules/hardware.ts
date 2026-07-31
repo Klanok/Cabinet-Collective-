@@ -24,7 +24,7 @@ import {
   findSideHeight,
   largestRunnerFitting,
   minInnerDepthFor,
-  runnerFixingSpacing,
+  runnerFixingPositions,
 } from '../model/hardware.ts';
 import {
   CLIP_TOP_BLUMOTION,
@@ -45,8 +45,12 @@ export interface ResolvedRunner {
   readonly system: DrawerRunnerSystem;
   readonly sideHeight: DrawerSideHeight;
   readonly nominalLength: Mm;
-  /** Distance between the runner's two fixing points at this length. */
-  readonly fixingSpacing: Mm;
+  /**
+   * Where this runner is screwed to the side panel, back from the panel's front edge, front-most
+   * first. Four points on MERIVOBOX; a list rather than a pair so a system with a different count
+   * needs no change here.
+   */
+  readonly fixingPositions: readonly Mm[];
   /** True when the length was chosen to suit the depth rather than asked for by name. */
   readonly automatic: boolean;
 }
@@ -130,7 +134,7 @@ const resolveRunner = (
       system,
       sideHeight,
       nominalLength: asked,
-      fixingSpacing: runnerFixingSpacing(system, asked),
+      fixingPositions: runnerFixingPositions(system, asked),
       automatic: false,
     };
   }
@@ -141,7 +145,7 @@ const resolveRunner = (
     system,
     sideHeight,
     nominalLength: best,
-    fixingSpacing: runnerFixingSpacing(system, best),
+    fixingPositions: runnerFixingPositions(system, best),
     automatic: true,
   };
 };

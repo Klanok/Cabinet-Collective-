@@ -83,22 +83,32 @@ export interface DrawerSideHeight {
 }
 
 /**
- * How far apart the runner's two fixing points sit, for a given nominal length.
+ * Where the cabinet profile is screwed to the side panel, for a given nominal length.
  *
- * Blum's `X`. It is the **distribution of the fixings** — a short runner is drilled differently from
- * a long one, which is why the figure steps rather than scaling — and it belongs to the runner in
- * the cabinet side, confirmed by the shop.
+ * **Positions measured back from the front edge of the side panel** — not spacings, and not a
+ * distance behind some other hole. Every figure on Blum's "Cabinet profile fixing positions" sheet
+ * is dimensioned to that one datum, so this record is too, and there is no arithmetic between the
+ * sheet and the drilling for anybody to get wrong.
  *
- * Both figures are whole multiples of 32 — 128 is four holes on the system pitch and 256 is eight —
- * which is not a coincidence: the runner is designed to land on the same grid as everything else in
- * a frameless carcass. That was the argument for reading it this way before it was confirmed, and it
- * is worth keeping, because it is also the check that a *different* runner system's figures have
- * been read off the right table.
+ * ## The mistake this replaces, because it is worth not repeating
+ *
+ * This used to be a single `spacing` per length band, 128 or 256, applied as "this far behind the
+ * front fixing" — two holes per runner. Both halves were wrong.
+ *
+ * The 128 and 256 came off the wrong table. They were read as the runner's fixing distribution
+ * because both are whole multiples of 32, and a runner landing on the same grid as everything else
+ * in a frameless carcass is a tidy story. It was a story: the shop pointed out those figures relate
+ * to the drawer bottom, and the profile is fixed at **four** points, not two.
+ *
+ * The lesson is the one this file exists for. A figure that is *plausible* is not a figure that has
+ * been *read*, and the multiple-of-32 argument was plausibility dressed up as a source. Anything
+ * here that has not been read off a sheet belongs in `unconfirmedFigures`, by name.
  */
-export interface RunnerFixingSpacing {
+export interface RunnerFixingPositions {
   /** Applies to nominal lengths up to and including this. */
   readonly maxNominalLength: Mm;
-  readonly spacing: Mm;
+  /** Distances back from the front edge of the side panel, front-most first. */
+  readonly positions: readonly Mm[];
 }
 
 export interface DrawerRunnerSystem {
@@ -133,9 +143,16 @@ export interface DrawerRunnerSystem {
    */
   readonly innerDepthAllowance: Mm;
 
-  /** Distance from the cabinet's front edge to the runner's front fixing point. */
+  /**
+   * Distance from the cabinet's front edge to the runner's front fixing point.
+   *
+   * Kept because the **drawer front's** own bracket is set out from it, which is a different hole in
+   * a different part. The cabinet profile's own front screw is the first entry in `fixingPositions`
+   * and is read from there, so the two cannot drift apart if a shop edits one.
+   */
   readonly frontFixingSetback: Mm;
-  readonly fixingSpacings: readonly RunnerFixingSpacing[];
+  /** Where the cabinet profile is screwed to the side panel, per nominal-length band. */
+  readonly fixingPositions: readonly RunnerFixingPositions[];
   readonly fixingHoleDiameter: Mm;
   readonly fixingHoleDepth: Mm;
 
@@ -258,12 +275,61 @@ export const largestRunnerFitting = (
   return fitting.length === 0 ? null : mm(Math.max(...fitting));
 };
 
-/** Distance between the runner's two fixing points at this nominal length. */
-export const runnerFixingSpacing = (system: DrawerRunnerSystem, nominalLength: Mm): Mm => {
-  const bands = [...system.fixingSpacings].sort((a, b) => a.maxNominalLength - b.maxNominalLength);
+/**
+ * Where this runner is screwed to the side panel, back from its front edge.
+ *
+ * A short runner is drilled differently from a long one, which is why the set steps between length
+ * bands rather than scaling. Sorted front-most first so the drilling comes out in the order somebody
+ * would work along the panel.
+ */
+export const runnerFixingPositions = (
+  system: DrawerRunnerSystem,
+  nominalLength: Mm,
+): readonly Mm[] => {
+  const bands = [...system.fixingPositions].sort((a, b) => a.maxNominalLength - b.maxNominalLength);
   const band = bands.find((b) => nominalLength <= b.maxNominalLength) ?? bands[bands.length - 1];
-  if (!band) throw new Error(`${system.name} declares no runner fixing spacings`);
-  return band.spacing;
+  if (!band) throw new Error(`${system.name} declares no cabinet profile fixing positions`);
+  return [...band.positions].sort((a, b) => a - b);
+};
+
+/**
+ * Bring a stored runner system's fixing data forward to positions.
+ *
+ * A saved job carries its own copy of the hardware library, so the old shape — a single `spacing`
+ * per length band, applied as "this far behind the front fixing" — is on disk and has to be
+ * converted rather than assumed away.
+ *
+ * Two different jobs, deliberately:
+ *
+ * - **A system whose id matches one in the shipped library** is given the shipped positions. Its
+ *   old figures came off the wrong table and produced two holes where there are four; carrying
+ *   them forward faithfully would be preserving a known error, which is the one thing a migration
+ *   must not do when the shop has told us the number is wrong.
+ * - **A system a shop added themselves** keeps exactly what it had, restated in the new shape as
+ *   two positions — the front setback and that far behind it. We have no sheet for their runner
+ *   and no business giving it Blum's pattern.
+ *
+ * Either way this **moves drilling**, and `migrateV14toV15` says so rather than implying otherwise.
+ */
+export const withProfileFixingPositions = (
+  system: Record<string, unknown>,
+  shipped: readonly DrawerRunnerSystem[],
+): Record<string, unknown> => {
+  if (Array.isArray(system.fixingPositions)) return system;
+  const { fixingSpacings, ...rest } = system;
+
+  const known = shipped.find((s) => s.id === system.id);
+  if (known) return { ...rest, fixingPositions: known.fixingPositions };
+
+  const setback = typeof system.frontFixingSetback === 'number' ? system.frontFixingSetback : 37;
+  const bands = Array.isArray(fixingSpacings) ? (fixingSpacings as Record<string, unknown>[]) : [];
+  return {
+    ...rest,
+    fixingPositions: bands.map((b) => ({
+      maxNominalLength: b.maxNominalLength,
+      positions: [mm(setback), mm(setback + Number(b.spacing ?? 0))],
+    })),
+  };
 };
 
 /**

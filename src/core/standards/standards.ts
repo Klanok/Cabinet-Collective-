@@ -12,7 +12,7 @@
  */
 
 import { type MaterialLibrary, actualThicknessOf, withResolvedColours } from '../model/material.ts';
-import type { HardwareLibrary } from '../model/hardware.ts';
+import { type HardwareLibrary, withProfileFixingPositions } from '../model/hardware.ts';
 import type { ConstructionMethod } from '../model/construction.ts';
 import type { Project, ProjectDefaults, ProjectSettings } from '../model/project.ts';
 import type { SavedCabinetType } from './savedTypes.ts';
@@ -40,7 +40,7 @@ import {
   DEFAULT_RUNNER_SYSTEM_ID,
 } from '../library/blum.ts';
 
-export const CURRENT_STANDARDS_VERSION = 10 as const;
+export const CURRENT_STANDARDS_VERSION = 11 as const;
 
 export interface ShopStandards {
   readonly version: typeof CURRENT_STANDARDS_VERSION;
@@ -350,7 +350,7 @@ export const migrateStandards = (raw: unknown): ShopStandards => {
   if (data.version === 7) data = migrateStandardsV7toV8(data);
   if (data.version === 8) data = migrateStandardsV8toV9(data);
   if (data.version === 9) data = migrateStandardsV9toV10(data);
-  if (data.version === 9) data = migrateStandardsV9toV10(data);
+  if (data.version === 10) data = migrateStandardsV10toV11(data);
 
   if (data.version !== CURRENT_STANDARDS_VERSION) {
     throw new Error(`migrateStandards: could not migrate version ${String(version)}`);
@@ -505,6 +505,30 @@ const migrateStandardsV8toV9 = (raw: Record<string, unknown>): Record<string, un
 const migrateStandardsV9toV10 = (raw: Record<string, unknown>): Record<string, unknown> => {
   const constructions = (raw.constructions as Record<string, unknown>[] | undefined) ?? [];
   return { ...raw, version: 10, constructions: constructions.map(withShelfPinClearance) };
+};
+
+/**
+ * Standards v10 → v11: the cabinet profile fixing positions, matching the project's v14 → v15.
+ *
+ * A shop's standards carry their own copy of the hardware library, so the corrected sheet figures
+ * have to reach it too. Otherwise every *new* job would go on inheriting the two-hole pattern from
+ * the standards long after the saved jobs had been fixed — which is exactly the hole the colour
+ * backfill left in v7, and it is not being left again.
+ */
+const migrateStandardsV10toV11 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const hardware = raw.hardware as Record<string, unknown> | undefined;
+  if (!hardware) return { ...raw, version: 11 };
+  const systems = (hardware.runnerSystems as Record<string, unknown>[] | undefined) ?? [];
+  return {
+    ...raw,
+    version: 11,
+    hardware: {
+      ...hardware,
+      runnerSystems: systems.map((s) =>
+        withProfileFixingPositions(s, BLUM_HARDWARE_LIBRARY.runnerSystems),
+      ),
+    },
+  };
 };
 
 const migrateStandardsV1toV2 = (raw: Record<string, unknown>): Record<string, unknown> => {

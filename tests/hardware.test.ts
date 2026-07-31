@@ -89,7 +89,8 @@ import {
   minInnerDepthFor,
   plateHolePositions,
   platesOnSystemGrid,
-  runnerFixingSpacing,
+  runnerFixingPositions,
+  withProfileFixingPositions,
   unconfirmedHardwareFigures,
 } from '../src/core/model/hardware.ts';
 import { buildHardwareBom, drillingSummary, hardwareBomTotals } from '../src/core/hardware/bom.ts';
@@ -144,14 +145,40 @@ describe('the MERIVOBOX spec is data, not arithmetic scattered about', () => {
     expect(largestRunnerFitting(MERIVOBOX, mm(272))).toBeNull();
   });
 
-  it('steps its fixing spacing at 300, on the 32mm grid either side of it', () => {
-    expect(runnerFixingSpacing(MERIVOBOX, mm(270))).toBe(128);
-    expect(runnerFixingSpacing(MERIVOBOX, mm(300))).toBe(128);
-    expect(runnerFixingSpacing(MERIVOBOX, mm(350))).toBe(256);
-    expect(runnerFixingSpacing(MERIVOBOX, mm(600))).toBe(256);
-    // Both are whole numbers of the 32mm pitch — 4 and 8. Not a coincidence.
-    expect(128 / 32).toBe(4);
-    expect(256 / 32).toBe(8);
+it('fixes the cabinet profile at four points, stepping the rear pair at 350', () => {
+    /*
+     * Off Blum's cabinet profile sheet, and both halves of this replaced a mistake: it used to be
+     * one spacing per band — 128 or 256 — applied behind the front fixing, giving **two** holes.
+     * Those figures came off the table for the drawer bottom, and the profile takes four screws.
+     *
+     * Every figure is a distance back from the front edge of the side panel, which is the datum
+     * the sheet uses. The rear pair steps with the length band; the front pair does not.
+     */
+    expect(runnerFixingPositions(MERIVOBOX, mm(270))).toEqual([37, 55, 160, 192]);
+    expect(runnerFixingPositions(MERIVOBOX, mm(350))).toEqual([37, 55, 160, 192]);
+    expect(runnerFixingPositions(MERIVOBOX, mm(400))).toEqual([37, 55, 224, 256]);
+    expect(runnerFixingPositions(MERIVOBOX, mm(600))).toEqual([37, 55, 224, 256]);
+  });
+
+  it('puts four screws in every band, front-most first', () => {
+    // A property rather than a repeat of the numbers: whatever a band says, it is four points and
+    // they come out in the order somebody works along the panel.
+    for (const nl of MERIVOBOX.nominalLengths) {
+      const positions = runnerFixingPositions(MERIVOBOX, nl);
+      expect(positions, `NL ${nl}`).toHaveLength(4);
+      expect([...positions].sort((a, b) => a - b), `NL ${nl}`).toEqual([...positions]);
+    }
+  });
+
+  it('keeps the rear pair 32 apart, and on the 32mm grid off the front edge', () => {
+    // The check that a band has been read off the right row of the sheet: 160/192 and 224/256 are
+    // 5, 6, 7 and 8 pitches back from the front edge.
+    for (const nl of [mm(270), mm(600)]) {
+      const [, , third, fourth] = runnerFixingPositions(MERIVOBOX, nl);
+      expect(fourth! - third!).toBe(32);
+      expect(third! % 32).toBe(0);
+      expect(fourth! % 32).toBe(0);
+    }
   });
 
   it('sizes a bottom and a back from the opening and the length', () => {
@@ -447,17 +474,17 @@ describe('the drilling summary', () => {
     /*
      * The Ø5 holes, longhand:
      *   hinge plates   22 hinges × 2                              =  44
-     *   runners         3 drawers × 2 sides × 2 fixings           =  12
+     *   runners         3 drawers × 2 sides × 4 fixings           =  24
      *   shelf pins      5 cabinets with adjustable shelves
      *                     × 2 sides × 2 rows × 17 holes           = 340
      *                                                              ───
-     *                                                               396
+     *                                                               408
      *
      * The shelf-pin figure was 21 a row while the row ran the full height of the side. It is 17
      * now that the run keeps 96mm clear of each end and is centred so a flipped panel lines up —
      * every cabinet in this kitchen is 720 high, so every row is the same 17.
      */
-    expect(find(5).count).toBe(396);
+    expect(find(5).count).toBe(408);
     expect(find(5).face).toBe('A');
 
     // The front fixing pilots: 3 drawers x 2 brackets x 2 screws, in the back of each front.
@@ -476,15 +503,16 @@ describe('the drilling summary', () => {
   it('turns nothing over on a plain-slab kitchen, and every front on a shaker one', () => {
     const slab = createSampleKitchen();
     const plain = drillingTotals(buildProject(slab).flatMap((b) => b.panels));
-    // 554 while the shelf-pin rows ran the full height; 474 now that each row is 17 holes
-    // rather than 21 — 20 rows × 4 fewer.
-    expect(plain.holes).toBe(474);
+    // 554 while the shelf-pin rows ran the full height; 474 once each row became 17 holes rather
+    // than 21 — 20 rows × 4 fewer. Then 486, once the cabinet profile went from two fixings a side
+    // to the four Blum's sheet actually shows: 3 drawers × 2 sides × 2 more.
+    expect(plain.holes).toBe(486);
     expect(plain.turnedParts).toBe(0);
 
     // A shaker front is recessed on its show face *and* bored in its back: two setups, honestly.
     const shaker: Project = { ...slab, defaults: { ...slab.defaults, doorStyleId: 'shaker-57' } };
     const routed = drillingTotals(buildProject(shaker).flatMap((b) => b.panels));
-    expect(routed.holes).toBe(474);
+    expect(routed.holes).toBe(486);
     // Eleven doors and three drawer fronts, all routed and all bored.
     expect(routed.turnedParts).toBe(14);
   });
@@ -516,8 +544,8 @@ describe('export', () => {
 
   it('writes one row per hole on the drilling sheet, rows of system holes expanded', () => {
     const rows = drillingCsv(kitchen).trimEnd().split('\r\n');
-    // 396 + 22 + 44 + 12 = 474 holes, plus the header.
-    expect(rows).toHaveLength(475);
+    // 408 + 22 + 44 + 12 = 486 holes, plus the header.
+    expect(rows).toHaveLength(487);
     expect(rows[0]).toBe('Cabinet,Part,Purpose,Face,Turns over,X,Y,Diameter,Depth,Feature');
     // The cups, their dowels and the front fixings all go in the back of a front — but on a
     // plain-slab kitchen no part is machined on both faces, so nothing turns over.
@@ -677,5 +705,74 @@ describe('nothing that existed before Phase 2 has moved', () => {
 
   it('builds the sample kitchen with no warnings, hardware and all', () => {
     expect(buildProject(createSampleKitchen()).flatMap((b) => b.warnings)).toEqual([]);
+  });
+});
+
+describe('a job saved while the profile had two fixings', () => {
+  /**
+   * The old stored shape: one spacing per length band, applied behind the front fixing.
+   *
+   * Worth reconstructing by hand rather than reaching for a fixture, because the point of the test
+   * is that a file written by the *old* build loads — and the old build is gone.
+   */
+  const asV14 = (): Record<string, unknown> => {
+    const stored = JSON.parse(JSON.stringify(createSampleKitchen())) as Record<string, unknown>;
+    stored.schemaVersion = 14;
+    const hardware = stored.hardware as Record<string, unknown>;
+    hardware.runnerSystems = (hardware.runnerSystems as Record<string, unknown>[]).map((sys) => {
+      const { fixingPositions, ...rest } = sys;
+      void fixingPositions;
+      return {
+        ...rest,
+        fixingSpacings: [
+          { maxNominalLength: 300, spacing: 128 },
+          { maxNominalLength: 600, spacing: 256 },
+        ],
+      };
+    });
+    return stored;
+  };
+
+  it('replaces the shipped system’s figures with the sheet’s, rather than carrying them forward', () => {
+    /*
+     * The one case where a migration *should* overwrite. The old figures came off the table for
+     * the drawer bottom and produced two holes where the profile takes four — the shop said so.
+     * Carrying them forward faithfully would be preserving a known error.
+     */
+    const migrated = migrateProject(asV14());
+    expect(migrated.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
+    const merivobox = migrated.hardware.runnerSystems.find((r) => r.id === MERIVOBOX.id)!;
+    expect(merivobox.fixingPositions).toEqual(MERIVOBOX.fixingPositions);
+    expect(runnerFixingPositions(merivobox, mm(500))).toEqual([37, 55, 224, 256]);
+  });
+
+  it('leaves a shop’s own runner system alone, restated in the new shape', () => {
+    // No sheet for their runner and no business giving it Blum's pattern: what they had was one
+    // spacing behind the front fixing, so that is exactly the two positions it comes forward as.
+    const own = withProfileFixingPositions(
+      {
+        id: 'shop-special',
+        frontFixingSetback: 40,
+        fixingSpacings: [{ maxNominalLength: 600, spacing: 200 }],
+      },
+      [MERIVOBOX],
+    );
+    expect(own.fixingPositions).toEqual([{ maxNominalLength: 600, positions: [40, 240] }]);
+    expect(own.fixingSpacings).toBeUndefined();
+  });
+
+  it('leaves a library that has already been migrated untouched', () => {
+    const already = { id: MERIVOBOX.id, fixingPositions: [{ maxNominalLength: 600, positions: [1] }] };
+    expect(withProfileFixingPositions(already, [MERIVOBOX])).toBe(already);
+  });
+
+  it('moves drilling and nothing else — every cut size is unchanged', () => {
+    // The honesty contract. This migration does move holes, and says so; what it must not do is
+    // change a part.
+    const migrated = migrateProject(asV14());
+    const fresh = createSampleKitchen();
+    const strip = (lines: ReturnType<typeof buildCutlist>) =>
+      lines.map(({ ...line }) => ({ ...line, ids: undefined }));
+    expect(strip(buildCutlist(migrated))).toEqual(strip(buildCutlist(fresh)));
   });
 });

@@ -1060,6 +1060,57 @@ written out; `rules/boring.ts` for how a side panel's span and its fixed shelves
 to 2400, because equidistance is a property rather than a number and the heights where it fails are
 the ones nobody types into a test.
 
+### 4.10 The cabinet profile is fixed at four points
+
+> "two holes for the cabinet side is wrong it should be 4"
+
+The runner's fixing data was a single spacing per length band — 128 or 256 — applied as "this far
+behind the front fixing", giving two holes per runner per side. Both halves were wrong.
+
+**The figures came off the wrong table.** 128 and 256 describe the drawer bottom. They were adopted
+for the cabinet side because both are whole multiples of 32, and a runner landing on the same grid
+as everything else in a frameless carcass is a tidy story. It was a story. The multiple-of-32
+argument was written into the code as if it were a source, and it read as one — which is the part
+worth remembering: **a figure that is plausible is not a figure that has been read.**
+
+**The record now holds positions, not spacings.** Every figure on Blum's "Cabinet profile fixing
+positions" sheet is dimensioned back from the front edge of the side panel, so `fixingPositions`
+is too, and there is no arithmetic between the sheet and the drilling for anyone to get wrong.
+Cabinet profile 450, 40 kg — the class shipped here:
+
+```
+  NL 270–350    37, 55, 160, 192       back from the front edge of the side
+  NL 400–600    37, 55, 224, 256
+```
+
+Which rear pair belongs to which band is settled by the extension lines on the sheet: 160 and 192
+run up into the NL 270–350 diagram's rear bracket, 224 and 256 into the NL 400–600 one's. Both pairs
+are 32 apart and both are exact multiples of 32 off the front edge, which is the check that a band
+has been read off the right row.
+
+**The same sheet exists for TIP-ON BLUMOTION and carries identical figures.** Where the profile is
+screwed to the side does not change between push-to-open and the ordinary runner, so one table
+covers both. Worth recording rather than rediscovering.
+
+**One figure is still a reading and says so.** The front bracket carries a chain of 32, 18 and 37,
+and only the 37 is certain — it was already confirmed by the shop and is the standard front-row
+setback. The second front screw is shipped at 55 (37 + 18) rather than 69 (37 + 32), and sits in
+`unconfirmedFigures` naming the measurement that would settle it: front edge of a side panel to the
+two screws in the front bracket, on any drawer bank already built.
+
+**Project v15 and standards v11 move drilling and cannot pretend otherwise.** A saved job carries
+its own copy of the hardware library, so the old shape is on disk. The shipped system is given the
+sheet's positions — the one case where a migration *should* overwrite, because carrying the old
+figures forward faithfully would be preserving an error the shop has already caught. A runner system
+a shop added themselves keeps exactly what it had, restated as two positions; we have no sheet for
+their runner and no business handing it Blum's pattern. No part changes size and no part moves, and
+a cutlist comparison asserts it.
+
+**Where to look:** `model/hardware.ts` for `RunnerFixingPositions`, `runnerFixingPositions` and
+`withProfileFixingPositions`; `library/blum.ts` for the sheet figures with their provenance;
+`rules/boring.ts` walks the list rather than naming a front and a rear, so a system with a different
+count needs nothing there.
+
 ---
 
 ## 5. Open items, in the order I'd do them

@@ -20,7 +20,7 @@ import {
   withLadderKick,
   withSystemHoles,
 } from './construction.ts';
-import type { HardwareLibrary } from './hardware.ts';
+import { type HardwareLibrary, withProfileFixingPositions } from './hardware.ts';
 import { type MaterialLibrary, withResolvedColours } from './material.ts';
 import type { Room } from './room.ts';
 import { type DoorStyle, DEFAULT_DOOR_STYLES, PLAIN_SLAB_STYLE } from '../standards/doorStyles.ts';
@@ -32,7 +32,7 @@ import {
 } from '../library/blum.ts';
 import { AU_BENCHTOP_MATERIALS, AU_SHEET_MATERIALS } from '../library/materials.au.ts';
 
-export const CURRENT_SCHEMA_VERSION = 14 as const;
+export const CURRENT_SCHEMA_VERSION = 15 as const;
 
 /**
  * The bendy ply an older job is given when it is migrated forward. It has no curved parts in
@@ -573,6 +573,43 @@ const migrateV13toV14 = (raw: Record<string, unknown>): Record<string, unknown> 
 };
 
 /**
+ * v14 → v15. **The cabinet profile is fixed at four points, not two.**
+ *
+ * > "two holes for the cabinet side is wrong it should be 4"
+ *
+ * The runner's fixing data used to be a single spacing per length band — 128 or 256 — applied as
+ * "this far behind the front fixing". Both halves were wrong. Those figures came off a table that
+ * describes the drawer bottom rather than the cabinet side, and MERIVOBOX's profile takes four
+ * screws a side, not two. They were adopted because both are whole multiples of 32 and a runner
+ * landing on the frameless grid is a tidy story; it was a story, not a source.
+ *
+ * The record now holds **positions back from the front edge of the side panel**, which is the datum
+ * Blum's "Cabinet profile fixing positions" sheet uses, so nothing has to be worked out between the
+ * sheet and the drilling.
+ *
+ * **This moves drilling in every saved job with a drawer in it**, and there is no reading under
+ * which it does not: the old holes were in the wrong places and there were two of them. **No part
+ * changes size and no part moves** — a side panel is the same rectangle in the same place with a
+ * different set of Ø5 holes. See `withProfileFixingPositions` for why a shop's own runner system
+ * keeps its own figures instead of being handed Blum's.
+ */
+const migrateV14toV15 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const hardware = raw.hardware as Record<string, unknown> | undefined;
+  if (!hardware) return { ...raw, schemaVersion: 15 };
+  const systems = (hardware.runnerSystems as Record<string, unknown>[] | undefined) ?? [];
+  return {
+    ...raw,
+    schemaVersion: 15,
+    hardware: {
+      ...hardware,
+      runnerSystems: systems.map((s) =>
+        withProfileFixingPositions(s, BLUM_HARDWARE_LIBRARY.runnerSystems),
+      ),
+    },
+  };
+};
+
+/**
  * Load a project from stored JSON, migrating older schema versions forward.
  *
  * Migrations run in sequence, so a v1 file loaded after several schema changes still arrives
@@ -606,6 +643,7 @@ export const migrateProject = (raw: unknown): Project => {
   if (data.schemaVersion === 11) data = migrateV11toV12(data);
   if (data.schemaVersion === 12) data = migrateV12toV13(data);
   if (data.schemaVersion === 13) data = migrateV13toV14(data);
+  if (data.schemaVersion === 14) data = migrateV14toV15(data);
 
   if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`migrateProject: could not migrate schema version ${String(version)}`);

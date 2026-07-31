@@ -55,8 +55,16 @@
  *     front fixing screws  16 + 33.5 = **49.5** and + 32 = **81.5** above each front's own bottom
  *     sideways, 20.5 in from each outer cabinet face → part x **19** and **578** on a 597 front
  *
- *   fixing z:   front  560 − 37 = 523   →  Side L part y 507, Side R part y 37
- *               rear   523 − 256 = 267  →  Side L part y 251, Side R part y 293
+ *   The cabinet profile is screwed at **four** points a side, given on Blum's sheet as distances
+ *   back from the front edge of the side panel. At NL 400–600 those are 37, 55, 224 and 256.
+ *
+ *     cabinet z    560 − each        →  523, 505, 336, 304
+ *     Side L part y = z − 16         →  507, 489, 320, 288
+ *     Side R part y = 560 − z        →   37,  55, 224, 256  — the positions themselves, because
+ *                                        Side R's part origin sits on the front edge
+ *
+ *   That last line is the neatest check in this file that the two hands agree: the same four
+ *   numbers appear on the right-hand panel measured one way and on the left measured the other.
  *
  * ── System holes ───────────────────────────────────────────────────────────────────────────
  *
@@ -362,7 +370,7 @@ describe('mounting plates', () => {
 });
 
 describe('runner fixings', () => {
-  it('bores two holes per side per drawer, 54 up the rail from its own bottom line', () => {
+  it('bores four holes per side per drawer, 54 up the rail from its own bottom line', () => {
     const { panels } = buildCabinet(
       createCabinet({
         typeId: 'drawer-bank',
@@ -374,18 +382,22 @@ describe('runner fixings', () => {
       project,
     );
     const left = drilledFor(byName(panels, 'Side L'), 'drawer-runner');
-    expect(left).toHaveLength(6);
+    expect(left).toHaveLength(12);
     // Runner bottoms at 16 / 256 / 496 above the carcass bottom, screws 54 up the rail from each.
-    expect(left.map((p) => p.x)).toEqual([70, 70, 310, 310, 550, 550]);
-    // 37mm from the front, then 256mm behind it at NL 500.
-    expect(left.map((p) => p.y)).toEqual([507, 251, 507, 251, 507, 251]);
+    expect(left.map((p) => p.x)).toEqual([70, 70, 70, 70, 310, 310, 310, 310, 550, 550, 550, 550]);
+    // 37, 55, 224 and 256 back from the front edge, at NL 500.
+    expect(left.map((p) => p.y)).toEqual([
+      507, 489, 320, 288, 507, 489, 320, 288, 507, 489, 320, 288,
+    ]);
     expect(left.every((p) => p.diameter === 5 && p.depth === 13)).toBe(true);
 
+    // The right-hand panel reads the positions back to us directly — see the header.
     const right = drilledFor(byName(panels, 'Side R'), 'drawer-runner');
-    expect(right.map((p) => p.y)).toEqual([37, 293, 37, 293, 37, 293]);
+    expect(right.map((p) => p.y).slice(0, 4)).toEqual([37, 55, 224, 256]);
+    expect(right).toHaveLength(12);
   });
 
-  it('drops to the 128mm spacing on a short runner', () => {
+  it('steps the rear pair back on a short runner', () => {
     const { panels, hardware } = buildCabinet(
       createCabinet({
         typeId: 'drawer-bank',
@@ -398,9 +410,13 @@ describe('runner fixings', () => {
       project,
     );
     expect(hardware.runner?.nominalLength).toBe(270);
-    // Side is 284 deep: 284 − 37 = 247, then 128 behind it.
+    /*
+     * NL 270 is in the 270–350 band, so the rear pair moves forward to 160 and 192 while the front
+     * pair stays put. A 300-deep cabinet: side spans z 16–300, so part y = z − 16 and the four
+     * positions land at 247, 229, 124 and 92.
+     */
     expect(drilledFor(byName(panels, 'Side L'), 'drawer-runner').map((p) => p.y)).toEqual([
-      247, 119, 247, 119,
+      247, 229, 124, 92, 247, 229, 124, 92,
     ]);
   });
 
