@@ -36,7 +36,7 @@ export const CURRENT_SCHEMA_VERSION = 12 as const;
  * The bendy ply an older job is given when it is migrated forward. It has no curved parts in
  * it, so nothing is cut from this — it is there so the slot is never empty.
  */
-export const DEFAULT_SKIN_MATERIAL_ID = 'bendy-ply-3';
+export const DEFAULT_SKIN_MATERIAL_ID = 'bendy-ply-8';
 
 /**
  * GST treatment. These are genuinely different arithmetic, not a display toggle:

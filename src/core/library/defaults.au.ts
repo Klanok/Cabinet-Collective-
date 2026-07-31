@@ -37,7 +37,7 @@ export const AU_PROJECT_DEFAULTS: ProjectDefaults = {
   backMaterialId: 'hmr-white-16',
   doorMaterialId: 'poly-classic-white-door-18',
   // Only curved work cuts this, so on a kitchen with no radius in it the slot never resolves.
-  skinMaterialId: 'bendy-ply-3',
+  skinMaterialId: 'bendy-ply-8',
   edgeBandId: 'eb-white-1mm',
   // A plain slab, because a door style is a choice a client makes rather than something the
   // shop assumes. It machines nothing, so a new job cuts exactly as jobs always have.

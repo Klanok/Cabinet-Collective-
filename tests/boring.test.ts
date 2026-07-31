@@ -310,7 +310,7 @@ describe('mounting plates', () => {
     // The one out over the curve does not, and the cups are still bored so it is visible.
     expect(drilledFor(byName(panels, 'Side R'), 'hinge-plate')).toHaveLength(0);
     expect(drilledFor(byName(panels, 'Door R'), 'hinge-cup')).toHaveLength(2);
-    expect(warnings.join(' ')).toMatch(/380mm clear of the nearest side panel/);
+    expect(warnings.join(' ')).toMatch(/370mm clear of the nearest side panel/);
   });
 
   it('leaves an ordinary cabinet’s plates alone — the reach check only bites when it should', () => {

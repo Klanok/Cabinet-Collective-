@@ -288,6 +288,24 @@ export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
     indicativePricing: true,
   },
   {
+    /*
+     * The shop's bendy ply. Two layers make 16mm of wrap, which is what the corner is actually
+     * built from — see `substrateRadius`, where the layers come off the finished radius to give the
+     * radius the formers are cut to. At 8mm that is a much bigger bite than the 3mm the library
+     * shipped with, so the formers, the skins' developed lengths and the corner plates all move.
+     */
+    id: 'bendy-ply-8',
+    brand: 'Imported',
+    decor: 'Bendy plywood 8mm',
+    substrate: 'plywood',
+    thickness: mm(8),
+    grain: 'none',
+    colour: '#d9bd90',
+    decorFaces: 2,
+    sheets: [IMPORTED(12_400)],
+    indicativePricing: true,
+  },
+  {
     id: 'bendy-ply-5',
     brand: 'Imported',
     decor: 'Bendy plywood 5mm',

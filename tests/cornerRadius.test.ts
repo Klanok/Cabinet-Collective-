@@ -30,12 +30,12 @@
  * left is the quarter disc `radiusEnd.ts` already cuts. So the two have to agree, and the
  * figures below are the ones tests/radiusParts.test.ts pins for that unit today.
  *
- * A 560 quarter, 720 high, 16mm formers, two layers of 3mm bendy ply:
+ * A 560 quarter, 720 high, 16mm formers, two layers of 8mm bendy ply:
  *
- *   former radius   560 − 2×3                = 554
- *   skin layer 1    (554 + 1.5) × π/2        = 872.5774
- *   skin layer 2    (557 + 1.5) × π/2        = 877.2897
- *   difference      3 × π/2                  = 4.712389
+ *   former radius   560 − 2×8                = 544
+ *   skin layer 1    (544 + 4) × π/2          = 860.7964
+ *   skin layer 2    (552 + 4) × π/2          = 873.3628
+ *   difference      8 × π/2                  = 12.566371
  *
  * Three things have to fall to zero of their own accord for this to hold, and each is a
  * settled decision rather than a coincidence:
@@ -195,10 +195,10 @@ describe('invariant 2 — radius = width = depth is the quarter-round unit', () 
       'Skin layer 2',
       'Kick',
     ]);
-    // Cut under the skin, not to the finished radius: 560 less two 3mm layers.
-    expect(size(byName(panels, 'Former 1'))).toEqual([mm(554), mm(554)]);
-    expect(panelExtent(byName(panels, 'Skin layer 1')).length).toBeCloseTo(872.5774, 3);
-    expect(panelExtent(byName(panels, 'Skin layer 2')).length).toBeCloseTo(877.2897, 3);
+    // Cut under the skin, not to the finished radius: 560 less two 8mm layers.
+    expect(size(byName(panels, 'Former 1'))).toEqual([mm(544), mm(544)]);
+    expect(panelExtent(byName(panels, 'Skin layer 1')).length).toBeCloseTo(860.7964, 3);
+    expect(panelExtent(byName(panels, 'Skin layer 2')).length).toBeCloseTo(873.3628, 3);
   });
 
   /*
@@ -234,7 +234,7 @@ describe('invariant 2 — radius = width = depth is the quarter-round unit', () 
     expect(
       panelExtent(byName(full.panels, 'Skin layer 2')).length -
         panelExtent(byName(full.panels, 'Skin layer 1')).length,
-    ).toBeCloseTo(3 * QUARTER, 5);
+    ).toBeCloseTo(8 * QUARTER, 5);
 
     // The bottom is doing a former's job by then, so it is cut to a former's shape.
     expect(size(byName(full.panels, 'Bottom'))).toEqual(size(byName(target.panels, 'Former 1')));

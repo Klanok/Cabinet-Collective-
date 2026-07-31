@@ -8,37 +8,41 @@
  * ## The reference cabinet
  *
  * A base cabinet **900 × 720 × 560**, front-right corner rounded **200**. 16mm carcass and
- * back, 18mm fronts, two layers of 3mm bendy ply, 150 kick set back 50, 100 top rails, shelf
- * set back 10 with 2 side clearance, 50mm fixing strip.
+ * back, 18mm fronts, two layers of **8mm** bendy ply, 150 kick set back 50, 100 top rails, shelf
+ * set back 10 with 2 side clearance, 50mm fixing strip, 2mm front standoff.
  *
  * ```
- *   wrap thickness    2 × 3                       = 6
- *   substrate radius  200 − 6                     = 194     what the plates are cut to
+ *   wrap thickness    2 × 8                       = 16
+ *   substrate radius  200 − 16                    = 184     what the plates are cut to
  *   arc centre        (900 − 200, 560 − 200)      = (700, 360)
- *   substrate end     900 − 6                     = 894     the face the ply lies on
- *   substrate front   560 − 6                     = 554     ditto, under the strip
- *   fixing strip      x 650 → 700, at z = 554
+ *   substrate end     900 − 16                    = 884     the face the ply lies on
+ *   substrate front   560 − 16                    = 544     ditto, under the strip
+ *   fixing strip      x 650 → 700, at z = 544
  *   door zone         x 0 → 650                   = 650 wide
  * ```
  *
  * and from those, every part:
  *
  * ```
- *   end panel      depth 560 − 16 − 200           = 344   × 720, at x 878 → 894
+ *   end panel      depth 560 − 16 − 200           = 344   × 720, at x 868 → 884
  *   far side       untouched                        544   × 720
- *   bottom         bounding box 878 × 544, corner cut to 194
- *   back           0 → 894                        = 894   × 720
+ *   bottom         bounding box 868 × 544, corner cut to 184
+ *   back           0 → 884                        = 884   × 720
  *   front rail     16 → 650                       = 634   × 100
- *   back rail      16 → 878                       = 862   × 100
- *   shelf          17 → 877 = 860 by 16 → 550 = 534, square notch 177 × 190
+ *   back rail      16 → 868                       = 852   × 100
  *   doors          (650 − 2×1.5 − 3) ÷ 2          = 322   × 717
- *   corner former  650 → 894 = 244 by 360 → 554   = 194
- *   wrap layer 1   50 + (194 + 1.5)·π/2 + 360     = 717.0906
- *   wrap layer 2   50 + (197 + 1.5)·π/2 + 360     = 721.8030
- *   difference     3 × π/2                        = 4.712389
- *   kick           radius 200 + 18 door + 2 standoff − 50 = 170, inner 167
- *                  700 + (167 + 1.5)·π/2 + 360    = 1324.6792
+ *   corner former  650 → 884 = 234 by 360 → 544   = 184
+ *   wrap layer 1   50 + (184 + 4)·π/2 + 360       = 705.3097
+ *   wrap layer 2   50 + (192 + 4)·π/2 + 360       = 717.8761
+ *   difference     8 × π/2                        = 12.566371
+ *   kick           radius 200 + 18 door + 2 standoff − 50 = 170, inner 162
+ *                  700 + (162 + 4)·π/2 + 360      = 1320.7522
  * ```
+ *
+ * The `+ 4` in each wrap length is half a layer — the ply bends about its own neutral axis, so a
+ * developed length is struck on the middle of the sheet, not its inside face. At 3mm ply that was
+ * `+ 1.5` and the difference between two layers was `3·π/2`; at 8mm it is `8·π/2`, which is the
+ * single clearest sign the thickness really did flow all the way through.
  *
  * ## The bottom, which is where the reported bug lived
  *
@@ -46,20 +50,24 @@
  * a 200 square. It has to keep its rectangle and lose **the corner offcut only**:
  *
  * ```
- *   rectangle      x 16 → 894 by z 16 → 560       878 × 544 = 477 632
- *   less the strip step-back, x 650 → 894 at z 554 → 560    =   1 464
+ *   rectangle      x 16 → 884 by z 16 → 560       868 × 544 = 472 192
+ *   less the strip step-back, x 650 → 884 at z 544 → 560    =   3 744
  *   less the notch behind the end panel, 16 × 344           =   5 504
- *   less the corner offcut, 194² − π·9409                   =   8 076.7547
- *                                                  bottom  = 462 587.2453
+ *   less the corner offcut, 184² − π·8464                   =   7 265.5598
+ *                                                  bottom  = 455 678.4402
  *
  *   a square cabinet's bottom      868 × 544                = 472 192
- *   so the radius costs                                     =   9 604.7547
- *   of which the corner offcut itself is                    =   8 076.7547
+ *   so the radius costs                                     =  16 513.5598
+ *   of which the corner offcut itself is                    =   7 265.5598
  * ```
  *
- * The remaining 1 528 is the two thin slivers the ply set-back costs — the plate reaches 10mm
- * further out than a square one to carry the wrap, and gives up 6mm of depth over the strip.
- * What matters is the order of magnitude: 2% of the panel, not the 96% a 200 square would be.
+ * Note the rectangle and the square cabinet's bottom are now the **same** 868 × 544, and that is
+ * not a coincidence: a 16mm wrap sets the substrate face back to 884, which is exactly where the
+ * inner face of a 16mm side already was. At 3mm ply the radiused bottom's box was 10mm wider than
+ * a square one's; at 8mm the two land on top of each other.
+ *
+ * The remaining 9 248 is the strip step-back plus the notch behind the end panel. What matters is
+ * the order of magnitude: 3.5% of the panel, not the 96% a 200 square would be.
  */
 
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -175,7 +183,7 @@ describe('the box does not shrink', () => {
     // reaching 900 the ply would stand 6mm proud of the rest of the run.
     const { panels, project } = reference();
     const board = panels.filter((p) => p.role !== 'door' && p.role !== 'skin' && p.role !== 'kick');
-    expect(Math.max(...board.map((p) => bentEnvelope(p, project).x[1]))).toBeCloseTo(894, 6);
+    expect(Math.max(...board.map((p) => bentEnvelope(p, project).x[1]))).toBeCloseTo(884, 6);
     expect(bentEnvelope(byName(panels, 'Skin layer 2'), project).x[1]).toBeCloseTo(900, 6);
   });
 
@@ -198,41 +206,55 @@ describe('the box does not shrink', () => {
     }
     // And the substrate under it is exactly one wrap thickness tighter, which is what makes
     // the ply the same thickness the whole way round rather than pinching at the corner.
-    expect(neutralRadius(forming, thickness) - thickness / 2).toBeCloseTo(197, 9);
+    expect(neutralRadius(forming, thickness) - thickness / 2).toBeCloseTo(192, 9);
   });
 });
 
 describe('sheet area falls by the corner offcut only', () => {
   const SQUARE_BOTTOM = 868 * 544;
-  const OFFCUT = 194 * 194 * (1 - Math.PI / 4);
+  const OFFCUT = 184 * 184 * (1 - Math.PI / 4);
 
   it('keeps the bottom a full-sized panel with a bite out of one corner', () => {
     const bottom = byName(reference().panels, 'Bottom');
-    // Not 194 × 194, and not 200 × 200. Still the best part of a metre across.
-    expect(size(bottom)).toEqual([mm(878), mm(544)]);
+    // Not 184 × 184, and not 200 × 200. Still the best part of a metre across.
+    expect(size(bottom)).toEqual([mm(868), mm(544)]);
     expect(profileHasArcs(bottom.profile)).toBe(true);
   });
 
   it('cuts the bottom to the area worked out longhand in the header', () => {
-    expect(panelArea(byName(reference().panels, 'Bottom'))).toBeCloseTo(462587.2453, 3);
+    expect(panelArea(byName(reference().panels, 'Bottom'))).toBeCloseTo(455678.4402, 3);
   });
 
-  it('loses the offcut and a little set-back, not the whole rectangle', () => {
-    const lost = SQUARE_BOTTOM - panelArea(byName(reference().panels, 'Bottom'));
-    expect(OFFCUT).toBeCloseTo(8076.7547, 3);
-    expect(lost).toBeCloseTo(9604.7547, 3);
-    // Within a quarter of the offcut of the offcut itself — the rest is the ply set-back.
-    expect(Math.abs(lost - OFFCUT)).toBeLessThan(OFFCUT / 4);
-    // And what is left is still 97% of a square cabinet's bottom, not 4% of one.
-    expect(panelArea(byName(reference().panels, 'Bottom')) / SQUARE_BOTTOM).toBeGreaterThan(0.97);
+  /**
+   * The claim here changed shape when the ply went from 3mm to 8mm, and it is worth keeping the
+   * change rather than quietly re-tuning a threshold.
+   *
+   * At 3mm the offcut dominated and the set-back was a rounding error — the test could say "within
+   * a quarter of the offcut" and mean it. At 8mm the wrap is 16mm thick, the substrate is set back
+   * 16mm on two faces, and **the set-back now costs more than the offcut does**: 9 248 against
+   * 7 266. That is a real fact about building the corner out of thicker ply, not a tolerance to
+   * widen.
+   *
+   * What the test is actually for survives untouched: the reported bug turned the bottom into a
+   * 200 square, 4% of a full panel. It is still 96.5% of one.
+   */
+  it('loses the offcut and the ply set-back, not the whole rectangle', () => {
+    const bottom = panelArea(byName(reference().panels, 'Bottom'));
+    const lost = SQUARE_BOTTOM - bottom;
+    expect(OFFCUT).toBeCloseTo(7265.5598, 3);
+    expect(lost).toBeCloseTo(16513.5598, 3);
+    // The set-back: the strip step-back (234 × 16) plus the notch behind the end panel (16 × 344).
+    expect(lost - OFFCUT).toBeCloseTo(234 * 16 + 16 * 344, 6);
+    // Still the best part of a whole panel, which is the thing the reported bug got wrong.
+    expect(bottom / SQUARE_BOTTOM).toBeGreaterThan(0.96);
   });
 
   it('cuts the corner under the skin, not to the finished radius', () => {
-    // The classic error, and the reason the formers in a radiused end are 554 and not 560. A
+    // The classic error, and the reason the formers in a radiused end are 544 and not 560. A
     // plate cut to 200 would push the ply 6mm proud of the run's front face.
     const bottom = byName(reference().panels, 'Bottom');
-    const rectangle = 878 * 544 - 244 * 6 - 16 * 344;
-    expect(rectangle - panelArea(bottom)).toBeCloseTo(194 * 194 * (1 - Math.PI / 4), 6);
+    const rectangle = 868 * 544 - 234 * 16 - 16 * 344;
+    expect(rectangle - panelArea(bottom)).toBeCloseTo(184 * 184 * (1 - Math.PI / 4), 6);
   });
 });
 
@@ -245,7 +267,7 @@ describe('the carcass parts', () => {
     // Occupancy, not just size. A panel the right size in the wrong quarter passes a size
     // assertion and is completely wrong — and here the whole question is where it sits.
     expect(occupies(end, project)).toEqual({
-      x: [mm(878), mm(894)],
+      x: [mm(868), mm(884)],
       y: [mm(0), mm(720)],
       z: [mm(16), mm(360)],
     });
@@ -262,13 +284,13 @@ describe('the carcass parts', () => {
   });
 
   it('stops the back at the substrate face so the wrap can run past it', () => {
-    expect(size(byName(reference().panels, 'Back'))).toEqual([mm(894), mm(720)]);
+    expect(size(byName(reference().panels, 'Back'))).toEqual([mm(884), mm(720)]);
   });
 
   it('stops the front rail at the fixing strip and runs the back rail to the end panel', () => {
     const { panels } = reference();
     expect(size(byName(panels, 'Top rail front'))).toEqual([mm(634), mm(100)]);
-    expect(size(byName(panels, 'Top rail back'))).toEqual([mm(862), mm(100)]);
+    expect(size(byName(panels, 'Top rail back'))).toEqual([mm(852), mm(100)]);
   });
 
   it('builds the corner formers the wrap is bent over', () => {
@@ -278,7 +300,7 @@ describe('the carcass parts', () => {
     // one of them, so three are cut.
     expect(formers).toHaveLength(3);
     for (const f of formers) {
-      expect(size(f)).toEqual([mm(244), mm(194)]);
+      expect(size(f)).toEqual([mm(234), mm(184)]);
       expect(profileHasArcs(f.profile)).toBe(true);
       expect(f.edgeBanding).toEqual({});
     }
@@ -288,8 +310,8 @@ describe('the carcass parts', () => {
 describe('the wrap', () => {
   it('cuts one piece per layer: strip, quarter, then flat to the back', () => {
     const { panels } = reference();
-    expect(panelExtent(byName(panels, 'Skin layer 1')).length).toBeCloseTo(717.0906, 3);
-    expect(panelExtent(byName(panels, 'Skin layer 2')).length).toBeCloseTo(721.803, 3);
+    expect(panelExtent(byName(panels, 'Skin layer 1')).length).toBeCloseTo(705.3097, 3);
+    expect(panelExtent(byName(panels, 'Skin layer 2')).length).toBeCloseTo(717.8761, 3);
     expect(panelExtent(byName(panels, 'Skin layer 1')).width).toBe(mm(720));
     // Flat on the sheet. The bend lives in `forming`, where nothing dimensional reads it.
     expect(profileHasArcs(byName(panels, 'Skin layer 1').profile)).toBe(false);
@@ -297,17 +319,19 @@ describe('the wrap', () => {
 
   it('separates the two layers by exactly one board thickness round the turn', () => {
     // Both flat tails are the same on every layer, so the tails cancel and what is left is
-    // ts · π/2 — the same 4.712mm the enclosed radiused end has, tails or no tails.
+    // ts · π/2 — the same 12.566mm the enclosed radiused end has, tails or no tails. At 3mm ply
+    // this was 4.712; that it tracked the board is the point of the assertion.
+    const ts = actualThicknessOf(findSheet(reference().project.materials, 'bendy-ply-8'));
     const { panels } = reference();
     const first = panelExtent(byName(panels, 'Skin layer 1')).length;
     const second = panelExtent(byName(panels, 'Skin layer 2')).length;
-    expect(second - first).toBeCloseTo(3 * QUARTER, 5);
+    expect(second - first).toBeCloseTo(ts * QUARTER, 5);
   });
 
   it('starts the bend after the fixing strip rather than at the end of the part', () => {
     const skin = byName(reference().panels, 'Skin layer 1');
     expect(skin.forming!.from).toBe(mm(50));
-    expect(skin.forming!.innerRadius).toBe(mm(194));
+    expect(skin.forming!.innerRadius).toBe(mm(184));
     expect(skin.forming!.sweep).toBeCloseTo(QUARTER, 9);
   });
 
@@ -317,14 +341,17 @@ describe('the wrap', () => {
     // finished curve instead and the kick steps back 18mm at every radiused cabinet.
     const { panels, project } = reference();
     const kick = byName(panels, 'Kick');
-    expect(panelExtent(kick).length).toBeCloseTo(1324.6792, 3);
-    expect(kick.forming!.innerRadius).toBe(mm(167));
+    expect(panelExtent(kick).length).toBeCloseTo(1320.7522, 3);
+    expect(kick.forming!.innerRadius).toBe(mm(162));
     expect(kick.materialId).toBe(project.defaults.skinMaterialId);
     // The flat run sits at z = 560 + 2 + 18 − 50 = 530, exactly where `kickPanel` puts a square
     // cabinet's kick face.
+    // Struck on the outside of the ply, so the thickness comes from the board rather than being
+    // typed — which is what stopped this reading 525 when the ply went from 3mm to 8mm.
+    const ply = actualThicknessOf(findSheet(project.materials, project.defaults.skinMaterialId));
     const face = partToCabinet(
       kick.placement,
-      formPoint(kick.forming!, mm(3), { x: mm(0), y: mm(0), z: mm(3) }),
+      formPoint(kick.forming!, ply, { x: mm(0), y: mm(0), z: ply }),
     );
     expect(face.z).toBeCloseTo(530, 6);
   });
@@ -359,9 +386,10 @@ describe('doors and shelves', () => {
 
   it('notches the shelf square, and says why', () => {
     const shelf = byName(reference().panels, 'Shelf');
-    expect(size(shelf)).toEqual([mm(860), mm(534)]);
-    // 860 × 534 less a 177 × 190 bite.
-    expect(panelArea(shelf)).toBeCloseTo(860 * 534 - 177 * 190, 6);
+    expect(size(shelf)).toEqual([mm(850), mm(534)]);
+    // 850 × 534 less a 167 × 190 bite — 167 is the shelf's right edge (867) back to the arc
+    // centre (700), and 190 is its front edge (550) back to the same centre's z (360).
+    expect(panelArea(shelf)).toBeCloseTo(850 * 534 - 167 * 190, 6);
     // Square, not curved — and the reason is the edgebander, not the saw.
     expect(profileHasArcs(shelf.profile)).toBe(false);
     expect(shelf.note).toMatch(/will not go through the edgebander/);
@@ -396,19 +424,23 @@ describe('either hand, and every carcass type', () => {
 
     // And the curve is on the other side of the room, which is the whole point of naming the
     // corner: same size, wrong quarter is the failure this cannot be allowed to pass.
-    expect(occupies(byName(left.panels, 'Side L'), left.project).x).toEqual([mm(6), mm(22)]);
-    expect(occupies(byName(right.panels, 'Side R'), right.project).x).toEqual([mm(878), mm(894)]);
+    expect(occupies(byName(left.panels, 'Side L'), left.project).x).toEqual([mm(16), mm(32)]);
+    expect(occupies(byName(right.panels, 'Side R'), right.project).x).toEqual([mm(868), mm(884)]);
   });
 
   it('holds the radius on the left hand too, measured on the finished face', () => {
     const left = reference({ radiusCorner: 'front-left' });
     const skin = byName(left.panels, 'Skin layer 2');
-    const { from, to } = formedSpan(skin.forming!, mm(3));
+    // The board, not a typed 3 — the finished face is the outside of whatever ply is on it.
+    const ply = actualThicknessOf(
+      findSheet(left.project.materials, left.project.defaults.skinMaterialId),
+    );
+    const { from, to } = formedSpan(skin.forming!, ply);
     for (let i = 0; i <= 20; i++) {
       const along = from + ((to - from) * i) / 20;
       const at = partToCabinet(
         skin.placement,
-        formPoint(skin.forming!, mm(3), { x: mm(along), y: mm(0), z: mm(3) }),
+        formPoint(skin.forming!, ply, { x: mm(along), y: mm(0), z: ply }),
       );
       // Centre mirrored to (200, 360).
       expect(Math.hypot(at.x - 200, at.z - 360)).toBeCloseTo(200, 6);
@@ -416,19 +448,19 @@ describe('either hand, and every carcass type', () => {
   });
 
   it('rounds a wall cabinet', () => {
-    // 900 × 720 × 330, 150 radius: substrate 144, end panel 330 − 16 − 150 = 164 deep, and a
-    // wrap of 50 + (144 + 1.5)·π/2 + (330 − 150) = 458.5510.
+    // 900 × 720 × 330, 150 radius: substrate 150 − 16 = 134, end panel 330 − 16 − 150 = 164
+    // deep, and a wrap of 50 + (134 + 4)·π/2 + (330 − 150) = 446.7699.
     const wall = build('wall', { W: 900, H: 720, D: 330 }, {
       radiusCorner: 'front-right',
       carcassRadius: mm(150),
     });
     expect(size(byName(wall.panels, 'Side R'))).toEqual([mm(720), mm(164)]);
-    expect(panelExtent(byName(wall.panels, 'Skin layer 1')).length).toBeCloseTo(458.551, 3);
+    expect(panelExtent(byName(wall.panels, 'Skin layer 1')).length).toBeCloseTo(446.7699, 3);
     // A wall cabinet is closed top and bottom, so both plates take the arc and no former is
     // needed at either end.
     for (const name of ['Bottom', 'Top']) {
       expect(profileHasArcs(byName(wall.panels, name).profile)).toBe(true);
-      expect(size(byName(wall.panels, name))).toEqual([mm(878), mm(314)]);
+      expect(size(byName(wall.panels, name))).toEqual([mm(868), mm(314)]);
     }
     expect(namesOf(wall.panels)).not.toContain('Kick');
   });
@@ -439,12 +471,12 @@ describe('either hand, and every carcass type', () => {
       carcassRadius: mm(200),
     });
     expect(size(byName(tall.panels, 'Side R'))).toEqual([mm(2100), mm(344)]);
-    expect(panelExtent(byName(tall.panels, 'Skin layer 1')).length).toBeCloseTo(717.0906, 3);
+    expect(panelExtent(byName(tall.panels, 'Skin layer 1')).length).toBeCloseTo(705.3097, 3);
     expect(panelExtent(byName(tall.panels, 'Skin layer 1')).width).toBe(mm(2100));
     // 2084 of clear run, no gap over 300, closed top and bottom by plates that take the arc.
     const formers = tall.panels.filter((p) => p.role === 'former');
     expect(formers).toHaveLength(6);
-    for (const f of formers) expect(size(f)).toEqual([mm(244), mm(194)]);
+    for (const f of formers) expect(size(f)).toEqual([mm(234), mm(184)]);
   });
 
   it('splits a tall cabinet’s doors inside the door zone', () => {
@@ -501,17 +533,19 @@ describe('a radius the ply cannot turn', () => {
   });
 
   it('builds the corner as soon as there is any substrate left to bend round', () => {
-    const just = build('base', BASE, { radiusCorner: 'front-right', carcassRadius: mm(7) });
+    // Two layers of 8mm eat 16, so 17 is the first radius with substrate left. At 3mm it was 7.
+    const just = build('base', BASE, { radiusCorner: 'front-right', carcassRadius: mm(17) });
     expect(profileHasArcs(byName(just.panels, 'Bottom').profile)).toBe(true);
     expect(byName(just.panels, 'Skin layer 1').forming!.innerRadius).toBe(mm(1));
     expect(just.warnings.join(' ')).not.toMatch(/nothing left to bend it round/);
   });
 
-  it('moves the boundary with the board, rather than hard-coding 6', () => {
-    // One layer of 3mm ply leaves substrate at 4, where two layers would not.
+  it('moves the boundary with the board, rather than hard-coding a number', () => {
+    // One layer of 8mm ply leaves substrate at 9, where two layers would not. The whole point is
+    // that this boundary tracks the board: at 3mm ply the same test read 4 and one layer.
     const thin = build('base', BASE, {
       radiusCorner: 'front-right',
-      carcassRadius: mm(4),
+      carcassRadius: mm(9),
       skinLayers: 1,
     });
     expect(profileHasArcs(byName(thin.panels, 'Bottom').profile)).toBe(true);

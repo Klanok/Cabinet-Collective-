@@ -22,19 +22,19 @@
  *
  * ## The enclosed radiused end
  *
- * A 560 radius quarter — the AU base depth — 720 high, 16mm formers, two layers of 3mm
+ * A 560 radius quarter — the AU base depth — 720 high, 16mm formers, two layers of 8mm
  * bendy ply, formers no more than 300 apart.
  *
- *   former radius   560 − 2×3 = 554        (finished radius, less the skin that goes over it)
+ *   former radius   560 − 2×8 = 544        (finished radius, less the skin that goes over it)
  *   former span     H − t = 720 − 16 = 704
  *   former count    gaps = ceil(704 / (300 + 16)) = ceil(2.228) = 3, so 4 formers
  *   former heights  0, 234.667, 469.333, 704
  *   clear gap       704/3 − 16 = 218.667   (inside the 300 asked for)
- *   former area     π × 554² / 4 = 241051.263
+ *   former area     π × 544² / 4 = 232427.591
  *
- *   skin layer 1    inner 554, developed (554 + 1.5) × π/2 = 872.5774
+ *   skin layer 1    inner 544, developed (544 + 4) × π/2 = 860.7964
  *   skin layer 2    inner 557, developed (557 + 1.5) × π/2 = 877.2897
- *   difference      3 × π/2 = 4.712389     — exactly one board thickness round a quarter turn
+ *   difference      8 × π/2 = 12.566371    — exactly one board thickness round a quarter turn
  *
  * That last line is the one that matters. Cut both layers the same and the outer one is 4.7mm
  * short, which you find out with the glue on.
@@ -49,6 +49,7 @@ import { buildCabinet } from '../src/core/rules/build.ts';
 import { buildCutlist } from '../src/core/cutlist/cutlist.ts';
 import { bandedLength, panelEdgeLengths, panelExtent } from '../src/core/model/panel.ts';
 import { developedLength } from '../src/core/model/forming.ts';
+import { actualThicknessOf, findSheet } from '../src/core/model/material.ts';
 import { profileHasArcs } from '../src/core/geom/profile.ts';
 import { byName, namesOf, occupies, size } from './helpers.ts';
 
@@ -177,10 +178,10 @@ describe('the enclosed radiused end', () => {
   });
 
   it('cuts the formers under the skin, not to the finished radius', () => {
-    // 560 finished, less two 3mm layers, is 554. A former cut to 560 gives a curve standing
+    // 560 finished, less two 8mm layers, is 544. A former cut to 560 gives a curve standing
     // 6mm proud of the run's front face — a step exactly where a hand lands.
     const former = byName(end().built.panels, 'Former 1');
-    expect(size(former)).toEqual([mm(554), mm(554)]);
+    expect(size(former)).toEqual([mm(544), mm(544)]);
     expect(profileHasArcs(former.profile)).toBe(true);
   });
 
@@ -217,8 +218,8 @@ describe('the enclosed radiused end', () => {
     const second = byName(built.panels, 'Skin layer 2');
 
     // Flat rectangles, developed length × carcass height.
-    expect(panelExtent(first).length).toBeCloseTo(872.5774, 3);
-    expect(panelExtent(second).length).toBeCloseTo(877.2897, 3);
+    expect(panelExtent(first).length).toBeCloseTo(860.7964, 3);
+    expect(panelExtent(second).length).toBeCloseTo(873.3628, 3);
     expect(panelExtent(first).width).toBe(mm(720));
     expect(profileHasArcs(first.profile)).toBe(false);
   });
@@ -231,27 +232,29 @@ describe('the enclosed radiused end', () => {
     const second = panelExtent(byName(built.panels, 'Skin layer 2')).length;
     // 5 places, not 9: a part's extent is snapped to the nanometre on the way out, so two of
     // them differ by up to 2nm more than the exact arithmetic does.
-    expect(second - first).toBeCloseTo(3 * QUARTER, 5);
-    expect(second - first).toBeCloseTo(4.712389, 5);
+    expect(second - first).toBeCloseTo(8 * QUARTER, 5);
+    expect(second - first).toBeCloseTo(12.566371, 5);
   });
 
   it('keeps the flat shape in the profile and the bend in the forming', () => {
     // The whole architectural point. A skin's profile is what the saw cuts; how it then bends
     // lives somewhere nothing dimensional reads.
-    const skin = byName(end().built.panels, 'Skin layer 1');
+    const { built, project } = end();
+    const skin = byName(built.panels, 'Skin layer 1');
+    const ts = actualThicknessOf(findSheet(project.materials, skin.materialId));
     expect(skin.forming).toBeDefined();
     expect(skin.forming!.kind).toBe('cylindrical');
-    expect(skin.forming!.innerRadius).toBe(mm(554));
+    expect(skin.forming!.innerRadius).toBe(mm(544));
     expect(skin.forming!.sweep).toBeCloseTo(QUARTER, 9);
     expect(skin.forming!.axis).toBe('x');
     // And the two agree: the flat length is the developed length of that bend.
-    expect(developedLength(skin.forming!, mm(3))).toBeCloseTo(panelExtent(skin).length, 5);
+    expect(developedLength(skin.forming!, ts)).toBeCloseTo(panelExtent(skin).length, 5);
   });
 
   it('cuts the skin from bendy ply and the formers from carcass board', () => {
     const { built, project } = end();
     expect(byName(built.panels, 'Skin layer 1').materialId).toBe(project.defaults.skinMaterialId);
-    expect(byName(built.panels, 'Skin layer 1').materialId).toBe('bendy-ply-3');
+    expect(byName(built.panels, 'Skin layer 1').materialId).toBe('bendy-ply-8');
     expect(byName(built.panels, 'Former 1').materialId).toBe(project.defaults.carcassMaterialId);
   });
 
@@ -285,7 +288,7 @@ describe('the enclosed radiused end', () => {
 
   it('tells the person at the saw to check which way the sheet bends', () => {
     const note = byName(end().built.panels, 'Skin layer 1').note ?? '';
-    expect(note).toMatch(/bend to 554mm inside radius/);
+    expect(note).toMatch(/bend to 544mm inside radius/);
     expect(note).toMatch(/barrel or column form/);
   });
 });
