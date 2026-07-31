@@ -1079,24 +1079,30 @@ is too, and there is no arithmetic between the sheet and the drilling for anyone
 Cabinet profile 450, 40 kg — the class shipped here:
 
 ```
-  NL 270–350    37, 55, 160, 192       back from the front edge of the side
-  NL 400–600    37, 55, 224, 256
+  front         37 and 69, at every length
+  NL 270–350    rear screws at 160 and 192
+  NL 400–600    rear screws at 224 and 256
 ```
 
 Which rear pair belongs to which band is settled by the extension lines on the sheet: 160 and 192
-run up into the NL 270–350 diagram's rear bracket, 224 and 256 into the NL 400–600 one's. Both pairs
-are 32 apart and both are exact multiples of 32 off the front edge, which is the check that a band
-has been read off the right row.
+run up into the NL 270–350 diagram's rear bracket, 224 and 256 into the NL 400–600 one's.
+
+**These are the system-screw positions, and that is the second thing the sheet was quietly saying.**
+Rows A and B on each diagram are two fixing options — chipboard screws and system screws — which is
+why the front bracket carries a chain of three dimensions rather than two. I read across both
+patterns at once and reported the front pair as ambiguous; it was not ambiguous, it was two answers
+to two different questions. From the shop: *"the confusion is coming from chipboard screws or system
+screws... I want to default to system screws so 37 + 32 as standard."* Every pair is 32 apart, front
+and rear, which is what fixing with system screws means. The 18 belongs to the chipboard option and
+is not modelled — the same treatment INSERTA and EXPANDO T already get.
+
+That is worth sitting with, because it is the **same error as the 128/256 in a different coat**.
+Both times a figure was read out of a document that held more than one answer, and both times the
+missing question was "which of these am I looking at?"
 
 **The same sheet exists for TIP-ON BLUMOTION and carries identical figures.** Where the profile is
 screwed to the side does not change between push-to-open and the ordinary runner, so one table
 covers both. Worth recording rather than rediscovering.
-
-**One figure is still a reading and says so.** The front bracket carries a chain of 32, 18 and 37,
-and only the 37 is certain — it was already confirmed by the shop and is the standard front-row
-setback. The second front screw is shipped at 55 (37 + 18) rather than 69 (37 + 32), and sits in
-`unconfirmedFigures` naming the measurement that would settle it: front edge of a side panel to the
-two screws in the front bracket, on any drawer bank already built.
 
 **Project v15 and standards v11 move drilling and cannot pretend otherwise.** A saved job carries
 its own copy of the hardware library, so the old shape is on disk. The shipped system is given the
