@@ -1126,6 +1126,10 @@ speculatively.
   exactly as before. It is a **screen approximation** and nothing is cut, priced or ordered from
   it — the decor name is the fact. Editable per job under Settings → Materials, and reported in
   the standards diff so a changed colour cannot make a job read as drifted with nothing listed.
+  **One flat hex per decor was always the cheap version**, and the bench has since asked for real
+  textures — see §5.8. Note also that nothing backfills this field onto a job saved before it
+  existed, so such a job renders every decor in its role colour and changing a decor appears to do
+  nothing. Resetting the job to standards fixes it; a migration should.
 - Cabinets can be dragged but not rotated with the mouse; yaw is typed, or set by snapping to
   a wall.
 - The custom cabinet excludes itself from benchtop runs — a banquette shouldn't get one, but
@@ -1211,6 +1215,56 @@ and no schema change — which is the opposite of bendy ply, which earned its ow
 **Unknown, and worth asking before building:** whether the routed piece is kerfed to bend, or
 machined from something thicker, or something else again. That decides the parts, and it is not
 worth guessing — the developed length only means something if the piece actually bends.
+
+### 5.8 Seeing it properly — decor textures and a wireframe view
+
+**Both raised from the bench, and both are about the 3D view earning its keep.** Neither changes a
+part, a price or a hole; both change whether the view is worth showing somebody.
+
+#### Real decor textures, not an approximate colour
+
+> "i don't want vaguely correct colour doors, i want textures and colours"
+
+Fair. `SheetMaterial.colour` (§5.4) is one flat hex per decor and it was always the cheap version —
+enough that a walnut door does not render the same off-white as a white melamine carcass, and no
+more than that. A Notaio Walnut door and a Sepia Oak door are two browns.
+
+What this wants is an **image per decor**, mapped onto the part:
+
+- A `texture` field on `SheetMaterial`, beside `colour`, which stays as the fallback for any decor
+  that hasn't got an image. The suppliers publish swatch images; they are the shop's to hold.
+- **Scaled in millimetres, not in UV units.** A woodgrain repeat is a real distance — of the order
+  of a metre — so the map has to be laid on at a real-world scale or a 300mm drawer front and a
+  2000mm tall door end up with grain of two different sizes. The texture record therefore carries
+  the physical size of one repeat.
+- **Rotated by the part's own grain.** This is the part that makes it more than decoration.
+  `SheetMaterial.grain` and `Panel.grain` already exist, and a texture laid down the part's length
+  or across it *by that constraint* turns the 3D view into a **check on grain direction** — a door
+  with the grain running the wrong way stops being a line in a cutlist note and becomes something
+  you can see. That is worth having.
+
+**It stays a screen approximation, and the note that says so must stay with it.** Nothing is cut,
+priced or ordered from an image any more than from a hex — the decor *name* is the fact, and it is
+what goes on the supplier order. A texture is more convincing than a colour, which makes saying so
+more important rather than less.
+
+The one genuinely open question is where the images live: bundled into the app (fixed set, no
+setup), or loaded per job from a folder the shop points at (any decor, but a job that has to carry
+its images with it). Worth asking before building.
+
+#### A wireframe view
+
+A display mode that draws edges only, alongside 3D and Plan. Useful for three things a solid render
+cannot do: **seeing the construction** — where a shelf lands, how a rail sits, which way a back is
+housed; **seeing through to the interior** without hiding a front; and **checking a joint** where two
+parts meet, which a shaded surface hides.
+
+The pieces are already there. Every panel's outline is in the model, `Boring.tsx` already draws hole
+rings as line geometry rather than meshes, and `PanelMesh` already has the panel's own profile. It is
+a third render path beside the solid one, not a new source of geometry.
+
+Worth doing at the same time as the textures, because they are the two ends of the same slider —
+one for showing a client, one for checking the build — and because both live in the same three files.
 
 ---
 

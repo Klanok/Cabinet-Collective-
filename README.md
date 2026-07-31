@@ -399,6 +399,8 @@ having something other than memory re-checking it.
 | — | A separate ladder kick under a run, rather than a kick per cabinet | **done** |
 | — | An appliance space, so a top runs over a dishwasher and not over a fridge | **done** |
 | — | Waterfall and mitred benchtop corners linked to each other, not just flagged per top | not started |
+| — | Real decor textures on parts, laid on at true scale and turned by the part's grain | not started |
+| — | A wireframe view, for seeing the construction and checking a joint | not started |
 | — | Wall openings — bulkheads, windows, out-of-square walls and scribes | not started |
 | 3 | Guillotine nesting for sheet goods, offcut tracking | not started |
 | 4 | CAM feature layer — toolpaths from the features Phase 2 and the door styles emit | not started |
