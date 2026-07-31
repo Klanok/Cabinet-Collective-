@@ -553,6 +553,39 @@ export function Inspector({
                 </select>
               </div>
             </label>
+            {/*
+              Which way a single door swings.
+
+              Shown only for one door, and that is the whole reason it exists. A **pair** is
+              decided by comparing the two doors to each other — the left-hand one hinges left —
+              so there is nothing to ask and asking would be offering a setting that gets
+              overruled. A **single** door has nothing in the geometry to read, so somebody has
+              to say, and until now nobody could: `doorSwing` has been in the model and read by
+              `hingeHands` since the boring rules landed, with no way to set it. Every single
+              door in every job came out hinged left.
+
+              Named by the side the hinges are on, facing the cabinet, because that is what the
+              model means by it and what somebody at the bench would say. "Opens left" is the
+              same door described from the other end and is exactly how these get transposed.
+            */}
+            {(cabinet.options.doorCount ?? 2) === 1 && (
+              <label className="field">
+                <span>Hinges on</span>
+                <div className="field-input">
+                  <select
+                    value={cabinet.options.doorSwing ?? 'left'}
+                    onChange={(e) =>
+                      onUpdateOptions(cabinet.id, {
+                        doorSwing: e.target.value as CabinetOptions['doorSwing'],
+                      })
+                    }
+                  >
+                    <option value="left">Left — opens from the right</option>
+                    <option value="right">Right — opens from the left</option>
+                  </select>
+                </div>
+              </label>
+            )}
             <NumberField
               label="Adjustable shelves"
               value={cabinet.options.shelfCount ?? 0}
