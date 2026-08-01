@@ -10,6 +10,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   BufferAttribute,
   BufferGeometry,
+  RepeatWrapping,
   SRGBColorSpace,
   TextureLoader,
   type Matrix4,
@@ -24,6 +25,7 @@ import { formedMesh } from '../../core/model/forming.ts';
 import { Boring } from './Boring.tsx';
 import { FrontRelief, frontRecessOf } from './FrontRelief.tsx';
 import { panelMatrix } from './transforms.ts';
+import { pointOnSheet, type SheetTexturePlacement } from './sheetTexture.ts';
 
 /** Panel colours, keyed loosely by what the part is, so a carcass reads at a glance. */
 const ROLE_COLOURS: Record<string, string> = {
@@ -64,6 +66,8 @@ interface Props {
    */
   colour?: string;
   texture?: SheetMaterial['texture'];
+  /** Current cut-plan position, so neighbouring parts show neighbouring regions of the sheet. */
+  texturePlacement?: SheetTexturePlacement;
   selected: boolean;
   onSelect: () => void;
   /**
@@ -77,7 +81,7 @@ interface Props {
   wireframe?: boolean;
 }
 
-export function PanelMesh({ panel, thickness, colour: boardColour, texture, selected, onSelect, onGrab, wireframe = false }: Props) {
+export function PanelMesh({ panel, thickness, colour: boardColour, texture, texturePlacement, selected, onSelect, onGrab, wireframe = false }: Props) {
   /*
    * A routed front is drawn as the board that is actually left: a slab of the reduced
    * thickness, with the border standing back up to full thickness around it. So the recess is
@@ -108,12 +112,22 @@ export function PanelMesh({ panel, thickness, colour: boardColour, texture, sele
     g.setAttribute('normal', new BufferAttribute(mesh.normals, 3));
     if (texture) {
       const uv = new Float32Array(mesh.uvs.length);
-      const grainAlongX = panel.grain !== 'width-along-grain';
       for (let i = 0; i < mesh.uvs.length; i += 2) {
-        const along = grainAlongX ? mesh.uvs[i]! : mesh.uvs[i + 1]!;
-        const across = grainAlongX ? mesh.uvs[i + 1]! : mesh.uvs[i]!;
-        const u = texture.grainAxis === 'u' ? along / texture.repeatLength : across / texture.repeatWidth;
-        const v = texture.grainAxis === 'v' ? along / texture.repeatLength : across / texture.repeatWidth;
+        const localX = mesh.uvs[i]!;
+        const localY = mesh.uvs[i + 1]!;
+        const grainAlongX = panel.grain !== 'width-along-grain';
+        const [sheetX, sheetY] = texturePlacement
+          ? pointOnSheet(localX, localY, texturePlacement)
+          : [grainAlongX ? localX : localY, grainAlongX ? localY : localX];
+        // Separate purchased sheets should not all begin on the identical pixel of a swatch.
+        // The deterministic offset keeps the view stable while representing another sheet.
+        const sheetOffset = texturePlacement ? (texturePlacement.sheetIndex - 1) * 0.371 : 0;
+        const u = texture.grainAxis === 'u'
+          ? sheetX / texture.repeatLength + sheetOffset
+          : sheetY / texture.repeatWidth + sheetOffset;
+        const v = texture.grainAxis === 'v'
+          ? sheetX / texture.repeatLength + sheetOffset
+          : sheetY / texture.repeatWidth + sheetOffset;
         uv[i] = u;
         uv[i + 1] = v;
       }
@@ -121,7 +135,7 @@ export function PanelMesh({ panel, thickness, colour: boardColour, texture, sele
     }
     g.setIndex(new BufferAttribute(mesh.indices, 1));
     return g;
-  }, [panel.profile, panel.grain, bodyThickness, panel.forming, texture]);
+  }, [panel.profile, panel.grain, bodyThickness, panel.forming, texture, texturePlacement]);
 
   const matrix: Matrix4 = useMemo(() => panelMatrix(panel.placement), [panel.placement]);
 
@@ -204,6 +218,9 @@ function BoardSurface({
       textureUrl,
       (image) => {
         image.colorSpace = SRGBColorSpace;
+        image.wrapS = RepeatWrapping;
+        image.wrapT = RepeatWrapping;
+        image.needsUpdate = true;
         if (active) setMap(image);
       },
       undefined,

@@ -21,6 +21,7 @@ import { sheetLabel } from './MaterialPicker.tsx';
 import type { BuiltCabinet } from '../../core/rules/build.ts';
 import { getSpec } from '../../core/rules/registry.ts';
 import { useAsk } from './ask.tsx';
+import { AU_UPHOLSTERY_MATERIALS } from '../../core/library/upholstery.au.ts';
 
 interface Props {
   built: BuiltCabinet | null;
@@ -401,6 +402,7 @@ export function Inspector({
   const isCustom = cabinet.typeId === 'custom';
   const isRadiusEnd = cabinet.typeId === 'radius-end';
   const isPanel = cabinet.typeId === 'panel';
+  const isBanquette = cabinet.typeId === 'banquette';
   const resolvedSkinMaterialId = cabinet.materials.skin ?? project.defaults.skinMaterialId;
   const usesLegacyBendyPly =
     (isRadiusEnd || isRadiused(cabinet.options)) && resolvedSkinMaterialId === 'bendy-ply-3';
@@ -565,7 +567,7 @@ export function Inspector({
           point of it is the outside. Offering the controls anyway would let somebody set a
           door count the spec then silently ignores.
         */}
-        {!isDrawerBank && !isRadiusEnd && (
+        {!isDrawerBank && !isRadiusEnd && !isBanquette && (
           <>
             <label className="field">
               <span>Doors</span>
@@ -628,7 +630,7 @@ export function Inspector({
           </>
         )}
 
-        {isCustom && (
+        {(isCustom || isBanquette) && (
           <>
             <label className="field">
               <span>Top</span>
@@ -663,6 +665,15 @@ export function Inspector({
               suffix=""
               onChange={(n) => onUpdateOptions(cabinet.id, { dividerCount: Math.round(n) })}
             />
+            {isBanquette && <>
+              <NumberField label="Seat cushion" value={cabinet.options.seatCushionThickness ?? 80} min={30} max={200} step={5} onChange={(n) => onUpdateOptions(cabinet.id, { seatCushionThickness: mm(n) })} />
+              <NumberField label="Cushion inset" value={cabinet.options.seatCushionInset ?? 5} min={0} max={100} step={5} onChange={(n) => onUpdateOptions(cabinet.id, { seatCushionInset: mm(n) })} />
+              <label className="field field-check"><input type="checkbox" checked={cabinet.options.hasBackCushion !== false} onChange={(e) => onUpdateOptions(cabinet.id, { hasBackCushion: e.target.checked })} /><span>Back cushion</span></label>
+              {cabinet.options.hasBackCushion !== false && <>
+                <NumberField label="Back cushion height" value={cabinet.options.backCushionHeight ?? 400} min={100} max={1000} step={10} onChange={(n) => onUpdateOptions(cabinet.id, { backCushionHeight: mm(n) })} />
+                <NumberField label="Back cushion thickness" value={cabinet.options.backCushionThickness ?? 80} min={30} max={200} step={5} onChange={(n) => onUpdateOptions(cabinet.id, { backCushionThickness: mm(n) })} />
+              </>}
+            </>}
             <NumberField
               label="Drawers"
               value={cabinet.options.drawerCount ?? 0}
@@ -871,6 +882,10 @@ export function Inspector({
 
       <div className="subhead">Finish</div>
       <div className="fields">
+        {isBanquette && <label className="field"><span>Upholstery</span><div className="field-input"><select
+          value={cabinet.materials.upholstery ?? (project.materials.upholstery ?? AU_UPHOLSTERY_MATERIALS)[0]?.id ?? ''}
+          onChange={(e) => setMaterial({ upholstery: e.target.value })}
+        >{(project.materials.upholstery ?? AU_UPHOLSTERY_MATERIALS).map((fabric) => <option key={fabric.id} value={fabric.id}>{fabric.brand} {fabric.collection} — {fabric.colour}</option>)}</select></div></label>}
         <OverridePicker
           label={isPanel ? 'Panel material' : 'Carcass'}
           options={sheetOptions}

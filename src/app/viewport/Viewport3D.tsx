@@ -25,6 +25,10 @@ import { FlyControls } from './FlyControls.tsx';
 import { cabinetMatrix } from './transforms.ts';
 import { useCabinetDrag } from './useCabinetDrag.ts';
 import type { Mm } from '../../core/units.ts';
+import { nestProject } from '../../core/nest/nest.ts';
+import { sheetTexturePlacements, type SheetTexturePlacement } from './sheetTexture.ts';
+import { AU_UPHOLSTERY_MATERIALS } from '../../core/library/upholstery.au.ts';
+import { BanquetteCushions } from './BanquetteCushions.tsx';
 
 /** Millimetres → scene units. The model never leaves mm; only the render is scaled. */
 const MM_TO_SCENE = 0.001;
@@ -66,6 +70,7 @@ function CabinetGroup({
   onSelect,
   onGrab,
   wireframe,
+  texturePlacements,
 }: {
   built: BuiltCabinet;
   project: Project;
@@ -73,6 +78,7 @@ function CabinetGroup({
   onSelect: () => void;
   onGrab: (cabinet: BuiltCabinet['cabinet'], event: ThreeEvent<PointerEvent>) => void;
   wireframe: boolean;
+  texturePlacements: ReadonlyMap<string, SheetTexturePlacement>;
 }) {
   const matrix = useMemo(() => cabinetMatrix(built.cabinet.placement), [built.cabinet.placement]);
 
@@ -87,12 +93,19 @@ function CabinetGroup({
           // nobody has given a colour to falls back to the viewport's own colour for its role.
           colour={findSheet(project.materials, panel.materialId).colour}
           texture={findSheet(project.materials, panel.materialId).texture}
+          texturePlacement={texturePlacements.get(panel.id)}
           selected={selected}
           onSelect={onSelect}
           onGrab={(e) => onGrab(built.cabinet, e)}
           wireframe={wireframe}
         />
       ))}
+      {built.cabinet.typeId === 'banquette' && (() => {
+        const upholstery = (project.materials.upholstery ?? AU_UPHOLSTERY_MATERIALS).find(
+          (item) => item.id === built.cabinet.materials.upholstery,
+        ) ?? (project.materials.upholstery ?? AU_UPHOLSTERY_MATERIALS)[0];
+        return upholstery ? <BanquetteCushions cabinet={built.cabinet} upholstery={upholstery} selected={selected} wireframe={wireframe} /> : null;
+      })()}
     </group>
   );
 }
@@ -108,7 +121,7 @@ function CabinetGroup({
  * produces no parts because nobody in this shop cuts it, so it is drawn as the one slab that
  * arrives on the truck, at the size the fabricator is being asked to make.
  */
-function RunUnits({ project, wireframe }: { project: Project; wireframe: boolean }) {
+function RunUnits({ project, wireframe, texturePlacements }: { project: Project; wireframe: boolean; texturePlacements: ReadonlyMap<string, SheetTexturePlacement> }) {
   const units = useMemo(() => buildRunUnits(project), [project]);
   const placements = useMemo(() => {
     const map = new Map<string, CabinetPlacement>();
@@ -131,6 +144,7 @@ function RunUnits({ project, wireframe }: { project: Project; wireframe: boolean
                 thickness={actualThicknessOf(findSheet(project.materials, panel.materialId))}
                 colour={findSheet(project.materials, panel.materialId).colour}
                 texture={findSheet(project.materials, panel.materialId).texture}
+                texturePlacement={texturePlacements.get(panel.id)}
                 selected={false}
                 onSelect={() => {}}
                 wireframe={wireframe}
@@ -235,6 +249,10 @@ function Scene({
   wireframe,
   onMoveCabinet,
 }: Props) {
+  const texturePlacements = useMemo(
+    () => sheetTexturePlacements(nestProject(project)),
+    [project],
+  );
   /*
    * Dragging goes through the wall snap on its way to the store.
    *
@@ -313,7 +331,7 @@ function Scene({
       <Suspense fallback={null}>
         <group scale={MM_TO_SCENE}>
           <RoomShell room={project.room} showWalls={showWalls} />
-          <RunUnits project={project} wireframe={wireframe} />
+          <RunUnits project={project} wireframe={wireframe} texturePlacements={texturePlacements} />
           <GhostTops project={project} wireframe={wireframe} />
           {built.map((b) => (
             <CabinetGroup
@@ -327,6 +345,7 @@ function Scene({
                 begin(cabinet, e);
               }}
               wireframe={wireframe}
+              texturePlacements={texturePlacements}
             />
           ))}
         </group>

@@ -34,9 +34,9 @@ import {
   DEFAULT_HINGE_SYSTEM_ID,
   DEFAULT_RUNNER_SYSTEM_ID,
 } from '../library/blum.ts';
-import { AU_BENCHTOP_MATERIALS, AU_SHEET_MATERIALS } from '../library/materials.au.ts';
+import { AU_BENCHTOP_MATERIALS, AU_MATERIAL_LIBRARY, AU_SHEET_MATERIALS } from '../library/materials.au.ts';
 
-export const CURRENT_SCHEMA_VERSION = 18 as const;
+export const CURRENT_SCHEMA_VERSION = 19 as const;
 
 /**
  * The bendy ply an older job is given when it is migrated forward. It has no curved parts in
@@ -662,6 +662,23 @@ const migrateV17toV18 = (raw: Record<string, unknown>): Record<string, unknown> 
   };
 };
 
+/** v18 → v19: add new supplier choices without changing any material already selected. */
+const migrateV18toV19 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const materials = (raw.materials as Record<string, unknown> | undefined) ?? {};
+  const sheets = (materials.sheets as Record<string, unknown>[] | undefined) ?? [];
+  const existing = new Set(sheets.map((sheet) => sheet.id));
+  const additions = AU_SHEET_MATERIALS.filter((sheet) => !existing.has(sheet.id));
+  return {
+    ...raw,
+    schemaVersion: 19,
+    materials: {
+      ...materials,
+      sheets: [...sheets, ...additions],
+      upholstery: materials.upholstery ?? AU_MATERIAL_LIBRARY.upholstery ?? [],
+    },
+  };
+};
+
 /**
  * Load a project from stored JSON, migrating older schema versions forward.
  *
@@ -700,6 +717,7 @@ export const migrateProject = (raw: unknown): Project => {
   if (data.schemaVersion === 15) data = migrateV15toV16(data);
   if (data.schemaVersion === 16) data = migrateV16toV17(data);
   if (data.schemaVersion === 17) data = migrateV17toV18(data);
+  if (data.schemaVersion === 18) data = migrateV18toV19(data);
 
   if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`migrateProject: could not migrate schema version ${String(version)}`);
