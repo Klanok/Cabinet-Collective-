@@ -1553,11 +1553,15 @@ speculatively.
 
 ### 5.4 Smaller things noted but not done
 
-- **Standalone panels as a cabinet type.** Let the user place an individual panel in the room as a
-  first-class unit, with editable width, height, depth/thickness, material, grain and edge banding.
-  It must flow through the same panel record, viewport, cutlist, nesting, costing and CAM paths as
-  generated cabinet parts rather than becoming a separate drawing-only object. This is for fillers,
-  scribes, loose ends, backing pieces and other job panels that do not belong to a carcass.
+- **Standalone panels as a cabinet type.** Let the user place an individual rectangular panel in
+  the room as a first-class unit, with editable length/width, sheet material, grain and edge
+  banding. **First version:** its thickness is the selected sheet material's actual thickness, the
+  same single source of truth used by every generated cabinet part; independently typed thickness,
+  laminations and adjustable/build-up versions are later extensions. A standalone panel must snap
+  flush to walls, cabinet carcasses and applied-end outer faces. It must flow through the same panel
+  record, viewport, cutlist, nesting, costing and CAM paths as generated cabinet parts rather than
+  becoming a separate drawing-only object. This is for fillers, scribes, loose ends, backing pieces
+  and other job panels that do not belong to a carcass.
 - ~~**Cabinets must snap to applied ends as well as cabinet carcasses.**~~ **Done.** Neighbour
   snapping targets the applied end's outer face using the selected door board's actual thickness.
   It accounts for the contacting end on both cabinets, keeps the carcass edge when no panel is
