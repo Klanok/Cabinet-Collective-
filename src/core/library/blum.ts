@@ -62,8 +62,8 @@ import type {
 const price = (dollars: number): Cents => Math.round(dollars * 100);
 
 /**
- * MERIVOBOX N, M and K drawer-side profiles. E height is deliberately separate: it is an M side
- * built up with gallery, BOXCOVER or BOXCAP hardware, not a fourth solid side profile.
+ * MERIVOBOX N, M, K and E finished box heights. E uses an M side with gallery, BOXCOVER or
+ * BOXCAP hardware, but it is still a distinct selectable box height for planning and back sizing.
  */
 export const MERIVOBOX: DrawerRunnerSystem = {
   id: 'merivobox',
@@ -92,6 +92,13 @@ export const MERIVOBOX: DrawerRunnerSystem = {
       height: mm(129),
       woodenBackHeight: mm(121),
       nominalLengths: [mm(300), mm(350), mm(400), mm(450), mm(500), mm(550), mm(600)],
+    },
+    {
+      code: 'E',
+      name: 'E — 192mm',
+      height: mm(192),
+      woodenBackHeight: mm(184),
+      nominalLengths: [mm(270), mm(300), mm(350), mm(400), mm(450), mm(500), mm(550), mm(600)],
     },
   ],
 

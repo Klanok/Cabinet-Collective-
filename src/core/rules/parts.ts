@@ -702,7 +702,10 @@ export const appliedEndPanels = (
   const overhang = c.appliedEndFrontOverhang ?? 0;
   const standsOn = settings.standsOnKick ?? true;
   const drop = standsOn ? mm(Math.max(0, ctx.cabinet.placement.anchor.y)) : mm(0);
-  const toFloor = (c.appliedEndToFloor ?? true) && drop > 0;
+  const toFloor =
+    (ctx.options.appliedEndHeight
+      ? ctx.options.appliedEndHeight === 'floor'
+      : (c.appliedEndToFloor ?? true)) && drop > 0;
 
   const bottomY = toFloor ? mm(-drop) : mm(0);
   const height = mm(ctx.H - bottomY);

@@ -244,7 +244,11 @@ export const snapToNeighbour = (
 
   for (const neighbour of cabinets) {
     if (neighbour.id === cabinet.id) continue;
-    if (angularDistance(neighbour.placement.yawDeg, cabinet.placement.yawDeg) > YAW_TOLERANCE_DEG) {
+    if (
+      cabinet.typeId !== 'panel' &&
+      neighbour.typeId !== 'panel' &&
+      angularDistance(neighbour.placement.yawDeg, cabinet.placement.yawDeg) > YAW_TOLERANCE_DEG
+    ) {
       continue;
     }
     // Height is typed, never dragged, so ordinary cabinets at different heights are different

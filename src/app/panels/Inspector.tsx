@@ -450,8 +450,8 @@ export function Inspector({
   const setEnd = (end: CabinetEnd, on: boolean): CabinetEnd[] =>
     ends.map((e) => e.end).filter((e) => (e === end ? on : hasAppliedEnd(cabinet.options, e)));
 
-  /** Base, wall and tall carcasses take a rounded front corner. The quarter-round unit *is* one. */
-  const canRound = cabinet.typeId === 'base' || isWall || isTall;
+  /** Ordinary carcasses and banquettes can take a constructed rounded front corner. */
+  const canRound = cabinet.typeId === 'base' || isWall || isTall || isBanquette;
   const corner = cabinet.options.radiusCorner;
   const carcassRadius = cabinet.options.carcassRadius ?? 0;
 
@@ -849,6 +849,23 @@ export function Inspector({
             <span>{label}</span>
           </label>
         ))}
+        {(cabinet.options.appliedEnds?.length ?? 0) > 0 && (
+          <label className="field">
+            <span>Applied end height</span>
+            <div className="field-input">
+              <select
+                value={cabinet.options.appliedEndHeight ?? ''}
+                onChange={(e) => onUpdateOptions(cabinet.id, {
+                  appliedEndHeight: (e.target.value || undefined) as CabinetOptions['appliedEndHeight'],
+                })}
+              >
+                <option value="">Shop default</option>
+                <option value="carcass">Match carcass</option>
+                <option value="floor">Run to floor</option>
+              </select>
+            </div>
+          </label>
+        )}
       </div>}
 
       {warnings.length > 0 && (

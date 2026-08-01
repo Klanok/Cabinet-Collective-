@@ -503,6 +503,17 @@ describe('butting one cabinet against the next', () => {
     expect(snap?.placement.anchor.x).toBe(600);
   });
 
+  it('rotates a standalone panel square with the cabinet it snaps to', () => {
+    const base = onSouth('B1', 0);
+    const panel = {
+      ...createCabinet({ typeId: 'panel', name: 'P1', width: mm(100), x: mm(600), z: mm(0) }),
+      placement: { anchor: { x: mm(600), y: mm(0), z: mm(0) }, yawDeg: 90 },
+    };
+    const snap = snapToNeighbour([base, panel], panel, mm(590), mm(0), mm(60));
+    expect(snap?.placement.yawDeg).toBe(base.placement.yawDeg);
+    expect(snap?.placement.anchor.x).toBe(600);
+  });
+
   it('never snaps a cabinet to itself', () => {
     const only = onSouth('B1', 0);
     expect(snapToNeighbour([only], only, mm(10), mm(0), mm(60))).toBeNull();

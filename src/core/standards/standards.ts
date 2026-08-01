@@ -54,7 +54,7 @@ import {
   DEFAULT_RUNNER_SYSTEM_ID,
 } from '../library/blum.ts';
 
-export const CURRENT_STANDARDS_VERSION = 17 as const;
+export const CURRENT_STANDARDS_VERSION = 18 as const;
 
 export interface ShopStandards {
   readonly version: typeof CURRENT_STANDARDS_VERSION;
@@ -371,6 +371,7 @@ export const migrateStandards = (raw: unknown): ShopStandards => {
   if (data.version === 14) data = migrateStandardsV14toV15(data);
   if (data.version === 15) data = migrateStandardsV15toV16(data);
   if (data.version === 16) data = migrateStandardsV16toV17(data);
+  if (data.version === 17) data = migrateStandardsV17toV18(data);
 
   if (data.version !== CURRENT_STANDARDS_VERSION) {
     throw new Error(`migrateStandards: could not migrate version ${String(version)}`);
@@ -640,6 +641,22 @@ const migrateStandardsV16toV17 = (raw: Record<string, unknown>): Record<string, 
       ...materials,
       sheets: [...sheets, ...AU_SHEET_MATERIALS.filter((item) => !sheetIds.has(item.id))],
       upholstery: [...upholstery, ...(AU_MATERIAL_LIBRARY.upholstery ?? []).filter((item) => !upholsteryIds.has(item.id))],
+    },
+  };
+};
+
+/** Add the complete shipped MERIVOBOX height range to current shop standards. */
+const migrateStandardsV17toV18 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const hardware = (raw.hardware as Record<string, unknown> | undefined) ?? {};
+  const systems = (hardware.runnerSystems as Record<string, unknown>[] | undefined) ?? [];
+  return {
+    ...raw,
+    version: 18,
+    hardware: {
+      ...hardware,
+      runnerSystems: systems.map((system) =>
+        withShippedSideHeights(system, BLUM_HARDWARE_LIBRARY.runnerSystems),
+      ),
     },
   };
 };

@@ -1,9 +1,45 @@
+import { useMemo, type ReactNode } from 'react';
 import { RoundedBox } from '@react-three/drei';
 import { useLoader } from '@react-three/fiber';
-import { RepeatWrapping, SRGBColorSpace, TextureLoader } from 'three';
+import { RepeatWrapping, Shape, SRGBColorSpace, TextureLoader } from 'three';
 import type { Cabinet } from '../../core/model/cabinet.ts';
 import type { UpholsteryMaterial } from '../../core/model/material.ts';
 import { bundledAssetUrl } from './assetUrl.ts';
+
+/** A back cushion with a vertical rear face and the requested lean cut into its front face. */
+function WedgeBack({ width, height, thickness, angle, radius, x, y, children }: {
+  width: number;
+  height: number;
+  thickness: number;
+  angle: number;
+  radius: number;
+  x: number;
+  y: number;
+  children: ReactNode;
+}) {
+  const shape = useMemo(() => {
+    const bottomThickness = thickness + Math.tan(angle) * height;
+    const result = new Shape();
+    result.moveTo(0, 0);
+    result.lineTo(bottomThickness, 0);
+    result.lineTo(thickness, height);
+    result.lineTo(0, height);
+    result.closePath();
+    return result;
+  }, [angle, height, thickness]);
+  const bevel = Math.max(0.5, Math.min(radius, thickness / 4, width / 4));
+  return <mesh position={[x + width, y, 0]} rotation={[0, -Math.PI / 2, 0]} castShadow receiveShadow>
+    <extrudeGeometry args={[shape, {
+      depth: width,
+      bevelEnabled: true,
+      bevelSize: bevel,
+      bevelThickness: bevel,
+      bevelSegments: 3,
+      steps: 1,
+    }]} />
+    {children}
+  </mesh>;
+}
 
 export function BanquetteCushions({ cabinet, upholstery, selected, wireframe }: {
   cabinet: Cabinet;
@@ -44,14 +80,13 @@ export function BanquetteCushions({ cabinet, upholstery, selected, wireframe }: 
       const thickness = cabinet.options.backCushionThickness ?? 80;
       const angle = Math.min(15, Math.max(0, cabinet.options.backCushionAngle ?? 0)) * Math.PI / 180;
       const y = cabinet.height + 16 + seatT + height / 2;
-      const backZ = thickness / 2 - Math.sin(angle) * height / 2;
       const endDepth = Math.max(50, seatDepth - thickness);
       const backRadius = Math.min(radius, thickness / 2 - 1, height / 2 - 1);
       return <>
-        <RoundedBox args={[seatWidth, height, thickness]} radius={backRadius} smoothness={4}
-          position={[cabinet.width / 2, y, backZ]} rotation={[-angle, 0, 0]} castShadow receiveShadow>
+        <WedgeBack width={seatWidth} height={height} thickness={thickness} angle={angle}
+          radius={backRadius} x={inset} y={cabinet.height + 16 + seatT}>
           {fabricMaterial()}
-        </RoundedBox>
+        </WedgeBack>
         {cabinet.options.leftEndCushion && <RoundedBox args={[thickness, height, endDepth]} radius={backRadius} smoothness={4}
           position={[inset + thickness / 2, y, cabinet.depth / 2]} rotation={[0, 0, angle]} castShadow receiveShadow>
           {fabricMaterial()}
