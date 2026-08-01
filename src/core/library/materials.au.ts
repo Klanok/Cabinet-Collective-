@@ -132,7 +132,7 @@ export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
     grain: 'length',
     colour: '#b0895d',
     texture: {
-      url: 'https://www.polytec.com.au/img/products/960-960/sepia-oak.jpg',
+      url: '/materials/board/sepia-oak.jpg',
       repeatLength: mm(1200),
       repeatWidth: mm(1200),
       grainAxis: 'v',
@@ -151,7 +151,7 @@ export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
     grain: 'length',
     colour: '#7a5a42',
     texture: {
-      url: 'https://www.polytec.com.au/img/products/960-960/notaio-walnut.jpg',
+      url: '/materials/board/notaio-walnut.jpg',
       repeatLength: mm(1200),
       repeatWidth: mm(1200),
       grainAxis: 'v',
@@ -170,7 +170,7 @@ export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
     grain: 'length',
     colour: '#9b8064',
     texture: {
-      url: 'https://www.polytec.com.au/img/products/960-960/boston-oak.jpg',
+      url: '/materials/board/boston-oak.jpg',
       repeatLength: mm(1200), repeatWidth: mm(1200), grainAxis: 'v',
       sourceUrl: 'https://www.polytec.com.au/colour/boston-oak/',
     },
@@ -187,7 +187,7 @@ export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
     grain: 'length',
     colour: '#b69c78',
     texture: {
-      url: 'https://www.polytec.com.au/img/products/960-960/prime-oak.jpg',
+      url: '/materials/board/prime-oak.jpg',
       repeatLength: mm(1200), repeatWidth: mm(1200), grainAxis: 'v',
       sourceUrl: 'https://www.polytec.com.au/colour/prime-oak/',
     },
@@ -228,7 +228,7 @@ export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
     grain: 'length',
     colour: '#9b7c5d',
     texture: {
-      url: 'https://www.laminex.com.au/medias/LX-ColourCollection-Rural-Oak-RGB-FS-LR.jpg?context=bWFzdGVyfGltYWdlc3w2MDYwNzl8aW1hZ2UvanBlZ3xhVzFoWjJWekwyZzBaQzlvTmpBdmFEQXdMemc0TWpVMk1EVTBOVFU1TURJdWFuQm58M2VlMzgyYjdhZmNhN2Q1MjYxMzdlYWI3NGI0MGNiNjhjNDcwYzQ1MmUzN2M3NjFhZjI0OWIxMmY3NDg2M2E3OQ',
+      url: '/materials/board/rural-oak.jpg',
       repeatLength: mm(3600), repeatWidth: mm(1800), grainAxis: 'v',
       sourceUrl: 'https://www.laminex.com.au/products/rural-oak/Natural/p/AU1001713',
     },
@@ -245,7 +245,7 @@ export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
     grain: 'length',
     colour: '#aa8966',
     texture: {
-      url: 'https://www.laminex.com.au/medias/LX-ColourCollection-Classic-oak-RGB-FS-HR.jpg?context=bWFzdGVyfGltYWdlc3w2NTA1NDJ8aW1hZ2UvanBlZ3xhVzFoWjJWekwyZ3lPUzlvT0RZdmFEQXdMemc0TWpVMU9EazROVGd6TXpRdWFuQm58NGIwNTJkOTc0OGE4YTI3NzljZGYwM2E3MGMzZDYxYmI0NWYwNWQxNjU3YzI3OGI1YjYyM2IzYzZjMjk0ZjY0MA',
+      url: '/materials/board/classic-oak.jpg',
       repeatLength: mm(3600), repeatWidth: mm(1800), grainAxis: 'v',
       sourceUrl: 'https://www.laminex.com.au/products/classic-oak/Natural/p/AU1003601',
     },

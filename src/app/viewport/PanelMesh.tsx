@@ -54,6 +54,16 @@ const ROLE_COLOURS: Record<string, string> = {
 /** Air left between stacked layers when drawing them. Rendering only — see `bodyThickness`. */
 const DRAW_INSET: Mm = mm(0.3);
 
+/**
+ * Jobs snapshot their material records. Redirect earlier supplier-hosted records to the bundled
+ * files too, so a freshly opened app does not need the user to recreate standards or clear data.
+ */
+const bundledTextureUrl = (url: string): string => {
+  const bundled = ['notaio-walnut', 'sepia-oak', 'boston-oak', 'prime-oak', 'rural-oak', 'classic-oak'];
+  const match = bundled.find((name) => url.toLowerCase().includes(name));
+  return match ? `/materials/board/${match}.jpg` : url;
+};
+
 interface Props {
   panel: Panel;
   thickness: Mm;
@@ -139,9 +149,10 @@ export function PanelMesh({ panel, thickness, colour: boardColour, texture, text
 
   const matrix: Matrix4 = useMemo(() => panelMatrix(panel.placement), [panel.placement]);
 
-  // Selection wins over everything: it has to be unmistakable on a walnut door as well as a
-  // white one, which is exactly why it is not just a tint of the board colour.
-  const colour = selected ? '#ff9640' : boardColour ?? ROLE_COLOURS[panel.role] ?? '#dcd8d0';
+  // Selection is shown by the orange construction edges below. Keep the real finish visible:
+  // replacing every selected panel with orange made it impossible to inspect a texture while
+  // editing the cabinet and disguised texture-loading failures as selection behaviour.
+  const colour = boardColour ?? ROLE_COLOURS[panel.role] ?? '#dcd8d0';
   // Fronts sit proud of the carcass; making them slightly translucent keeps the interior
   // readable without having to hide them. A routed front stays solid — the whole point of it
   // is the shadow the recess throws, and that doesn't read through a translucent panel.
@@ -162,7 +173,7 @@ export function PanelMesh({ panel, thickness, colour: boardColour, texture, text
       >
         <BoardSurface
           colour={colour}
-          textureUrl={!selected ? texture?.url : undefined}
+          textureUrl={texture ? bundledTextureUrl(texture.url) : undefined}
           transparent={wireframe || isFront}
           opacity={wireframe ? 0 : isFront ? 0.86 : 1}
           depthWrite={!wireframe}
