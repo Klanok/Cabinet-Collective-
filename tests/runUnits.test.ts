@@ -824,3 +824,53 @@ describe('a job saved before the screen colours existed', () => {
     expect(migrated.constructions[0]!.kickHeight).toBe(AU_SHOP_STANDARDS.constructions[0]!.kickHeight);
   });
 });
+
+describe('supplier decor textures', () => {
+  it('backfills verified swatches into an existing job without touching custom texture data', () => {
+    const project = createSampleKitchen();
+    const old = {
+      ...project,
+      schemaVersion: 17,
+      materials: {
+        ...project.materials,
+        sheets: project.materials.sheets.map((sheet) =>
+          sheet.id === 'poly-sepia-oak-16'
+            ? { ...sheet, texture: undefined }
+            : sheet.id === 'poly-notaio-walnut-16'
+              ? {
+                  ...sheet,
+                  texture: {
+                    url: '/my-walnut.jpg',
+                    repeatLength: 800,
+                    repeatWidth: 600,
+                    grainAxis: 'v',
+                    sourceUrl: 'shop',
+                  },
+                }
+              : sheet,
+        ),
+      },
+    };
+
+    const migrated = migrateProject(old);
+    expect(migrated.materials.sheets.find((s) => s.id === 'poly-sepia-oak-16')!.texture?.url).toContain(
+      'polytec.com.au',
+    );
+    expect(migrated.materials.sheets.find((s) => s.id === 'poly-notaio-walnut-16')!.texture?.url).toBe(
+      '/my-walnut.jpg',
+    );
+  });
+
+  it('adds the swatches to saved shop standards for future jobs', () => {
+    const old = {
+      ...AU_SHOP_STANDARDS,
+      version: 13,
+      materials: {
+        ...AU_SHOP_STANDARDS.materials,
+        sheets: AU_SHOP_STANDARDS.materials.sheets.map((sheet) => ({ ...sheet, texture: undefined })),
+      },
+    };
+    const migrated = migrateStandards(old);
+    expect(migrated.materials.sheets.find((s) => s.id === 'poly-notaio-walnut-16')!.texture).toBeDefined();
+  });
+});

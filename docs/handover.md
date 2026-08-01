@@ -1264,6 +1264,19 @@ longhand reference figures in its header.
 a **boring head**, and the output wanted **per nested sheet**. Everything below follows from those
 three answers.
 
+**A real machine program arrived on 1 August 2026.**
+`Helen Taylor Robes Stage 3_16NWW_S01R01.NC` is Mozaik output for the KDT, for a face-down
+3110×1210×16mm Notaio Walnut sheet. It confirms that Z zero is the **table**; drilling ends at Z3,
+while routing leaves 0.8mm on its first pass and finishes at Z-0.2 on its second. The boring head
+uses explicit moves (`M33`, `M83`, `G600 T37` for 8mm and `G600 T35` for 35mm), not `G81`. Routing
+uses `G90 G59`, `M6 T2`, `G43 H2`, and a 10mm two-wing compression bit at 18000rpm, F6000 entry and
+F16000 cutting. Sheet Y runs negative; drilling and routing use separate G54/G59 work offsets; the
+file also carries KDT-specific vacuum and homing commands.
+
+The current KDT profile contradicts several of those confirmed facts. It remains unsafe for
+production until the writer can express them, generated output is compared line by line, and it is
+simulated. The customer-named reference file is not copied into the repository.
+
 **Read this first, and do not let it get lost.** *None of this has been run on a machine.* The
 **geometry** is asserted and can be trusted as far as tests go — a hole is where the model says, a
 part is offset by exactly the cutter's radius, an arc arrives as an arc, the ordering is safe. The

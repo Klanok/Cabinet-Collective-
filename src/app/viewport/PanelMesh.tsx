@@ -6,10 +6,18 @@
  * shape and placement are decided by the rule engine, not by the view.
  */
 
-import { useMemo } from 'react';
-import { BufferAttribute, BufferGeometry, type Matrix4 } from 'three';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  BufferAttribute,
+  BufferGeometry,
+  SRGBColorSpace,
+  TextureLoader,
+  type Matrix4,
+  type Texture,
+} from 'three';
 import type { ThreeEvent } from '@react-three/fiber';
 import type { Panel } from '../../core/model/panel.ts';
+import type { SheetMaterial } from '../../core/model/material.ts';
 import { type Mm, mm } from '../../core/units.ts';
 import { extrudeProfile } from '../../core/geom/extrude.ts';
 import { formedMesh } from '../../core/model/forming.ts';
@@ -55,6 +63,7 @@ interface Props {
    * exactly as they were — a material with no colour draws precisely as it always did.
    */
   colour?: string;
+  texture?: SheetMaterial['texture'];
   selected: boolean;
   onSelect: () => void;
   /**
@@ -68,7 +77,7 @@ interface Props {
   wireframe?: boolean;
 }
 
-export function PanelMesh({ panel, thickness, colour: boardColour, selected, onSelect, onGrab, wireframe = false }: Props) {
+export function PanelMesh({ panel, thickness, colour: boardColour, texture, selected, onSelect, onGrab, wireframe = false }: Props) {
   /*
    * A routed front is drawn as the board that is actually left: a slab of the reduced
    * thickness, with the border standing back up to full thickness around it. So the recess is
@@ -97,9 +106,22 @@ export function PanelMesh({ panel, thickness, colour: boardColour, selected, onS
     const g = new BufferGeometry();
     g.setAttribute('position', new BufferAttribute(mesh.positions, 3));
     g.setAttribute('normal', new BufferAttribute(mesh.normals, 3));
+    if (texture) {
+      const uv = new Float32Array(mesh.uvs.length);
+      const grainAlongX = panel.grain !== 'width-along-grain';
+      for (let i = 0; i < mesh.uvs.length; i += 2) {
+        const along = grainAlongX ? mesh.uvs[i]! : mesh.uvs[i + 1]!;
+        const across = grainAlongX ? mesh.uvs[i + 1]! : mesh.uvs[i]!;
+        const u = texture.grainAxis === 'u' ? along / texture.repeatLength : across / texture.repeatWidth;
+        const v = texture.grainAxis === 'v' ? along / texture.repeatLength : across / texture.repeatWidth;
+        uv[i] = u;
+        uv[i + 1] = v;
+      }
+      g.setAttribute('uv', new BufferAttribute(uv, 2));
+    }
     g.setIndex(new BufferAttribute(mesh.indices, 1));
     return g;
-  }, [panel.profile, bodyThickness, panel.forming]);
+  }, [panel.profile, panel.grain, bodyThickness, panel.forming, texture]);
 
   const matrix: Matrix4 = useMemo(() => panelMatrix(panel.placement), [panel.placement]);
 
@@ -124,10 +146,9 @@ export function PanelMesh({ panel, thickness, colour: boardColour, selected, onS
         }}
         onPointerDown={onGrab}
       >
-        <meshStandardMaterial
-          color={colour}
-          roughness={0.75}
-          metalness={0.02}
+        <BoardSurface
+          colour={colour}
+          textureUrl={!selected ? texture?.url : undefined}
           transparent={wireframe || isFront}
           opacity={wireframe ? 0 : isFront ? 0.86 : 1}
           depthWrite={!wireframe}
@@ -154,5 +175,57 @@ export function PanelMesh({ panel, thickness, colour: boardColour, selected, onS
       <FrontRelief panel={panel} thickness={thickness} colour={colour} wireframe={wireframe} />
       <Boring panel={panel} thickness={thickness} />
     </group>
+  );
+}
+
+/** Load a supplier swatch without making the whole scene fail when the network is unavailable. */
+function BoardSurface({
+  colour,
+  textureUrl,
+  transparent,
+  opacity,
+  depthWrite,
+}: {
+  colour: string;
+  textureUrl?: string;
+  transparent: boolean;
+  opacity: number;
+  depthWrite: boolean;
+}) {
+  const [map, setMap] = useState<Texture | null>(null);
+
+  useEffect(() => {
+    if (!textureUrl) {
+      setMap(null);
+      return;
+    }
+    let active = true;
+    const loaded = new TextureLoader().load(
+      textureUrl,
+      (image) => {
+        image.colorSpace = SRGBColorSpace;
+        if (active) setMap(image);
+      },
+      undefined,
+      () => {
+        if (active) setMap(null);
+      },
+    );
+    return () => {
+      active = false;
+      loaded.dispose();
+    };
+  }, [textureUrl]);
+
+  return (
+    <meshStandardMaterial
+      color={map ? '#ffffff' : colour}
+      map={map}
+      roughness={0.75}
+      metalness={0.02}
+      transparent={transparent}
+      opacity={opacity}
+      depthWrite={depthWrite}
+    />
   );
 }

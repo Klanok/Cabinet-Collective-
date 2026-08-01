@@ -25,7 +25,7 @@ import {
   withProfileFixingPositions,
   withShippedSideHeights,
 } from './hardware.ts';
-import { type MaterialLibrary, withResolvedColours } from './material.ts';
+import { type MaterialLibrary, withResolvedColours, withResolvedTextures } from './material.ts';
 import type { Room } from './room.ts';
 import { type DoorStyle, DEFAULT_DOOR_STYLES, PLAIN_SLAB_STYLE } from '../standards/doorStyles.ts';
 import {
@@ -36,7 +36,7 @@ import {
 } from '../library/blum.ts';
 import { AU_BENCHTOP_MATERIALS, AU_SHEET_MATERIALS } from '../library/materials.au.ts';
 
-export const CURRENT_SCHEMA_VERSION = 17 as const;
+export const CURRENT_SCHEMA_VERSION = 18 as const;
 
 /**
  * The bendy ply an older job is given when it is migrated forward. It has no curved parts in
@@ -651,6 +651,17 @@ const migrateV16toV17 = (raw: Record<string, unknown>): Record<string, unknown> 
   };
 };
 
+/** v17 → v18: supplier-authored decor swatches reach existing job material snapshots. */
+const migrateV17toV18 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const materials = (raw.materials as Record<string, unknown> | undefined) ?? {};
+  const sheets = (materials.sheets as Record<string, unknown>[] | undefined) ?? [];
+  return {
+    ...raw,
+    schemaVersion: 18,
+    materials: { ...materials, sheets: withResolvedTextures(sheets, AU_SHEET_MATERIALS) },
+  };
+};
+
 /**
  * Load a project from stored JSON, migrating older schema versions forward.
  *
@@ -688,6 +699,7 @@ export const migrateProject = (raw: unknown): Project => {
   if (data.schemaVersion === 14) data = migrateV14toV15(data);
   if (data.schemaVersion === 15) data = migrateV15toV16(data);
   if (data.schemaVersion === 16) data = migrateV16toV17(data);
+  if (data.schemaVersion === 17) data = migrateV17toV18(data);
 
   if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`migrateProject: could not migrate schema version ${String(version)}`);

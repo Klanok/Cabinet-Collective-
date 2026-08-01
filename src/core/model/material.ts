@@ -70,6 +70,15 @@ export interface SheetMaterial {
    * part, exactly as every part did before this existed.
    */
   readonly colour?: string;
+  /** Supplier-authored decor image and the physical area represented by one repeat. */
+  readonly texture?: {
+    readonly url: string;
+    readonly repeatLength: Mm;
+    readonly repeatWidth: Mm;
+    /** Axis in the image that runs with the board grain. */
+    readonly grainAxis: 'u' | 'v';
+    readonly sourceUrl: string;
+  };
   /** How many faces carry the decor. Single-sided stock constrains which face is the A-face. */
   readonly decorFaces: 1 | 2;
   readonly sheets: readonly SheetSize[];
@@ -171,6 +180,17 @@ export const withResolvedColours = (
     if (typeof sheet.colour === 'string' && sheet.colour.length > 0) return sheet;
     const known = reference.find((r) => r.id === sheet.id);
     return known?.colour ? { ...sheet, colour: known.colour } : sheet;
+  });
+
+/** Add shipped supplier textures to stored material snapshots without replacing shop edits. */
+export const withResolvedTextures = (
+  sheets: readonly Record<string, unknown>[],
+  reference: readonly SheetMaterial[],
+): Record<string, unknown>[] =>
+  sheets.map((sheet) => {
+    if (sheet.texture && typeof sheet.texture === 'object') return sheet;
+    const known = reference.find((r) => r.id === sheet.id);
+    return known?.texture ? { ...sheet, texture: known.texture } : sheet;
   });
 
 export const findBenchtopMaterial = (lib: MaterialLibrary, id: string): BenchtopMaterial => {
