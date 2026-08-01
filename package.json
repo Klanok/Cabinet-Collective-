@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Parametric cabinet CAD/CAM — Phase 2: hardware and joinery rules on the Phase 1 model",
+  "description": "Parametric cabinet CAD/CAM — Phase 3: guillotine nesting on the Phase 1 model",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

@@ -6,7 +6,7 @@
  * scratch instead of each keeping a copy that can drift.
  */
 
-import type { Mm } from '../units.ts';
+import { type Mm, mm } from '../units.ts';
 import type { Benchtop } from './benchtop.ts';
 import type { Cabinet } from './cabinet.ts';
 import type { KickBase } from './kickBase.ts';
@@ -32,13 +32,19 @@ import {
 } from '../library/blum.ts';
 import { AU_BENCHTOP_MATERIALS, AU_SHEET_MATERIALS } from '../library/materials.au.ts';
 
-export const CURRENT_SCHEMA_VERSION = 15 as const;
+export const CURRENT_SCHEMA_VERSION = 16 as const;
 
 /**
  * The bendy ply an older job is given when it is migrated forward. It has no curved parts in
  * it, so nothing is cut from this — it is there so the slot is never empty.
  */
 export const DEFAULT_SKIN_MATERIAL_ID = 'bendy-ply-8';
+
+export const DEFAULT_NESTING_SETTINGS: NestingSettings = {
+  kerf: mm(6),
+  sheetEdgeTrim: mm(6),
+  usableOffcutMin: mm(300),
+};
 
 /**
  * GST treatment. These are genuinely different arithmetic, not a display toggle:
@@ -77,18 +83,19 @@ export interface LabourRates {
   readonly installFixedHours: number;
 }
 
+export interface NestingSettings {
+  readonly kerf: Mm;
+  readonly sheetEdgeTrim: Mm;
+  readonly usableOffcutMin: Mm;
+}
+
 export interface ProjectSettings {
   readonly gstMode: GstMode;
   /** Legal entity the job is quoted under — the thing that determines `gstMode`. */
   readonly entityName: string;
   /** Margin applied to cost to reach the sell price, as a percentage of cost. */
   readonly marginPercent: number;
-  /**
-   * Sheet-yield allowance used to turn part area into sheet cost before Phase 3 nesting can
-   * give a real sheet count. 0.15 means 15% of sheet area is assumed unusable.
-   * Phase 3 replaces this estimate with an actual nest.
-   */
-  readonly sheetWastageFactor: number;
+  readonly nesting: NestingSettings;
   readonly labour: LabourRates;
   /**
    * Flat delivery charge, ex-GST.
@@ -475,8 +482,22 @@ const migrateV9toV10 = (raw: Record<string, unknown>): Record<string, unknown> =
   };
 };
 
+/** Phase 3 replaces the yield estimate with a real nest and whole-sheet costing. */
+const migrateV10toV11 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const settings = (raw.settings as Record<string, unknown> | undefined) ?? {};
+  const { sheetWastageFactor: _dropped, ...rest } = settings;
+  return {
+    ...raw,
+    schemaVersion: 11,
+    settings: {
+      ...rest,
+      nesting: (rest.nesting as NestingSettings | undefined) ?? DEFAULT_NESTING_SETTINGS,
+    },
+  };
+};
+
 /**
- * v10 → v11. **The screen colours, backfilled onto jobs that never had them.**
+ * v11 → v12. **The screen colours, backfilled onto jobs that never had them.**
  *
  * Reported from the bench as "changing the door to Notaio Walnut has done nothing", and the
  * diagnosis is worth keeping because the symptom points away from the cause. The material picker
@@ -495,18 +516,18 @@ const migrateV9toV10 = (raw: Record<string, unknown>): Record<string, unknown> =
  * quite happily: a file that has been repaired should say so, and running the repair once on load
  * is better than running it on every render.
  */
-const migrateV10toV11 = (raw: Record<string, unknown>): Record<string, unknown> => {
+const migrateV11toV12 = (raw: Record<string, unknown>): Record<string, unknown> => {
   const materials = (raw.materials as Record<string, unknown> | undefined) ?? {};
   const sheets = (materials.sheets as Record<string, unknown>[] | undefined) ?? [];
   return {
     ...raw,
-    schemaVersion: 11,
+    schemaVersion: 12,
     materials: { ...materials, sheets: withResolvedColours(sheets, AU_SHEET_MATERIALS) },
   };
 };
 
 /**
- * v11 → v12. **The front standoff — the 2mm gap the model never had.**
+ * v12 → v13. **The front standoff — the 2mm gap the model never had.**
  *
  * From the bench, correcting an 18mm door drawn as finishing at 578 on a 560 carcass:
  *
@@ -526,13 +547,13 @@ const migrateV10toV11 = (raw: Record<string, unknown>): Record<string, unknown> 
  * asserts exactly that. Migrating to zero instead would have kept every saved job's fronts flat on
  * the carcass, which is knowingly preserving a number the shop has told us is wrong.
  */
-const migrateV11toV12 = (raw: Record<string, unknown>): Record<string, unknown> => {
+const migrateV12toV13 = (raw: Record<string, unknown>): Record<string, unknown> => {
   const constructions = (raw.constructions as Record<string, unknown>[] | undefined) ?? [];
-  return { ...raw, schemaVersion: 12, constructions: constructions.map(withFrontStandoff) };
+  return { ...raw, schemaVersion: 13, constructions: constructions.map(withFrontStandoff) };
 };
 
 /**
- * v12 → v13. **The applied-end figures on every construction method.**
+ * v13 → v14. **The applied-end figures on every construction method.**
  *
  * "I also need applied end panels asap — that's a huge miss", and it was: the board that goes on
  * the exposed end of a run so what you see is the door decor rather than the carcass melamine had
@@ -545,13 +566,13 @@ const migrateV11toV12 = (raw: Record<string, unknown>): Record<string, unknown> 
  * No cabinet saved before this version could have: the option did not exist, so every stored
  * cabinet arrives with no applied ends and cuts precisely what it cut.
  */
-const migrateV12toV13 = (raw: Record<string, unknown>): Record<string, unknown> => {
+const migrateV13toV14 = (raw: Record<string, unknown>): Record<string, unknown> => {
   const constructions = (raw.constructions as Record<string, unknown>[] | undefined) ?? [];
-  return { ...raw, schemaVersion: 13, constructions: constructions.map(withAppliedEnds) };
+  return { ...raw, schemaVersion: 14, constructions: constructions.map(withAppliedEnds) };
 };
 
 /**
- * v13 → v14. **The shelf-pin rows stop short of the ends, and are centred.**
+ * v14 → v15. **The shelf-pin rows stop short of the ends, and are centred.**
  *
  * > "adjustable shelf holes should not go full height in the end panel, it should have a setting
  * > that sets how far off the top, bottom and fixed shelves. we also need to ensure that they are
@@ -567,13 +588,13 @@ const migrateV12toV13 = (raw: Record<string, unknown>): Record<string, unknown> 
  * either — a zero clearance is centred too — so there was nothing to preserve them for. The reason
  * centring is the correct answer rather than a preference is argued in `rules/shelfPins.ts`.
  */
-const migrateV13toV14 = (raw: Record<string, unknown>): Record<string, unknown> => {
+const migrateV14toV15 = (raw: Record<string, unknown>): Record<string, unknown> => {
   const constructions = (raw.constructions as Record<string, unknown>[] | undefined) ?? [];
-  return { ...raw, schemaVersion: 14, constructions: constructions.map(withShelfPinClearance) };
+  return { ...raw, schemaVersion: 15, constructions: constructions.map(withShelfPinClearance) };
 };
 
 /**
- * v14 → v15. **The cabinet profile is fixed at four points, not two.**
+ * v15 → v16. **The cabinet profile is fixed at four points, not two.**
  *
  * > "two holes for the cabinet side is wrong it should be 4"
  *
@@ -593,13 +614,13 @@ const migrateV13toV14 = (raw: Record<string, unknown>): Record<string, unknown> 
  * different set of Ø5 holes. See `withProfileFixingPositions` for why a shop's own runner system
  * keeps its own figures instead of being handed Blum's.
  */
-const migrateV14toV15 = (raw: Record<string, unknown>): Record<string, unknown> => {
+const migrateV15toV16 = (raw: Record<string, unknown>): Record<string, unknown> => {
   const hardware = raw.hardware as Record<string, unknown> | undefined;
-  if (!hardware) return { ...raw, schemaVersion: 15 };
+  if (!hardware) return { ...raw, schemaVersion: 16 };
   const systems = (hardware.runnerSystems as Record<string, unknown>[] | undefined) ?? [];
   return {
     ...raw,
-    schemaVersion: 15,
+    schemaVersion: 16,
     hardware: {
       ...hardware,
       runnerSystems: systems.map((s) =>
@@ -644,6 +665,7 @@ export const migrateProject = (raw: unknown): Project => {
   if (data.schemaVersion === 12) data = migrateV12toV13(data);
   if (data.schemaVersion === 13) data = migrateV13toV14(data);
   if (data.schemaVersion === 14) data = migrateV14toV15(data);
+  if (data.schemaVersion === 15) data = migrateV15toV16(data);
 
   if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`migrateProject: could not migrate schema version ${String(version)}`);

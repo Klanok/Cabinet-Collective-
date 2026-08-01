@@ -142,11 +142,38 @@ describe('a 16mm board measured at 16.3', () => {
     }
   });
 
-  it('costs differently, because the parts are a different size', () => {
+  /**
+   * This used to assert the opposite, and the change is worth understanding rather than reversing.
+   *
+   * When sheet cost was part area ÷ an assumed yield, 0.6mm off every carcass part moved the money,
+   * because the money was a continuous function of the area. It is not any more: board is bought by
+   * the **sheet**, and taking 0.6mm off a part does not buy a different number of sheets unless it
+   * happens to tip a part onto or off one. So the parts all move, exactly as the tests above assert,
+   * and the sheet order does not.
+   *
+   * That is the right answer and it is worth pinning, because the tempting reading of a nest is
+   * that a smaller part is a cheaper part. It is not. A smaller part is a part with more offcut
+   * beside it, and the offcut is on the rack either way.
+   */
+  it('does not change what board the job buys, because board is bought by the sheet', () => {
     const kitchen = createSampleKitchen();
-    expect(costProject(measured(kitchen, 'hmr-white-16', 16.3)).materialCost).not.toBe(
-      costProject(kitchen).materialCost,
-    );
+    const asMeasured = measured(kitchen, 'hmr-white-16', 16.3);
+
+    // The parts really did move — otherwise this test would be passing for the wrong reason.
+    const bottoms = (p: Project) =>
+      buildCutlist(p)
+        .filter((l) => l.name === 'Bottom')
+        .map((l) => `${l.length}×${l.width}`)
+        .sort()
+        .join(' ');
+    expect(bottoms(asMeasured)).not.toBe(bottoms(kitchen));
+
+    const carcass = (p: Project) =>
+      costProject(p).byMaterial.find((m) => m.materialId === 'hmr-white-16')!;
+    expect(carcass(asMeasured).sheets).toBe(carcass(kitchen).sheets);
+    expect(carcass(asMeasured).cost).toBe(carcass(kitchen).cost);
+    // And the yield goes up a fraction, because the same sheets now hold slightly smaller parts.
+    expect(carcass(asMeasured).yield).toBeLessThan(carcass(kitchen).yield);
   });
 
   it('is not something to warn about — it is just the truth about the board', () => {

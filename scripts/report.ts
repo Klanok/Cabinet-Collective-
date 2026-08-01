@@ -30,6 +30,9 @@ import {
 import { findBenchtopMaterial } from '../src/core/model/material.ts';
 import { unconfirmedLadderFigures } from '../src/core/model/construction.ts';
 import { benchtopCharges } from '../src/core/costing/benchtopCost.ts';
+import { deepestStage, nestAreaM2, usableOffcuts } from '../src/core/nest/nest.ts';
+import { postProject, postedTotals } from '../src/core/post/post.ts';
+import { KDT_NESTING_ROUTER } from '../src/core/library/machines.ts';
 import { buildProject } from '../src/core/rules/build.ts';
 import { buildRunUnits } from '../src/core/rules/runUnits.ts';
 import { formatAud } from '../src/core/units.ts';
@@ -184,9 +187,86 @@ rule('MATERIALS');
 for (const m of cost.byMaterial) {
   console.log(
     `  ${m.label.padEnd(36)} ${String(m.panelCount).padStart(3)} parts  ` +
-      `${m.footprintM2.toFixed(2).padStart(6)}m²  ~${String(m.estimatedSheets).padStart(2)} sheets  ` +
+      `${m.footprintM2.toFixed(2).padStart(6)}m²  ${String(m.sheets).padStart(2)} × ` +
+      `${m.sheetLabel.padEnd(9)} ${(m.yield * 100).toFixed(0).padStart(3)}% yield  ` +
       `${formatAud(m.cost).padStart(10)}`,
   );
+}
+
+/*
+ * The nest.
+ *
+ * Printed sheet by sheet because that is the unit somebody works in: one sheet on the bench, its
+ * parts, and what is left of it. The cut sequence is in the CSV rather than here — a hundred lines
+ * of "cut at 717" is not something anybody reads off a terminal, and the drawing on the Nest tab
+ * is the version worth looking at.
+ */
+rule('NEST');
+console.log(
+  `  ${cost.nest.sheetCount} sheets, ${nestAreaM2(cost.nest).toFixed(2)}m² of board · ` +
+    `${cost.nest.kerf}mm kerf` +
+    `${cost.nest.edgeTrim > 0 ? `, ${cost.nest.edgeTrim}mm trimmed off each edge` : ', no edge trim'}` +
+    ` · deepest cut ${deepestStage(cost.nest)} stages`,
+);
+for (const m of cost.nest.byMaterial) {
+  console.log(`\n  ${m.label} — ${m.sheetCount} × ${m.sheet.length}×${m.sheet.width}`);
+  for (const sheet of m.sheets) {
+    const keepers = usableOffcuts(sheet, project.settings.nesting.usableOffcutMin);
+    console.log(
+      `    Sheet ${sheet.index}:  ${String(sheet.placements.length).padStart(3)} ` +
+        `${sheet.placements.length === 1 ? 'part ' : 'parts'}  ` +
+        `${(sheet.yield * 100).toFixed(0).padStart(3)}% used  ` +
+        `${String(sheet.cuts.length).padStart(3)} cuts  ` +
+        (keepers.length > 0
+          ? `offcuts ${keepers
+              .map((o) => `${Math.round(o.length)}×${Math.round(o.width)}`)
+              .join(', ')}`
+          : 'no offcut worth keeping'),
+    );
+  }
+}
+
+/*
+ * The G-code, or the reason there isn't any.
+ *
+ * Printed here rather than left to the app because it is the check that catches the one mistake
+ * nothing else would: this job is nested for a saw, and the settings that make a nest a saw nest
+ * are the ones that ship by default. A shop that never opens this section would find out at the
+ * machine.
+ */
+rule('CAM');
+const machine = KDT_NESTING_ROUTER;
+const posted = postProject(project, machine, cost.nest);
+const camTotals = postedTotals(posted);
+console.log(`  ${machine.name}`);
+const refused = [...new Set(posted.refused.map((r) => r.message))];
+if (refused.length > 0) {
+  console.log(`\n  No program written for ${camTotals.sheetCount} sheets:`);
+  for (const r of refused) console.log(`      ! ${r}`);
+} else {
+  console.log(
+    `  ${camTotals.written} programs · ${camTotals.operationCount} operations · ` +
+      `${camTotals.boreCount} holes`,
+  );
+  for (const sheet of posted.sheets) {
+    if (!sheet.output) continue;
+    console.log(
+      `    ${sheet.output.filename.padEnd(40)} ` +
+        `${String(sheet.program.operations.length).padStart(4)} ops`,
+    );
+  }
+  if (camTotals.needsSecondSetup.length > 0) {
+    console.log(
+      `\n  Machined on both faces, so not finished in one program: ` +
+        `${camTotals.needsSecondSetup.join(', ')}`,
+    );
+  }
+}
+for (const w of [...new Set(posted.warnings)]) console.log(`      ! ${w}`);
+if (machine.unconfirmed.length > 0) {
+  console.log(`\n  ! ${machine.name} has NOT been checked against the machine. Simulate or`);
+  console.log('    air-cut before running anything. What is a guess:');
+  for (const note of machine.unconfirmed) console.log(`      · ${note}`);
 }
 
 rule('COST');

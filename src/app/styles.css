@@ -1236,3 +1236,58 @@ tbody td {
   font-size: 12px;
   margin: 6px 0;
 }
+
+/* ── Nest ────────────────────────────────────────────────────────────────── */
+
+.nest-material {
+  margin-bottom: 14px;
+}
+
+.nest-sheet {
+  margin: 8px 0 12px;
+}
+
+.nest-sheet-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+
+.nest-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--bg);
+}
+
+.nest-board {
+  fill: var(--bg-raised);
+}
+
+/* The area left after an edge trim — dashed, because nothing is cut outside it. */
+.nest-usable {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 4;
+  stroke-dasharray: 24 16;
+}
+
+/* Only offcuts big enough to rack are drawn. The rest is waste and is left as board colour. */
+.nest-offcut {
+  fill: rgba(245, 165, 36, 0.1);
+  stroke: rgba(245, 165, 36, 0.4);
+  stroke-width: 3;
+  stroke-dasharray: 18 12;
+}
+
+.nest-label {
+  fill: #e6e8ec;
+  font-family: var(--font);
+  font-size: 30px;
+  pointer-events: none;
+}

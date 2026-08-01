@@ -239,7 +239,7 @@ describe('settings reach all the way through to cost', () => {
 
   it('changes every part when a board is measured rather than trusted', () => {
     // Nothing about the job changes except the truth about the board: 16mm stock measuring
-    // 16.3. Every part that fits between two boards moves, and the cost moves with it.
+    // 16.3. Every part that fits between two boards moves.
     const base = createSampleKitchen();
     const measured: Project = {
       ...base,
@@ -250,7 +250,16 @@ describe('settings reach all the way through to cost', () => {
         ),
       },
     };
-    expect(costProject(measured).materialCost).not.toBe(costProject(base).materialCost);
+    const bottoms = (p: Project) =>
+      buildCutlist(p)
+        .filter((l) => l.name === 'Bottom')
+        .map((l) => `${l.length}×${l.width}`)
+        .sort()
+        .join(' ');
+    expect(bottoms(measured)).not.toBe(bottoms(base));
+    // What does *not* move is the sheet order: board is bought whole, and 0.6mm off a part does
+    // not buy a different number of sheets. See tests/boardThickness.test.ts for the argument.
+    expect(costProject(measured).nest.sheetCount).toBe(costProject(base).nest.sheetCount);
     // Still ordered as 16mm board — the cutlist groups by what you buy, not what it measures.
     expect(buildCutlist(measured).some((l) => l.materialLabel.includes('16mm'))).toBe(true);
   });

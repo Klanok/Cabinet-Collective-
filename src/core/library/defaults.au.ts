@@ -13,7 +13,7 @@
  */
 
 import { mm } from '../units.ts';
-import type { ProjectDefaults, ProjectSettings } from '../model/project.ts';
+import { DEFAULT_NESTING_SETTINGS, type ProjectDefaults, type ProjectSettings } from '../model/project.ts';
 
 export const AU_BASE_CARCASS_HEIGHT = mm(720);
 export const AU_BASE_CARCASS_DEPTH = mm(560);
@@ -65,7 +65,9 @@ export const AU_DEFAULT_SETTINGS: ProjectSettings = {
   gstMode: 'registered',
   entityName: '',
   marginPercent: 35,
-  sheetWastageFactor: 0.15,
+  // A thin-kerf panel saw blade, no edge trim, and 300mm as the smallest offcut worth racking.
+  // The one that matters is the kerf — see `NestingSettings` for why it is not zero.
+  nesting: DEFAULT_NESTING_SETTINGS,
   deliveryFeeExGst: 0,
   labour: {
     ratePerHourExGst: 85,

@@ -309,7 +309,7 @@ export const runnerFixingPositions = (
  *   two positions — the front setback and that far behind it. We have no sheet for their runner
  *   and no business giving it Blum's pattern.
  *
- * Either way this **moves drilling**, and `migrateV14toV15` says so rather than implying otherwise.
+ * Either way this **moves drilling**, and `migrateV15toV16` says so rather than implying otherwise.
  */
 export const withProfileFixingPositions = (
   system: Record<string, unknown>,

@@ -14,7 +14,12 @@
 import { type MaterialLibrary, actualThicknessOf, withResolvedColours } from '../model/material.ts';
 import { type HardwareLibrary, withProfileFixingPositions } from '../model/hardware.ts';
 import type { ConstructionMethod } from '../model/construction.ts';
-import type { Project, ProjectDefaults, ProjectSettings } from '../model/project.ts';
+import {
+  DEFAULT_NESTING_SETTINGS,
+  type Project,
+  type ProjectDefaults,
+  type ProjectSettings,
+} from '../model/project.ts';
 import type { SavedCabinetType } from './savedTypes.ts';
 import { type DoorStyle, DEFAULT_DOOR_STYLES, PLAIN_SLAB_STYLE } from './doorStyles.ts';
 import {
@@ -40,7 +45,7 @@ import {
   DEFAULT_RUNNER_SYSTEM_ID,
 } from '../library/blum.ts';
 
-export const CURRENT_STANDARDS_VERSION = 11 as const;
+export const CURRENT_STANDARDS_VERSION = 12 as const;
 
 export interface ShopStandards {
   readonly version: typeof CURRENT_STANDARDS_VERSION;
@@ -351,6 +356,7 @@ export const migrateStandards = (raw: unknown): ShopStandards => {
   if (data.version === 8) data = migrateStandardsV8toV9(data);
   if (data.version === 9) data = migrateStandardsV9toV10(data);
   if (data.version === 10) data = migrateStandardsV10toV11(data);
+  if (data.version === 11) data = migrateStandardsV11toV12(data);
 
   if (data.version !== CURRENT_STANDARDS_VERSION) {
     throw new Error(`migrateStandards: could not migrate version ${String(version)}`);
@@ -454,8 +460,19 @@ const migrateStandardsV5toV6 = (raw: Record<string, unknown>): Record<string, un
   };
 };
 
+/** Phase 3 replaces the yield allowance with the shop's nesting settings. */
+const migrateStandardsV6toV7 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const settings = (raw.settings as Record<string, unknown> | undefined) ?? {};
+  const { sheetWastageFactor: _dropped, ...rest } = settings;
+  return {
+    ...raw,
+    version: 7,
+    settings: { ...rest, nesting: rest.nesting ?? DEFAULT_NESTING_SETTINGS },
+  };
+};
+
 /**
- * Standards v6 → v7: the screen colours backfilled, matching the project's v10 → v11.
+ * Standards v7 → v8: the screen colours backfilled, matching the project's v11 → v12.
  *
  * A shop that saved its standards before `SheetMaterial.colour` existed has the same hole a job
  * does, and it is worse here — every job started from those standards inherits the colourless list
@@ -463,65 +480,65 @@ const migrateStandardsV5toV6 = (raw: Record<string, unknown>): Record<string, un
  *
  * A colour a shop has deliberately set is left alone. Nothing is cut, priced or ordered from one.
  */
-const migrateStandardsV6toV7 = (raw: Record<string, unknown>): Record<string, unknown> => {
+const migrateStandardsV7toV8 = (raw: Record<string, unknown>): Record<string, unknown> => {
   const materials = (raw.materials as Record<string, unknown> | undefined) ?? {};
   const sheets = (materials.sheets as Record<string, unknown>[] | undefined) ?? [];
   return {
     ...raw,
-    version: 7,
+    version: 8,
     materials: { ...materials, sheets: withResolvedColours(sheets, AU_SHEET_MATERIALS) },
   };
 };
 
 /**
- * Standards v7 → v8: the front standoff, matching the project's v11 → v12.
+ * Standards v8 → v9: the front standoff, matching the project's v12 → v13.
  *
  * The shipped 2mm, filled in on every method. A shop that builds to a different gap changes one
  * number in one place, which is the point of it being on the construction method at all.
  */
-const migrateStandardsV7toV8 = (raw: Record<string, unknown>): Record<string, unknown> => {
+const migrateStandardsV8toV9 = (raw: Record<string, unknown>): Record<string, unknown> => {
   const constructions = (raw.constructions as Record<string, unknown>[] | undefined) ?? [];
-  return { ...raw, version: 8, constructions: constructions.map(withFrontStandoff) };
+  return { ...raw, version: 9, constructions: constructions.map(withFrontStandoff) };
 };
 
 /**
- * Standards v8 → v9: the applied-end figures, matching the project's v12 → v13.
+ * Standards v9 → v10: the applied-end figures, matching the project's v13 → v14.
  *
  * A shop's ends are all detailed the same way — scribed the same amount, flush or proud the same
  * amount, to the floor or not — so these belong on the method beside the kick figures, and a shop
  * that details theirs differently changes three numbers once rather than per cabinet.
  */
-const migrateStandardsV8toV9 = (raw: Record<string, unknown>): Record<string, unknown> => {
+const migrateStandardsV9toV10 = (raw: Record<string, unknown>): Record<string, unknown> => {
   const constructions = (raw.constructions as Record<string, unknown>[] | undefined) ?? [];
-  return { ...raw, version: 9, constructions: constructions.map(withAppliedEnds) };
+  return { ...raw, version: 10, constructions: constructions.map(withAppliedEnds) };
 };
 
 /**
- * Standards v9 → v10: the shelf-pin end clearance, matching the project's v13 → v14.
+ * Standards v10 → v11: the shelf-pin end clearance, matching the project's v14 → v15.
  *
  * How far a shop keeps its pin holes off the ends of a panel is one number for the whole shop, so
  * it belongs here beside the system pitch and the setbacks rather than on each cabinet.
  */
-const migrateStandardsV9toV10 = (raw: Record<string, unknown>): Record<string, unknown> => {
+const migrateStandardsV10toV11 = (raw: Record<string, unknown>): Record<string, unknown> => {
   const constructions = (raw.constructions as Record<string, unknown>[] | undefined) ?? [];
-  return { ...raw, version: 10, constructions: constructions.map(withShelfPinClearance) };
+  return { ...raw, version: 11, constructions: constructions.map(withShelfPinClearance) };
 };
 
 /**
- * Standards v10 → v11: the cabinet profile fixing positions, matching the project's v14 → v15.
+ * Standards v11 → v12: the cabinet profile fixing positions, matching the project's v15 → v16.
  *
  * A shop's standards carry their own copy of the hardware library, so the corrected sheet figures
  * have to reach it too. Otherwise every *new* job would go on inheriting the two-hole pattern from
  * the standards long after the saved jobs had been fixed — which is exactly the hole the colour
  * backfill left in v7, and it is not being left again.
  */
-const migrateStandardsV10toV11 = (raw: Record<string, unknown>): Record<string, unknown> => {
+const migrateStandardsV11toV12 = (raw: Record<string, unknown>): Record<string, unknown> => {
   const hardware = raw.hardware as Record<string, unknown> | undefined;
-  if (!hardware) return { ...raw, version: 11 };
+  if (!hardware) return { ...raw, version: 12 };
   const systems = (hardware.runnerSystems as Record<string, unknown>[] | undefined) ?? [];
   return {
     ...raw,
-    version: 11,
+    version: 12,
     hardware: {
       ...hardware,
       runnerSystems: systems.map((s) =>

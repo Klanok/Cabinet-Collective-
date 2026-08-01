@@ -222,7 +222,7 @@ describe('a job saved before the clearance existed', () => {
   it('moves holes and nothing else — every cut size and every part position is unchanged', () => {
     /*
      * The honesty contract, stated as the assertion. This migration *does* move drilling, which
-     * `migrateV13toV14` says plainly. What it must not do is change a single part, and a cutlist
+     * `migrateV14toV15` says plainly. What it must not do is change a single part, and a cutlist
      * comparison is the sharpest way to say so: same parts, same sizes, same banding, same
      * quantities.
      */
