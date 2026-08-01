@@ -1562,6 +1562,15 @@ speculatively.
   record, viewport, cutlist, nesting, costing and CAM paths as generated cabinet parts rather than
   becoming a separate drawing-only object. This is for fillers, scribes, loose ends, backing pieces
   and other job panels that do not belong to a carcass.
+- **Banquette seating with realistic upholstery.** Add a banquette unit that can begin as a
+  configurable cabinet carcass with seat and optional back cushions, then grow into corner and run
+  arrangements. Record cushion width, depth, finished thickness, back height/angle and clearances
+  separately from the boards underneath. Upholstery needs its own material type—fabric or vinyl,
+  colour, image texture, real-world repeat/scale and optional direction—rather than pretending it is
+  a sheet material. Render cushions with believable rounded/soft geometry and correctly scaled
+  textures, while keeping the structural panels on the existing cutlist, nesting, costing and CAM
+  paths. Later extensions can cover foam grades, seam/piping styles, removable lids, storage access,
+  fabric quantities and upholstery labour; do not invent those in the first version.
 - ~~**Cabinets must snap to applied ends as well as cabinet carcasses.**~~ **Done.** Neighbour
   snapping targets the applied end's outer face using the selected door board's actual thickness.
   It accounts for the contacting end on both cabinets, keeps the carcass edge when no panel is
