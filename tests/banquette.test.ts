@@ -16,7 +16,7 @@ describe('banquette seating', () => {
     expect(cabinet.depth).toBe(500);
     expect(cabinet.options.seatCushionThickness).toBe(80);
     expect(built.panels.map((panel) => panel.name)).toEqual([
-      'Side L', 'Side R', 'Bottom', 'Back', 'Divider 1', 'Lid',
+      'Side L', 'Side R', 'Bottom', 'Back', 'Divider', 'Lid',
     ]);
   });
 
