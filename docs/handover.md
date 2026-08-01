@@ -96,7 +96,7 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | CAM — panels + nest → machine-independent operations | **Working, see 4.9** |
 | G-code — a post-processor per machine, `.nc` per sheet | **Working, see 4.9. Dialect UNVERIFIED — simulate first** |
 | Nesting a curved part | **Nested as its blank, which is right for a saw — see 4.8** |
-| True-shape nesting for a router | Not started — a different cutting model, see 5.8 |
+| True-shape nesting for a router | Not started — a different cutting model, see 5.9 |
 | The drill bank — a System 32 row in one hit | Off until its codes are read off the machine |
 | Simulation / backplot | Not started, and it is the gate before anything runs |
 
@@ -1210,7 +1210,7 @@ job from $7,449.31 to $7,636.52 — 2.5% on a job that was being quoted a third 
   full and the cheapest wins; a size that cannot hold every part loses to one that can, however
   cheap it is per square metre. A sheet size is what goes on the supplier order, and a nest mixing
   3600×1800 and 2400×1200 across one material is an order whose first line is "work out which of
-  these is which". See §5.8 — there is a real cost to this and it is written down.
+  these is which". See §5.9 — there is a real cost to this and it is written down.
 - **Eighteen strategies are run and the best kept.** A nest is a search, and no single heuristic
   wins on every job — that is the state of the art, not a gap here. The packer is cheap enough to
   run eighteen times on a kitchen, and picking one in advance costs sheets to save microseconds.
@@ -1243,8 +1243,8 @@ is not.
 
 #### What is not done, deliberately
 
-- **True-shape nesting.** See §5.8. It is a router's problem and a different cutting model.
-- **Mixing sheet sizes within one material.** See §5.8, with the sample kitchen's own example.
+- **True-shape nesting.** See §5.9. It is a router's problem and a different cutting model.
+- **Mixing sheet sizes within one material.** See §5.9, with the sample kitchen's own example.
 - **Offcuts are not stock.** They are reported, never consumed. A nest that quietly ate last job's
   leftovers would be a nest nobody could check against the board actually in the shop.
 - **Nothing enforces a stage limit.** The sample kitchen's deepest cut is 16 stages, which a beam
@@ -1382,10 +1382,10 @@ contract and carries the longhand figures in its header.
 **5.5 and 5.6 have shipped together — see 4.7.** They wanted the same answer to "what owns a thing
 that spans a run?", so doing them apart would have meant answering it twice.
 
-**Phase 3 has shipped — see 4.8.** What is left of it is in the new §5.8, and none of it blocks
+**Phase 3 has shipped — see 4.8.** What is left of it is in the new §5.9, and none of it blocks
 anything.
 
-**Phases 4 and 5 have shipped — see 4.9.** What is left of them is §5.9, and the first item on it is
+**Phases 4 and 5 have shipped — see 4.9.** What is left of them is §5.10, and the first item on it is
 the only one that matters.
 
 **If asked which to do next: get one `.nc` file off the KDT and pin the dialect.** It is not a
@@ -1419,7 +1419,7 @@ remains are gaps rather than missing work, and none of them blocks anything.
   the blank and the curve is cut from the blank afterwards — see 4.8. What the nest does have to get
   right is that the blank is measured round the *outside* of the arc, which `panelExtent` has done
   since §4.4 and `tests/nesting.test.ts` now asserts on a skin and a bowed shelf. A router nest that
-  reads the true shape is §5.8.
+  reads the true shape is §5.9.
 - **The plan view draws a cabinet's footprint as a rectangle**, so a radiused corner reads
   square there. Cosmetic.
 - **A benchtop over a radiused base cabinet is still a rectangle.** The cabinet's box does not
@@ -1477,7 +1477,7 @@ typing a rounded literal.
   corrected.** A radiused shelf reserving the rectangle it fits inside is not a gap for a *saw*, it
   is what cutting one on a saw means: the blank comes off the sheet and the curve is cut from the
   blank. §4.8 says so at length. The offcut between the curve and the corner is genuinely invisible
-  to a **router**, which could nest another part into it — and that is §5.8, a different cutting
+  to a **router**, which could nest another part into it — and that is §5.9, a different cutting
   model rather than a better version of the same one.
 - **The pocketed melamine panel** — pocketing the back of a panel leaving straight fixing
   sections — is still deferred, and was deferred by the user as too complicated for now. The
@@ -1683,7 +1683,6 @@ and no schema change — which is the opposite of bendy ply, which earned its ow
 machined from something thicker, or something else again. That decides the parts, and it is not
 worth guessing — the developed length only means something if the piece actually bends.
 
-<<<<<<< HEAD
 ### 5.8 Seeing it properly — decor textures and a wireframe view
 
 **Both raised from the bench, and both are about the 3D view earning its keep.** Neither changes a
@@ -1733,8 +1732,7 @@ a third render path beside the solid one, not a new source of geometry.
 
 Worth doing at the same time as the textures, because they are the two ends of the same slider —
 one for showing a client, one for checking the build — and because both live in the same three files.
-=======
-### 5.8 Nesting — what is left after 4.8
+### 5.9 Nesting — what is left after 4.8
 
 **Built and merged; see 4.8 for what it does and why.** What remains, none of it blocking:
 
@@ -1769,7 +1767,7 @@ one for showing a client, one for checking the build — and because both live i
 - **No labels or barcodes on the nest.** A part's position is on the CSV and on screen. A shop that
   wants a printed label per part is asking for a layout job rather than a nesting one.
 
-### 5.9 G-code — what is left after 4.9
+### 5.10 G-code — what is left after 4.9
 
 **Built and merged; see 4.9.** In rough order of what it is worth doing:
 
@@ -1793,7 +1791,6 @@ one for showing a client, one for checking the build — and because both live i
   ISO profile's output, which is what that profile is for.
 - **Feeds and speeds are guesses.** Deliberately slow ones — a feed too low wastes time, a feed too
   high breaks a bit. Copy the machine's own numbers when the `.nc` file arrives.
->>>>>>> main
 
 ---
 
