@@ -245,7 +245,18 @@ function Scene({
        * do that a wall snap would undo. The wall is the fallback, which is also the order you
        * would do it by hand — set one cabinet, then push the rest up to it.
        */
-      const neighbour = snapToNeighbour(project.cabinets, cabinet, x, z, NEIGHBOUR_SNAP_GAP);
+      const appliedEndThickness = (candidate: typeof cabinet): Mm => {
+        const materialId = candidate.materials.door ?? project.defaults.doorMaterialId;
+        return actualThicknessOf(findSheet(project.materials, materialId));
+      };
+      const neighbour = snapToNeighbour(
+        project.cabinets,
+        cabinet,
+        x,
+        z,
+        NEIGHBOUR_SNAP_GAP,
+        appliedEndThickness,
+      );
       const placement =
         neighbour?.placement ?? snapToWall(project.room, cabinet, x, z, WALL_SNAP_GAP)?.placement;
 
@@ -255,7 +266,13 @@ function Scene({
         onMoveCabinet(cabinetId, x, z, cabinet.placement.yawDeg);
       }
     },
-    [onMoveCabinet, project.cabinets, project.room],
+    [
+      onMoveCabinet,
+      project.cabinets,
+      project.defaults.doorMaterialId,
+      project.materials,
+      project.room,
+    ],
   );
 
   const { begin, dragging } = useCabinetDrag({ onMove: handleMove, sceneScale: MM_TO_SCENE });

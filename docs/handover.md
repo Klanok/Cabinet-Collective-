@@ -1550,11 +1550,10 @@ speculatively.
   It must flow through the same panel record, viewport, cutlist, nesting, costing and CAM paths as
   generated cabinet parts rather than becoming a separate drawing-only object. This is for fillers,
   scribes, loose ends, backing pieces and other job panels that do not belong to a carcass.
-- **Cabinets must snap to applied ends as well as cabinet carcasses.** An applied end sits outboard
-  of the cabinet width, so the neighbour snap target must use the applied end's outer face when one
-  is present. Snapping beside that cabinet should leave no overlap and no board-thickness gap, on
-  either hand and on rotated wall runs. Keep the existing carcass-edge target when that end has no
-  applied panel.
+- ~~**Cabinets must snap to applied ends as well as cabinet carcasses.**~~ **Done.** Neighbour
+  snapping targets the applied end's outer face using the selected door board's actual thickness.
+  It accounts for the contacting end on both cabinets, keeps the carcass edge when no panel is
+  present, and is covered on both hands and rotated wall runs.
 - ~~Cabinets snap to a wall but not to each other.~~ **Done.** `snapToNeighbour` in
   `project/wallPlacement.ts`, tried before the wall snap and winning within 60mm. It resolves both
   cabinets into the **run's own frame** before comparing, which is the lesson the benchtop

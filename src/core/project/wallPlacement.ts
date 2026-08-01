@@ -20,7 +20,7 @@
  */
 
 import { type Mm, mm } from '../units.ts';
-import type { Cabinet } from '../model/cabinet.ts';
+import { type Cabinet, hasAppliedEnd } from '../model/cabinet.ts';
 import { type Room, type Wall, findWall, normaliseDeg, wallDirection, wallInwardNormal, wallLength } from '../model/room.ts';
 import { type CabinetPlacement, yawCosSin } from '../geom/placement.ts';
 import { v3 } from '../geom/vec.ts';
@@ -237,6 +237,7 @@ export const snapToNeighbour = (
   x: Mm,
   z: Mm,
   maxGap: Mm,
+  appliedEndThickness: (cabinet: Cabinet) => Mm = () => mm(0),
 ): NeighbourSnap | null => {
   let best: NeighbourSnap | null = null;
 
@@ -263,9 +264,31 @@ export const snapToNeighbour = (
 
     // Butt to either end of the neighbour: the dragged cabinet's left end onto the neighbour's
     // right, or its right end onto the neighbour's left.
+    // An applied end is outside the carcass width. Snap the visible outer faces together, not the
+    // two hidden carcass edges; include the dragged cabinet's contacting end as well so two applied
+    // ends neither overlap nor leave a board-thickness gap.
+    const neighbourLeft = hasAppliedEnd(neighbour.options, 'left')
+      ? appliedEndThickness(neighbour)
+      : 0;
+    const neighbourRight = hasAppliedEnd(neighbour.options, 'right')
+      ? appliedEndThickness(neighbour)
+      : 0;
+    const draggedLeft = hasAppliedEnd(cabinet.options, 'left')
+      ? appliedEndThickness(cabinet)
+      : 0;
+    const draggedRight = hasAppliedEnd(cabinet.options, 'right')
+      ? appliedEndThickness(cabinet)
+      : 0;
+
     const candidates: { end: 'left' | 'right'; along: number }[] = [
-      { end: 'right', along: fixed.along + neighbour.width },
-      { end: 'left', along: fixed.along - cabinet.width },
+      {
+        end: 'right',
+        along: fixed.along + neighbour.width + neighbourRight + draggedLeft,
+      },
+      {
+        end: 'left',
+        along: fixed.along - neighbourLeft - cabinet.width - draggedRight,
+      },
     ];
 
     for (const candidate of candidates) {

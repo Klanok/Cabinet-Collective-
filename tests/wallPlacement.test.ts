@@ -354,6 +354,89 @@ describe('butting one cabinet against the next', () => {
     expect(snap?.placement.anchor.x).toBe(300);
   });
 
+  it('snaps to the outside face of an applied end', () => {
+    const fixedBase = onSouth('B1', 0);
+    const fixed = {
+      ...fixedBase,
+      options: { ...fixedBase.options, appliedEnds: ['right'] as const },
+    };
+    const dragged = onSouth('B2', 618);
+    const snap = snapToNeighbour(
+      [fixed, dragged],
+      dragged,
+      mm(600),
+      mm(0),
+      mm(60),
+      () => mm(18),
+    );
+
+    expect(snap?.end).toBe('right');
+    expect(snap?.placement.anchor.x).toBe(618);
+  });
+
+  it('includes applied ends on both contacting cabinets', () => {
+    const fixedBase = onSouth('B1', 0);
+    const draggedBase = onSouth('B2', 636);
+    const fixed = {
+      ...fixedBase,
+      options: { ...fixedBase.options, appliedEnds: ['right'] as const },
+    };
+    const dragged = {
+      ...draggedBase,
+      options: { ...draggedBase.options, appliedEnds: ['left'] as const },
+    };
+    const snap = snapToNeighbour(
+      [fixed, dragged],
+      dragged,
+      mm(620),
+      mm(0),
+      mm(60),
+      () => mm(18),
+    );
+
+    expect(snap?.placement.anchor.x).toBe(636);
+  });
+
+  it('snaps outside a left applied end from the other side', () => {
+    const fixedBase = onSouth('B1', 900);
+    const fixed = {
+      ...fixedBase,
+      options: { ...fixedBase.options, appliedEnds: ['left'] as const },
+    };
+    const dragged = onSouth('B2', 282);
+    const snap = snapToNeighbour(
+      [fixed, dragged],
+      dragged,
+      mm(300),
+      mm(0),
+      mm(60),
+      () => mm(18),
+    );
+
+    expect(snap?.end).toBe('left');
+    expect(snap?.placement.anchor.x).toBe(282);
+  });
+
+  it('uses the applied-end thickness down a rotated wall run', () => {
+    const fixedBase = onEast('E1', 900);
+    const fixed = {
+      ...fixedBase,
+      options: { ...fixedBase.options, appliedEnds: ['right'] as const },
+    };
+    const dragged = onEast('E2', 1518);
+    const snap = snapToNeighbour(
+      [fixed, dragged],
+      dragged,
+      mm(4200),
+      mm(1500),
+      mm(60),
+      () => mm(18),
+    );
+
+    expect(snap?.placement.anchor.x).toBe(4200);
+    expect(snap?.placement.anchor.z).toBe(1518);
+  });
+
   it('lines the run up across as well as along', () => {
     const fixed = onSouth('B1', 0);
     const dragged = onSouth('B2', 600);
