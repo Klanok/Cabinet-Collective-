@@ -108,6 +108,12 @@ export interface CabinetOptions {
   readonly hasBackCushion?: boolean;
   readonly backCushionHeight?: Mm;
   readonly backCushionThickness?: Mm;
+  /** Back-rest lean, in degrees from vertical. */
+  readonly backCushionAngle?: number;
+  /** Rounded upholstery corners, measured on the finished cushion. */
+  readonly cushionCornerRadius?: Mm;
+  readonly leftEndCushion?: boolean;
+  readonly rightEndCushion?: boolean;
 
   /*
    * Curved work.

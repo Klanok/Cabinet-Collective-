@@ -15,6 +15,8 @@ describe('banquette seating', () => {
     expect(cabinet.height).toBe(400);
     expect(cabinet.depth).toBe(500);
     expect(cabinet.options.seatCushionThickness).toBe(80);
+    expect(cabinet.options.backCushionAngle).toBe(0);
+    expect(cabinet.options.cushionCornerRadius).toBe(18);
     expect(built.panels.map((panel) => panel.name)).toEqual([
       'Side L', 'Side R', 'Bottom', 'Back', 'Divider', 'Lid',
     ]);
@@ -23,7 +25,7 @@ describe('banquette seating', () => {
   it('ships the requested Warwick Caulfield upholstery choices', () => {
     const project = createEmptyProject('Upholstery');
     expect(project.materials.upholstery?.map((fabric) => fabric.colour)).toEqual([
-      'Oatmeal', 'Bone', 'Taupe', 'Rust', 'Moss', 'Ocean', 'Navy', 'Charcoal',
+      'Oatmeal', 'Bone', 'Taupe', 'Rust', 'Moss', 'Pickle', 'Ocean', 'Navy', 'Charcoal',
     ]);
   });
 });

@@ -1,13 +1,13 @@
 import { mm } from '../units.ts';
 import type { UpholsteryMaterial } from '../model/material.ts';
 
-const caulfield = (colour: string, fallback: string): UpholsteryMaterial => ({
+const caulfield = (colour: string, fallback: string, extension = 'jpg'): UpholsteryMaterial => ({
   id: `warwick-caulfield-${colour.toLowerCase()}`,
   brand: 'Warwick',
   collection: 'Caulfield',
   colour,
   colourFallback: fallback,
-  textureUrl: `/materials/upholstery/${colour.toLowerCase()}.jpg`,
+  textureUrl: `/materials/upholstery/${colour.toLowerCase()}.${extension}`,
   sourceUrl: `https://www.warwick.com.au/products/caulfield/${colour.toLowerCase()}/`,
   width: mm(1420),
   composition: '100% polyester',
@@ -21,6 +21,7 @@ export const AU_UPHOLSTERY_MATERIALS: readonly UpholsteryMaterial[] = [
   caulfield('Taupe', '#8d7c6c'),
   caulfield('Rust', '#9b5037'),
   caulfield('Moss', '#66705a'),
+  caulfield('Pickle', '#78853f', 'webp'),
   caulfield('Ocean', '#3e6870'),
   caulfield('Navy', '#263849'),
   caulfield('Charcoal', '#414344'),

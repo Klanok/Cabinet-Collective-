@@ -36,7 +36,7 @@ import {
 } from '../library/blum.ts';
 import { AU_BENCHTOP_MATERIALS, AU_MATERIAL_LIBRARY, AU_SHEET_MATERIALS } from '../library/materials.au.ts';
 
-export const CURRENT_SCHEMA_VERSION = 20 as const;
+export const CURRENT_SCHEMA_VERSION = 21 as const;
 
 /**
  * The bendy ply an older job is given when it is migrated forward. It has no curved parts in
@@ -696,6 +696,24 @@ const migrateV19toV20 = (raw: Record<string, unknown>): Record<string, unknown> 
   };
 };
 
+/** Add newly shipped supplier finishes and upholstery without replacing user materials. */
+const migrateV20toV21 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const materials = (raw.materials as Record<string, unknown> | undefined) ?? {};
+  const sheets = (materials.sheets as Record<string, unknown>[] | undefined) ?? [];
+  const upholstery = (materials.upholstery as Record<string, unknown>[] | undefined) ?? [];
+  const sheetIds = new Set(sheets.map((item) => item.id));
+  const upholsteryIds = new Set(upholstery.map((item) => item.id));
+  return {
+    ...raw,
+    schemaVersion: 21,
+    materials: {
+      ...materials,
+      sheets: [...sheets, ...AU_SHEET_MATERIALS.filter((item) => !sheetIds.has(item.id))],
+      upholstery: [...upholstery, ...(AU_MATERIAL_LIBRARY.upholstery ?? []).filter((item) => !upholsteryIds.has(item.id))],
+    },
+  };
+};
+
 /**
  * Load a project from stored JSON, migrating older schema versions forward.
  *
@@ -736,6 +754,7 @@ export const migrateProject = (raw: unknown): Project => {
   if (data.schemaVersion === 17) data = migrateV17toV18(data);
   if (data.schemaVersion === 18) data = migrateV18toV19(data);
   if (data.schemaVersion === 19) data = migrateV19toV20(data);
+  if (data.schemaVersion === 20) data = migrateV20toV21(data);
 
   if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`migrateProject: could not migrate schema version ${String(version)}`);
