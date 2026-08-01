@@ -687,6 +687,21 @@ function MaterialsEditor({
         value={defaults.skinMaterialId}
         onChange={(skinMaterialId) => onChange({ skinMaterialId })}
       />
+      {defaults.skinMaterialId === 'bendy-ply-3' &&
+        library.sheets.some((sheet) => sheet.id === 'bendy-ply-8') && (
+          <div>
+            <p className="note warning">
+              This default still points to the legacy 3mm bendy ply. New radiused cabinets will
+              inherit it until the default is changed.
+            </p>
+            <button
+              className="btn full"
+              onClick={() => onChange({ skinMaterialId: 'bendy-ply-8' })}
+            >
+              Use 8mm bendy ply for new cabinets
+            </button>
+          </div>
+        )}
       <EdgeBandPicker
         label="Edge banding"
         hint="Must be at least as wide as the panel is thick"
