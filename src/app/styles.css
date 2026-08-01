@@ -218,15 +218,17 @@ body {
 }
 
 .add-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 6px;
   margin-bottom: 10px;
 }
 
 .add-row .btn {
-  flex: 1;
+  min-width: 0;
   padding: 5px 4px;
   font-size: 11px;
+  white-space: normal;
 }
 
 /* ── Cabinet list ────────────────────────────────────────────────────────── */
