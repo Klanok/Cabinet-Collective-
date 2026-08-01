@@ -54,7 +54,7 @@ import {
   DEFAULT_RUNNER_SYSTEM_ID,
 } from '../library/blum.ts';
 
-export const CURRENT_STANDARDS_VERSION = 15 as const;
+export const CURRENT_STANDARDS_VERSION = 16 as const;
 
 export interface ShopStandards {
   readonly version: typeof CURRENT_STANDARDS_VERSION;
@@ -369,6 +369,7 @@ export const migrateStandards = (raw: unknown): ShopStandards => {
   if (data.version === 12) data = migrateStandardsV12toV13(data);
   if (data.version === 13) data = migrateStandardsV13toV14(data);
   if (data.version === 14) data = migrateStandardsV14toV15(data);
+  if (data.version === 15) data = migrateStandardsV15toV16(data);
 
   if (data.version !== CURRENT_STANDARDS_VERSION) {
     throw new Error(`migrateStandards: could not migrate version ${String(version)}`);
@@ -610,6 +611,17 @@ const migrateStandardsV14toV15 = (raw: Record<string, unknown>): Record<string, 
       sheets: [...sheets, ...AU_SHEET_MATERIALS.filter((sheet) => !existing.has(sheet.id))],
       upholstery: materials.upholstery ?? AU_MATERIAL_LIBRARY.upholstery ?? [],
     },
+  };
+};
+
+/** Repair v15 standards saved before the bundled texture metadata was added. */
+const migrateStandardsV15toV16 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const materials = (raw.materials as Record<string, unknown> | undefined) ?? {};
+  const sheets = (materials.sheets as Record<string, unknown>[] | undefined) ?? [];
+  return {
+    ...raw,
+    version: 16,
+    materials: { ...materials, sheets: withResolvedTextures(sheets, AU_SHEET_MATERIALS) },
   };
 };
 
