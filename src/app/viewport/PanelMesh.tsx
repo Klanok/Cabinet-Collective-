@@ -26,6 +26,7 @@ import { Boring } from './Boring.tsx';
 import { FrontRelief, frontRecessOf } from './FrontRelief.tsx';
 import { panelMatrix } from './transforms.ts';
 import { pointOnSheet, type SheetTexturePlacement } from './sheetTexture.ts';
+import { bundledAssetUrl } from './assetUrl.ts';
 
 /** Panel colours, keyed loosely by what the part is, so a carcass reads at a glance. */
 const ROLE_COLOURS: Record<string, string> = {
@@ -61,7 +62,7 @@ const DRAW_INSET: Mm = mm(0.3);
 const bundledTextureUrl = (url: string): string => {
   const bundled = ['notaio-walnut', 'sepia-oak', 'boston-oak', 'prime-oak', 'rural-oak', 'classic-oak'];
   const match = bundled.find((name) => url.toLowerCase().includes(name));
-  return match ? `/materials/board/${match}.jpg` : url;
+  return match ? bundledAssetUrl(`materials/board/${match}.jpg`) : url;
 };
 
 interface Props {
@@ -97,7 +98,7 @@ export function PanelMesh({ panel, thickness, colour: boardColour, texture, text
     url: bundledTextureUrl(texture.url),
     // All currently bundled woodgrains are supplier full-sheet designs. Override old material
     // snapshots that still describe the former 1200mm square swatches.
-    ...(bundledTextureUrl(texture.url).startsWith('/materials/board/')
+    ...(bundledTextureUrl(texture.url).includes('materials/board/')
       ? { repeatLength: mm(3600), repeatWidth: mm(1800) }
       : {}),
   } : undefined, [texture]);

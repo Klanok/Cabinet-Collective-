@@ -3,6 +3,7 @@ import { RoundedBox } from '@react-three/drei';
 import { RepeatWrapping, SRGBColorSpace, TextureLoader, type Texture } from 'three';
 import type { Cabinet } from '../../core/model/cabinet.ts';
 import type { UpholsteryMaterial } from '../../core/model/material.ts';
+import { bundledAssetUrl } from './assetUrl.ts';
 
 export function BanquetteCushions({ cabinet, upholstery, selected, wireframe }: {
   cabinet: Cabinet;
@@ -11,7 +12,7 @@ export function BanquetteCushions({ cabinet, upholstery, selected, wireframe }: 
   wireframe: boolean;
 }) {
   const textureUrl = upholstery.brand === 'Warwick' && upholstery.collection === 'Caulfield'
-    ? `/materials/upholstery/${upholstery.colour.toLowerCase()}.jpg`
+    ? bundledAssetUrl(`materials/upholstery/${upholstery.colour.toLowerCase()}.jpg`)
     : upholstery.textureUrl;
   const [map, setMap] = useState<Texture | null>(null);
   useEffect(() => {
