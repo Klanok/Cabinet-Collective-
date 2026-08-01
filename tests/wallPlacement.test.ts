@@ -487,6 +487,22 @@ describe('butting one cabinet against the next', () => {
     expect(snapToNeighbour([base, wall], wall, mm(590), mm(0), mm(60))).toBeNull();
   });
 
+  it('snaps a floor-level standalone panel to a cabinet on its kick', () => {
+    const base = onSouth('B1', 0);
+    const panel = createCabinet({
+      typeId: 'panel',
+      name: 'P1',
+      width: mm(100),
+      x: mm(600),
+      z: mm(0),
+    });
+    const snap = snapToNeighbour([base, panel], panel, mm(590), mm(0), mm(60));
+
+    expect(panel.placement.anchor.y).toBe(0);
+    expect(base.placement.anchor.y).toBeGreaterThan(0);
+    expect(snap?.placement.anchor.x).toBe(600);
+  });
+
   it('never snaps a cabinet to itself', () => {
     const only = onSouth('B1', 0);
     expect(snapToNeighbour([only], only, mm(10), mm(0), mm(60))).toBeNull();

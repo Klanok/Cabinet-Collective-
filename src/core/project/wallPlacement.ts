@@ -247,8 +247,16 @@ export const snapToNeighbour = (
     if (angularDistance(neighbour.placement.yawDeg, cabinet.placement.yawDeg) > YAW_TOLERANCE_DEG) {
       continue;
     }
-    // Height is typed, never dragged, so two cabinets at different heights are two different runs.
-    if (Math.abs(neighbour.placement.anchor.y - cabinet.placement.anchor.y) > 0.5) continue;
+    // Height is typed, never dragged, so ordinary cabinets at different heights are different
+    // runs. A standalone panel is deliberately allowed to meet a cabinet from floor level (the
+    // common loose-end/filler case), so its vertical datum must not prevent the plan snap.
+    if (
+      cabinet.typeId !== 'panel' &&
+      neighbour.typeId !== 'panel' &&
+      Math.abs(neighbour.placement.anchor.y - cabinet.placement.anchor.y) > 0.5
+    ) {
+      continue;
+    }
 
     // Both resolve in the *neighbour's* frame. It is the one standing still, so it is the one that
     // decides where the run is.
