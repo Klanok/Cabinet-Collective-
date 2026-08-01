@@ -302,7 +302,7 @@ function HardwareSection({
                   <option value="">
                     Automatic — {hw.runner ? `${hw.runner.nominalLength}mm` : 'nothing fits'}
                   </option>
-                  {hw.runnerSystem.nominalLengths.map((nl) => (
+                  {(hw.sideHeight.nominalLengths ?? hw.runnerSystem.nominalLengths).map((nl) => (
                     <option key={nl} value={nl}>
                       NL {nl}
                     </option>

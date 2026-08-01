@@ -22,7 +22,6 @@ import {
   findHingeSystem,
   findRunnerSystem,
   findSideHeight,
-  largestRunnerFitting,
   minInnerDepthFor,
   runnerFixingPositions,
 } from '../model/hardware.ts';
@@ -95,7 +94,7 @@ export const resolveHardware = (
     findSideHeight(runnerSystem, defaults.drawerSideHeightCode) ??
     findSideHeight(runnerSystem, DEFAULT_DRAWER_SIDE_HEIGHT_CODE) ??
     runnerSystem.sideHeights[0] ??
-    MERIVOBOX.sideHeights[0]!;
+    findSideHeight(MERIVOBOX, DEFAULT_DRAWER_SIDE_HEIGHT_CODE)!;
 
   const hinge =
     findHingeSystem(library.hingeSystems, options.hingeSystemId) ??
@@ -126,7 +125,8 @@ const resolveRunner = (
   innerDepth: Mm,
 ): ResolvedRunner | null => {
   const asked = options.drawerNominalLength;
-  const made = (nl: Mm) => system.nominalLengths.some((l) => l === nl);
+  const lengths = sideHeight.nominalLengths ?? system.nominalLengths;
+  const made = (nl: Mm) => lengths.some((l) => l === nl);
 
   if (asked !== undefined) {
     if (!made(asked) || minInnerDepthFor(system, asked) > innerDepth) return null;
@@ -139,7 +139,8 @@ const resolveRunner = (
     };
   }
 
-  const best = largestRunnerFitting(system, innerDepth);
+  const fitting = lengths.filter((nl) => minInnerDepthFor(system, nl) <= innerDepth);
+  const best = fitting.length === 0 ? null : mm(Math.max(...fitting));
   if (best === null) return null;
   return {
     system,
@@ -189,12 +190,14 @@ export const hardwareProblems = (ctx: RuleContext): string[] => {
 
   const system = hw.runnerSystem;
   const asked = ctx.options.drawerNominalLength;
+  const lengths = hw.sideHeight.nominalLengths ?? system.nominalLengths;
 
   if (hw.runner === null) {
-    if (asked !== undefined && !system.nominalLengths.some((l) => l === asked)) {
+    if (asked !== undefined && !lengths.some((l) => l === asked)) {
       problems.push(
         `${system.name} is not made at ${Math.round(asked)}mm. It comes in ` +
-          `${system.nominalLengths.join(', ')}mm — a runner is one of those lengths or it does ` +
+          `${lengths.join(', ')}mm at height ${hw.sideHeight.code} — a runner is one of those ` +
+          'lengths or it does ' +
           'not exist, so no drawer boxes have been cut.',
       );
     } else if (asked !== undefined) {
@@ -204,7 +207,7 @@ export const hardwareProblems = (ctx: RuleContext): string[] => {
           `${Math.round(hw.innerDepth)}mm. No drawer boxes have been cut.`,
       );
     } else {
-      const shortest = Math.min(...system.nominalLengths);
+      const shortest = Math.min(...lengths);
       problems.push(
         `${Math.round(hw.innerDepth)}mm of clear depth is not enough for any ${system.name} ` +
           `runner — the shortest is ${shortest}mm and needs ` +

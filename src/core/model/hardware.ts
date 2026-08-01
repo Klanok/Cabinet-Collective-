@@ -80,6 +80,11 @@ export interface DrawerSideHeight {
   readonly height: Mm;
   /** Cut height of a wooden (16mm chipboard) back for this profile. */
   readonly woodenBackHeight: Mm;
+  /**
+   * Nominal lengths Blum makes this particular side profile in. Unset means every length on the
+   * runner system; N is the important exception and must not be paired with a runner it cannot buy.
+   */
+  readonly nominalLengths?: readonly Mm[];
 }
 
 /**

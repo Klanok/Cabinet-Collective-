@@ -1514,10 +1514,12 @@ runner and CLIP top BLUMOTION the standard hinge. What remains:
 - **Hardware fitting time on the quote.** A `LabourRates` field when there is a figure for it.
 - **Load class.** Only the 40kg MERIVOBOX is shipped; the 70kg exists and is another entry, but
   choosing between them properly means knowing what goes in the drawer, which the model doesn't.
-- **The full MERIVOBOX height range.** Only M height is currently present, so the Box height picker
-  has nothing else to offer. Add the required K, N and taller gallery/BOXCAP configurations from
-  verified Blum planning data, including each profile height and wooden-back cut height. Keep the
-  configurations distinct rather than treating every tall drawer as the same box.
+- **The full MERIVOBOX height range.** **N, M and K are now shipped from verified Blum planning
+  data:** 68.5/60.5, 91/83 and 129/121mm for side/back respectively, with N restricted to NL
+  400–550 and K to NL 300–600 so the app cannot pair a side with a length Blum does not sell.
+  What remains is E height. It is an M side built up with gallery, BOXCOVER or BOXCAP—not a fourth
+  solid profile—so those must be distinct hardware configurations with an honest BOM. They share
+  the verified 184mm chipboard-back height but do not share the parts being ordered.
 - **Door styles touch this only lightly**, as predicted: a thicker front shifts nothing here,
   because the cup depth is measured into the board from its own face. Nothing to design for.
 

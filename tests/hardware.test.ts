@@ -128,7 +128,15 @@ describe('the MERIVOBOX spec is data, not arithmetic scattered about', () => {
   it('is made in the lengths Blum makes it in, and no others', () => {
     expect(MERIVOBOX.nominalLengths).toEqual([270, 300, 350, 400, 450, 500, 550, 600]);
     expect(MERIVOBOX.sideHeights.map((h) => [h.code, h.height, h.woodenBackHeight])).toEqual([
+      ['N', 68.5, 60.5],
       ['M', 91, 83],
+      ['K', 129, 121],
+    ]);
+    expect(MERIVOBOX.sideHeights.find((h) => h.code === 'N')?.nominalLengths).toEqual([
+      400, 450, 500, 550,
+    ]);
+    expect(MERIVOBOX.sideHeights.find((h) => h.code === 'K')?.nominalLengths).toEqual([
+      300, 350, 400, 450, 500, 550, 600,
     ]);
   });
 
@@ -187,7 +195,7 @@ it('fixes the cabinet profile at four points, stepping the rear pair at 350', ()
 
   it('sizes a bottom and a back from the opening and the length', () => {
     expect(drawerBottomSize(MERIVOBOX, mm(568), mm(500))).toEqual({ length: 517, width: 474 });
-    expect(drawerBackSize(MERIVOBOX, MERIVOBOX.sideHeights[0]!, mm(568))).toEqual({
+    expect(drawerBackSize(MERIVOBOX, MERIVOBOX.sideHeights.find((h) => h.code === 'M')!, mm(568))).toEqual({
       length: 517,
       width: 83,
     });
@@ -305,6 +313,22 @@ describe('a runner that cannot go in', () => {
     expect(built.hardware.runner?.nominalLength).toBe(450);
     expect(built.hardware.runner?.automatic).toBe(false);
     expect(size(byName(built.panels, 'Drawer bottom'))).toEqual([517, 424]);
+  });
+
+  it('does not pair an N-height side with a length Blum does not make it in', () => {
+    const automatic = bank({ drawerSideHeightCode: 'N' }, mm(660));
+    expect(automatic.hardware.runner?.nominalLength).toBe(550);
+    expect(size(byName(automatic.panels, 'Drawer back'))).toEqual([517, 60.5]);
+
+    const asked = bank({ drawerSideHeightCode: 'N', drawerNominalLength: mm(600) }, mm(660));
+    expect(asked.hardware.runner).toBeNull();
+    expect(asked.warnings.join(' ')).toMatch(/400, 450, 500, 550mm at height N/);
+  });
+
+  it('cuts the verified K-height wooden back', () => {
+    const built = bank({ drawerSideHeightCode: 'K' });
+    expect(built.hardware.sideHeight.height).toBe(129);
+    expect(size(byName(built.panels, 'Drawer back'))).toEqual([517, 121]);
   });
 
   it('never throws, whatever depth is typed on the way to a real one', () => {
