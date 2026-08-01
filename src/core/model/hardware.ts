@@ -262,6 +262,30 @@ export const findSideHeight = (
   code: string | undefined,
 ): DrawerSideHeight | null => system.sideHeights.find((h) => h.code === code) ?? null;
 
+/**
+ * Add verified shipped box-height choices to a stored copy of the same runner system.
+ *
+ * Jobs and shop standards snapshot their hardware libraries, so merely expanding the shipped
+ * library does not update an existing file. Matching codes are refreshed from the verified data,
+ * missing codes are added, and any shop-specific codes or other runner systems are left alone.
+ */
+export const withShippedSideHeights = (
+  system: Record<string, unknown>,
+  shippedSystems: readonly DrawerRunnerSystem[],
+): Record<string, unknown> => {
+  const shipped = shippedSystems.find((candidate) => candidate.id === system.id);
+  if (!shipped) return system;
+  const existing = (system.sideHeights as DrawerSideHeight[] | undefined) ?? [];
+  const shippedCodes = new Set(shipped.sideHeights.map((height) => height.code));
+  return {
+    ...system,
+    sideHeights: [
+      ...shipped.sideHeights,
+      ...existing.filter((height) => !shippedCodes.has(height.code)),
+    ],
+  };
+};
+
 /** Smallest internal cabinet depth this nominal length can be fitted in. */
 export const minInnerDepthFor = (system: DrawerRunnerSystem, nominalLength: Mm): Mm =>
   mm(nominalLength + system.innerDepthAllowance);
