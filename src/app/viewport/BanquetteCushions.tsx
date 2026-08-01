@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
 import { RoundedBox } from '@react-three/drei';
-import { RepeatWrapping, SRGBColorSpace, TextureLoader, type Texture } from 'three';
+import { useLoader } from '@react-three/fiber';
+import { RepeatWrapping, SRGBColorSpace, TextureLoader } from 'three';
 import type { Cabinet } from '../../core/model/cabinet.ts';
 import type { UpholsteryMaterial } from '../../core/model/material.ts';
 import { bundledAssetUrl } from './assetUrl.ts';
@@ -14,20 +14,12 @@ export function BanquetteCushions({ cabinet, upholstery, selected, wireframe }: 
   const textureUrl = upholstery.brand === 'Warwick' && upholstery.collection === 'Caulfield'
     ? bundledAssetUrl(`materials/upholstery/${upholstery.colour.toLowerCase()}.jpg`)
     : upholstery.textureUrl;
-  const [map, setMap] = useState<Texture | null>(null);
-  useEffect(() => {
-    let active = true;
-    setMap(null);
-    const loaded = new TextureLoader().load(textureUrl, (texture) => {
-      texture.colorSpace = SRGBColorSpace;
-      texture.wrapS = RepeatWrapping;
-      texture.wrapT = RepeatWrapping;
-      texture.repeat.set(Math.max(1, cabinet.width / 250), Math.max(1, cabinet.depth / 250));
-      texture.needsUpdate = true;
-      if (active) setMap(texture);
-    }, undefined, () => active && setMap(null));
-    return () => { active = false; loaded.dispose(); };
-  }, [textureUrl, cabinet.width, cabinet.depth]);
+  const map = useLoader(TextureLoader, textureUrl);
+  map.colorSpace = SRGBColorSpace;
+  map.wrapS = RepeatWrapping;
+  map.wrapT = RepeatWrapping;
+  map.repeat.set(Math.max(1, cabinet.width / 250), Math.max(1, cabinet.depth / 250));
+  map.needsUpdate = true;
 
   const seatT = cabinet.options.seatCushionThickness ?? 80;
   const inset = cabinet.options.seatCushionInset ?? 5;

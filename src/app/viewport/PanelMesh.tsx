@@ -6,7 +6,7 @@
  * shape and placement are decided by the rule engine, not by the view.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import {
   BufferAttribute,
   BufferGeometry,
@@ -14,9 +14,8 @@ import {
   SRGBColorSpace,
   TextureLoader,
   type Matrix4,
-  type Texture,
 } from 'three';
-import type { ThreeEvent } from '@react-three/fiber';
+import { useLoader, type ThreeEvent } from '@react-three/fiber';
 import type { Panel } from '../../core/model/panel.ts';
 import type { SheetMaterial } from '../../core/model/material.ts';
 import { type Mm, mm } from '../../core/units.ts';
@@ -227,37 +226,46 @@ function BoardSurface({
   opacity: number;
   depthWrite: boolean;
 }) {
-  const [map, setMap] = useState<Texture | null>(null);
+  return textureUrl ? (
+    <TexturedBoardSurface
+      textureUrl={textureUrl}
+      transparent={transparent}
+      opacity={opacity}
+      depthWrite={depthWrite}
+    />
+  ) : (
+    <meshStandardMaterial
+      color={colour}
+      roughness={0.75}
+      metalness={0.02}
+      transparent={transparent}
+      opacity={opacity}
+      depthWrite={depthWrite}
+    />
+  );
+}
 
-  useEffect(() => {
-    if (!textureUrl) {
-      setMap(null);
-      return;
-    }
-    let active = true;
-    const loaded = new TextureLoader().load(
-      textureUrl,
-      (image) => {
-        image.colorSpace = SRGBColorSpace;
-        image.wrapS = RepeatWrapping;
-        image.wrapT = RepeatWrapping;
-        image.needsUpdate = true;
-        if (active) setMap(image);
-      },
-      undefined,
-      () => {
-        if (active) setMap(null);
-      },
-    );
-    return () => {
-      active = false;
-      loaded.dispose();
-    };
-  }, [textureUrl]);
+/** Let React Three Fiber own and cache the texture for the lifetime of the rendered scene. */
+function TexturedBoardSurface({
+  textureUrl,
+  transparent,
+  opacity,
+  depthWrite,
+}: {
+  textureUrl: string;
+  transparent: boolean;
+  opacity: number;
+  depthWrite: boolean;
+}) {
+  const map = useLoader(TextureLoader, textureUrl);
+  map.colorSpace = SRGBColorSpace;
+  map.wrapS = RepeatWrapping;
+  map.wrapT = RepeatWrapping;
+  map.needsUpdate = true;
 
   return (
     <meshStandardMaterial
-      color={map ? '#ffffff' : colour}
+      color="#ffffff"
       map={map}
       roughness={0.75}
       metalness={0.02}
