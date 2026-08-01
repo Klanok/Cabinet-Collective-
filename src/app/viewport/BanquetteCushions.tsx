@@ -10,11 +10,14 @@ export function BanquetteCushions({ cabinet, upholstery, selected, wireframe }: 
   selected: boolean;
   wireframe: boolean;
 }) {
+  const textureUrl = upholstery.brand === 'Warwick' && upholstery.collection === 'Caulfield'
+    ? `/materials/upholstery/${upholstery.colour.toLowerCase()}.jpg`
+    : upholstery.textureUrl;
   const [map, setMap] = useState<Texture | null>(null);
   useEffect(() => {
     let active = true;
     setMap(null);
-    const loaded = new TextureLoader().load(upholstery.textureUrl, (texture) => {
+    const loaded = new TextureLoader().load(textureUrl, (texture) => {
       texture.colorSpace = SRGBColorSpace;
       texture.wrapS = RepeatWrapping;
       texture.wrapT = RepeatWrapping;
@@ -23,7 +26,7 @@ export function BanquetteCushions({ cabinet, upholstery, selected, wireframe }: 
       if (active) setMap(texture);
     }, undefined, () => active && setMap(null));
     return () => { active = false; loaded.dispose(); };
-  }, [upholstery.textureUrl, cabinet.width, cabinet.depth]);
+  }, [textureUrl, cabinet.width, cabinet.depth]);
 
   const seatT = cabinet.options.seatCushionThickness ?? 80;
   const inset = cabinet.options.seatCushionInset ?? 5;
