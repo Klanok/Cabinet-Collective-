@@ -11,6 +11,7 @@ export const BANQUETTE_SPEC: CabinetSpec = {
     topStyle: 'open', hasBack: true, shelfCount: 0, dividerCount: 1,
     doorCount: 0, drawerCount: 0, hasLid: true, lidOverhang: mm(20), hasKick: false,
     seatCushionThickness: mm(80), seatCushionInset: mm(5), hasBackCushion: true,
-    backCushionHeight: mm(400), backCushionThickness: mm(80),
+    backCushionHeight: mm(400), backCushionThickness: mm(80), backCushionAngle: 0,
+    cushionCornerRadius: mm(18), leftEndCushion: false, rightEndCushion: false,
   },
 };

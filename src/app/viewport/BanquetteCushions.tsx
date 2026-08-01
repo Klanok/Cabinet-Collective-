@@ -12,7 +12,7 @@ export function BanquetteCushions({ cabinet, upholstery, selected, wireframe }: 
   wireframe: boolean;
 }) {
   const textureUrl = upholstery.brand === 'Warwick' && upholstery.collection === 'Caulfield'
-    ? bundledAssetUrl(`materials/upholstery/${upholstery.colour.toLowerCase()}.jpg`)
+    ? bundledAssetUrl(upholstery.textureUrl.replace(/^\//, ''))
     : upholstery.textureUrl;
   const map = useLoader(TextureLoader, textureUrl);
   map.colorSpace = SRGBColorSpace;
@@ -25,6 +25,7 @@ export function BanquetteCushions({ cabinet, upholstery, selected, wireframe }: 
   const inset = cabinet.options.seatCushionInset ?? 5;
   const seatWidth = Math.max(50, cabinet.width - inset * 2);
   const seatDepth = Math.max(50, cabinet.depth - inset * 2);
+  const radius = Math.max(1, cabinet.options.cushionCornerRadius ?? 18);
   const colour = selected ? '#ff9640' : upholstery.colourFallback;
   const fabricMaterial = () => <meshStandardMaterial
     color={map && !selected ? '#ffffff' : colour}
@@ -34,17 +35,32 @@ export function BanquetteCushions({ cabinet, upholstery, selected, wireframe }: 
   />;
 
   return <>
-    <RoundedBox args={[seatWidth, seatT, seatDepth]} radius={Math.min(18, seatT / 4)} smoothness={4}
+    <RoundedBox args={[seatWidth, seatT, seatDepth]} radius={Math.min(radius, seatT / 2 - 1, seatDepth / 2 - 1)} smoothness={4}
       position={[cabinet.width / 2, cabinet.height + 16 + seatT / 2, cabinet.depth / 2]} castShadow receiveShadow>
       {fabricMaterial()}
     </RoundedBox>
     {cabinet.options.hasBackCushion !== false && (() => {
       const height = cabinet.options.backCushionHeight ?? 400;
       const thickness = cabinet.options.backCushionThickness ?? 80;
-      return <RoundedBox args={[seatWidth, height, thickness]} radius={Math.min(18, thickness / 4)} smoothness={4}
-        position={[cabinet.width / 2, cabinet.height + 16 + seatT + height / 2, thickness / 2]} castShadow receiveShadow>
-        {fabricMaterial()}
-      </RoundedBox>;
+      const angle = Math.min(15, Math.max(0, cabinet.options.backCushionAngle ?? 0)) * Math.PI / 180;
+      const y = cabinet.height + 16 + seatT + height / 2;
+      const backZ = thickness / 2 - Math.sin(angle) * height / 2;
+      const endDepth = Math.max(50, seatDepth - thickness);
+      const backRadius = Math.min(radius, thickness / 2 - 1, height / 2 - 1);
+      return <>
+        <RoundedBox args={[seatWidth, height, thickness]} radius={backRadius} smoothness={4}
+          position={[cabinet.width / 2, y, backZ]} rotation={[-angle, 0, 0]} castShadow receiveShadow>
+          {fabricMaterial()}
+        </RoundedBox>
+        {cabinet.options.leftEndCushion && <RoundedBox args={[thickness, height, endDepth]} radius={backRadius} smoothness={4}
+          position={[inset + thickness / 2, y, cabinet.depth / 2]} rotation={[0, 0, angle]} castShadow receiveShadow>
+          {fabricMaterial()}
+        </RoundedBox>}
+        {cabinet.options.rightEndCushion && <RoundedBox args={[thickness, height, endDepth]} radius={backRadius} smoothness={4}
+          position={[cabinet.width - inset - thickness / 2, y, cabinet.depth / 2]} rotation={[0, 0, -angle]} castShadow receiveShadow>
+          {fabricMaterial()}
+        </RoundedBox>}
+      </>;
     })()}
   </>;
 }

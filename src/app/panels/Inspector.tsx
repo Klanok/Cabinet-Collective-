@@ -668,10 +668,14 @@ export function Inspector({
             {isBanquette && <>
               <NumberField label="Seat cushion" value={cabinet.options.seatCushionThickness ?? 80} min={30} max={200} step={5} onChange={(n) => onUpdateOptions(cabinet.id, { seatCushionThickness: mm(n) })} />
               <NumberField label="Cushion inset" value={cabinet.options.seatCushionInset ?? 5} min={0} max={100} step={5} onChange={(n) => onUpdateOptions(cabinet.id, { seatCushionInset: mm(n) })} />
+              <NumberField label="Cushion radius" value={cabinet.options.cushionCornerRadius ?? 18} min={1} max={150} step={5} onChange={(n) => onUpdateOptions(cabinet.id, { cushionCornerRadius: mm(n) })} />
               <label className="field field-check"><input type="checkbox" checked={cabinet.options.hasBackCushion !== false} onChange={(e) => onUpdateOptions(cabinet.id, { hasBackCushion: e.target.checked })} /><span>Back cushion</span></label>
               {cabinet.options.hasBackCushion !== false && <>
                 <NumberField label="Back cushion height" value={cabinet.options.backCushionHeight ?? 400} min={100} max={1000} step={10} onChange={(n) => onUpdateOptions(cabinet.id, { backCushionHeight: mm(n) })} />
                 <NumberField label="Back cushion thickness" value={cabinet.options.backCushionThickness ?? 80} min={30} max={200} step={5} onChange={(n) => onUpdateOptions(cabinet.id, { backCushionThickness: mm(n) })} />
+                <NumberField label="Back angle" value={cabinet.options.backCushionAngle ?? 0} min={0} max={15} step={1} suffix="°" onChange={(n) => onUpdateOptions(cabinet.id, { backCushionAngle: n })} />
+                <label className="field field-check"><input type="checkbox" checked={cabinet.options.leftEndCushion === true} onChange={(e) => onUpdateOptions(cabinet.id, { leftEndCushion: e.target.checked })} /><span>Left end cushion</span></label>
+                <label className="field field-check"><input type="checkbox" checked={cabinet.options.rightEndCushion === true} onChange={(e) => onUpdateOptions(cabinet.id, { rightEndCushion: e.target.checked })} /><span>Right end cushion</span></label>
               </>}
             </>}
             <NumberField

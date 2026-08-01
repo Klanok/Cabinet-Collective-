@@ -59,7 +59,7 @@ const DRAW_INSET: Mm = mm(0.3);
  * files too, so a freshly opened app does not need the user to recreate standards or clear data.
  */
 const bundledTextureUrl = (url: string): string => {
-  const bundled = ['notaio-walnut', 'sepia-oak', 'boston-oak', 'prime-oak', 'rural-oak', 'classic-oak'];
+  const bundled = ['notaio-walnut', 'sepia-oak', 'florentine-walnut', 'boston-oak', 'prime-oak', 'rural-oak', 'classic-oak', 'portsea-absolute-matte'];
   const match = bundled.find((name) => url.toLowerCase().includes(name));
   return match ? bundledAssetUrl(`materials/board/${match}.jpg`) : url;
 };
@@ -184,7 +184,7 @@ export function PanelMesh({ panel, thickness, colour: boardColour, texture, text
           colour={colour}
           textureUrl={displayTexture?.url}
           transparent={wireframe || isFront}
-          opacity={wireframe ? 0 : isFront ? 0.86 : 1}
+          opacity={wireframe ? 0 : isFront ? 0.95 : 1}
           depthWrite={!wireframe}
         />
       </mesh>

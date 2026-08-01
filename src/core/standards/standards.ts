@@ -54,7 +54,7 @@ import {
   DEFAULT_RUNNER_SYSTEM_ID,
 } from '../library/blum.ts';
 
-export const CURRENT_STANDARDS_VERSION = 16 as const;
+export const CURRENT_STANDARDS_VERSION = 17 as const;
 
 export interface ShopStandards {
   readonly version: typeof CURRENT_STANDARDS_VERSION;
@@ -370,6 +370,7 @@ export const migrateStandards = (raw: unknown): ShopStandards => {
   if (data.version === 13) data = migrateStandardsV13toV14(data);
   if (data.version === 14) data = migrateStandardsV14toV15(data);
   if (data.version === 15) data = migrateStandardsV15toV16(data);
+  if (data.version === 16) data = migrateStandardsV16toV17(data);
 
   if (data.version !== CURRENT_STANDARDS_VERSION) {
     throw new Error(`migrateStandards: could not migrate version ${String(version)}`);
@@ -622,6 +623,24 @@ const migrateStandardsV15toV16 = (raw: Record<string, unknown>): Record<string, 
     ...raw,
     version: 16,
     materials: { ...materials, sheets: withResolvedTextures(sheets, AU_SHEET_MATERIALS) },
+  };
+};
+
+/** Add newly shipped supplier finishes and upholstery without replacing shop choices. */
+const migrateStandardsV16toV17 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const materials = (raw.materials as Record<string, unknown> | undefined) ?? {};
+  const sheets = (materials.sheets as Record<string, unknown>[] | undefined) ?? [];
+  const upholstery = (materials.upholstery as Record<string, unknown>[] | undefined) ?? [];
+  const sheetIds = new Set(sheets.map((item) => item.id));
+  const upholsteryIds = new Set(upholstery.map((item) => item.id));
+  return {
+    ...raw,
+    version: 17,
+    materials: {
+      ...materials,
+      sheets: [...sheets, ...AU_SHEET_MATERIALS.filter((item) => !sheetIds.has(item.id))],
+      upholstery: [...upholstery, ...(AU_MATERIAL_LIBRARY.upholstery ?? []).filter((item) => !upholsteryIds.has(item.id))],
+    },
   };
 };
 

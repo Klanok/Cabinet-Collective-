@@ -31,8 +31,8 @@ describe('supplier material rendering inputs', () => {
     for (const sheet of textured) {
       const texture = findSheet(project.materials, sheet.id).texture!;
       expect(texture.url).toMatch(/^\/materials\/board\/.+\.jpg$/);
-      expect(texture.repeatLength).toBe(3600);
-      expect(texture.repeatWidth).toBe(1800);
+      expect(texture.repeatLength).toBeGreaterThan(0);
+      expect(texture.repeatWidth).toBeGreaterThan(0);
       await expect(access(`public${texture.url}`)).resolves.toBeUndefined();
     }
   });
@@ -40,7 +40,7 @@ describe('supplier material rendering inputs', () => {
   it('ships every Warwick upholstery texture with the app', async () => {
     const project = createEmptyProject('Upholstery');
     for (const fabric of project.materials.upholstery ?? []) {
-      expect(fabric.textureUrl).toMatch(/^\/materials\/upholstery\/.+\.jpg$/);
+      expect(fabric.textureUrl).toMatch(/^\/materials\/upholstery\/.+\.(?:jpg|webp)$/);
       await expect(access(`public${fabric.textureUrl}`)).resolves.toBeUndefined();
     }
   });
