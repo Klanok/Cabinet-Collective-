@@ -13,6 +13,7 @@ import {
   radiusDefaultOptions,
 } from '../../core/model/cabinet.ts';
 import { panelExtent } from '../../core/model/panel.ts';
+import { actualThicknessOf, findSheet } from '../../core/model/material.ts';
 import type { Project } from '../../core/model/project.ts';
 import { wallLength } from '../../core/model/room.ts';
 import { type WallAnchor, wallAnchorOf } from '../../core/project/wallPlacement.ts';
@@ -399,6 +400,7 @@ export function Inspector({
   const isTall = cabinet.typeId === 'tall';
   const isCustom = cabinet.typeId === 'custom';
   const isRadiusEnd = cabinet.typeId === 'radius-end';
+  const isPanel = cabinet.typeId === 'panel';
   const resolvedSkinMaterialId = cabinet.materials.skin ?? project.defaults.skinMaterialId;
   const usesLegacyBendyPly =
     (isRadiusEnd || isRadiused(cabinet.options)) && resolvedSkinMaterialId === 'bendy-ply-3';
@@ -417,8 +419,21 @@ export function Inspector({
     project.materials.edgeBands.find((b) => b.id === id)?.decor ?? id;
   const nameOfStyle = (id: string) => project.doorStyles.find((s) => s.id === id)?.name ?? id;
 
-  const setMaterial = (patch: Partial<Cabinet['materials']>) =>
-    onUpdate(cabinet.id, { materials: { ...cabinet.materials, ...patch } });
+  const setMaterial = (patch: Partial<Cabinet['materials']>) => {
+    // `depth` is the plan footprint used by wall snapping. For a standalone panel it mirrors
+    // the selected board's actual thickness; it is never an independently editable dimension.
+    const depth =
+      isPanel && Object.hasOwn(patch, 'carcass')
+        ? actualThicknessOf(
+            findSheet(project.materials, patch.carcass ?? project.defaults.carcassMaterialId),
+          )
+        : undefined;
+    const update: Partial<Cabinet> = {
+      materials: { ...cabinet.materials, ...patch },
+      ...(depth === undefined ? {} : { depth }),
+    };
+    onUpdate(cabinet.id, update);
+  };
 
   /*
    * Applied end panels. Stored as a list of named ends, so ticking one adds it and clearing one
@@ -501,14 +516,16 @@ export function Inspector({
               step={50}
               onChange={(n) => onUpdate(cabinet.id, { width: mm(n) })}
             />
-            <NumberField
-              label="Depth"
-              value={cabinet.depth}
-              min={100}
-              max={900}
-              step={10}
-              onChange={(n) => onUpdate(cabinet.id, { depth: mm(n) })}
-            />
+            {!isPanel && (
+              <NumberField
+                label="Depth"
+                value={cabinet.depth}
+                min={100}
+                max={900}
+                step={10}
+                onChange={(n) => onUpdate(cabinet.id, { depth: mm(n) })}
+              />
+            )}
           </>
         )}
         <NumberField
@@ -531,8 +548,8 @@ export function Inspector({
         />
       </div>
 
-      <div className="subhead">Configuration</div>
-      <div className="fields">
+      {!isPanel && <div className="subhead">Configuration</div>}
+      {!isPanel && <div className="fields">
         {/*
           A radiused end has no doors and no shelves — it is a closed curved feature, and the
           point of it is the outside. Offering the controls anyway would let somebody set a
@@ -807,7 +824,7 @@ export function Inspector({
             <span>{label}</span>
           </label>
         ))}
-      </div>
+      </div>}
 
       {warnings.length > 0 && (
         <ul className="warnings">
@@ -845,12 +862,19 @@ export function Inspector({
       <div className="subhead">Finish</div>
       <div className="fields">
         <OverridePicker
-          label="Carcass"
+          label={isPanel ? 'Panel material' : 'Carcass'}
           options={sheetOptions}
           value={cabinet.materials.carcass}
           defaultLabel={nameOfSheet(project.defaults.carcassMaterialId)}
           onChange={(carcass) => setMaterial({ carcass })}
         />
+        {isPanel && (
+          <p className="note subtle">
+            Panel thickness comes from the selected sheet material. This first version keeps the
+            grain vertical and bands all four edges.
+          </p>
+        )}
+        {!isPanel && <>
         <OverridePicker
           label="Back"
           options={sheetOptions}
@@ -894,6 +918,7 @@ export function Inspector({
             </button>
           </div>
         )}
+        </>}
         <OverridePicker
           label="Edging"
           options={bandOptions}

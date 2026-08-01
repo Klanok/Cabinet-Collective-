@@ -137,12 +137,13 @@ export const snapToWall = (
   x: Mm,
   z: Mm,
   maxGap: Mm,
+  effectiveDepth: Mm = cabinet.depth,
 ): WallSnap | null => {
   const { c, s } = yawCosSin(cabinet.placement.yawDeg);
   // Where the middle of the cabinet lands if it moves to (x, z) without turning.
   const centre = {
-    x: x + (cabinet.width / 2) * c + (cabinet.depth / 2) * s,
-    z: z - (cabinet.width / 2) * s + (cabinet.depth / 2) * c,
+    x: x + (cabinet.width / 2) * c + (effectiveDepth / 2) * s,
+    z: z - (cabinet.width / 2) * s + (effectiveDepth / 2) * c,
   };
 
   let best: WallSnap | null = null;
@@ -161,7 +162,7 @@ export const snapToWall = (
     if (centreOffset < 0) continue;
     // Standing flush, the centre sits half a carcass depth in front of the face. A negative
     // gap means the cabinet is currently buried in the wall, which still wants snapping out.
-    const gap = centreOffset - cabinet.depth / 2;
+    const gap = centreOffset - effectiveDepth / 2;
     if (gap > maxGap) continue;
 
     const alongCentre = dx * d.x + dz * d.y;

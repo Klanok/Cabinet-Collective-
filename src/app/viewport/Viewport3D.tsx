@@ -249,6 +249,15 @@ function Scene({
         const materialId = candidate.materials.door ?? project.defaults.doorMaterialId;
         return actualThicknessOf(findSheet(project.materials, materialId));
       };
+      const effectiveDepth =
+        cabinet.typeId === 'panel'
+          ? actualThicknessOf(
+              findSheet(
+                project.materials,
+                cabinet.materials.carcass ?? project.defaults.carcassMaterialId,
+              ),
+            )
+          : cabinet.depth;
       const neighbour = snapToNeighbour(
         project.cabinets,
         cabinet,
@@ -258,7 +267,8 @@ function Scene({
         appliedEndThickness,
       );
       const placement =
-        neighbour?.placement ?? snapToWall(project.room, cabinet, x, z, WALL_SNAP_GAP)?.placement;
+        neighbour?.placement ??
+        snapToWall(project.room, cabinet, x, z, WALL_SNAP_GAP, effectiveDepth)?.placement;
 
       if (placement) {
         onMoveCabinet(cabinetId, placement.anchor.x, placement.anchor.z, placement.yawDeg);
@@ -270,6 +280,7 @@ function Scene({
       onMoveCabinet,
       project.cabinets,
       project.defaults.doorMaterialId,
+      project.defaults.carcassMaterialId,
       project.materials,
       project.room,
     ],

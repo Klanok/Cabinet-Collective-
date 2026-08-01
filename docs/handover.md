@@ -1469,9 +1469,9 @@ typing a rounded literal.
   plate sizes and price on an already quoted job. This is why an older job can still show and cut
   3mm while a genuinely new job uses 8mm. **The cabinet warning and confirmed one-click upgrade are
   now done:** a legacy curve says that its former radii, skin lengths and price will change, and the
-  old selection remains until the user accepts. What remains is the standards-level half: warn and
-  offer the same explicit upgrade in saved shop standards, and verify that starting a job from old
-  standards does not quietly keep creating new 3mm jobs without that warning. A future refinement
+  old selection remains until the user accepts. **The standards-level half is now done too:** the
+  Materials screen identifies a legacy 3mm job or shop default and offers an explicit switch to
+  8mm, while leaving existing quoted geometry unchanged until that button is used. A future refinement
   can show the exact before/after dimensions and price rather than naming what will change.
 - ~~**Nesting doesn't understand a curve.**~~ **Half of this was a misreading and is now
   corrected.** A radiused shelf reserving the rectangle it fits inside is not a gap for a *saw*, it
@@ -1557,15 +1557,16 @@ speculatively.
 
 ### 5.4 Smaller things noted but not done
 
-- **Standalone panels as a cabinet type.** Let the user place an individual rectangular panel in
-  the room as a first-class unit, with editable length/width, sheet material, grain and edge
-  banding. **First version:** its thickness is the selected sheet material's actual thickness, the
+- **Standalone panels as a cabinet type — first version shipped.** The user can place an individual
+  rectangular panel in the room as a first-class unit, edit its face width/height and select its
+  sheet material. Its thickness is the selected sheet material's actual thickness, the
   same single source of truth used by every generated cabinet part; independently typed thickness,
-  laminations and adjustable/build-up versions are later extensions. A standalone panel must snap
-  flush to walls, cabinet carcasses and applied-end outer faces. It must flow through the same panel
+  laminations and adjustable/build-up versions are later extensions. It snaps flush to walls,
+  cabinet carcasses and applied-end outer faces. It flows through the same panel
   record, viewport, cutlist, nesting, costing and CAM paths as generated cabinet parts rather than
   becoming a separate drawing-only object. This is for fillers, scribes, loose ends, backing pieces
-  and other job panels that do not belong to a carcass.
+  and other job panels that do not belong to a carcass. This first version is vertical-grain and
+  bands all four edges; editable grain and per-edge banding are the next controls, not hidden data.
 - **Banquette seating with realistic upholstery.** Add a banquette unit that can begin as a
   configurable cabinet carcass with seat and optional back cushions, then grow into corner and run
   arrangements. Record cushion width, depth, finished thickness, back height/angle and clearances
