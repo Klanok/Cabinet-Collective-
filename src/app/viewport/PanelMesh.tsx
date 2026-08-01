@@ -92,6 +92,15 @@ interface Props {
 }
 
 export function PanelMesh({ panel, thickness, colour: boardColour, texture, texturePlacement, selected, onSelect, onGrab, wireframe = false }: Props) {
+  const displayTexture = useMemo(() => texture ? {
+    ...texture,
+    url: bundledTextureUrl(texture.url),
+    // All currently bundled woodgrains are supplier full-sheet designs. Override old material
+    // snapshots that still describe the former 1200mm square swatches.
+    ...(bundledTextureUrl(texture.url).startsWith('/materials/board/')
+      ? { repeatLength: mm(3600), repeatWidth: mm(1800) }
+      : {}),
+  } : undefined, [texture]);
   /*
    * A routed front is drawn as the board that is actually left: a slab of the reduced
    * thickness, with the border standing back up to full thickness around it. So the recess is
@@ -120,7 +129,7 @@ export function PanelMesh({ panel, thickness, colour: boardColour, texture, text
     const g = new BufferGeometry();
     g.setAttribute('position', new BufferAttribute(mesh.positions, 3));
     g.setAttribute('normal', new BufferAttribute(mesh.normals, 3));
-    if (texture) {
+    if (displayTexture) {
       const uv = new Float32Array(mesh.uvs.length);
       for (let i = 0; i < mesh.uvs.length; i += 2) {
         const localX = mesh.uvs[i]!;
@@ -132,12 +141,12 @@ export function PanelMesh({ panel, thickness, colour: boardColour, texture, text
         // Separate purchased sheets should not all begin on the identical pixel of a swatch.
         // The deterministic offset keeps the view stable while representing another sheet.
         const sheetOffset = texturePlacement ? (texturePlacement.sheetIndex - 1) * 0.371 : 0;
-        const u = texture.grainAxis === 'u'
-          ? sheetX / texture.repeatLength + sheetOffset
-          : sheetY / texture.repeatWidth + sheetOffset;
-        const v = texture.grainAxis === 'v'
-          ? sheetX / texture.repeatLength + sheetOffset
-          : sheetY / texture.repeatWidth + sheetOffset;
+        const u = displayTexture.grainAxis === 'u'
+          ? sheetX / displayTexture.repeatLength + sheetOffset
+          : sheetY / displayTexture.repeatWidth + sheetOffset;
+        const v = displayTexture.grainAxis === 'v'
+          ? sheetX / displayTexture.repeatLength + sheetOffset
+          : sheetY / displayTexture.repeatWidth + sheetOffset;
         uv[i] = u;
         uv[i + 1] = v;
       }
@@ -145,7 +154,7 @@ export function PanelMesh({ panel, thickness, colour: boardColour, texture, text
     }
     g.setIndex(new BufferAttribute(mesh.indices, 1));
     return g;
-  }, [panel.profile, panel.grain, bodyThickness, panel.forming, texture, texturePlacement]);
+  }, [panel.profile, panel.grain, bodyThickness, panel.forming, displayTexture, texturePlacement]);
 
   const matrix: Matrix4 = useMemo(() => panelMatrix(panel.placement), [panel.placement]);
 
@@ -173,7 +182,7 @@ export function PanelMesh({ panel, thickness, colour: boardColour, texture, text
       >
         <BoardSurface
           colour={colour}
-          textureUrl={texture ? bundledTextureUrl(texture.url) : undefined}
+          textureUrl={displayTexture?.url}
           transparent={wireframe || isFront}
           opacity={wireframe ? 0 : isFront ? 0.86 : 1}
           depthWrite={!wireframe}

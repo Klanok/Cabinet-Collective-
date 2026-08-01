@@ -133,8 +133,8 @@ export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
     colour: '#b0895d',
     texture: {
       url: '/materials/board/sepia-oak.jpg',
-      repeatLength: mm(1200),
-      repeatWidth: mm(1200),
+      repeatLength: mm(3600),
+      repeatWidth: mm(1800),
       grainAxis: 'v',
       sourceUrl: 'https://www.polytec.com.au/colour/sepia-oak/',
     },
@@ -152,8 +152,8 @@ export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
     colour: '#7a5a42',
     texture: {
       url: '/materials/board/notaio-walnut.jpg',
-      repeatLength: mm(1200),
-      repeatWidth: mm(1200),
+      repeatLength: mm(3600),
+      repeatWidth: mm(1800),
       grainAxis: 'v',
       sourceUrl: 'https://www.polytec.com.au/colour/notaio-walnut/',
     },
@@ -171,7 +171,7 @@ export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
     colour: '#9b8064',
     texture: {
       url: '/materials/board/boston-oak.jpg',
-      repeatLength: mm(1200), repeatWidth: mm(1200), grainAxis: 'v',
+      repeatLength: mm(3600), repeatWidth: mm(1800), grainAxis: 'v',
       sourceUrl: 'https://www.polytec.com.au/colour/boston-oak/',
     },
     decorFaces: 2,
@@ -188,7 +188,7 @@ export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
     colour: '#b69c78',
     texture: {
       url: '/materials/board/prime-oak.jpg',
-      repeatLength: mm(1200), repeatWidth: mm(1200), grainAxis: 'v',
+      repeatLength: mm(3600), repeatWidth: mm(1800), grainAxis: 'v',
       sourceUrl: 'https://www.polytec.com.au/colour/prime-oak/',
     },
     decorFaces: 2,
