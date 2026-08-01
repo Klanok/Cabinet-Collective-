@@ -466,6 +466,16 @@ export function Inspector({
       (merged.carcassRadius ?? 0) > 0 &&
       !(corner !== undefined && carcassRadius > 0);
     onUpdateOptions(cabinet.id, turningOn ? { ...radiusDefaultOptions(merged), ...patch } : patch);
+    // A job created from old shop standards can still carry the former 3mm default. Starting a
+    // new radius is the safe point to correct that cabinet: existing radiused work is untouched,
+    // while newly created curved work uses the shop's current 8mm bendy ply.
+    if (
+      turningOn &&
+      resolvedSkinMaterialId === 'bendy-ply-3' &&
+      project.materials.sheets.some((material) => material.id === 'bendy-ply-8')
+    ) {
+      setMaterial({ skin: 'bendy-ply-8' });
+    }
   };
 
   return (

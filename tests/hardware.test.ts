@@ -703,6 +703,46 @@ describe('an older job coming forward', () => {
     const migrated = migrateProject({ ...asV8(kitchen), hardware: mine });
     expect(migrated.hardware.hingeSystems[0]!.cupEndSetback).toBe(112);
   });
+
+  it('adds verified MERIVOBOX heights to an existing job without changing its selection', () => {
+    const oldMerivobox = {
+      ...MERIVOBOX,
+      sideHeights: MERIVOBOX.sideHeights.filter((height) => height.code === 'M'),
+    };
+    const migrated = migrateProject({
+      ...kitchen,
+      schemaVersion: 16,
+      hardware: { ...kitchen.hardware, runnerSystems: [oldMerivobox] },
+      defaults: { ...kitchen.defaults, drawerSideHeightCode: 'M' },
+    });
+
+    expect(migrated.hardware.runnerSystems[0]!.sideHeights.map((height) => height.code)).toEqual([
+      'N',
+      'M',
+      'K',
+    ]);
+    expect(migrated.defaults.drawerSideHeightCode).toBe('M');
+  });
+
+  it('adds the same heights to saved shop standards for future jobs', () => {
+    const oldMerivobox = {
+      ...MERIVOBOX,
+      sideHeights: MERIVOBOX.sideHeights.filter((height) => height.code === 'M'),
+    };
+    const migrated = migrateStandards({
+      ...AU_SHOP_STANDARDS,
+      version: 12,
+      hardware: { ...AU_SHOP_STANDARDS.hardware, runnerSystems: [oldMerivobox] },
+      defaults: { ...AU_SHOP_STANDARDS.defaults, skinMaterialId: 'bendy-ply-3' },
+    });
+
+    expect(migrated.hardware.runnerSystems[0]!.sideHeights.map((height) => height.code)).toEqual([
+      'N',
+      'M',
+      'K',
+    ]);
+    expect(migrated.defaults.skinMaterialId).toBe('bendy-ply-8');
+  });
 });
 
 describe('nothing that existed before Phase 2 has moved', () => {

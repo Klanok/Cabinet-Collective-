@@ -20,7 +20,11 @@ import {
   withLadderKick,
   withSystemHoles,
 } from './construction.ts';
-import { type HardwareLibrary, withProfileFixingPositions } from './hardware.ts';
+import {
+  type HardwareLibrary,
+  withProfileFixingPositions,
+  withShippedSideHeights,
+} from './hardware.ts';
 import { type MaterialLibrary, withResolvedColours } from './material.ts';
 import type { Room } from './room.ts';
 import { type DoorStyle, DEFAULT_DOOR_STYLES, PLAIN_SLAB_STYLE } from '../standards/doorStyles.ts';
@@ -32,7 +36,7 @@ import {
 } from '../library/blum.ts';
 import { AU_BENCHTOP_MATERIALS, AU_SHEET_MATERIALS } from '../library/materials.au.ts';
 
-export const CURRENT_SCHEMA_VERSION = 16 as const;
+export const CURRENT_SCHEMA_VERSION = 17 as const;
 
 /**
  * The bendy ply an older job is given when it is migrated forward. It has no curved parts in
@@ -630,6 +634,23 @@ const migrateV15toV16 = (raw: Record<string, unknown>): Record<string, unknown> 
   };
 };
 
+/** v16 → v17: existing jobs gain the verified MERIVOBOX N, M and K choices. */
+const migrateV16toV17 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const hardware = raw.hardware as Record<string, unknown> | undefined;
+  if (!hardware) return { ...raw, schemaVersion: 17 };
+  const systems = (hardware.runnerSystems as Record<string, unknown>[] | undefined) ?? [];
+  return {
+    ...raw,
+    schemaVersion: 17,
+    hardware: {
+      ...hardware,
+      runnerSystems: systems.map((system) =>
+        withShippedSideHeights(system, BLUM_HARDWARE_LIBRARY.runnerSystems),
+      ),
+    },
+  };
+};
+
 /**
  * Load a project from stored JSON, migrating older schema versions forward.
  *
@@ -666,6 +687,7 @@ export const migrateProject = (raw: unknown): Project => {
   if (data.schemaVersion === 13) data = migrateV13toV14(data);
   if (data.schemaVersion === 14) data = migrateV14toV15(data);
   if (data.schemaVersion === 15) data = migrateV15toV16(data);
+  if (data.schemaVersion === 16) data = migrateV16toV17(data);
 
   if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`migrateProject: could not migrate schema version ${String(version)}`);

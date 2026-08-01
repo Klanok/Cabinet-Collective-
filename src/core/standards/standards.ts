@@ -12,7 +12,11 @@
  */
 
 import { type MaterialLibrary, actualThicknessOf, withResolvedColours } from '../model/material.ts';
-import { type HardwareLibrary, withProfileFixingPositions } from '../model/hardware.ts';
+import {
+  type HardwareLibrary,
+  withProfileFixingPositions,
+  withShippedSideHeights,
+} from '../model/hardware.ts';
 import type { ConstructionMethod } from '../model/construction.ts';
 import {
   DEFAULT_NESTING_SETTINGS,
@@ -45,7 +49,7 @@ import {
   DEFAULT_RUNNER_SYSTEM_ID,
 } from '../library/blum.ts';
 
-export const CURRENT_STANDARDS_VERSION = 12 as const;
+export const CURRENT_STANDARDS_VERSION = 13 as const;
 
 export interface ShopStandards {
   readonly version: typeof CURRENT_STANDARDS_VERSION;
@@ -357,6 +361,7 @@ export const migrateStandards = (raw: unknown): ShopStandards => {
   if (data.version === 9) data = migrateStandardsV9toV10(data);
   if (data.version === 10) data = migrateStandardsV10toV11(data);
   if (data.version === 11) data = migrateStandardsV11toV12(data);
+  if (data.version === 12) data = migrateStandardsV12toV13(data);
 
   if (data.version !== CURRENT_STANDARDS_VERSION) {
     throw new Error(`migrateStandards: could not migrate version ${String(version)}`);
@@ -543,6 +548,32 @@ const migrateStandardsV11toV12 = (raw: Record<string, unknown>): Record<string, 
       ...hardware,
       runnerSystems: systems.map((s) =>
         withProfileFixingPositions(s, BLUM_HARDWARE_LIBRARY.runnerSystems),
+      ),
+    },
+  };
+};
+
+/** Standards v12 → v13: new jobs inherit the verified MERIVOBOX N, M and K choices. */
+const migrateStandardsV12toV13 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const hardware = raw.hardware as Record<string, unknown> | undefined;
+  const defaults = (raw.defaults as Record<string, unknown> | undefined) ?? {};
+  const upgradedDefaults = {
+    ...defaults,
+    // Standards describe future jobs, not an already quoted cabinet. Keeping the legacy default
+    // here would keep creating brand-new 3mm radius work indefinitely.
+    skinMaterialId:
+      defaults.skinMaterialId === 'bendy-ply-3' ? 'bendy-ply-8' : defaults.skinMaterialId,
+  };
+  if (!hardware) return { ...raw, version: 13, defaults: upgradedDefaults };
+  const systems = (hardware.runnerSystems as Record<string, unknown>[] | undefined) ?? [];
+  return {
+    ...raw,
+    version: 13,
+    defaults: upgradedDefaults,
+    hardware: {
+      ...hardware,
+      runnerSystems: systems.map((system) =>
+        withShippedSideHeights(system, BLUM_HARDWARE_LIBRARY.runnerSystems),
       ),
     },
   };
