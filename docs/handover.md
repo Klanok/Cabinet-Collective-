@@ -1504,6 +1504,10 @@ runner and CLIP top BLUMOTION the standard hinge. What remains:
 - **Hardware fitting time on the quote.** A `LabourRates` field when there is a figure for it.
 - **Load class.** Only the 40kg MERIVOBOX is shipped; the 70kg exists and is another entry, but
   choosing between them properly means knowing what goes in the drawer, which the model doesn't.
+- **The full MERIVOBOX height range.** Only M height is currently present, so the Box height picker
+  has nothing else to offer. Add the required K, N and taller gallery/BOXCAP configurations from
+  verified Blum planning data, including each profile height and wooden-back cut height. Keep the
+  configurations distinct rather than treating every tall drawer as the same box.
 - **Door styles touch this only lightly**, as predicted: a thicker front shifts nothing here,
   because the cup depth is measured into the board from its own face. Nothing to design for.
 
@@ -1541,6 +1545,16 @@ speculatively.
 
 ### 5.4 Smaller things noted but not done
 
+- **Standalone panels as a cabinet type.** Let the user place an individual panel in the room as a
+  first-class unit, with editable width, height, depth/thickness, material, grain and edge banding.
+  It must flow through the same panel record, viewport, cutlist, nesting, costing and CAM paths as
+  generated cabinet parts rather than becoming a separate drawing-only object. This is for fillers,
+  scribes, loose ends, backing pieces and other job panels that do not belong to a carcass.
+- **Cabinets must snap to applied ends as well as cabinet carcasses.** An applied end sits outboard
+  of the cabinet width, so the neighbour snap target must use the applied end's outer face when one
+  is present. Snapping beside that cabinet should leave no overlap and no board-thickness gap, on
+  either hand and on rotated wall runs. Keep the existing carcass-edge target when that end has no
+  applied panel.
 - ~~Cabinets snap to a wall but not to each other.~~ **Done.** `snapToNeighbour` in
   `project/wallPlacement.ts`, tried before the wall snap and winning within 60mm. It resolves both
   cabinets into the **run's own frame** before comparing, which is the lesson the benchtop
