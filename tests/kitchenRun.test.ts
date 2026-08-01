@@ -210,7 +210,7 @@ describe('the run costs out', () => {
   it('needs more than one sheet of carcass material', () => {
     const c = costProject(kitchen);
     const carcass = c.byMaterial.find((m) => m.materialId === 'hmr-white-16')!;
-    expect(carcass.estimatedSheets).toBeGreaterThan(1);
+    expect(carcass.sheets).toBeGreaterThan(1);
     expect(carcass.panelCount).toBeGreaterThan(20);
   });
 

@@ -730,13 +730,33 @@ function CostingEditor({
         onChange={(n) => onChange({ marginPercent: n })}
       />
       <NumberRow
-        label="Sheet wastage"
-        hint="Offcut allowance until Phase 3 nesting gives a real count"
-        value={Math.round(settings.sheetWastageFactor * 100)}
-        suffix="%"
+        label="Saw kerf"
+        hint="What the blade takes out on every cut. A router nest uses the cutter diameter."
+        value={settings.nesting.kerf}
+        suffix="mm"
         min={0}
-        max={60}
-        onChange={(n) => onChange({ sheetWastageFactor: n / 100 })}
+        max={20}
+        step={0.1}
+        onChange={(n) => onChange({ nesting: { ...settings.nesting, kerf: mm(n) } })}
+      />
+      <NumberRow
+        label="Sheet edge trim"
+        hint="Taken off each edge before anything is cut. Leave at 0 if you don't trim."
+        value={settings.nesting.sheetEdgeTrim}
+        suffix="mm"
+        min={0}
+        max={100}
+        onChange={(n) => onChange({ nesting: { ...settings.nesting, sheetEdgeTrim: mm(n) } })}
+      />
+      <NumberRow
+        label="Smallest useful offcut"
+        hint="Reporting only — nothing is cut from an offcut. Measured on its shorter side."
+        value={settings.nesting.usableOffcutMin}
+        suffix="mm"
+        min={0}
+        max={1200}
+        step={50}
+        onChange={(n) => onChange({ nesting: { ...settings.nesting, usableOffcutMin: mm(n) } })}
       />
       <NumberRow
         label="Labour rate"

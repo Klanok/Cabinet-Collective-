@@ -1,10 +1,10 @@
 /**
- * CSV export — the cutlist, the hardware order, and the drilling.
+ * CSV export — the cutlist, the hardware order, the drilling, and the nest.
  *
- * Three sheets rather than one, because they go to three different places: the cutlist to the saw
- * or the nester, the hardware list to the supplier, and the drilling to whoever is boring the
- * carcasses. Putting them in one file would mean one of the three always having to be edited before
- * it could be used.
+ * Separate files rather than one, because they go to different places: the cutlist to the saw or
+ * the nester, the hardware list to the supplier, the drilling to whoever is boring the carcasses,
+ * and the nest to whoever is standing at the panel saw. Putting them in one file would mean one of
+ * them always having to be edited before it could be used.
  *
  * All of this is pure string building in `src/core`, so it runs and is tested in Node with no
  * browser involved. The app turns the string into a download; nothing about the format lives there.
@@ -21,6 +21,7 @@ import type { Project } from '../model/project.ts';
 import { requiresFlip } from '../model/feature.ts';
 import { buildProject } from '../rules/build.ts';
 import { type HardwareBomLine, buildHardwareBom } from '../hardware/bom.ts';
+import { type ProjectNest, nestProject } from '../nest/nest.ts';
 import { type CutlistLine, buildCutlist } from './cutlist.ts';
 
 /**
@@ -152,6 +153,114 @@ export const drillingCsv = (project: Project): string => {
 
   return csv([
     ['Cabinet', 'Part', 'Purpose', 'Face', 'Turns over', 'X', 'Y', 'Diameter', 'Depth', 'Feature'],
+    ...rows,
+  ]);
+};
+
+/**
+ * The nest: every part, on the sheet it comes off, at the corner it starts from.
+ *
+ * `X` and `Y` are the near corner of the blank measured from the corner of the **usable** area of
+ * the sheet, so a job with an edge trim set has its coordinates measured from where the first cut
+ * lands rather than from the raw sheet edge. `Turned` says the part is laid across the sheet rather
+ * than along it, which is the column to check on a grained board — and on one, it is a column that
+ * should never say yes and no in the same material.
+ */
+export const nestCsv = (project: Project, nest: ProjectNest = nestProject(project)): string => {
+  const rows: (string | number | undefined)[][] = [];
+
+  for (const material of nest.byMaterial) {
+    const byId = new Map(material.parts.map((p) => [p.panelId, p]));
+    for (const sheet of material.sheets) {
+      for (const placement of sheet.placements) {
+        const part = byId.get(placement.partId)!;
+        rows.push([
+          material.label,
+          `${material.sheet.length}×${material.sheet.width}`,
+          sheet.index,
+          part.name,
+          part.ownerName,
+          round1(placement.at.x),
+          round1(placement.at.y),
+          round1(placement.at.length),
+          round1(placement.at.width),
+          placement.orientation === 'turned' ? 'yes' : 'no',
+        ]);
+      }
+    }
+    // Listed even though they are on no sheet — a part that fell out of the nest must not fall out
+    // of the paperwork as well.
+    for (const part of material.oversize) {
+      rows.push([
+        material.label,
+        `${material.sheet.length}×${material.sheet.width}`,
+        'NOT NESTED',
+        part.name,
+        part.ownerName,
+        '',
+        '',
+        round1(part.length),
+        round1(part.width),
+        '',
+      ]);
+    }
+  }
+
+  return csv([
+    ['Material', 'Sheet size', 'Sheet', 'Part', 'For', 'X', 'Y', 'Length', 'Width', 'Turned'],
+    ...rows,
+  ]);
+};
+
+/**
+ * The cut sequence — what to do at the saw, in order.
+ *
+ * One row per cut. `Piece` is what goes on the bench and `At` is where the blade lands on it,
+ * measured in sheet coordinates rather than from the edge of the piece, because that is what the
+ * fence is set to. Every cut runs the full span of its piece; that is what makes it a cut a panel
+ * saw can make, and `replayCuts` in `nest/guillotine.ts` is the check that it really does.
+ *
+ * `Stage` is how many cuts deep the piece is. A shop whose saw is limited to two- or three-stage
+ * cutting wants to look at that column before starting.
+ */
+export const cutSequenceCsv = (
+  project: Project,
+  nest: ProjectNest = nestProject(project),
+): string => {
+  const rows: (string | number | undefined)[][] = [];
+
+  for (const material of nest.byMaterial) {
+    for (const sheet of material.sheets) {
+      for (const cut of sheet.cuts) {
+        rows.push([
+          material.label,
+          sheet.index,
+          cut.sequence,
+          cut.stage,
+          // Named for what the operator does, not for the axis: a cut at constant x runs across
+          // the sheet's length, and calling that "the X cut" is how somebody cuts it the wrong way.
+          cut.axis === 'x' ? 'across the length' : 'along the length',
+          round1(cut.at),
+          `${round1(cut.piece.length)}×${round1(cut.piece.width)}`,
+          round1(cut.piece.x),
+          round1(cut.piece.y),
+        ]);
+      }
+    }
+  }
+
+  return csv([
+    [
+      'Material',
+      'Sheet',
+      'Cut',
+      'Stage',
+      'Direction',
+      'At',
+      'Piece',
+      'Piece X',
+      'Piece Y',
+    ],
     ...rows,
   ]);
 };

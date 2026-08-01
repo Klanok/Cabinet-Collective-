@@ -4,9 +4,11 @@
  * Consumes exactly the `Panel` records the CAM layer will consume, so a quoted part and a cut
  * part are the same part by construction. There is no separate costing model to drift.
  *
- * Sheet cost is estimated from part area plus a yield allowance, because until Phase 3 nests
- * the job there is no honest sheet count. That estimate is labelled as such everywhere it
- * surfaces — a nested job will give a different, and higher-confidence, number.
+ * **Sheet cost is whole sheets, counted off a real nest** (`nest/nest.ts`). It used to be part
+ * area divided by an assumed yield, which was a guess and, worse, charged fractional sheets: the
+ * sample kitchen was billed 3.23 sheets' worth of money on a screen that said four beside it.
+ * Nobody sells a third of a sheet, so the job is now nested, the sheets are counted, and the
+ * leftover is reported as offcut rather than deducted from the price of board that was bought.
  */
 
 import { type Cents, type Mm2, mm2ToM2, mmToM, roundCents } from '../units.ts';
@@ -17,7 +19,6 @@ import {
   bestValueSheet,
   findEdgeBand,
   findSheet,
-  smallestSheetFitting,
 } from '../model/material.ts';
 import { type Panel, bandedEdgeCount, bandedLength, panelExtent, panelFootprint } from '../model/panel.ts';
 import type { GstMode, Project } from '../model/project.ts';
@@ -25,6 +26,7 @@ import { buildProject } from '../rules/build.ts';
 import { machinedFronts } from '../rules/frontStyle.ts';
 import { type HardwareBomLine, hardwareForCabinet } from '../hardware/bom.ts';
 import { buildRunUnits } from '../rules/runUnits.ts';
+import { type ProjectNest, nestProject } from '../nest/nest.ts';
 import { benchtopChargeTotal, benchtopCharges, benchtopProblems } from './benchtopCost.ts';
 import { effectiveCost, gstOnSale } from './gst.ts';
 
@@ -36,8 +38,17 @@ export interface PanelCost {
   readonly materialId: string;
   readonly lengthMm: number;
   readonly widthMm: number;
-  /** Bounding-box area — the sheet real estate the part consumes. */
+  /** Bounding-box area — the blank the nest has to find room for. */
   readonly footprintM2: number;
+  /**
+   * This part's share of the board bought for its material.
+   *
+   * A **share**, not a price: board is bought by the sheet, and which part pushed the job onto its
+   * fifth sheet is not a question with an answer. The shares are apportioned by blank area and sum
+   * to the material's real cost exactly — the rounding remainder is carried from part to part
+   * rather than dropped, so the column adds up to the total rather than to within a few cents of
+   * it. The authoritative figure is always the material's, in `byMaterial`.
+   */
   readonly sheetCost: Cents;
   readonly bandedLengthM: number;
   readonly edgeBandCost: Cents;
@@ -48,11 +59,14 @@ export interface MaterialSummary {
   readonly materialId: string;
   readonly label: string;
   readonly panelCount: number;
+  /** Blank area of every part cut from this material. */
   readonly footprintM2: number;
-  /** Area including the yield allowance — what actually has to be bought. */
-  readonly purchasedM2: number;
-  /** Estimated sheets. Replaced by a real count once Phase 3 nesting exists. */
-  readonly estimatedSheets: number;
+  /** What is bought: whole sheets, counted off the nest. */
+  readonly sheets: number;
+  readonly sheetLabel: string;
+  readonly boughtM2: number;
+  /** Blank area over bought area — measured, not assumed. */
+  readonly yield: number;
   readonly cost: Cents;
   readonly indicativePricing: boolean;
 }
@@ -60,6 +74,14 @@ export interface MaterialSummary {
 export interface CostBreakdown {
   readonly panels: readonly PanelCost[];
   readonly byMaterial: readonly MaterialSummary[];
+  /**
+   * The nest the sheet count came from.
+   *
+   * Carried on the breakdown rather than left for callers to compute, so the quote, the sheet
+   * order, the nest drawing and the cut sequence are all reading one nest. Nesting the job twice
+   * and comparing the numbers is the kind of thing that agrees until the day it doesn't.
+   */
+  readonly nest: ProjectNest;
 
   readonly sheetCost: Cents;
   readonly edgeBandCost: Cents;
@@ -124,40 +146,24 @@ export const sheetRatePerM2 = (material: SheetMaterial): number => {
   return best.priceExGst / mm2ToM2(best.length * best.width);
 };
 
-const materialLabel = (m: SheetMaterial): string =>
-  `${m.brand} ${m.decor} ${m.thickness}mm`;
-
 /**
- * Yield-adjusted area. `sheetWastageFactor` of 0.15 means 15% of a sheet is unusable, so the
- * area that has to be purchased is the part area divided by the usable 85%.
+ * One part, priced for everything except the board it is cut from.
+ *
+ * The board is deliberately missing here, and it is the whole shape of this phase: a part does
+ * not have a sheet cost of its own. Sheets are bought whole for a *material*, so the cost is
+ * resolved once the nest is known and shared back out in `apportionSheetCost`.
  */
-const withYield = (area: number, wastageFactor: number): number => {
-  const usable = 1 - wastageFactor;
-  if (usable <= 0) throw new Error(`sheetWastageFactor ${wastageFactor} leaves no usable sheet`);
-  return area / usable;
-};
-
 const costPanel = (
   panel: Panel,
   library: MaterialLibrary,
-  wastageFactor: number,
   mode: GstMode,
   warnings: string[],
-): PanelCost => {
+): Omit<PanelCost, 'sheetCost' | 'totalCost'> & { footprint: Mm2 } => {
   const material = findSheet(library, panel.materialId);
   const { length, width } = panelExtent(panel);
 
-  if (!smallestSheetFitting(material, length, width)) {
-    warnings.push(
-      `"${panel.name}" is ${Math.round(length)}×${Math.round(width)}mm — too big for any ` +
-        `${materialLabel(material)} sheet. It will need joining or a different material.`,
-    );
-  }
-
   const footprint: Mm2 = panelFootprint(panel);
   const footprintM2 = mm2ToM2(footprint);
-  const purchasedM2 = withYield(footprintM2, wastageFactor);
-  const sheetCost = effectiveCost(purchasedM2 * sheetRatePerM2(material), mode);
 
   const bandM = mmToM(bandedLength(panel));
   let edgeBandCost: Cents = 0;
@@ -185,43 +191,38 @@ const costPanel = (
     materialId: panel.materialId,
     lengthMm: length,
     widthMm: width,
+    footprint,
     footprintM2,
-    sheetCost,
     bandedLengthM: bandM,
     edgeBandCost,
-    totalCost: sheetCost + edgeBandCost,
   };
 };
 
-const summariseMaterials = (
-  panelCosts: readonly PanelCost[],
-  library: MaterialLibrary,
-  wastageFactor: number,
-): MaterialSummary[] => {
-  const byId = new Map<string, { count: number; footprintM2: number; cost: Cents }>();
-  panelCosts.forEach((pc) => {
-    const entry = byId.get(pc.materialId) ?? { count: 0, footprintM2: 0, cost: 0 };
-    entry.count += 1;
-    entry.footprintM2 += pc.footprintM2;
-    entry.cost += pc.sheetCost;
-    byId.set(pc.materialId, entry);
+/**
+ * Share a material's real sheet cost out across the parts cut from it, by blank area.
+ *
+ * The remainder is **carried**, not rounded away: each part's figure is the difference between two
+ * running totals, so the column sums to the material's cost exactly. Rounding each share on its own
+ * would leave the parts table a few cents off the quote, which is the sort of small disagreement
+ * that costs an afternoon to explain and cannot be defended when somebody finds it.
+ *
+ * A material whose parts all have zero area — nothing does, but the arithmetic has to survive it —
+ * shares the cost out evenly rather than dividing by nothing.
+ */
+const apportionSheetCost = (
+  parts: readonly { footprint: Mm2 }[],
+  total: Cents,
+): number[] => {
+  const areaTotal = parts.reduce((s, p) => s + p.footprint, 0);
+  let carried = 0;
+  let given = 0;
+  return parts.map((p, i) => {
+    carried += areaTotal > 0 ? p.footprint / areaTotal : 1 / parts.length;
+    const upTo = i === parts.length - 1 ? total : roundCents(carried * total);
+    const share = upTo - given;
+    given = upTo;
+    return share;
   });
-
-  return [...byId.entries()].map(([materialId, entry]) => {
-    const material = findSheet(library, materialId);
-    const best = bestValueSheet(material);
-    const purchasedM2 = withYield(entry.footprintM2, wastageFactor);
-    return {
-      materialId,
-      label: materialLabel(material),
-      panelCount: entry.count,
-      footprintM2: entry.footprintM2,
-      purchasedM2,
-      estimatedSheets: Math.ceil(purchasedM2 / mm2ToM2(best.length * best.width)),
-      cost: entry.cost,
-      indicativePricing: material.indicativePricing,
-    };
-  }).sort((a, b) => b.cost - a.cost);
 };
 
 export const costProject = (project: Project): CostBreakdown => {
@@ -238,11 +239,42 @@ export const costProject = (project: Project): CostBreakdown => {
 
   const { settings, materials: library } = project;
   const mode = settings.gstMode;
-  const wastage = settings.sheetWastageFactor;
 
-  const panelCosts = panels.map((p) => costPanel(p, library, wastage, mode, warnings));
+  /*
+   * The nest, and it is the only thing that decides how much board this job buys.
+   *
+   * It is run here rather than looked up, and carried on the breakdown afterwards, so the quote
+   * and the sheet order are one nest rather than two that agree until they don't. Its warnings —
+   * a part too big for any sheet — come with it, which is why costing no longer asks that question
+   * itself; two places testing whether a part fits is two places that can answer differently.
+   */
+  const nest = nestProject(project);
+  warnings.push(...nest.warnings);
 
-  const sheetCost = panelCosts.reduce((s, p) => s + p.sheetCost, 0);
+  const priced = panels.map((p) => costPanel(p, library, mode, warnings));
+
+  /*
+   * Board cost, per material, whole sheets. `effectiveCost` is applied to the material's total
+   * rather than to each share, because it is the sheet that is bought and the GST that is or isn't
+   * claimable is the GST on the sheet.
+   */
+  const sheetCostByMaterial = new Map<string, Cents>();
+  for (const m of nest.byMaterial) sheetCostByMaterial.set(m.materialId, effectiveCost(m.cost, mode));
+
+  const shareByPanel = new Map<string, Cents>();
+  for (const [materialId, total] of sheetCostByMaterial) {
+    const parts = priced.filter((p) => p.materialId === materialId);
+    const shares = apportionSheetCost(parts, total);
+    parts.forEach((p, i) => shareByPanel.set(p.panelId, shares[i]!));
+  }
+
+  const panelCosts: PanelCost[] = priced.map((p) => {
+    const { footprint: _blank, ...rest } = p;
+    const sheetCost = shareByPanel.get(p.panelId) ?? 0;
+    return { ...rest, sheetCost, totalCost: sheetCost + p.edgeBandCost };
+  });
+
+  const sheetCost = [...sheetCostByMaterial.values()].reduce((s, c) => s + c, 0);
   const edgeBandCost = panelCosts.reduce((s, p) => s + p.edgeBandCost, 0);
 
   /*
@@ -330,11 +362,25 @@ export const costProject = (project: Project): CostBreakdown => {
   const sellExGst = subtotalExGst + deliveryFee;
   const gst = gstOnSale(sellExGst, mode);
 
-  const byMaterial = summariseMaterials(panelCosts, library, wastage);
+  const byMaterial: MaterialSummary[] = nest.byMaterial
+    .map((m) => ({
+      materialId: m.materialId,
+      label: m.label,
+      panelCount: m.parts.length,
+      footprintM2: mm2ToM2(m.placedArea),
+      sheets: m.sheetCount,
+      sheetLabel: `${m.sheet.length}×${m.sheet.width}`,
+      boughtM2: mm2ToM2(m.boughtArea),
+      yield: m.yield,
+      cost: sheetCostByMaterial.get(m.materialId) ?? 0,
+      indicativePricing: m.indicativePricing,
+    }))
+    .sort((a, b) => b.cost - a.cost);
 
   return {
     panels: panelCosts,
     byMaterial,
+    nest,
     sheetCost,
     edgeBandCost,
     hardwareCost,

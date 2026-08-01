@@ -20,6 +20,26 @@ export const STOCK_TOOLS: readonly ToolProfile[] = [
   { id: 'vee-90', name: '90° vee', section: { kind: 'vee', includedAngleDeg: 90 } },
   { id: 'vee-60', name: '60° vee', section: { kind: 'vee', includedAngleDeg: 60 } },
   { id: 'round-6', name: '6mm round nose', section: { kind: 'round', radius: mm(3) } },
+
+  /*
+   * ── Drills ──────────────────────────────────────────────────────────────────────────────
+   *
+   * A drill is a `ToolProfile` like any other, and a straight-sided one: what it leaves is a
+   * cylinder of its own diameter. Modelling it as anything else would mean CAM having two ways to
+   * ask "how wide is this cut", which is the thing this codebase exists not to do.
+   *
+   * The four sizes are the ones the hardware rules actually call for, and each traces to a real
+   * figure in `library/blum.ts` rather than being a catalogue. Adding a fifth means a job wanted a
+   * hole nobody has a bit for, and CAM says so by name rather than boring it with the nearest one.
+   */
+  { id: 'drill-3', name: '3mm drill', section: { kind: 'straight', diameter: mm(3) } },
+  { id: 'drill-5', name: '5mm drill', section: { kind: 'straight', diameter: mm(5) } },
+  { id: 'drill-8', name: '8mm drill', section: { kind: 'straight', diameter: mm(8) } },
+  {
+    id: 'drill-35',
+    name: '35mm hinge boring bit',
+    section: { kind: 'straight', diameter: mm(35) },
+  },
 ];
 
 /** The bit a pocket is cleared with when a style doesn't say. */

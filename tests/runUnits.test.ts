@@ -26,7 +26,7 @@ import {
   suggestedJoins,
 } from '../src/core/model/benchtop.ts';
 import { ribPositions } from '../src/core/model/kickBase.ts';
-import { migrateProject } from '../src/core/model/project.ts';
+import { CURRENT_SCHEMA_VERSION, migrateProject } from '../src/core/model/project.ts';
 import type { Project } from '../src/core/model/project.ts';
 import { benchtopRuns, kickBaseRuns } from '../src/core/project/runs.ts';
 import {
@@ -686,7 +686,8 @@ describe('a v9 job coming forward', () => {
    */
   it('arrives with no benchtops and no plinths', () => {
     const migrated = migrateProject(asV9(createSampleKitchen()));
-    expect(migrated.schemaVersion).toBe(10);
+    // Migrations chain, so a v9 file lands on whatever the current version is — not on 10.
+    expect(migrated.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
     expect(migrated.benchtops).toEqual([]);
     expect(migrated.kickBases).toEqual([]);
   });

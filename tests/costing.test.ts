@@ -174,12 +174,16 @@ describe('cost breakdown', () => {
     );
   });
 
-  it('estimates sheets with the yield allowance applied', () => {
+  it('buys whole sheets, counted off the nest, and reports the yield it achieved', () => {
     const c = costProject(project);
     for (const m of c.byMaterial) {
-      // 15% wastage: purchased area is part area ÷ 0.85.
-      expect(m.purchasedM2).toBeCloseTo(m.footprintM2 / 0.85, 6);
-      expect(m.estimatedSheets).toBeGreaterThanOrEqual(1);
+      expect(m.sheets).toBeGreaterThanOrEqual(1);
+      expect(Number.isInteger(m.sheets)).toBe(true);
+      // Bought area is whole sheets — never the part area with an allowance over it.
+      expect(m.boughtM2).toBeGreaterThan(m.footprintM2);
+      expect(m.yield).toBeCloseTo(m.footprintM2 / m.boughtM2, 9);
+      expect(m.yield).toBeGreaterThan(0);
+      expect(m.yield).toBeLessThanOrEqual(1);
     }
   });
 

@@ -6,7 +6,7 @@
  * scratch instead of each keeping a copy that can drift.
  */
 
-import type { Mm } from '../units.ts';
+import { type Mm, mm } from '../units.ts';
 import type { Benchtop } from './benchtop.ts';
 import type { Cabinet } from './cabinet.ts';
 import type { KickBase } from './kickBase.ts';
@@ -29,13 +29,38 @@ import {
 } from '../library/blum.ts';
 import { AU_BENCHTOP_MATERIALS } from '../library/materials.au.ts';
 
-export const CURRENT_SCHEMA_VERSION = 10 as const;
+export const CURRENT_SCHEMA_VERSION = 11 as const;
 
 /**
  * The bendy ply an older job is given when it is migrated forward. It has no curved parts in
  * it, so nothing is cut from this — it is there so the slot is never empty.
  */
 export const DEFAULT_SKIN_MATERIAL_ID = 'bendy-ply-3';
+
+/**
+ * What a job nests to until somebody says otherwise. See `NestingSettings` for why each is what
+ * it is. Defined here rather than in the AU library because the v10 → v11 migration needs the
+ * values, and that module imports this one for its types.
+ */
+export const DEFAULT_NESTING_SETTINGS: NestingSettings = {
+  /*
+   * **Router figures, not saw figures**, because this shop cuts nested sheets on a CNC.
+   *
+   * These shipped at 3.2 and 0 — a thin-kerf panel saw blade, and no edge trim — for one version,
+   * and they were the wrong defaults for a shop with a nesting machine. On a router the gap between
+   * parts has to be at least the cutter, or the toolpath separating two parts takes the difference
+   * off each of them; and the sheet edge has to be trimmed by at least the cutter's radius, or a
+   * part on the edge has to be cut from outside the sheet. `post/check.ts` refuses a program on
+   * either count, and the refusal was firing on the shipped defaults, which is a poor default.
+   *
+   * They cost nothing to change: the sample kitchen nests onto the same five sheets at 3.2/0, 6/6
+   * and 8/8. A shop that really is cutting on a panel saw sets the kerf back to its blade and the
+   * trim to zero, and gets a slightly tighter nest.
+   */
+  kerf: mm(6),
+  sheetEdgeTrim: mm(6),
+  usableOffcutMin: mm(300),
+};
 
 /**
  * GST treatment. These are genuinely different arithmetic, not a display toggle:
@@ -74,18 +99,53 @@ export interface LabourRates {
   readonly installFixedHours: number;
 }
 
+/**
+ * The three numbers a nest depends on that are the **shop's**, not the board's.
+ *
+ * A sheet size and a price belong to the material; how much your blade takes out and how much you
+ * trim off an edge belong to your saw, and they change what fits. They live here rather than on
+ * the material for the same reason the hinge drilling distance lives on the construction method
+ * rather than on the hinge: a product fact is the manufacturer's, a shop fact is yours.
+ */
+export interface NestingSettings {
+  /**
+   * How much width the blade removes on every cut.
+   *
+   * 3.2mm is a thin-kerf panel saw blade and is the shipped figure; a standard blade is nearer
+   * 4.4, and a job nested for a CNC router is nested to the **cutter** diameter, usually 6 or 8.
+   * Unlike the board-thickness figure in §4.1 this does *not* ship at zero, because zero is not a
+   * conservative default here — it is a claim that the saw removes no material, which would nest
+   * two parts into a space that only holds one.
+   */
+  readonly kerf: Mm;
+  /**
+   * Trimmed off each edge of a sheet before anything is cut from it.
+   *
+   * **Ships at zero**, and that is the honest default: a shop that does not trim is not trimming,
+   * and a guessed 10mm would quietly shrink every sheet in every job. Enter what your saw actually
+   * takes off to square a sheet up. Note it comes off all four edges — a shop that only
+   * straightens two reference edges is trimming half this and should say so.
+   */
+  readonly sheetEdgeTrim: Mm;
+  /**
+   * The smallest offcut worth putting back on the rack, measured on its shorter side.
+   *
+   * Reporting only. Nothing is cut from an offcut and nothing is priced off one — a nest that
+   * quietly consumed last job's leftovers would be a nest nobody could check against the stock
+   * actually in the shop. It is here so the board a job buys and does not use is visible as
+   * something you still have rather than as waste.
+   */
+  readonly usableOffcutMin: Mm;
+}
+
 export interface ProjectSettings {
   readonly gstMode: GstMode;
   /** Legal entity the job is quoted under — the thing that determines `gstMode`. */
   readonly entityName: string;
   /** Margin applied to cost to reach the sell price, as a percentage of cost. */
   readonly marginPercent: number;
-  /**
-   * Sheet-yield allowance used to turn part area into sheet cost before Phase 3 nesting can
-   * give a real sheet count. 0.15 means 15% of sheet area is assumed unusable.
-   * Phase 3 replaces this estimate with an actual nest.
-   */
-  readonly sheetWastageFactor: number;
+  /** Kerf, edge trim and the smallest offcut worth keeping. See `NestingSettings`. */
+  readonly nesting: NestingSettings;
   readonly labour: LabourRates;
   /**
    * Flat delivery charge, ex-GST.
@@ -473,6 +533,54 @@ const migrateV9toV10 = (raw: Record<string, unknown>): Record<string, unknown> =
 };
 
 /**
+ * v10 → v11. **The job is nested, and this is the second migration that changes what a job costs.**
+ *
+ * **No part moves.** Every panel a v10 job had comes out the same size, in the same place, with the
+ * same banding, the same features and the same hardware. Nesting reads the parts; it does not
+ * produce them, and nothing in the rule engine was touched to add it. That half of the rule is
+ * kept, and it is the half that protects a job on the saw.
+ *
+ * **What changes is the board.** `sheetWastageFactor` is gone, and with it the estimate that turned
+ * part area into sheet cost by dividing by an assumed yield. Two things were wrong with that number
+ * and only one of them was that it was a guess:
+ *
+ *   - It charged **fractional sheets.** The sample kitchen's 17.80m² of parts came to 20.94m² at a
+ *     15% allowance, which is 3.23 sheets of 3600×1800 — and the same screen said "~4 sheets"
+ *     beside it, because the count was rounded up and the money was not. Nobody sells a third of a
+ *     sheet. A shop buys whole ones, and the leftover goes on the rack whether or not the quote
+ *     admits it exists.
+ *   - It was **one allowance for every material and every part size.** A job of small parts and a
+ *     job with a 3000mm plinth rail in it wasted the same assumed proportion of every sheet.
+ *
+ * So a migrated job gets **dearer**, and the reason is that it was being charged for less board
+ * than it takes to cut. Leaving that under-quote in place to protect a number would be the worse
+ * outcome, which is the argument v9 made about the hardware and it has not got weaker. What the job
+ * gets in exchange is a nest it can be cut from and a yield figure that was measured rather than
+ * assumed — `tests/nesting.test.ts` asserts both halves separately, so nobody has to wonder whether
+ * the re-price was an accident.
+ *
+ * A shop that had tuned `sheetWastageFactor` to its own experience loses that setting, and should:
+ * it was a knob for guessing at a number that is now counted. What replaces it is `kerf` and
+ * `sheetEdgeTrim`, which are facts about the saw rather than a fudge factor over the outcome.
+ *
+ * The version bump does its usual job — an older build opening a v11 job would find no wastage
+ * factor, divide by an undefined and quote the sheet goods as `NaN`, and refusing the file is the
+ * honest failure.
+ */
+const migrateV10toV11 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const settings = (raw.settings as Record<string, unknown> | undefined) ?? {};
+  const { sheetWastageFactor: _dropped, ...rest } = settings;
+  return {
+    ...raw,
+    schemaVersion: 11,
+    settings: {
+      ...rest,
+      nesting: (rest.nesting as NestingSettings | undefined) ?? DEFAULT_NESTING_SETTINGS,
+    },
+  };
+};
+
+/**
  * Load a project from stored JSON, migrating older schema versions forward.
  *
  * Migrations run in sequence, so a v1 file loaded after several schema changes still arrives
@@ -502,6 +610,7 @@ export const migrateProject = (raw: unknown): Project => {
   if (data.schemaVersion === 7) data = migrateV7toV8(data);
   if (data.schemaVersion === 8) data = migrateV8toV9(data);
   if (data.schemaVersion === 9) data = migrateV9toV10(data);
+  if (data.schemaVersion === 10) data = migrateV10toV11(data);
 
   if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`migrateProject: could not migrate schema version ${String(version)}`);

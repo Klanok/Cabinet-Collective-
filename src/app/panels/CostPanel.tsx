@@ -84,15 +84,15 @@ export function CostPanel({ cost, settings, onUpdateSettings }: Props) {
               <td>{m.label}</td>
               <td className="num">{m.panelCount}</td>
               <td className="num">{m.footprintM2.toFixed(2)}</td>
-              <td className="num">~{m.estimatedSheets}</td>
+              <td className="num">{m.sheets}</td>
               <td className="num">{formatAud(m.cost)}</td>
             </tr>
           ))}
         </tbody>
       </table>
       <p className="note subtle">
-        Sheet counts are estimated from area with a yield allowance. Phase 3 nesting replaces
-        this with a real count.
+        Sheets are counted off the nest and charged whole, because that is how board is bought.
+        What is left over is on the Nest tab as offcut, not deducted here.
       </p>
 
       <div className="subhead">Breakdown</div>
