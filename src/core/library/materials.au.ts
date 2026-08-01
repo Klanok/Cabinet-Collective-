@@ -26,6 +26,7 @@ import type {
   SheetMaterial,
   SheetSize,
 } from '../model/material.ts';
+import { AU_UPHOLSTERY_MATERIALS } from './upholstery.au.ts';
 
 const sheet = (length: number, width: number, priceExGst: number): SheetSize => ({
   length: mm(length),
@@ -161,6 +162,40 @@ export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
     indicativePricing: true,
   },
   {
+    id: 'poly-boston-oak-18',
+    brand: 'Polytec',
+    decor: 'Boston Oak Woodmatt',
+    substrate: 'HMR-MDF',
+    thickness: mm(18),
+    grain: 'length',
+    colour: '#9b8064',
+    texture: {
+      url: 'https://www.polytec.com.au/img/products/960-960/boston-oak.jpg',
+      repeatLength: mm(1200), repeatWidth: mm(1200), grainAxis: 'v',
+      sourceUrl: 'https://www.polytec.com.au/colour/boston-oak/',
+    },
+    decorFaces: 2,
+    sheets: [AU_STANDARD(15_400)],
+    indicativePricing: true,
+  },
+  {
+    id: 'poly-prime-oak-16',
+    brand: 'Polytec',
+    decor: 'Prime Oak Woodmatt',
+    substrate: 'HMR-MDF',
+    thickness: mm(16),
+    grain: 'length',
+    colour: '#b69c78',
+    texture: {
+      url: 'https://www.polytec.com.au/img/products/960-960/prime-oak.jpg',
+      repeatLength: mm(1200), repeatWidth: mm(1200), grainAxis: 'v',
+      sourceUrl: 'https://www.polytec.com.au/colour/prime-oak/',
+    },
+    decorFaces: 2,
+    sheets: [AU_STANDARD(15_400), AU_LARGE(23_000)],
+    indicativePricing: true,
+  },
+  {
     id: 'lam-polar-white-16',
     brand: 'Laminex',
     decor: 'Polar White',
@@ -182,6 +217,40 @@ export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
     colour: '#e9e2d3',
     decorFaces: 2,
     sheets: [AU_LARGE(11_000)],
+    indicativePricing: true,
+  },
+  {
+    id: 'lam-rural-oak-16',
+    brand: 'Laminex',
+    decor: 'Rural Oak Natural',
+    substrate: 'HMR-MDF',
+    thickness: mm(16),
+    grain: 'length',
+    colour: '#9b7c5d',
+    texture: {
+      url: 'https://www.laminex.com.au/medias/LX-ColourCollection-Rural-Oak-RGB-FS-LR.jpg?context=bWFzdGVyfGltYWdlc3w2MDYwNzl8aW1hZ2UvanBlZ3xhVzFoWjJWekwyZzBaQzlvTmpBdmFEQXdMemc0TWpVMk1EVTBOVFU1TURJdWFuQm58M2VlMzgyYjdhZmNhN2Q1MjYxMzdlYWI3NGI0MGNiNjhjNDcwYzQ1MmUzN2M3NjFhZjI0OWIxMmY3NDg2M2E3OQ',
+      repeatLength: mm(3600), repeatWidth: mm(1800), grainAxis: 'v',
+      sourceUrl: 'https://www.laminex.com.au/products/rural-oak/Natural/p/AU1001713',
+    },
+    decorFaces: 2,
+    sheets: [AU_STANDARD(15_400)],
+    indicativePricing: true,
+  },
+  {
+    id: 'lam-classic-oak-16',
+    brand: 'Laminex',
+    decor: 'Classic Oak Natural',
+    substrate: 'HMR-MDF',
+    thickness: mm(16),
+    grain: 'length',
+    colour: '#aa8966',
+    texture: {
+      url: 'https://www.laminex.com.au/medias/LX-ColourCollection-Classic-oak-RGB-FS-HR.jpg?context=bWFzdGVyfGltYWdlc3w2NTA1NDJ8aW1hZ2UvanBlZ3xhVzFoWjJWekwyZ3lPUzlvT0RZdmFEQXdMemc0TWpVMU9EazROVGd6TXpRdWFuQm58NGIwNTJkOTc0OGE4YTI3NzljZGYwM2E3MGMzZDYxYmI0NWYwNWQxNjU3YzI3OGI1YjYyM2IzYzZjMjk0ZjY0MA',
+      repeatLength: mm(3600), repeatWidth: mm(1800), grainAxis: 'v',
+      sourceUrl: 'https://www.laminex.com.au/products/classic-oak/Natural/p/AU1003601',
+    },
+    decorFaces: 2,
+    sheets: [AU_STANDARD(15_400), AU_LARGE(23_000)],
     indicativePricing: true,
   },
 
@@ -477,6 +546,7 @@ export const AU_MATERIAL_LIBRARY: MaterialLibrary = {
   sheets: AU_SHEET_MATERIALS,
   edgeBands: AU_EDGE_BANDS,
   benchtops: AU_BENCHTOP_MATERIALS,
+  upholstery: AU_UPHOLSTERY_MATERIALS,
 };
 
 /** True when any material a quote depends on is still carrying placeholder pricing. */

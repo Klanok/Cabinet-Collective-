@@ -17,6 +17,7 @@ export type CabinetTypeId =
   | 'tall'
   | 'custom'
   | 'radius-end'
+  | 'banquette'
   /** One independently placed rectangular sheet part, rather than a carcass. */
   | 'panel'
   /** A gap in the run that an appliance fills. Produces no parts — see specs/applianceSpace.ts. */
@@ -102,6 +103,11 @@ export interface CabinetOptions {
   readonly hasLid?: boolean;
   /** How far the lid overhangs the carcass on each exposed side. */
   readonly lidOverhang?: Mm;
+  readonly seatCushionThickness?: Mm;
+  readonly seatCushionInset?: Mm;
+  readonly hasBackCushion?: boolean;
+  readonly backCushionHeight?: Mm;
+  readonly backCushionThickness?: Mm;
 
   /*
    * Curved work.
@@ -219,6 +225,8 @@ export interface CabinetMaterials {
    */
   readonly skin?: string;
   readonly edgeBand?: string;
+  /** Fabric selection for rendered cushions; never resolved as a sheet material. */
+  readonly upholstery?: string;
 }
 
 export interface Cabinet {
@@ -253,6 +261,7 @@ export const CABINET_TYPE_LABELS: Record<CabinetTypeId, string> = {
   tall: 'Tall',
   custom: 'Custom',
   'radius-end': 'Radiused end',
+  banquette: 'Banquette seating',
   panel: 'Standalone panel',
   appliance: 'Appliance space',
 };

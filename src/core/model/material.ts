@@ -148,10 +148,26 @@ export interface BenchtopMaterial {
   readonly indicativePricing: boolean;
 }
 
+/** Upholstery is rendered and specified, but is never treated as a sheet part or sent to CAM. */
+export interface UpholsteryMaterial {
+  readonly id: string;
+  readonly brand: string;
+  readonly collection: string;
+  readonly colour: string;
+  readonly colourFallback: string;
+  readonly textureUrl: string;
+  readonly sourceUrl: string;
+  readonly width: Mm;
+  readonly composition: string;
+  readonly abrasionCycles: number;
+}
+
 export interface MaterialLibrary {
   readonly sheets: readonly SheetMaterial[];
   readonly edgeBands: readonly EdgeBandMaterial[];
   readonly benchtops: readonly BenchtopMaterial[];
+  /** Optional so existing saved projects remain readable without changing their cut data. */
+  readonly upholstery?: readonly UpholsteryMaterial[];
 }
 
 /**
