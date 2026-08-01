@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { mm } from '../src/core/units.ts';
 import { actualThicknessOf, findSheet } from '../src/core/model/material.ts';
+import { panelExtent } from '../src/core/model/panel.ts';
 import { buildCabinet } from '../src/core/rules/build.ts';
 import { createCabinet, createEmptyProject, resetIdCounter } from '../src/core/project/factory.ts';
 
@@ -20,7 +21,7 @@ describe('standalone panel', () => {
     const panel = built.panels[0]!;
     expect(panel.role).toBe('panel');
     expect(panel.materialId).toBe(project.defaults.carcassMaterialId);
-    expect(panel.profile).toMatchObject({ kind: 'rect', length: 2300, width: 650 });
+    expect(panelExtent(panel)).toEqual({ length: mm(2300), width: mm(650) });
     expect(Object.keys(panel.edgeBanding).sort()).toEqual(['L1', 'L2', 'W1', 'W2']);
     expect(actualThicknessOf(findSheet(project.materials, panel.materialId))).toBe(16);
   });
