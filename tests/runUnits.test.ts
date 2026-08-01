@@ -853,8 +853,8 @@ describe('supplier decor textures', () => {
     };
 
     const migrated = migrateProject(old);
-    expect(migrated.materials.sheets.find((s) => s.id === 'poly-sepia-oak-16')!.texture?.url).toContain(
-      'polytec.com.au',
+    expect(migrated.materials.sheets.find((s) => s.id === 'poly-sepia-oak-16')!.texture?.url).toBe(
+      '/materials/board/sepia-oak.jpg',
     );
     expect(migrated.materials.sheets.find((s) => s.id === 'poly-notaio-walnut-16')!.texture?.url).toBe(
       '/my-walnut.jpg',
