@@ -282,7 +282,7 @@ because they answer different questions.
 | 2 — hardware/joinery, BOM export | **Done.** `PanelFeature[]` on each panel, filled by `rules/boring.ts` keyed on panel role; sizes resolved into `RuleContext` by `rules/hardware.ts`. `cutlist/export.ts` has the CSV writers; PDF is not done. Hettich is the remaining brand. |
 | 3 — guillotine nesting | **Done.** `nest/` consumes `Panel` + `SheetMaterial` and produces sheets, placements, an ordered cut sequence and offcuts. `costing.ts` charges whole sheets off the count; `sheetWastageFactor` is gone at schema v11. True-shape nesting for a router is a second nester, not an extension of this one. |
 | 4 — CAM feature layer | **Done.** `cam/` reads `PanelFeature[]` directly and emits an ordered, machine-independent operation list. Nothing upstream changed to allow it, which is the test of §2's rule that features are parametric and attached to panels. |
-| 5 — post-processor | **Written, dialect unverified.** `post/` turns operations into ISO G-code for a `MachineProfile`. A second machine is a second profile, not a second writer. The KDT profile has never been checked against a program the machine runs, and every file it writes says so. **Simulation is still not done, and is the gate before anything runs.** |
+| 5 — post-processor | **Written, KDT dialect now evidenced but not implemented.** `post/` turns operations into ISO G-code for a `MachineProfile`. Twelve production Mozaik programs establish the real coordinate, drilling, vacuum and routing conventions; see `docs/kdt-mozaik-reference.md`. The current writer still contradicts them. **Line-by-line comparison, simulation, air cutting and a sacrificial sheet remain the gate before anything runs.** |
 
 ## Nesting, and why it is its own layer
 
