@@ -908,12 +908,16 @@ export function Inspector({
           onChange={(back) => setMaterial({ back })}
         />
         <OverridePicker
-          label="Fronts"
+          label="Fronts — this cabinet"
           options={sheetOptions}
           value={cabinet.materials.door}
           defaultLabel={nameOfSheet(project.defaults.doorMaterialId)}
           onChange={(door) => setMaterial({ door })}
         />
+        <p className="note subtle">
+          This selection applies only to {cabinet.name}. Use Job settings → Materials → Fronts to
+          change the default used by every cabinet that has no override.
+        </p>
         <OverridePicker
           label="Bendy ply"
           options={sheetOptions}
