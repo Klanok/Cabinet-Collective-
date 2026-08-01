@@ -495,7 +495,7 @@ having something other than memory re-checking it.
 | — | An appliance space, so a top runs over a dishwasher and not over a fridge | **done** |
 | — | Waterfall and mitred benchtop corners linked to each other, not just flagged per top | not started |
 | — | Real decor textures on parts, laid on at true scale and turned by the part's grain | not started |
-| — | A wireframe view, for seeing the construction and checking a joint | not started |
+| — | A wireframe view, for seeing the construction and checking a joint | **done** |
 | — | Wall openings — bulkheads, windows, out-of-square walls and scribes | not started |
 | 3 | Guillotine nesting — real sheets, an ordered cut sequence, offcuts, whole-sheet costing | **done** |
 | — | Mixing sheet sizes within one material, so a nearly-empty last sheet can be a small one | not started |

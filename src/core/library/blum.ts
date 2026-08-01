@@ -62,12 +62,8 @@ import type {
 const price = (dollars: number): Cents => Math.round(dollars * 100);
 
 /**
- * MERIVOBOX, M height — the standard drawer runner.
- *
- * Only the M profile is shipped. K, N and the taller build-ups with gallery rails or a BOXCAP all
- * exist and all follow the same arithmetic; adding one is a row in `sideHeights` with its own
- * wooden-back height and nothing else changes, which is the test of whether this record is really
- * data rather than a special case with fields.
+ * MERIVOBOX N, M and K drawer-side profiles. E height is deliberately separate: it is an M side
+ * built up with gallery, BOXCOVER or BOXCAP hardware, not a fourth solid side profile.
  */
 export const MERIVOBOX: DrawerRunnerSystem = {
   id: 'merivobox',
@@ -77,10 +73,25 @@ export const MERIVOBOX: DrawerRunnerSystem = {
   nominalLengths: [mm(270), mm(300), mm(350), mm(400), mm(450), mm(500), mm(550), mm(600)],
   sideHeights: [
     {
+      code: 'N',
+      name: 'N — 68.5mm',
+      height: mm(68.5),
+      woodenBackHeight: mm(60.5),
+      nominalLengths: [mm(400), mm(450), mm(500), mm(550)],
+    },
+    {
       code: 'M',
       name: 'M — 91mm',
       height: mm(91),
       woodenBackHeight: mm(83),
+      nominalLengths: [mm(270), mm(300), mm(350), mm(400), mm(450), mm(500), mm(550), mm(600)],
+    },
+    {
+      code: 'K',
+      name: 'K — 129mm',
+      height: mm(129),
+      woodenBackHeight: mm(121),
+      nominalLengths: [mm(300), mm(350), mm(400), mm(450), mm(500), mm(550), mm(600)],
     },
   ],
 
@@ -176,8 +187,8 @@ export const MERIVOBOX: DrawerRunnerSystem = {
     'than NL − 26 — and is not modelled. Front fixing figures are the screw-on variant. INSERTA and ' +
     'EXPANDO T use the same vertical chain but a Ø10 (+0.2/−0.1) bore 12mm in from the edge of the ' +
     'front (min. 6mm for EXPANDO T), and are not modelled. A high front built up to E height with a ' +
-    'BOXCAP takes a third fixing 128mm above the lowest and a 184mm back; only M height is shipped, ' +
-    'so neither is here. The cabinet profile is fixed with system screws; the sheet\'s chipboard-screw ' +
+    'BOXCAP takes a third fixing 128mm above the lowest and a 184mm back; E height is not a solid ' +
+    'side profile and remains separate. The cabinet profile is fixed with system screws; the sheet\'s chipboard-screw ' +
     'option is a different pattern at the front bracket and is not modelled.',
 };
 

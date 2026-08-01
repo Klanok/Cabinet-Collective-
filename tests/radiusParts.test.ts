@@ -258,6 +258,27 @@ describe('the enclosed radiused end', () => {
     expect(byName(built.panels, 'Former 1').materialId).toBe(project.defaults.carcassMaterialId);
   });
 
+  it('warns when an older job still resolves its curve to 3mm bendy ply', () => {
+    const project = createEmptyProject('Legacy curve');
+    const created = createCabinet({
+      typeId: 'radius-end',
+      name: 'R1',
+      x: mm(0),
+      width: mm(560),
+      depth: mm(560),
+      options: {},
+    });
+    const cabinet = {
+      ...created,
+      materials: { ...created.materials, skin: 'bendy-ply-3' },
+    };
+    const withCabinet = { ...project, cabinets: [cabinet] };
+    const built = buildCabinet(cabinet, withCabinet);
+
+    expect(built.warnings.join(' ')).toMatch(/legacy 3mm bendy ply/);
+    expect(byName(built.panels, 'Skin layer 1').materialId).toBe('bendy-ply-3');
+  });
+
   it('bands nothing, because every edge is buried or under the skin', () => {
     for (const p of end().built.panels.filter((p) => p.role !== 'kick')) {
       expect(p.edgeBanding).toEqual({});

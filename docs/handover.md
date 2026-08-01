@@ -96,7 +96,7 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | CAM — panels + nest → machine-independent operations | **Working, see 4.9** |
 | G-code — a post-processor per machine, `.nc` per sheet | **Working, see 4.9. Dialect UNVERIFIED — simulate first** |
 | Nesting a curved part | **Nested as its blank, which is right for a saw — see 4.8** |
-| True-shape nesting for a router | Not started — a different cutting model, see 5.8 |
+| True-shape nesting for a router | Not started — a different cutting model, see 5.9 |
 | The drill bank — a System 32 row in one hit | Off until its codes are read off the machine |
 | Simulation / backplot | Not started, and it is the gate before anything runs |
 
@@ -1210,7 +1210,7 @@ job from $7,449.31 to $7,636.52 — 2.5% on a job that was being quoted a third 
   full and the cheapest wins; a size that cannot hold every part loses to one that can, however
   cheap it is per square metre. A sheet size is what goes on the supplier order, and a nest mixing
   3600×1800 and 2400×1200 across one material is an order whose first line is "work out which of
-  these is which". See §5.8 — there is a real cost to this and it is written down.
+  these is which". See §5.9 — there is a real cost to this and it is written down.
 - **Eighteen strategies are run and the best kept.** A nest is a search, and no single heuristic
   wins on every job — that is the state of the art, not a gap here. The packer is cheap enough to
   run eighteen times on a kitchen, and picking one in advance costs sheets to save microseconds.
@@ -1243,8 +1243,8 @@ is not.
 
 #### What is not done, deliberately
 
-- **True-shape nesting.** See §5.8. It is a router's problem and a different cutting model.
-- **Mixing sheet sizes within one material.** See §5.8, with the sample kitchen's own example.
+- **True-shape nesting.** See §5.9. It is a router's problem and a different cutting model.
+- **Mixing sheet sizes within one material.** See §5.9, with the sample kitchen's own example.
 - **Offcuts are not stock.** They are reported, never consumed. A nest that quietly ate last job's
   leftovers would be a nest nobody could check against the board actually in the shop.
 - **Nothing enforces a stage limit.** The sample kitchen's deepest cut is 16 stages, which a beam
@@ -1382,10 +1382,10 @@ contract and carries the longhand figures in its header.
 **5.5 and 5.6 have shipped together — see 4.7.** They wanted the same answer to "what owns a thing
 that spans a run?", so doing them apart would have meant answering it twice.
 
-**Phase 3 has shipped — see 4.8.** What is left of it is in the new §5.8, and none of it blocks
+**Phase 3 has shipped — see 4.8.** What is left of it is in the new §5.9, and none of it blocks
 anything.
 
-**Phases 4 and 5 have shipped — see 4.9.** What is left of them is §5.9, and the first item on it is
+**Phases 4 and 5 have shipped — see 4.9.** What is left of them is §5.10, and the first item on it is
 the only one that matters.
 
 **If asked which to do next: get one `.nc` file off the KDT and pin the dialect.** It is not a
@@ -1419,7 +1419,7 @@ remains are gaps rather than missing work, and none of them blocks anything.
   the blank and the curve is cut from the blank afterwards — see 4.8. What the nest does have to get
   right is that the blank is measured round the *outside* of the arc, which `panelExtent` has done
   since §4.4 and `tests/nesting.test.ts` now asserts on a skin and a bowed shelf. A router nest that
-  reads the true shape is §5.8.
+  reads the true shape is §5.9.
 - **The plan view draws a cabinet's footprint as a rectangle**, so a radiused corner reads
   square there. Cosmetic.
 - **A benchtop over a radiused base cabinet is still a rectangle.** The cabinet's box does not
@@ -1463,11 +1463,21 @@ that is wrong**, because the vertices were never what broke. Measure the thing i
 centroids against the true radius — and derive test dimensions the way the code does rather than
 typing a rounded literal.
 
+- **Existing jobs and saved shop standards can still select the old 3mm bendy ply.** The shipped
+  default was corrected to `bendy-ply-8`, but the change deliberately did not overwrite a job's
+  snapshotted `skinMaterialId`; doing so would silently change former radii, developed skin lengths,
+  plate sizes and price on an already quoted job. This is why an older job can still show and cut
+  3mm while a genuinely new job uses 8mm. **The cabinet warning and confirmed one-click upgrade are
+  now done:** a legacy curve says that its former radii, skin lengths and price will change, and the
+  old selection remains until the user accepts. **The standards-level half is now done too:** the
+  Materials screen identifies a legacy 3mm job or shop default and offers an explicit switch to
+  8mm, while leaving existing quoted geometry unchanged until that button is used. A future refinement
+  can show the exact before/after dimensions and price rather than naming what will change.
 - ~~**Nesting doesn't understand a curve.**~~ **Half of this was a misreading and is now
   corrected.** A radiused shelf reserving the rectangle it fits inside is not a gap for a *saw*, it
   is what cutting one on a saw means: the blank comes off the sheet and the curve is cut from the
   blank. §4.8 says so at length. The offcut between the curve and the corner is genuinely invisible
-  to a **router**, which could nest another part into it — and that is §5.8, a different cutting
+  to a **router**, which could nest another part into it — and that is §5.9, a different cutting
   model rather than a better version of the same one.
 - **The pocketed melamine panel** — pocketing the back of a panel leaving straight fixing
   sections — is still deferred, and was deferred by the user as too complicated for now. The
@@ -1504,6 +1514,12 @@ runner and CLIP top BLUMOTION the standard hinge. What remains:
 - **Hardware fitting time on the quote.** A `LabourRates` field when there is a figure for it.
 - **Load class.** Only the 40kg MERIVOBOX is shipped; the 70kg exists and is another entry, but
   choosing between them properly means knowing what goes in the drawer, which the model doesn't.
+- **The full MERIVOBOX height range.** **N, M and K are now shipped from verified Blum planning
+  data:** 68.5/60.5, 91/83 and 129/121mm for side/back respectively, with N restricted to NL
+  400–550 and K to NL 300–600 so the app cannot pair a side with a length Blum does not sell.
+  What remains is E height. It is an M side built up with gallery, BOXCOVER or BOXCAP—not a fourth
+  solid profile—so those must be distinct hardware configurations with an honest BOM. They share
+  the verified 184mm chipboard-back height but do not share the parts being ordered.
 - **Door styles touch this only lightly**, as predicted: a thicker front shifts nothing here,
   because the cup depth is measured into the board from its own face. Nothing to design for.
 
@@ -1541,6 +1557,29 @@ speculatively.
 
 ### 5.4 Smaller things noted but not done
 
+- **Standalone panels as a cabinet type — first version shipped.** The user can place an individual
+  rectangular panel in the room as a first-class unit, edit its face width/height and select its
+  sheet material. Its thickness is the selected sheet material's actual thickness, the
+  same single source of truth used by every generated cabinet part; independently typed thickness,
+  laminations and adjustable/build-up versions are later extensions. It snaps flush to walls,
+  cabinet carcasses and applied-end outer faces. It flows through the same panel
+  record, viewport, cutlist, nesting, costing and CAM paths as generated cabinet parts rather than
+  becoming a separate drawing-only object. This is for fillers, scribes, loose ends, backing pieces
+  and other job panels that do not belong to a carcass. This first version is vertical-grain and
+  bands all four edges; editable grain and per-edge banding are the next controls, not hidden data.
+- **Banquette seating with realistic upholstery.** Add a banquette unit that can begin as a
+  configurable cabinet carcass with seat and optional back cushions, then grow into corner and run
+  arrangements. Record cushion width, depth, finished thickness, back height/angle and clearances
+  separately from the boards underneath. Upholstery needs its own material type—fabric or vinyl,
+  colour, image texture, real-world repeat/scale and optional direction—rather than pretending it is
+  a sheet material. Render cushions with believable rounded/soft geometry and correctly scaled
+  textures, while keeping the structural panels on the existing cutlist, nesting, costing and CAM
+  paths. Later extensions can cover foam grades, seam/piping styles, removable lids, storage access,
+  fabric quantities and upholstery labour; do not invent those in the first version.
+- ~~**Cabinets must snap to applied ends as well as cabinet carcasses.**~~ **Done.** Neighbour
+  snapping targets the applied end's outer face using the selected door board's actual thickness.
+  It accounts for the contacting end on both cabinets, keeps the carcass edge when no panel is
+  present, and is covered on both hands and rotated wall runs.
 - ~~Cabinets snap to a wall but not to each other.~~ **Done.** `snapToNeighbour` in
   `project/wallPlacement.ts`, tried before the wall snap and winning within 60mm. It resolves both
   cabinets into the **run's own frame** before comparing, which is the lesson the benchtop
@@ -1644,7 +1683,6 @@ and no schema change — which is the opposite of bendy ply, which earned its ow
 machined from something thicker, or something else again. That decides the parts, and it is not
 worth guessing — the developed length only means something if the piece actually bends.
 
-<<<<<<< HEAD
 ### 5.8 Seeing it properly — decor textures and a wireframe view
 
 **Both raised from the bench, and both are about the 3D view earning its keep.** Neither changes a
@@ -1683,6 +1721,11 @@ its images with it). Worth asking before building.
 
 #### A wireframe view
 
+**Shipped.** The viewport now has a third mode beside 3D and Plan. It keeps every panel's real
+geometry and machining marks, removes the opaque faces, strengthens the part outlines and preserves
+selection and dragging through an invisible interaction surface. Run-owned parts and bought-in tops
+switch with the cabinets, so the mode never shows a misleading mixture of solid and outlined work.
+
 A display mode that draws edges only, alongside 3D and Plan. Useful for three things a solid render
 cannot do: **seeing the construction** — where a shelf lands, how a rail sits, which way a back is
 housed; **seeing through to the interior** without hiding a front; and **checking a joint** where two
@@ -1694,8 +1737,7 @@ a third render path beside the solid one, not a new source of geometry.
 
 Worth doing at the same time as the textures, because they are the two ends of the same slider —
 one for showing a client, one for checking the build — and because both live in the same three files.
-=======
-### 5.8 Nesting — what is left after 4.8
+### 5.9 Nesting — what is left after 4.8
 
 **Built and merged; see 4.8 for what it does and why.** What remains, none of it blocking:
 
@@ -1730,7 +1772,7 @@ one for showing a client, one for checking the build — and because both live i
 - **No labels or barcodes on the nest.** A part's position is on the CSV and on screen. A shop that
   wants a printed label per part is asking for a layout job rather than a nesting one.
 
-### 5.9 G-code — what is left after 4.9
+### 5.10 G-code — what is left after 4.9
 
 **Built and merged; see 4.9.** In rough order of what it is worth doing:
 
@@ -1754,7 +1796,6 @@ one for showing a client, one for checking the build — and because both live i
   ISO profile's output, which is what that profile is for.
 - **Feeds and speeds are guesses.** Deliberately slow ones — a feed too low wastes time, a feed too
   high breaks a bit. Copy the machine's own numbers when the `.nc` file arrives.
->>>>>>> main
 
 ---
 

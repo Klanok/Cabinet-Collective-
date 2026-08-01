@@ -17,6 +17,8 @@ export type CabinetTypeId =
   | 'tall'
   | 'custom'
   | 'radius-end'
+  /** One independently placed rectangular sheet part, rather than a carcass. */
+  | 'panel'
   /** A gap in the run that an appliance fills. Produces no parts — see specs/applianceSpace.ts. */
   | 'appliance';
 
@@ -251,6 +253,7 @@ export const CABINET_TYPE_LABELS: Record<CabinetTypeId, string> = {
   tall: 'Tall',
   custom: 'Custom',
   'radius-end': 'Radiused end',
+  panel: 'Standalone panel',
   appliance: 'Appliance space',
 };
 

@@ -20,7 +20,7 @@
  */
 
 import { type Mm, mm } from '../units.ts';
-import type { Cabinet } from '../model/cabinet.ts';
+import { type Cabinet, hasAppliedEnd } from '../model/cabinet.ts';
 import { type Room, type Wall, findWall, normaliseDeg, wallDirection, wallInwardNormal, wallLength } from '../model/room.ts';
 import { type CabinetPlacement, yawCosSin } from '../geom/placement.ts';
 import { v3 } from '../geom/vec.ts';
@@ -137,12 +137,13 @@ export const snapToWall = (
   x: Mm,
   z: Mm,
   maxGap: Mm,
+  effectiveDepth: Mm = cabinet.depth,
 ): WallSnap | null => {
   const { c, s } = yawCosSin(cabinet.placement.yawDeg);
   // Where the middle of the cabinet lands if it moves to (x, z) without turning.
   const centre = {
-    x: x + (cabinet.width / 2) * c + (cabinet.depth / 2) * s,
-    z: z - (cabinet.width / 2) * s + (cabinet.depth / 2) * c,
+    x: x + (cabinet.width / 2) * c + (effectiveDepth / 2) * s,
+    z: z - (cabinet.width / 2) * s + (effectiveDepth / 2) * c,
   };
 
   let best: WallSnap | null = null;
@@ -161,7 +162,7 @@ export const snapToWall = (
     if (centreOffset < 0) continue;
     // Standing flush, the centre sits half a carcass depth in front of the face. A negative
     // gap means the cabinet is currently buried in the wall, which still wants snapping out.
-    const gap = centreOffset - cabinet.depth / 2;
+    const gap = centreOffset - effectiveDepth / 2;
     if (gap > maxGap) continue;
 
     const alongCentre = dx * d.x + dz * d.y;
@@ -237,6 +238,7 @@ export const snapToNeighbour = (
   x: Mm,
   z: Mm,
   maxGap: Mm,
+  appliedEndThickness: (cabinet: Cabinet) => Mm = () => mm(0),
 ): NeighbourSnap | null => {
   let best: NeighbourSnap | null = null;
 
@@ -245,8 +247,16 @@ export const snapToNeighbour = (
     if (angularDistance(neighbour.placement.yawDeg, cabinet.placement.yawDeg) > YAW_TOLERANCE_DEG) {
       continue;
     }
-    // Height is typed, never dragged, so two cabinets at different heights are two different runs.
-    if (Math.abs(neighbour.placement.anchor.y - cabinet.placement.anchor.y) > 0.5) continue;
+    // Height is typed, never dragged, so ordinary cabinets at different heights are different
+    // runs. A standalone panel is deliberately allowed to meet a cabinet from floor level (the
+    // common loose-end/filler case), so its vertical datum must not prevent the plan snap.
+    if (
+      cabinet.typeId !== 'panel' &&
+      neighbour.typeId !== 'panel' &&
+      Math.abs(neighbour.placement.anchor.y - cabinet.placement.anchor.y) > 0.5
+    ) {
+      continue;
+    }
 
     // Both resolve in the *neighbour's* frame. It is the one standing still, so it is the one that
     // decides where the run is.
@@ -263,9 +273,31 @@ export const snapToNeighbour = (
 
     // Butt to either end of the neighbour: the dragged cabinet's left end onto the neighbour's
     // right, or its right end onto the neighbour's left.
+    // An applied end is outside the carcass width. Snap the visible outer faces together, not the
+    // two hidden carcass edges; include the dragged cabinet's contacting end as well so two applied
+    // ends neither overlap nor leave a board-thickness gap.
+    const neighbourLeft = hasAppliedEnd(neighbour.options, 'left')
+      ? appliedEndThickness(neighbour)
+      : 0;
+    const neighbourRight = hasAppliedEnd(neighbour.options, 'right')
+      ? appliedEndThickness(neighbour)
+      : 0;
+    const draggedLeft = hasAppliedEnd(cabinet.options, 'left')
+      ? appliedEndThickness(cabinet)
+      : 0;
+    const draggedRight = hasAppliedEnd(cabinet.options, 'right')
+      ? appliedEndThickness(cabinet)
+      : 0;
+
     const candidates: { end: 'left' | 'right'; along: number }[] = [
-      { end: 'right', along: fixed.along + neighbour.width },
-      { end: 'left', along: fixed.along - cabinet.width },
+      {
+        end: 'right',
+        along: fixed.along + neighbour.width + neighbourRight + draggedLeft,
+      },
+      {
+        end: 'left',
+        along: fixed.along - neighbourLeft - cabinet.width - draggedRight,
+      },
     ];
 
     for (const candidate of candidates) {

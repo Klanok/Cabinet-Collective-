@@ -5,7 +5,7 @@
  * and every part that depends on it moves, because there is nowhere for a stale copy to hide.
  */
 
-import type { Cabinet } from '../model/cabinet.ts';
+import { type Cabinet, isRadiused } from '../model/cabinet.ts';
 import { findConstruction } from '../model/construction.ts';
 import type { Panel } from '../model/panel.ts';
 import type { Project } from '../model/project.ts';
@@ -161,6 +161,13 @@ export const buildCabinet = (cabinet: Cabinet, project: Project): BuiltCabinet =
 
   const warnings = [
     ...carcassProblems,
+    ...((merged.typeId === 'radius-end' || isRadiused(merged.options)) &&
+    materials.skin === 'bendy-ply-3'
+      ? [
+          'This radiused cabinet still uses the legacy 3mm bendy ply. The shop default is now ' +
+            '8mm; upgrading will change former radii, skin lengths and price.',
+        ]
+      : []),
     ...cornerRadiusProblems(ctx),
     ...appliedEndProblems(ctx, spec),
     ...hardwareProblems(ctx),

@@ -9,9 +9,11 @@ import {
   type CabinetEnd,
   type CabinetOptions,
   hasAppliedEnd,
+  isRadiused,
   radiusDefaultOptions,
 } from '../../core/model/cabinet.ts';
 import { panelExtent } from '../../core/model/panel.ts';
+import { actualThicknessOf, findSheet } from '../../core/model/material.ts';
 import type { Project } from '../../core/model/project.ts';
 import { wallLength } from '../../core/model/room.ts';
 import { type WallAnchor, wallAnchorOf } from '../../core/project/wallPlacement.ts';
@@ -301,7 +303,7 @@ function HardwareSection({
                   <option value="">
                     Automatic — {hw.runner ? `${hw.runner.nominalLength}mm` : 'nothing fits'}
                   </option>
-                  {hw.runnerSystem.nominalLengths.map((nl) => (
+                  {(hw.sideHeight.nominalLengths ?? hw.runnerSystem.nominalLengths).map((nl) => (
                     <option key={nl} value={nl}>
                       NL {nl}
                     </option>
@@ -398,6 +400,10 @@ export function Inspector({
   const isTall = cabinet.typeId === 'tall';
   const isCustom = cabinet.typeId === 'custom';
   const isRadiusEnd = cabinet.typeId === 'radius-end';
+  const isPanel = cabinet.typeId === 'panel';
+  const resolvedSkinMaterialId = cabinet.materials.skin ?? project.defaults.skinMaterialId;
+  const usesLegacyBendyPly =
+    (isRadiusEnd || isRadiused(cabinet.options)) && resolvedSkinMaterialId === 'bendy-ply-3';
 
   const sheetOptions = project.materials.sheets.map((m) => ({
     id: m.id,
@@ -413,8 +419,21 @@ export function Inspector({
     project.materials.edgeBands.find((b) => b.id === id)?.decor ?? id;
   const nameOfStyle = (id: string) => project.doorStyles.find((s) => s.id === id)?.name ?? id;
 
-  const setMaterial = (patch: Partial<Cabinet['materials']>) =>
-    onUpdate(cabinet.id, { materials: { ...cabinet.materials, ...patch } });
+  const setMaterial = (patch: Partial<Cabinet['materials']>) => {
+    // `depth` is the plan footprint used by wall snapping. For a standalone panel it mirrors
+    // the selected board's actual thickness; it is never an independently editable dimension.
+    const depth =
+      isPanel && Object.hasOwn(patch, 'carcass')
+        ? actualThicknessOf(
+            findSheet(project.materials, patch.carcass ?? project.defaults.carcassMaterialId),
+          )
+        : undefined;
+    const update: Partial<Cabinet> = {
+      materials: { ...cabinet.materials, ...patch },
+      ...(depth === undefined ? {} : { depth }),
+    };
+    onUpdate(cabinet.id, update);
+  };
 
   /*
    * Applied end panels. Stored as a list of named ends, so ticking one adds it and clearing one
@@ -497,14 +516,16 @@ export function Inspector({
               step={50}
               onChange={(n) => onUpdate(cabinet.id, { width: mm(n) })}
             />
-            <NumberField
-              label="Depth"
-              value={cabinet.depth}
-              min={100}
-              max={900}
-              step={10}
-              onChange={(n) => onUpdate(cabinet.id, { depth: mm(n) })}
-            />
+            {!isPanel && (
+              <NumberField
+                label="Depth"
+                value={cabinet.depth}
+                min={100}
+                max={900}
+                step={10}
+                onChange={(n) => onUpdate(cabinet.id, { depth: mm(n) })}
+              />
+            )}
           </>
         )}
         <NumberField
@@ -527,8 +548,8 @@ export function Inspector({
         />
       </div>
 
-      <div className="subhead">Configuration</div>
-      <div className="fields">
+      {!isPanel && <div className="subhead">Configuration</div>}
+      {!isPanel && <div className="fields">
         {/*
           A radiused end has no doors and no shelves — it is a closed curved feature, and the
           point of it is the outside. Offering the controls anyway would let somebody set a
@@ -803,7 +824,7 @@ export function Inspector({
             <span>{label}</span>
           </label>
         ))}
-      </div>
+      </div>}
 
       {warnings.length > 0 && (
         <ul className="warnings">
@@ -841,12 +862,19 @@ export function Inspector({
       <div className="subhead">Finish</div>
       <div className="fields">
         <OverridePicker
-          label="Carcass"
+          label={isPanel ? 'Panel material' : 'Carcass'}
           options={sheetOptions}
           value={cabinet.materials.carcass}
           defaultLabel={nameOfSheet(project.defaults.carcassMaterialId)}
           onChange={(carcass) => setMaterial({ carcass })}
         />
+        {isPanel && (
+          <p className="note subtle">
+            Panel thickness comes from the selected sheet material. This first version keeps the
+            grain vertical and bands all four edges.
+          </p>
+        )}
+        {!isPanel && <>
         <OverridePicker
           label="Back"
           options={sheetOptions}
@@ -868,6 +896,29 @@ export function Inspector({
           defaultLabel={nameOfSheet(project.defaults.skinMaterialId)}
           onChange={(skin) => setMaterial({ skin })}
         />
+        {usesLegacyBendyPly && project.materials.sheets.some((m) => m.id === 'bendy-ply-8') && (
+          <div>
+            <p className="note warning">
+              This curve still uses the legacy 3mm ply. The shop material is now 8mm; changing it
+              recalculates the formers, skin lengths and price.
+            </p>
+            <button
+              className="btn full"
+              onClick={async () => {
+                const go = await ask.confirm(
+                  'Upgrade this cabinet from 3mm to 8mm bendy ply?\n\n' +
+                    'The cabinet will be regenerated. Former radii, flat skin lengths and price ' +
+                    'will change; the existing 3mm selection is kept if you cancel.',
+                  { confirmLabel: 'Upgrade to 8mm' },
+                );
+                if (go) setMaterial({ skin: 'bendy-ply-8' });
+              }}
+            >
+              Upgrade this cabinet to 8mm ply
+            </button>
+          </div>
+        )}
+        </>}
         <OverridePicker
           label="Edging"
           options={bandOptions}

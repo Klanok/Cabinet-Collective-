@@ -64,9 +64,11 @@ interface Props {
    * placed by the run it was generated from, not by dragging, so its parts have nothing to grab.
    */
   onGrab?: (event: ThreeEvent<PointerEvent>) => void;
+  /** Keep the interaction surface but draw only construction edges and machining marks. */
+  wireframe?: boolean;
 }
 
-export function PanelMesh({ panel, thickness, colour: boardColour, selected, onSelect, onGrab }: Props) {
+export function PanelMesh({ panel, thickness, colour: boardColour, selected, onSelect, onGrab, wireframe = false }: Props) {
   /*
    * A routed front is drawn as the board that is actually left: a slab of the reduced
    * thickness, with the border standing back up to full thickness around it. So the recess is
@@ -126,8 +128,9 @@ export function PanelMesh({ panel, thickness, colour: boardColour, selected, onS
           color={colour}
           roughness={0.75}
           metalness={0.02}
-          transparent={isFront}
-          opacity={isFront ? 0.86 : 1}
+          transparent={wireframe || isFront}
+          opacity={wireframe ? 0 : isFront ? 0.86 : 1}
+          depthWrite={!wireframe}
         />
       </mesh>
       {/*
@@ -141,10 +144,14 @@ export function PanelMesh({ panel, thickness, colour: boardColour, selected, onS
       */}
       <lineSegments>
         <edgesGeometry args={[geometry, 20]} />
-        <lineBasicMaterial color={selected ? '#c2410c' : '#9a958c'} transparent opacity={0.55} />
+        <lineBasicMaterial
+          color={selected ? '#ff9640' : wireframe ? '#d7dde5' : '#9a958c'}
+          transparent
+          opacity={wireframe ? 0.95 : 0.55}
+        />
       </lineSegments>
 
-      <FrontRelief panel={panel} thickness={thickness} colour={colour} />
+      <FrontRelief panel={panel} thickness={thickness} colour={colour} wireframe={wireframe} />
       <Boring panel={panel} thickness={thickness} />
     </group>
   );

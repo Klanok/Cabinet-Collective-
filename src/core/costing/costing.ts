@@ -321,7 +321,9 @@ export const costProject = (project: Project): CostBreakdown => {
    * cabinet list at all. Counting produced parts rather than list length gets all three right.
    */
   const assemblies =
-    built.filter((b) => b.panels.length > 0).length +
+    // A standalone panel is cut and edged, but there is no carcass to assemble. Its panel and
+    // edge labour are already counted in the two terms below.
+    built.filter((b) => b.panels.length > 0 && b.cabinet.typeId !== 'panel').length +
     units.filter((u) => u.panels.length > 0).length;
   const labourMinutes =
     panels.length * settings.labour.minutesPerPanel +

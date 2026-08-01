@@ -135,6 +135,7 @@ const NAME_PREFIX: Record<CabinetTypeId, string> = {
   'drawer-bank': 'D',
   custom: 'C',
   'radius-end': 'R',
+  panel: 'P',
   appliance: 'A',
 };
 
@@ -173,6 +174,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
           width: mm(
             typeId === 'radius-end'
               ? state.project.defaults.baseCabinetDepth
+              : typeId === 'panel'
+                ? 600
               : typeId === 'drawer-bank' || typeId === 'tall'
                 ? 600
                 : 900,

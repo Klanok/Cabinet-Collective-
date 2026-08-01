@@ -26,7 +26,7 @@ import { PlanView } from './plan/PlanView.tsx';
 import { exportProjectFile, importProjectFile } from './store/persistence.ts';
 
 type Tab = 'cutlist' | 'nest' | 'hardware' | 'tops' | 'cost';
-type View = '3d' | 'plan';
+type View = '3d' | 'wireframe' | 'plan';
 
 export default function App() {
   const project = useProjectStore((s) => s.project);
@@ -173,13 +173,14 @@ export default function App() {
         </aside>
 
         <main className="viewport">
-          {view === '3d' ? (
+          {view !== 'plan' ? (
             <Viewport3D
               built={built}
               project={project}
               selectedCabinetId={selectedCabinetId}
               onSelect={select}
               showWalls={showWalls}
+              wireframe={view === 'wireframe'}
               onMoveCabinet={moveCabinet}
             />
           ) : (
@@ -200,13 +201,19 @@ export default function App() {
                 3D
               </button>
               <button
+                className={`seg-btn${view === 'wireframe' ? ' is-active' : ''}`}
+                onClick={() => setView('wireframe')}
+              >
+                Wireframe
+              </button>
+              <button
                 className={`seg-btn${view === 'plan' ? ' is-active' : ''}`}
                 onClick={() => setView('plan')}
               >
                 Plan
               </button>
             </div>
-            {view === '3d' && (
+            {view !== 'plan' && (
               <label className="viewport-toggle">
                 <input
                   type="checkbox"
@@ -219,7 +226,7 @@ export default function App() {
           </div>
 
           <div className="viewport-hint muted">
-            {view === '3d' ? (
+            {view !== 'plan' ? (
               <>
                 Drag to orbit · scroll to zoom · <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>{' '}
                 move, <kbd>Q</kbd><kbd>E</kbd> down/up, <kbd>Shift</kbd> faster · click to select,

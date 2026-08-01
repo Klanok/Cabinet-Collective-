@@ -61,6 +61,8 @@ export type PanelRole =
   /** The strip standing up at the back of a benchtop, against the wall. */
   | 'benchtop-upstand'
   | 'filler'
+  /** A deliberately independent sheet part: filler, scribe, loose end, backing or shelf. */
+  | 'panel'
   | 'end-panel'
   /** A shaped rib in the skeleton of a curved assembly — flat, with one edge on a radius. */
   | 'former'

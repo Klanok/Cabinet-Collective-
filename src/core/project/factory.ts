@@ -73,7 +73,7 @@ export const naturalAnchorY = (
   if (typeId === 'wall') return defaults.wallCabinetMountHeight;
   // An appliance space is the whole opening, floor to the underside of the top — it has no kick
   // under it, because the appliance stands on the floor and has its own feet.
-  if (typeId === 'appliance') return mm(0);
+  if (typeId === 'appliance' || typeId === 'panel') return mm(0);
   const construction = findConstruction(constructions, constructionId);
   return options.hasKick === false ? mm(0) : construction.kickHeight;
 };
@@ -103,13 +103,17 @@ export const createCabinet = (
             // cabinets either side of it are standing on. That is what makes the space line up
             // with its neighbours' tops, which is what lets one benchtop span all three.
             mm(defaults.baseCabinetHeight + findConstruction(constructions, constructionId).kickHeight)
-          : defaults.baseCabinetHeight;
+          : args.typeId === 'panel'
+            ? mm(2400)
+            : defaults.baseCabinetHeight;
   const naturalDepth =
     args.typeId === 'wall'
       ? defaults.wallCabinetDepth
       : args.typeId === 'tall'
         ? defaults.tallCabinetDepth
-        : defaults.baseCabinetDepth;
+        : args.typeId === 'panel'
+          ? mm(16)
+          : defaults.baseCabinetDepth;
 
   const height = args.height ?? naturalHeight;
   const depth = args.depth ?? naturalDepth;
