@@ -22,6 +22,8 @@ export interface MeshData {
   readonly positions: Float32Array;
   /** xyz triples, one per position. */
   readonly normals: Float32Array;
+  /** Flat part-space xy pairs, in millimetres. The viewport scales these for each decor. */
+  readonly uvs: Float32Array;
   readonly indices: Uint32Array;
 }
 
@@ -112,6 +114,7 @@ export const extrudeProfile = (profile: Profile2D, thickness: Mm): MeshData => {
 
   const positions: number[] = [];
   const normals: number[] = [];
+  const uvs: number[] = [];
   const indices: number[] = [];
 
   // A-face (z = thickness), normal +Z.
@@ -119,6 +122,7 @@ export const extrudeProfile = (profile: Profile2D, thickness: Mm): MeshData => {
   for (const p of capRing) {
     positions.push(p.x, p.y, thickness);
     normals.push(0, 0, 1);
+    uvs.push(p.x, p.y);
   }
   for (let i = 0; i < capTris.length; i += 3) {
     indices.push(aBase + capTris[i]!, aBase + capTris[i + 1]!, aBase + capTris[i + 2]!);
@@ -129,6 +133,7 @@ export const extrudeProfile = (profile: Profile2D, thickness: Mm): MeshData => {
   for (const p of capRing) {
     positions.push(p.x, p.y, 0);
     normals.push(0, 0, -1);
+    uvs.push(p.x, p.y);
   }
   for (let i = 0; i < capTris.length; i += 3) {
     indices.push(bBase + capTris[i + 2]!, bBase + capTris[i + 1]!, bBase + capTris[i]!);
@@ -142,6 +147,7 @@ export const extrudeProfile = (profile: Profile2D, thickness: Mm): MeshData => {
     const base = positions.length / 3;
     positions.push(w.a.x, w.a.y, 0, w.b.x, w.b.y, 0, w.b.x, w.b.y, thickness, w.a.x, w.a.y, thickness);
     normals.push(w.na.x, w.na.y, 0);
+    uvs.push(w.a.x, 0, w.b.x, 0, w.b.x, thickness, w.a.x, thickness);
     normals.push(w.nb.x, w.nb.y, 0);
     normals.push(w.nb.x, w.nb.y, 0);
     normals.push(w.na.x, w.na.y, 0);
@@ -151,6 +157,7 @@ export const extrudeProfile = (profile: Profile2D, thickness: Mm): MeshData => {
   return {
     positions: new Float32Array(positions),
     normals: new Float32Array(normals),
+    uvs: new Float32Array(uvs),
     indices: new Uint32Array(indices),
   };
 };

@@ -11,7 +11,12 @@
  * visible as such.
  */
 
-import { type MaterialLibrary, actualThicknessOf, withResolvedColours } from '../model/material.ts';
+import {
+  type MaterialLibrary,
+  actualThicknessOf,
+  withResolvedColours,
+  withResolvedTextures,
+} from '../model/material.ts';
 import {
   type HardwareLibrary,
   withProfileFixingPositions,
@@ -49,7 +54,7 @@ import {
   DEFAULT_RUNNER_SYSTEM_ID,
 } from '../library/blum.ts';
 
-export const CURRENT_STANDARDS_VERSION = 13 as const;
+export const CURRENT_STANDARDS_VERSION = 14 as const;
 
 export interface ShopStandards {
   readonly version: typeof CURRENT_STANDARDS_VERSION;
@@ -362,6 +367,7 @@ export const migrateStandards = (raw: unknown): ShopStandards => {
   if (data.version === 10) data = migrateStandardsV10toV11(data);
   if (data.version === 11) data = migrateStandardsV11toV12(data);
   if (data.version === 12) data = migrateStandardsV12toV13(data);
+  if (data.version === 13) data = migrateStandardsV13toV14(data);
 
   if (data.version !== CURRENT_STANDARDS_VERSION) {
     throw new Error(`migrateStandards: could not migrate version ${String(version)}`);
@@ -576,6 +582,17 @@ const migrateStandardsV12toV13 = (raw: Record<string, unknown>): Record<string, 
         withShippedSideHeights(system, BLUM_HARDWARE_LIBRARY.runnerSystems),
       ),
     },
+  };
+};
+
+/** Standards v13 → v14: new jobs inherit supplier-authored decor swatches. */
+const migrateStandardsV13toV14 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const materials = (raw.materials as Record<string, unknown> | undefined) ?? {};
+  const sheets = (materials.sheets as Record<string, unknown>[] | undefined) ?? [];
+  return {
+    ...raw,
+    version: 14,
+    materials: { ...materials, sheets: withResolvedTextures(sheets, AU_SHEET_MATERIALS) },
   };
 };
 

@@ -216,6 +216,7 @@ const slabMesh = (
 ): MeshData => {
   const positions: number[] = [];
   const normals: number[] = [];
+  const uvs: number[] = [];
   const indices: number[] = [];
   const n = stations.length;
 
@@ -229,6 +230,9 @@ const slabMesh = (
       positions.push(b, a, z);
       normals.push(nb, na, nz);
     }
+    // Keep the unformed coordinates: the decor bends with the board instead of projecting
+    // through the finished curve.
+    uvs.push(axis === 'x' ? a : b, axis === 'x' ? b : a);
   };
 
   // The two big faces, each a ladder of quads between consecutive stations.
@@ -317,6 +321,7 @@ const slabMesh = (
   return {
     positions: new Float32Array(positions),
     normals: new Float32Array(normals),
+    uvs: new Float32Array(uvs),
     indices: new Uint32Array(indices),
   };
 };
@@ -380,5 +385,5 @@ export const formedMesh = (
     normals[i + 2] = turned.n;
   }
 
-  return { positions, normals, indices: flat.indices };
+  return { positions, normals, uvs: flat.uvs, indices: flat.indices };
 };

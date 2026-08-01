@@ -539,6 +539,12 @@ describe('bending a flat part', () => {
     expect(seen.size).toBeGreaterThan(20);
   });
 
+  it('keeps flat decor coordinates while bending the surface', () => {
+    const bent = formedMesh(rectProfile(mm(872.5774), mm(720)), mm(T), skin);
+    expect(bent.uvs.length).toBe((bent.positions.length / 3) * 2);
+    expect(Math.max(...bent.uvs)).toBeGreaterThan(700);
+  });
+
   it('leaves a part with no forming alone', () => {
     // formedMesh on a shaped profile falls back rather than bending it about an axis it was
     // never designed around.

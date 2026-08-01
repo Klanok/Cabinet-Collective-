@@ -86,6 +86,7 @@ function CabinetGroup({
           // What the board actually looks like, where the material says. A part cut from a decor
           // nobody has given a colour to falls back to the viewport's own colour for its role.
           colour={findSheet(project.materials, panel.materialId).colour}
+          texture={findSheet(project.materials, panel.materialId).texture}
           selected={selected}
           onSelect={onSelect}
           onGrab={(e) => onGrab(built.cabinet, e)}
@@ -129,6 +130,7 @@ function RunUnits({ project, wireframe }: { project: Project; wireframe: boolean
                 panel={panel}
                 thickness={actualThicknessOf(findSheet(project.materials, panel.materialId))}
                 colour={findSheet(project.materials, panel.materialId).colour}
+                texture={findSheet(project.materials, panel.materialId).texture}
                 selected={false}
                 onSelect={() => {}}
                 wireframe={wireframe}
