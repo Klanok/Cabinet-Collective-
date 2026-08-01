@@ -1721,6 +1721,11 @@ its images with it). Worth asking before building.
 
 #### A wireframe view
 
+**Shipped.** The viewport now has a third mode beside 3D and Plan. It keeps every panel's real
+geometry and machining marks, removes the opaque faces, strengthens the part outlines and preserves
+selection and dragging through an invisible interaction surface. Run-owned parts and bought-in tops
+switch with the cabinets, so the mode never shows a misleading mixture of solid and outlined work.
+
 A display mode that draws edges only, alongside 3D and Plan. Useful for three things a solid render
 cannot do: **seeing the construction** — where a shelf lands, how a rail sits, which way a back is
 housed; **seeing through to the interior** without hiding a front; and **checking a joint** where two

@@ -54,6 +54,8 @@ interface Props {
   selectedCabinetId: string | null;
   onSelect: (id: string | null) => void;
   showWalls: boolean;
+  /** Draw part edges without opaque faces, so internal construction stays visible. */
+  wireframe: boolean;
   onMoveCabinet: (cabinetId: string, x: Mm, z: Mm, yawDeg: number) => void;
 }
 
@@ -63,12 +65,14 @@ function CabinetGroup({
   selected,
   onSelect,
   onGrab,
+  wireframe,
 }: {
   built: BuiltCabinet;
   project: Project;
   selected: boolean;
   onSelect: () => void;
   onGrab: (cabinet: BuiltCabinet['cabinet'], event: ThreeEvent<PointerEvent>) => void;
+  wireframe: boolean;
 }) {
   const matrix = useMemo(() => cabinetMatrix(built.cabinet.placement), [built.cabinet.placement]);
 
@@ -85,6 +89,7 @@ function CabinetGroup({
           selected={selected}
           onSelect={onSelect}
           onGrab={(e) => onGrab(built.cabinet, e)}
+          wireframe={wireframe}
         />
       ))}
     </group>
@@ -102,7 +107,7 @@ function CabinetGroup({
  * produces no parts because nobody in this shop cuts it, so it is drawn as the one slab that
  * arrives on the truck, at the size the fabricator is being asked to make.
  */
-function RunUnits({ project }: { project: Project }) {
+function RunUnits({ project, wireframe }: { project: Project; wireframe: boolean }) {
   const units = useMemo(() => buildRunUnits(project), [project]);
   const placements = useMemo(() => {
     const map = new Map<string, CabinetPlacement>();
@@ -126,6 +131,7 @@ function RunUnits({ project }: { project: Project }) {
                 colour={findSheet(project.materials, panel.materialId).colour}
                 selected={false}
                 onSelect={() => {}}
+                wireframe={wireframe}
               />
             ))}
           </group>
@@ -134,14 +140,14 @@ function RunUnits({ project }: { project: Project }) {
       {project.benchtops.map((top) => {
         const material = findBenchtopMaterial(project.materials, top.materialId);
         if (material.supply !== 'bought-in') return null;
-        return <BoughtInSlab key={top.id} top={top} colour={material.colour ?? '#dedbd4'} />;
+        return <BoughtInSlab key={top.id} top={top} colour={material.colour ?? '#dedbd4'} wireframe={wireframe} />;
       })}
     </>
   );
 }
 
 /** A bought-in top: one slab, at the size the fabricator is being asked to make. */
-function BoughtInSlab({ top, colour }: { top: Benchtop; colour: string }) {
+function BoughtInSlab({ top, colour, wireframe }: { top: Benchtop; colour: string; wireframe: boolean }) {
   const { c, s } = yawCosSin(top.placement.yawDeg);
   const length = benchtopLength(top);
   const depth = benchtopDepth(top);
@@ -161,7 +167,7 @@ function BoughtInSlab({ top, colour }: { top: Benchtop; colour: string }) {
       castShadow
     >
       <boxGeometry args={[length, thickness, depth]} />
-      <meshStandardMaterial color={colour} roughness={0.4} />
+      <meshStandardMaterial color={wireframe ? '#d7dde5' : colour} roughness={0.4} wireframe={wireframe} />
     </mesh>
   );
 }
@@ -178,7 +184,7 @@ function BoughtInSlab({ top, colour }: { top: Benchtop; colour: string }) {
  * so nobody can mistake it for something that has been specified. Generating a real one is one
  * button in the Benchtops tab.
  */
-function GhostTops({ project }: { project: Project }) {
+function GhostTops({ project, wireframe }: { project: Project; wireframe: boolean }) {
   const runs = useMemo(() => uncoveredRuns(project, 'benchtop'), [project]);
   const overhang = 20;
   const thickness = AU_BENCHTOP_THICKNESS;
@@ -209,6 +215,7 @@ function GhostTops({ project }: { project: Project }) {
               transparent
               opacity={0.2}
               depthWrite={false}
+              wireframe={wireframe}
             />
           </mesh>
         );
@@ -223,6 +230,7 @@ function Scene({
   selectedCabinetId,
   onSelect,
   showWalls,
+  wireframe,
   onMoveCabinet,
 }: Props) {
   /*
@@ -303,8 +311,8 @@ function Scene({
       <Suspense fallback={null}>
         <group scale={MM_TO_SCENE}>
           <RoomShell room={project.room} showWalls={showWalls} />
-          <RunUnits project={project} />
-          <GhostTops project={project} />
+          <RunUnits project={project} wireframe={wireframe} />
+          <GhostTops project={project} wireframe={wireframe} />
           {built.map((b) => (
             <CabinetGroup
               key={b.cabinet.id}
@@ -316,6 +324,7 @@ function Scene({
                 onSelect(cabinet.id);
                 begin(cabinet, e);
               }}
+              wireframe={wireframe}
             />
           ))}
         </group>

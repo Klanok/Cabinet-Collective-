@@ -101,9 +101,10 @@ interface Props {
   thickness: Mm;
   /** The front's own colour, so the border reads as the same board it is cut from. */
   colour: string;
+  wireframe?: boolean;
 }
 
-export function FrontRelief({ panel, thickness, colour }: Props) {
+export function FrontRelief({ panel, thickness, colour, wireframe = false }: Props) {
   const recess = frontRecessOf(panel, thickness);
   const { length, width } = profileExtent(panel.profile);
 
@@ -138,7 +139,7 @@ export function FrontRelief({ panel, thickness, colour }: Props) {
 
   return (
     <>
-      {strips.map((s) => (
+      {!wireframe && strips.map((s) => (
         <mesh
           key={s.key}
           position={[s.cx, s.cy, thickness - borderDepth / 2]}
