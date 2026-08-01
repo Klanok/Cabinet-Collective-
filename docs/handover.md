@@ -1467,10 +1467,12 @@ typing a rounded literal.
   default was corrected to `bendy-ply-8`, but the change deliberately did not overwrite a job's
   snapshotted `skinMaterialId`; doing so would silently change former radii, developed skin lengths,
   plate sizes and price on an already quoted job. This is why an older job can still show and cut
-  3mm while a genuinely new job uses 8mm. Add a visible warning when a radiused cabinet resolves to
-  `bendy-ply-3`, plus an explicit **Upgrade this job/standard to the shop's 8mm ply** action that
-  previews the dimensional and price change before applying it. Also verify that starting a job
-  from old saved standards does not quietly keep creating new 3mm jobs without that warning.
+  3mm while a genuinely new job uses 8mm. **The cabinet warning and confirmed one-click upgrade are
+  now done:** a legacy curve says that its former radii, skin lengths and price will change, and the
+  old selection remains until the user accepts. What remains is the standards-level half: warn and
+  offer the same explicit upgrade in saved shop standards, and verify that starting a job from old
+  standards does not quietly keep creating new 3mm jobs without that warning. A future refinement
+  can show the exact before/after dimensions and price rather than naming what will change.
 - ~~**Nesting doesn't understand a curve.**~~ **Half of this was a misreading and is now
   corrected.** A radiused shelf reserving the rectangle it fits inside is not a gap for a *saw*, it
   is what cutting one on a saw means: the blank comes off the sheet and the curve is cut from the

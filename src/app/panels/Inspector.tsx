@@ -9,6 +9,7 @@ import {
   type CabinetEnd,
   type CabinetOptions,
   hasAppliedEnd,
+  isRadiused,
   radiusDefaultOptions,
 } from '../../core/model/cabinet.ts';
 import { panelExtent } from '../../core/model/panel.ts';
@@ -398,6 +399,9 @@ export function Inspector({
   const isTall = cabinet.typeId === 'tall';
   const isCustom = cabinet.typeId === 'custom';
   const isRadiusEnd = cabinet.typeId === 'radius-end';
+  const resolvedSkinMaterialId = cabinet.materials.skin ?? project.defaults.skinMaterialId;
+  const usesLegacyBendyPly =
+    (isRadiusEnd || isRadiused(cabinet.options)) && resolvedSkinMaterialId === 'bendy-ply-3';
 
   const sheetOptions = project.materials.sheets.map((m) => ({
     id: m.id,
@@ -868,6 +872,28 @@ export function Inspector({
           defaultLabel={nameOfSheet(project.defaults.skinMaterialId)}
           onChange={(skin) => setMaterial({ skin })}
         />
+        {usesLegacyBendyPly && project.materials.sheets.some((m) => m.id === 'bendy-ply-8') && (
+          <div>
+            <p className="note warning">
+              This curve still uses the legacy 3mm ply. The shop material is now 8mm; changing it
+              recalculates the formers, skin lengths and price.
+            </p>
+            <button
+              className="btn full"
+              onClick={async () => {
+                const go = await ask.confirm(
+                  'Upgrade this cabinet from 3mm to 8mm bendy ply?\n\n' +
+                    'The cabinet will be regenerated. Former radii, flat skin lengths and price ' +
+                    'will change; the existing 3mm selection is kept if you cancel.',
+                  { confirmLabel: 'Upgrade to 8mm' },
+                );
+                if (go) setMaterial({ skin: 'bendy-ply-8' });
+              }}
+            >
+              Upgrade this cabinet to 8mm ply
+            </button>
+          </div>
+        )}
         <OverridePicker
           label="Edging"
           options={bandOptions}
