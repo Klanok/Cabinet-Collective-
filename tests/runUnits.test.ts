@@ -873,4 +873,31 @@ describe('supplier decor textures', () => {
     const migrated = migrateStandards(old);
     expect(migrated.materials.sheets.find((s) => s.id === 'poly-notaio-walnut-16')!.texture).toBeDefined();
   });
+
+  it('repairs a job already saved at the former current version', () => {
+    const project = createSampleKitchen();
+    const old = {
+      ...project,
+      schemaVersion: 19,
+      materials: {
+        ...project.materials,
+        sheets: project.materials.sheets.map((sheet) => ({ ...sheet, texture: undefined })),
+      },
+    };
+    const migrated = migrateProject(old);
+    expect(migrated.materials.sheets.find((s) => s.id === 'poly-notaio-walnut-16')!.texture).toBeDefined();
+  });
+
+  it('repairs standards already saved at the former current version', () => {
+    const old = {
+      ...AU_SHOP_STANDARDS,
+      version: 15,
+      materials: {
+        ...AU_SHOP_STANDARDS.materials,
+        sheets: AU_SHOP_STANDARDS.materials.sheets.map((sheet) => ({ ...sheet, texture: undefined })),
+      },
+    };
+    const migrated = migrateStandards(old);
+    expect(migrated.materials.sheets.find((s) => s.id === 'poly-notaio-walnut-16')!.texture).toBeDefined();
+  });
 });

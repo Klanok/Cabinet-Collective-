@@ -36,7 +36,7 @@ import {
 } from '../library/blum.ts';
 import { AU_BENCHTOP_MATERIALS, AU_MATERIAL_LIBRARY, AU_SHEET_MATERIALS } from '../library/materials.au.ts';
 
-export const CURRENT_SCHEMA_VERSION = 19 as const;
+export const CURRENT_SCHEMA_VERSION = 20 as const;
 
 /**
  * The bendy ply an older job is given when it is migrated forward. It has no curved parts in
@@ -680,6 +680,23 @@ const migrateV18toV19 = (raw: Record<string, unknown>): Record<string, unknown> 
 };
 
 /**
+ * v19 → v20: repair material snapshots saved at v19 before texture metadata was shipped.
+ *
+ * A browser keeps localhost storage across separately extracted source folders. That meant an old
+ * v19 material library could keep creating "new" jobs whose Notaio record had no texture field.
+ * The earlier v17 migration never ran because the stored job was already marked current.
+ */
+const migrateV19toV20 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const materials = (raw.materials as Record<string, unknown> | undefined) ?? {};
+  const sheets = (materials.sheets as Record<string, unknown>[] | undefined) ?? [];
+  return {
+    ...raw,
+    schemaVersion: 20,
+    materials: { ...materials, sheets: withResolvedTextures(sheets, AU_SHEET_MATERIALS) },
+  };
+};
+
+/**
  * Load a project from stored JSON, migrating older schema versions forward.
  *
  * Migrations run in sequence, so a v1 file loaded after several schema changes still arrives
@@ -718,6 +735,7 @@ export const migrateProject = (raw: unknown): Project => {
   if (data.schemaVersion === 16) data = migrateV16toV17(data);
   if (data.schemaVersion === 17) data = migrateV17toV18(data);
   if (data.schemaVersion === 18) data = migrateV18toV19(data);
+  if (data.schemaVersion === 19) data = migrateV19toV20(data);
 
   if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`migrateProject: could not migrate schema version ${String(version)}`);
