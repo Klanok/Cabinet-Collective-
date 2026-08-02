@@ -79,7 +79,6 @@ export function BanquetteCushions({ cabinet, upholstery, selected, wireframe }: 
       const height = cabinet.options.backCushionHeight ?? 400;
       const thickness = cabinet.options.backCushionThickness ?? 80;
       const angle = Math.min(15, Math.max(0, cabinet.options.backCushionAngle ?? 0)) * Math.PI / 180;
-      const y = cabinet.height + 16 + seatT + height / 2;
       const endDepth = Math.max(50, seatDepth - thickness);
       const backRadius = Math.min(radius, thickness / 2 - 1, height / 2 - 1);
       return <>
@@ -87,15 +86,73 @@ export function BanquetteCushions({ cabinet, upholstery, selected, wireframe }: 
           radius={backRadius} x={inset} y={cabinet.height + 16 + seatT}>
           {fabricMaterial()}
         </WedgeBack>
-        {cabinet.options.leftEndCushion && <RoundedBox args={[thickness, height, endDepth]} radius={backRadius} smoothness={4}
-          position={[inset + thickness / 2, y, cabinet.depth / 2]} rotation={[0, 0, angle]} castShadow receiveShadow>
-          {fabricMaterial()}
-        </RoundedBox>}
-        {cabinet.options.rightEndCushion && <RoundedBox args={[thickness, height, endDepth]} radius={backRadius} smoothness={4}
-          position={[cabinet.width - inset - thickness / 2, y, cabinet.depth / 2]} rotation={[0, 0, -angle]} castShadow receiveShadow>
-          {fabricMaterial()}
-        </RoundedBox>}
+        {cabinet.options.leftEndCushion && <group position={[inset, 0, cabinet.depth - inset]} rotation={[0, Math.PI / 2, 0]}>
+          <WedgeBack width={endDepth} height={height} thickness={thickness} angle={angle}
+            radius={backRadius} x={0} y={cabinet.height + 16 + seatT}>{fabricMaterial()}</WedgeBack>
+        </group>}
+        {cabinet.options.rightEndCushion && <group position={[cabinet.width - inset, 0, inset]} rotation={[0, -Math.PI / 2, 0]}>
+          <WedgeBack width={endDepth} height={height} thickness={thickness} angle={angle}
+            radius={backRadius} x={0} y={cabinet.height + 16 + seatT}>{fabricMaterial()}</WedgeBack>
+        </group>}
       </>;
     })()}
+  </>;
+}
+
+/** Upholstery for the quarter-circle unit joining two perpendicular banquettes. */
+export function BanquetteCornerCushions({ cabinet, upholstery, selected, wireframe }: {
+  cabinet: Cabinet;
+  upholstery: UpholsteryMaterial;
+  selected: boolean;
+  wireframe: boolean;
+}) {
+  const textureUrl = upholstery.brand === 'Warwick' && upholstery.collection === 'Caulfield'
+    ? bundledAssetUrl(upholstery.textureUrl.replace(/^\//, ''))
+    : upholstery.textureUrl;
+  const map = useLoader(TextureLoader, textureUrl);
+  map.colorSpace = SRGBColorSpace;
+  map.wrapS = RepeatWrapping;
+  map.wrapT = RepeatWrapping;
+  map.repeat.set(Math.max(1, cabinet.width / 250), Math.max(1, cabinet.depth / 250));
+  map.needsUpdate = true;
+
+  const seatT = cabinet.options.seatCushionThickness ?? 80;
+  const inset = Math.max(0, cabinet.options.seatCushionInset ?? 5);
+  const r = Math.max(50, Math.min(cabinet.width, cabinet.depth) - inset);
+  const seatShape = useMemo(() => {
+    const shape = new Shape();
+    shape.moveTo(0, 0);
+    shape.lineTo(r, 0);
+    shape.absarc(0, 0, r, 0, Math.PI / 2, false);
+    shape.closePath();
+    return shape;
+  }, [r]);
+  const colour = selected ? '#ff9640' : upholstery.colourFallback;
+  const material = () => <meshStandardMaterial
+    color={map && !selected ? '#ffffff' : colour}
+    map={!selected ? map : null}
+    roughness={0.95}
+    wireframe={wireframe}
+  />;
+
+  const backHeight = cabinet.options.backCushionHeight ?? 400;
+  const backThickness = cabinet.options.backCushionThickness ?? 80;
+  const angle = Math.min(15, Math.max(0, cabinet.options.backCushionAngle ?? 0)) * Math.PI / 180;
+  const backRadius = Math.max(1, Math.min(cabinet.options.cushionCornerRadius ?? 18, backThickness / 4));
+  const backY = cabinet.height + 16 + seatT;
+
+  return <>
+    <mesh position={[0, cabinet.height + 16, r]} rotation={[-Math.PI / 2, 0, 0]} castShadow receiveShadow>
+      <extrudeGeometry args={[seatShape, { depth: seatT, bevelEnabled: true, bevelSize: 3, bevelThickness: 3, bevelSegments: 3 }]} />
+      {material()}
+    </mesh>
+    {cabinet.options.hasBackCushion !== false && <>
+      <WedgeBack width={r} height={backHeight} thickness={backThickness} angle={angle}
+        radius={backRadius} x={0} y={backY}>{material()}</WedgeBack>
+      <group position={[0, 0, r]} rotation={[0, Math.PI / 2, 0]}>
+        <WedgeBack width={r} height={backHeight} thickness={backThickness} angle={angle}
+          radius={backRadius} x={0} y={backY}>{material()}</WedgeBack>
+      </group>
+    </>}
   </>;
 }

@@ -105,7 +105,7 @@ export const createCabinet = (
             mm(defaults.baseCabinetHeight + findConstruction(constructions, constructionId).kickHeight)
           : args.typeId === 'panel'
             ? mm(2400)
-          : args.typeId === 'banquette'
+          : args.typeId === 'banquette' || args.typeId === 'banquette-corner'
             ? mm(400)
             : defaults.baseCabinetHeight;
   const naturalDepth =
@@ -115,7 +115,7 @@ export const createCabinet = (
         ? defaults.tallCabinetDepth
         : args.typeId === 'panel'
           ? mm(16)
-        : args.typeId === 'banquette'
+        : args.typeId === 'banquette' || args.typeId === 'banquette-corner'
           ? mm(500)
           : defaults.baseCabinetDepth;
 

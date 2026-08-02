@@ -403,9 +403,10 @@ export function Inspector({
   const isRadiusEnd = cabinet.typeId === 'radius-end';
   const isPanel = cabinet.typeId === 'panel';
   const isBanquette = cabinet.typeId === 'banquette';
+  const isBanquetteCorner = cabinet.typeId === 'banquette-corner';
   const resolvedSkinMaterialId = cabinet.materials.skin ?? project.defaults.skinMaterialId;
   const usesLegacyBendyPly =
-    (isRadiusEnd || isRadiused(cabinet.options)) && resolvedSkinMaterialId === 'bendy-ply-3';
+    (isRadiusEnd || isBanquetteCorner || isRadiused(cabinet.options)) && resolvedSkinMaterialId === 'bendy-ply-3';
 
   const sheetOptions = project.materials.sheets.map((m) => ({
     id: m.id,
@@ -506,16 +507,16 @@ export function Inspector({
           data, and it is no better in a form: two of them would be wrong until you typed the
           third.
         */}
-        {isRadiusEnd ? (
+        {isRadiusEnd || isBanquetteCorner ? (
           <NumberField
             label="Radius"
-            value={cabinet.options.endRadius ?? cabinet.depth}
+            value={isBanquetteCorner ? cabinet.options.insideCornerRadius ?? cabinet.depth : cabinet.options.endRadius ?? cabinet.depth}
             min={100}
             max={1200}
             step={10}
             onChange={(n) => {
               onUpdate(cabinet.id, { width: mm(n), depth: mm(n) });
-              onUpdateOptions(cabinet.id, { endRadius: mm(n) });
+              onUpdateOptions(cabinet.id, isBanquetteCorner ? { insideCornerRadius: mm(n) } : { endRadius: mm(n) });
             }}
           />
         ) : (
@@ -567,7 +568,7 @@ export function Inspector({
           point of it is the outside. Offering the controls anyway would let somebody set a
           door count the spec then silently ignores.
         */}
-        {!isDrawerBank && !isRadiusEnd && !isBanquette && (
+        {!isDrawerBank && !isRadiusEnd && !isBanquette && !isBanquetteCorner && (
           <>
             <label className="field">
               <span>Doors</span>
@@ -866,6 +867,19 @@ export function Inspector({
             </div>
           </label>
         )}
+
+        {isBanquetteCorner && <>
+          <NumberField label="Seat cushion" value={cabinet.options.seatCushionThickness ?? 80} min={30} max={200} step={5} onChange={(n) => onUpdateOptions(cabinet.id, { seatCushionThickness: mm(n) })} />
+          <NumberField label="Cushion inset" value={cabinet.options.seatCushionInset ?? 5} min={0} max={100} step={5} onChange={(n) => onUpdateOptions(cabinet.id, { seatCushionInset: mm(n) })} />
+          <label className="field field-check"><input type="checkbox" checked={cabinet.options.hasBackCushion !== false} onChange={(e) => onUpdateOptions(cabinet.id, { hasBackCushion: e.target.checked })} /><span>Back cushions</span></label>
+          {cabinet.options.hasBackCushion !== false && <>
+            <NumberField label="Back cushion height" value={cabinet.options.backCushionHeight ?? 400} min={100} max={1000} step={10} onChange={(n) => onUpdateOptions(cabinet.id, { backCushionHeight: mm(n) })} />
+            <NumberField label="Back cushion thickness" value={cabinet.options.backCushionThickness ?? 80} min={30} max={200} step={5} onChange={(n) => onUpdateOptions(cabinet.id, { backCushionThickness: mm(n) })} />
+            <NumberField label="Back angle" value={cabinet.options.backCushionAngle ?? 0} min={0} max={15} step={1} suffix="°" onChange={(n) => onUpdateOptions(cabinet.id, { backCushionAngle: n })} />
+          </>}
+          <NumberField label="Former spacing (max)" value={cabinet.options.formerSpacing ?? 250} min={50} max={800} step={25} onChange={(n) => onUpdateOptions(cabinet.id, { formerSpacing: mm(n) })} />
+          <NumberField label="Skin layers" value={cabinet.options.skinLayers ?? 2} min={1} max={4} step={1} suffix="" onChange={(n) => onUpdateOptions(cabinet.id, { skinLayers: Math.round(n) })} />
+        </>}
       </div>}
 
       {warnings.length > 0 && (
@@ -903,7 +917,7 @@ export function Inspector({
 
       <div className="subhead">Finish</div>
       <div className="fields">
-        {isBanquette && <label className="field"><span>Upholstery</span><div className="field-input"><select
+        {(isBanquette || isBanquetteCorner) && <label className="field"><span>Upholstery</span><div className="field-input"><select
           value={cabinet.materials.upholstery ?? (project.materials.upholstery ?? AU_UPHOLSTERY_MATERIALS)[0]?.id ?? ''}
           onChange={(e) => setMaterial({ upholstery: e.target.value })}
         >{(project.materials.upholstery ?? AU_UPHOLSTERY_MATERIALS).map((fabric) => <option key={fabric.id} value={fabric.id}>{fabric.brand} {fabric.collection} — {fabric.colour}</option>)}</select></div></label>}

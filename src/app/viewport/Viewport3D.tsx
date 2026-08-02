@@ -28,7 +28,7 @@ import type { Mm } from '../../core/units.ts';
 import { nestProject } from '../../core/nest/nest.ts';
 import { sheetTexturePlacements, type SheetTexturePlacement } from './sheetTexture.ts';
 import { AU_UPHOLSTERY_MATERIALS } from '../../core/library/upholstery.au.ts';
-import { BanquetteCushions } from './BanquetteCushions.tsx';
+import { BanquetteCornerCushions, BanquetteCushions } from './BanquetteCushions.tsx';
 
 /** Millimetres → scene units. The model never leaves mm; only the render is scaled. */
 const MM_TO_SCENE = 0.001;
@@ -105,6 +105,12 @@ function CabinetGroup({
           (item) => item.id === built.cabinet.materials.upholstery,
         ) ?? (project.materials.upholstery ?? AU_UPHOLSTERY_MATERIALS)[0];
         return upholstery ? <BanquetteCushions cabinet={built.cabinet} upholstery={upholstery} selected={selected} wireframe={wireframe} /> : null;
+      })()}
+      {built.cabinet.typeId === 'banquette-corner' && (() => {
+        const upholstery = (project.materials.upholstery ?? AU_UPHOLSTERY_MATERIALS).find(
+          (item) => item.id === built.cabinet.materials.upholstery,
+        ) ?? (project.materials.upholstery ?? AU_UPHOLSTERY_MATERIALS)[0];
+        return upholstery ? <BanquetteCornerCushions cabinet={built.cabinet} upholstery={upholstery} selected={selected} wireframe={wireframe} /> : null;
       })()}
     </group>
   );
