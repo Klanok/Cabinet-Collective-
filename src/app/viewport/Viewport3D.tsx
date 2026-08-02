@@ -50,7 +50,7 @@ const WALL_SNAP_GAP: Mm = 200;
  * a greedy snap would keep grabbing the wrong one — 60mm is close enough that you have clearly
  * aimed at it.
  */
-const NEIGHBOUR_SNAP_GAP: Mm = 60;
+const NEIGHBOUR_SNAP_GAP: Mm = 120;
 
 interface Props {
   built: readonly BuiltCabinet[];

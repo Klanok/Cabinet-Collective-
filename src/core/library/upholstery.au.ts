@@ -21,7 +21,7 @@ export const AU_UPHOLSTERY_MATERIALS: readonly UpholsteryMaterial[] = [
   caulfield('Taupe', '#8d7c6c'),
   caulfield('Rust', '#9b5037'),
   caulfield('Moss', '#66705a'),
-  caulfield('Pickle', '#78853f', 'webp'),
+  caulfield('Pickle', '#78853f'),
   caulfield('Ocean', '#3e6870'),
   caulfield('Navy', '#263849'),
   caulfield('Charcoal', '#414344'),

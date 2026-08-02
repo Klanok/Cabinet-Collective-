@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createCabinet, createEmptyProject } from '../src/core/project/factory.ts';
 import { buildCabinet } from '../src/core/rules/build.ts';
 import { mm } from '../src/core/units.ts';
+import { isRectangular } from '../src/core/geom/profile.ts';
 
 describe('banquette seating', () => {
   it('starts as a low carcass with a real lift-up lid and no fronts', () => {
@@ -27,5 +28,20 @@ describe('banquette seating', () => {
     expect(project.materials.upholstery?.map((fabric) => fabric.colour)).toEqual([
       'Oatmeal', 'Bone', 'Taupe', 'Rust', 'Moss', 'Pickle', 'Ocean', 'Navy', 'Charcoal',
     ]);
+  });
+
+  it('uses the real curved-carcass rules when a banquette corner is radiused', () => {
+    const project = createEmptyProject('Curved banquette');
+    const cabinet = createCabinet(
+      { typeId: 'banquette', name: 'BQ1', width: mm(1200), x: mm(0) },
+      project.defaults,
+      project.constructions,
+    );
+    const built = buildCabinet({
+      ...cabinet,
+      options: { ...cabinet.options, radiusCorner: 'front-right', carcassRadius: mm(250) },
+    }, project);
+    expect(built.panels.some((panel) => panel.role === 'skin')).toBe(true);
+    expect(isRectangular(built.panels.find((panel) => panel.name === 'Bottom')!.profile)).toBe(false);
   });
 });

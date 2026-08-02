@@ -365,6 +365,14 @@ describe('the shop’s own detail', () => {
     const b = withMethod({ appliedEndToFloor: false }, { appliedEnds: ['left'] });
     expect(occupies(byName(b.panels, 'End panel L'), b.project).y).toEqual([mm(0), mm(720)]);
   });
+
+  it('lets one cabinet stop its applied end at carcass height', () => {
+    const b = withMethod(
+      { appliedEndToFloor: true },
+      { appliedEnds: ['left'], appliedEndHeight: 'carcass' },
+    );
+    expect(occupies(byName(b.panels, 'End panel L'), b.project).y).toEqual([mm(0), mm(720)]);
+  });
 });
 
 describe('a job saved before applied ends existed', () => {

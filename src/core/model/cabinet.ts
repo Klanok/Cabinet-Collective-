@@ -61,6 +61,8 @@ export interface CabinetOptions {
    * to when the last cabinet meets a wall.
    */
   readonly appliedEnds?: readonly CabinetEnd[];
+  /** Per-cabinet applied-end height. Unset inherits the shop construction method. */
+  readonly appliedEndHeight?: 'floor' | 'carcass';
 
   /*
    * Appliance spaces only — and the whole reason the type exists. See specs/applianceSpace.ts.

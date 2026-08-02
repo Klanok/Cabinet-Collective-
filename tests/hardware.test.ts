@@ -131,6 +131,7 @@ describe('the MERIVOBOX spec is data, not arithmetic scattered about', () => {
       ['N', 68.5, 60.5],
       ['M', 91, 83],
       ['K', 129, 121],
+      ['E', 192, 184],
     ]);
     expect(MERIVOBOX.sideHeights.find((h) => h.code === 'N')?.nominalLengths).toEqual([
       400, 450, 500, 550,
@@ -720,6 +721,7 @@ describe('an older job coming forward', () => {
       'N',
       'M',
       'K',
+      'E',
     ]);
     expect(migrated.defaults.drawerSideHeightCode).toBe('M');
   });
@@ -740,6 +742,7 @@ describe('an older job coming forward', () => {
       'N',
       'M',
       'K',
+      'E',
     ]);
     expect(migrated.defaults.skinMaterialId).toBe('bendy-ply-8');
   });

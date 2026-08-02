@@ -36,7 +36,7 @@ import {
 } from '../library/blum.ts';
 import { AU_BENCHTOP_MATERIALS, AU_MATERIAL_LIBRARY, AU_SHEET_MATERIALS } from '../library/materials.au.ts';
 
-export const CURRENT_SCHEMA_VERSION = 21 as const;
+export const CURRENT_SCHEMA_VERSION = 22 as const;
 
 /**
  * The bendy ply an older job is given when it is migrated forward. It has no curved parts in
@@ -714,6 +714,22 @@ const migrateV20toV21 = (raw: Record<string, unknown>): Record<string, unknown> 
   };
 };
 
+/** Add the complete shipped MERIVOBOX height range to current browser snapshots. */
+const migrateV21toV22 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const hardware = (raw.hardware as Record<string, unknown> | undefined) ?? {};
+  const systems = (hardware.runnerSystems as Record<string, unknown>[] | undefined) ?? [];
+  return {
+    ...raw,
+    schemaVersion: 22,
+    hardware: {
+      ...hardware,
+      runnerSystems: systems.map((system) =>
+        withShippedSideHeights(system, BLUM_HARDWARE_LIBRARY.runnerSystems),
+      ),
+    },
+  };
+};
+
 /**
  * Load a project from stored JSON, migrating older schema versions forward.
  *
@@ -755,6 +771,7 @@ export const migrateProject = (raw: unknown): Project => {
   if (data.schemaVersion === 18) data = migrateV18toV19(data);
   if (data.schemaVersion === 19) data = migrateV19toV20(data);
   if (data.schemaVersion === 20) data = migrateV20toV21(data);
+  if (data.schemaVersion === 21) data = migrateV21toV22(data);
 
   if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`migrateProject: could not migrate schema version ${String(version)}`);
