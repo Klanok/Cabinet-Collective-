@@ -18,6 +18,7 @@ export type CabinetTypeId =
   | 'custom'
   | 'radius-end'
   | 'banquette'
+  | 'banquette-corner'
   /** One independently placed rectangular sheet part, rather than a carcass. */
   | 'panel'
   /** A gap in the run that an appliance fills. Produces no parts — see specs/applianceSpace.ts. */
@@ -116,6 +117,8 @@ export interface CabinetOptions {
   readonly cushionCornerRadius?: Mm;
   readonly leftEndCushion?: boolean;
   readonly rightEndCushion?: boolean;
+  /** Inside-corner banquette only. Finished plan radius of the quarter-circle connector. */
+  readonly insideCornerRadius?: Mm;
 
   /*
    * Curved work.
@@ -270,6 +273,7 @@ export const CABINET_TYPE_LABELS: Record<CabinetTypeId, string> = {
   custom: 'Custom',
   'radius-end': 'Radiused end',
   banquette: 'Banquette seating',
+  'banquette-corner': 'Inside banquette corner',
   panel: 'Standalone panel',
   appliance: 'Appliance space',
 };
