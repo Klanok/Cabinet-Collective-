@@ -21,8 +21,83 @@ import { sheetLabel } from './MaterialPicker.tsx';
 import type { BuiltCabinet } from '../../core/rules/build.ts';
 import { getSpec } from '../../core/rules/registry.ts';
 import { useAsk } from './ask.tsx';
+import { tallestSideHeightFor } from '../../core/model/hardware.ts';
+
 import { AU_UPHOLSTERY_MATERIALS } from '../../core/library/upholstery.au.ts';
 
+/**
+ * Each drawer front's height, set on its own.
+ *
+ * Seeded from the fronts the cabinet **actually built**, so the first edit starts from the equal
+ * split already on screen rather than from an empty box. Touching any one of them writes the whole
+ * list, because a bank is either sharing the opening equally or it is not — a half-explicit list
+ * would leave the rest to a rule that no longer knows how much room is left.
+ *
+ * The box height each front can carry is shown beside it, because that is the consequence somebody
+ * is changing the heights *for*: a 300mm front takes a much deeper box than a 150mm one, and until
+ * the number is on screen the trade is invisible.
+ */
+function DrawerFrontHeights({
+  cabinet,
+  built,
+  onUpdateOptions,
+}: {
+  cabinet: Cabinet;
+  built: BuiltCabinet;
+  onUpdateOptions: (id: string, patch: Partial<CabinetOptions>) => void;
+}) {
+  const fronts = built.panels
+    .filter((p) => p.role === 'drawer-front')
+    .map((p) => Math.round(panelExtent(p).width));
+  if (fronts.length === 0) return null;
+
+  const explicit = (cabinet.options.drawerFrontHeights?.length ?? 0) > 0;
+  const system = built.hardware.runnerSystem;
+  const setOne = (i: number, value: number) => {
+    const next = fronts.map((h, j) => mm(j === i ? Math.max(20, Math.round(value)) : h));
+    onUpdateOptions(cabinet.id, { drawerFrontHeights: next });
+  };
+
+  return (
+    <>
+      <div className="subhead">Drawer front heights</div>
+      {fronts.map((height, i) => {
+        const box = tallestSideHeightFor(system, mm(height));
+        return (
+          <NumberField
+            key={i}
+            label={`Front ${i + 1}${i === 0 ? ' (bottom)' : ''} — ${box ? box.name : 'no box fits'}`}
+            value={height}
+            min={20}
+            max={1200}
+            step={5}
+            onChange={(n) => setOne(i, n)}
+          />
+        );
+      })}
+      {explicit ? (
+        <>
+          <p className="note subtle">
+            Set by hand. Each drawer gets the tallest box its own front will carry, so a mixed bank
+            is not held down to its shortest front. A cabinet that names its own box height keeps
+            it.
+          </p>
+          <button
+            className="btn full"
+            onClick={() => onUpdateOptions(cabinet.id, { drawerFrontHeights: undefined })}
+          >
+            Back to equal fronts
+          </button>
+        </>
+      ) : (
+        <p className="note subtle">
+          Sharing the opening equally. Change any one and the bank keeps these heights from then
+          on, and each drawer takes the deepest box its front allows.
+        </p>
+      )}
+    </>
+  );
+}
 interface Props {
   built: BuiltCabinet | null;
   project: Project;
@@ -825,6 +900,14 @@ export function Inspector({
                 drawerFrontHeights: undefined,
               })
             }
+          />
+        )}
+
+        {(cabinet.options.drawerCount ?? 0) > 0 && (
+          <DrawerFrontHeights
+            cabinet={cabinet}
+            built={built}
+            onUpdateOptions={onUpdateOptions}
           />
         )}
 

@@ -165,6 +165,8 @@ export const MERIVOBOX: DrawerRunnerSystem = {
   // bottom edge of the front is the carcass board's own thickness. A push-to-open runner is the
   // case that is not zero — see the field, and the note in `unconfirmedFigures`.
   runnerAboveCabinetFloor: mm(0),
+  // See the field: an estimate, not Blum's own table. Listed in `unconfirmedFigures`.
+  frontCoverAboveSideHeight: mm(30),
   bottomPanelAboveRunner: mm(20),
   runnerFixingAboveRunnerBottom: mm(54),
 
@@ -183,6 +185,12 @@ export const MERIVOBOX: DrawerRunnerSystem = {
   indicativePricing: true,
 
   unconfirmedFigures: [
+    'frontCoverAboveSideHeight — how much taller than the box side a drawer front must be, which ' +
+      'is what decides the box height a given front can take. Blum publish a minimum front height ' +
+      'per side height rather than one clearance, and that table has not been read off a ' +
+      'catalogue. 30mm puts N, M, K and E at roughly 98, 121, 159 and 222mm minimum fronts — ' +
+      'close to the published figures, but derived from a guess. Read the table before cutting a ' +
+      'bank whose fronts land near a boundary.',
     'runnerAboveCabinetFloor — how high the bottom of the runner has to sit above the cabinet ' +
       'floor. Zero for the ordinary screw-fixed runner, which rests straight on the base, and the ' +
       'distance up to the bottom edge of the front is then just the carcass board. A ' +

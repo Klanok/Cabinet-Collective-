@@ -16,7 +16,7 @@ before running anything. See [G-code](#g-code) below.
 ```bash
 npm install
 npm run dev       # the app
-npm test          # 742 tests
+npm test          # 747 tests
 npm run report    # cutlist, hardware, drilling, nest, G-code and costing for the sample kitchen
 ```
 
@@ -430,7 +430,7 @@ builders, which is the test of whether that's actually true.
 
 ## Verification
 
-742 tests, and the ones that matter are hand-calculated rather than snapshot:
+747 tests, and the ones that matter are hand-calculated rather than snapshot:
 
 - Every part size for the reference 900×720×560 base cabinet, worked out longhand in the test
   file header and asserted individually.
@@ -508,6 +508,8 @@ having something other than memory re-checking it.
 | — | Wall openings — bulkheads, windows, out-of-square walls and scribes | not started |
 | 3 | Guillotine nesting — real sheets, an ordered cut sequence, offcuts, whole-sheet costing | **done** |
 | — | Choosing which sheet size a material is cut from, per material | **done** |
+| — | Drawer front heights set individually, with the box height following each front | **done** |
+| — | Keeping a grained bank's fronts together on the sheet so the grain matches | not started |
 | — | Mixing sheet sizes *within* one material, so a nearly-empty last sheet can be a small one | not started |
 | — | Nesting into offcuts you actually have on the rack | not started |
 | 4 | CAM feature layer — an ordered, machine-independent operation list | **done** |

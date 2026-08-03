@@ -26,6 +26,7 @@ import {
   bottomPanelAboveFrontBottom,
   drawerBackSize,
   drawerBottomSize,
+  tallestSideHeightFor,
 } from '../model/hardware.ts';
 import type { RuleContext } from './context.ts';
 import { drawerRows } from './parts.ts';
@@ -69,17 +70,55 @@ export const drawerBoxes = (ctx: RuleContext, frontHeights: readonly Mm[]): Part
 
   const system = runner.system;
   const bottom = drawerBottomSize(system, ctx.interiorWidth, runner.nominalLength);
-  const back = drawerBackSize(system, runner.sideHeight, ctx.interiorWidth);
-  if (bottom.length <= 0 || bottom.width <= 0 || back.width <= 0) return [];
+  if (bottom.length <= 0 || bottom.width <= 0) return [];
 
   // The box is centred in the opening: the runner takes the same bite out of each side.
   const leftX = mm(ctx.t + (ctx.interiorWidth - bottom.length) / 2);
   const position = boxPosition(ctx, runner.nominalLength, ctx.t);
 
-  const label = `${system.name} ${runner.sideHeight.code}, NL ${runner.nominalLength}`;
+  /*
+   * Auto-sizing applies to a bank whose fronts were **set by hand**, and only then.
+   *
+   * That is the request as it was made — *"when i change the front heights as above it should
+   * automatically change to the tallest drawer hardware available"* — and the restraint is the
+   * important half. A bank on the equal-split default is a bank nobody has expressed an opinion
+   * about, and silently deepening its boxes would re-spec every drawer bank in every saved job to
+   * hardware it was never quoted for. Saved jobs do not get re-specified behind anybody's back;
+   * that is the rule this file's migrations are built on.
+   *
+   * A cabinet that names its own box height keeps it either way. An explicit choice outranks a
+   * derived one.
+   */
+  const autoHeight =
+    (ctx.options.drawerFrontHeights?.length ?? 0) > 0 && !runner.sideHeightWasChosen;
+
   const parts: PartInstance[] = [];
 
   for (const row of drawerRows(ctx, frontHeights)) {
+    /*
+     * **The box height is per drawer, not per bank**, and that is the whole point of letting the
+     * fronts differ. The deepest box a front can carry is free capacity: a 300mm pot drawer on an
+     * M side has 90mm of usable box and 200mm of air over it. One code for the bank would have to
+     * suit the *shortest* front, so a single cutlery drawer would flatten every pot drawer beside
+     * it.
+     *
+     * The cabinet's own `drawerSideHeightCode` still wins where it is set — an explicit choice is
+     * an explicit choice — and this only decides the drawers it does not cover. See
+     * `tallestSideHeightFor`.
+     */
+    /*
+     * No box rather than a fallback box. When a front is too short to carry anything this system
+     * makes, falling back to the cabinet default would cut a box that stands proud of its own
+     * front — visible, and wrong in the direction nobody checks. Same call `drawerBoxes` already
+     * makes when no runner length fits: the front still comes out, so the bank still reads as a
+     * bank, and `hardwareProblems` says why the box is missing.
+     */
+    const sideHeight = autoHeight ? tallestSideHeightFor(system, row.height) : runner.sideHeight;
+    if (sideHeight === null) continue;
+    const back = drawerBackSize(system, sideHeight, ctx.interiorWidth);
+    if (back.width <= 0) continue;
+    const label = `${system.name} ${sideHeight.code}, NL ${runner.nominalLength}`;
+
     /*
      * The **underside** of the bottom panel, which is what Blum's `20` dimensions — the bottom of
      * the runner plus 20. Not the floor you look down on: that is a board thickness higher, and
@@ -119,7 +158,7 @@ export const drawerBoxes = (ctx: RuleContext, frontHeights: readonly Mm[]): Part
       material: 'carcass',
       bandedDirections: BAND_NONE,
       grain: 'any',
-      note: `${label} — ${runner.sideHeight.name} profile takes a ${back.width}mm back`,
+      note: `${label} — ${sideHeight.name} profile takes a ${back.width}mm back`,
     });
   }
 

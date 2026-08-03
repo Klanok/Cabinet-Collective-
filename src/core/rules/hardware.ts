@@ -22,6 +22,8 @@ import {
   findHingeSystem,
   findRunnerSystem,
   findSideHeight,
+  shortestFrontFor,
+  tallestSideHeightFor,
   minInnerDepthFor,
   runnerFixingPositions,
 } from '../model/hardware.ts';
@@ -43,6 +45,15 @@ export interface HardwareDefaultIds {
 export interface ResolvedRunner {
   readonly system: DrawerRunnerSystem;
   readonly sideHeight: DrawerSideHeight;
+  /**
+   * True when **this cabinet** named the box height, rather than inheriting the job default.
+   *
+   * The distinction decides whether a bank's drawers may each take the tallest box their own
+   * front can carry. An explicit choice is an explicit choice and is left alone; an inherited
+   * default is a starting point, and a 300mm front sitting on it is capacity going to waste. See
+   * `tallestSideHeightFor` and `drawerBoxes`.
+   */
+  readonly sideHeightWasChosen: boolean;
   readonly nominalLength: Mm;
   /**
    * Where this runner is screwed to the side panel, back from the panel's front edge, front-most
@@ -124,6 +135,8 @@ const resolveRunner = (
   sideHeight: DrawerSideHeight,
   innerDepth: Mm,
 ): ResolvedRunner | null => {
+  const sideHeightWasChosen =
+    findSideHeight(system, options.drawerSideHeightCode) !== null;
   const asked = options.drawerNominalLength;
   const lengths = sideHeight.nominalLengths ?? system.nominalLengths;
   const made = (nl: Mm) => lengths.some((l) => l === nl);
@@ -133,6 +146,7 @@ const resolveRunner = (
     return {
       system,
       sideHeight,
+      sideHeightWasChosen,
       nominalLength: asked,
       fixingPositions: runnerFixingPositions(system, asked),
       automatic: false,
@@ -145,6 +159,7 @@ const resolveRunner = (
   return {
     system,
     sideHeight,
+    sideHeightWasChosen,
     nominalLength: best,
     fixingPositions: runnerFixingPositions(system, best),
     automatic: true,
@@ -179,6 +194,26 @@ export const hardwareProblems = (ctx: RuleContext): string[] => {
         `built at ${hw.sideHeight.name}.`,
     );
   }
+  /*
+   * A front too short to carry any box this system makes.
+   *
+   * Only reachable on a bank whose heights were set by hand, which is the only case that
+   * auto-sizes. Reported per front and by name, because "one of your drawers has no box" is not
+   * something anybody should have to find by counting parts.
+   */
+  const explicitHeights = ctx.options.drawerFrontHeights ?? [];
+  if (explicitHeights.length > 0 && !ctx.hardware.runner?.sideHeightWasChosen) {
+    explicitHeights.forEach((height, i) => {
+      if (tallestSideHeightFor(hw.runnerSystem, height) === null) {
+        problems.push(
+          `Drawer front ${i + 1} is ${Math.round(height)}mm, which is too short for any ` +
+            `${hw.runnerSystem.name} box — no box is cut for it. The shortest that fits is ` +
+            `${Math.round(shortestFrontFor(hw.runnerSystem))}mm.`,
+        );
+      }
+    });
+  }
+
   if (ctx.options.hingeSystemId && ctx.options.hingeSystemId !== hw.hinge.id) {
     problems.push(
       `This cabinet asks for hinge system "${ctx.options.hingeSystemId}", which is not in this ` +
