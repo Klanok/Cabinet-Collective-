@@ -24,6 +24,7 @@ import {
   benchtopSections,
   finishedEdgeLength,
   suggestedJoins,
+  SQUARE_BENCHTOP_CORNERS,
 } from '../src/core/model/benchtop.ts';
 import { ribPositions } from '../src/core/model/kickBase.ts';
 import { CURRENT_SCHEMA_VERSION, migrateProject } from '../src/core/model/project.ts';
@@ -486,6 +487,7 @@ describe('benchtop arithmetic', () => {
       materialId: 'stone-quartz-20',
       overhangs: { front: mm(20), back: mm(0), left: mm(0), right: mm(0) },
       ends: { left: 'wall', right: 'wall' },
+      corners: SQUARE_BENCHTOP_CORNERS,
       joins: [],
       cutouts: [],
       ...patch,

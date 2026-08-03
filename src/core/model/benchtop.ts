@@ -20,7 +20,8 @@
  * supplier charge, and nothing else in the codebase has to branch on it.
  */
 
-import type { Mm } from '../units.ts';
+import { type Mm, type Mm2, mm } from '../units.ts';
+import { type Corner, cornerRadiusFits } from '../geom/profile.ts';
 import type { RunUnit } from './runUnit.ts';
 
 /** How a benchtop is come by. Decided by its material, not by the top. */
@@ -97,6 +98,33 @@ export interface BenchtopOverhangs {
   readonly right: Mm;
 }
 
+/**
+ * The plan radius of each front corner of the top.
+ *
+ * **A top over a radiused base cabinet used to be a square corner over a round cabinet.** The
+ * cabinet's box does not shrink when its corner is rounded (§4.5), so the top was always the right
+ * *size* — it simply had a sharp corner sitting 200mm proud of the curve underneath it, which is
+ * the one place in a kitchen where the top's edge is the thing a hand lands on.
+ *
+ * **Owned, not derived — and generated from the cabinets exactly once.** This is the same bargain
+ * `carcassDepth` strikes and for the same reason: it starts as a fact about the carcasses, and it
+ * stops being one the moment somebody decides the top's curve should be tighter than the cabinet's
+ * so the edge profile has somewhere to run out. `generate.ts` reads the end cabinets; nothing at
+ * build time does, because a top that read them again would move when a cabinet moved.
+ *
+ * Only the two **front** corners, for the reason `CabinetOptions.radiusCorner` offers only two: a
+ * back corner rounds into the wall where nobody sees it.
+ *
+ * Zero is a square corner, which is what every top saved before this existed has.
+ */
+export interface BenchtopCorners {
+  /** Front-left, looking at the run from the front. */
+  readonly left: Mm;
+  readonly right: Mm;
+}
+
+export const SQUARE_BENCHTOP_CORNERS: BenchtopCorners = { left: 0, right: 0 };
+
 export interface BenchtopUpstand {
   /** How far it stands above the top surface. */
   readonly height: Mm;
@@ -116,6 +144,8 @@ export interface Benchtop extends RunUnit {
     readonly left: BenchtopEnd;
     readonly right: BenchtopEnd;
   };
+  /** Rounded front corners, following the radiused cabinets under them. Zero is square. */
+  readonly corners: BenchtopCorners;
   /**
    * Where the top is joined, as distances along it from its left-hand end.
    *
@@ -174,6 +204,60 @@ export const suggestedJoins = (t: Benchtop, maxSectionLength: Mm): readonly Mm[]
   return Array.from({ length: count - 1 }, (_, i) => (i + 1) * each);
 };
 
+/**
+ * Which corners a given section of the top carries, in the part space of that section.
+ *
+ * A slab lies decor face up with `v = −Z`, so part y runs **from the front towards the back** and
+ * the two front corners are `x0y0` and `x1y0`. Getting that inverted would round the corners
+ * against the wall, at the right radius, on a part of exactly the right size.
+ *
+ * Only the first section carries the left corner and only the last carries the right — the same
+ * `isFirst` / `isLast` rule the banding already follows, because a join in the middle of a top has
+ * two square ends meeting at it.
+ */
+export const sectionCorners = (
+  t: Benchtop,
+  index: number,
+  sectionCount: number,
+): Partial<Record<Corner, Mm>> => {
+  const corners: { x0y0?: Mm; x1y0?: Mm } = {};
+  if (index === 0 && t.corners.left > 0) corners.x0y0 = t.corners.left;
+  if (index === sectionCount - 1 && t.corners.right > 0) corners.x1y0 = t.corners.right;
+  return corners;
+};
+
+/**
+ * Why a top's corner radii cannot be cut, or an empty list.
+ *
+ * Checked **per section**, because that is what gets cut: a 200mm radius is fine on a 3.6m top and
+ * impossible on the 150mm off-cut a badly placed join leaves at the end of it, and the top as a
+ * whole cannot see the difference.
+ */
+export const benchtopCornerProblems = (t: Benchtop): readonly string[] => {
+  const depth = benchtopDepth(t);
+  const sections = benchtopSections(t);
+  const problems: string[] = [];
+  sections.forEach((sectionLength, i) => {
+    const corners = sectionCorners(t, i, sections.length);
+    const why = cornerRadiusFits(sectionLength, depth, corners);
+    if (why) problems.push(`${t.name}: ${why}. The corner is cut square instead.`);
+  });
+  return problems;
+};
+
+/** Area a rounded corner takes out of the rectangle: the square less the quarter circle. */
+const cornerOffcut = (radius: Mm): Mm2 => (1 - Math.PI / 4) * radius * radius;
+
+/**
+ * Plan area of the slab, with the rounded corners taken off.
+ *
+ * Small — a 200mm radius is 0.0086m² — and worth doing anyway, because it is the same figure a
+ * stone fabricator's invoice is worked from and a number that is nearly right is the kind that
+ * costs an afternoon when somebody checks it.
+ */
+export const benchtopPlanArea = (t: Benchtop): Mm2 =>
+  benchtopLength(t) * benchtopDepth(t) - cornerOffcut(t.corners.left) - cornerOffcut(t.corners.right);
+
 /** True when an end is a face somebody sees, and so gets banded or profiled. */
 export const isFinishedEnd = (end: BenchtopEnd): boolean =>
   end === 'exposed' || end === 'waterfall';
@@ -190,7 +274,23 @@ export const finishedEdgeLength = (t: Benchtop): Mm => {
   let total = benchtopLength(t);
   if (isFinishedEnd(t.ends.left)) total += depth;
   if (isFinishedEnd(t.ends.right)) total += depth;
-  return total;
+
+  /*
+   * A rounded corner is shorter than the square one it replaces, not longer: it takes `r` off the
+   * front and `r` off the end and gives back a quarter circle, so the net is `r(π/2 − 2)` — about
+   * 86mm on a 200 radius. Charging the square corner over-buys the edge profile by that much.
+   *
+   * **The arc counts whether or not the end it meets does.** A corner is rounded because somebody
+   * sees it; an end marked `wall` behind it is a contradiction the top should not resolve by
+   * quietly leaving a curved finished edge off the quote.
+   */
+  for (const side of ['left', 'right'] as const) {
+    const r = t.corners[side];
+    if (r <= 0) continue;
+    total += (Math.PI / 2) * r - r;
+    if (isFinishedEnd(t.ends[side])) total -= r;
+  }
+  return mm(total);
 };
 
 /** Standard overhangs for a new top: 20mm proud at the front, flush everywhere else. */

@@ -22,9 +22,11 @@
 import { type Mm, mm } from '../units.ts';
 import {
   type Benchtop,
+  benchtopCornerProblems,
   benchtopDepth,
   benchtopLength,
   benchtopSections,
+  sectionCorners,
 } from '../model/benchtop.ts';
 import { type KickBase, ribPositions } from '../model/kickBase.ts';
 import type { ConstructionMethod } from '../model/construction.ts';
@@ -38,7 +40,12 @@ import {
 import type { GrainConstraint, Panel, PanelRole } from '../model/panel.ts';
 import type { Project } from '../model/project.ts';
 import { type PanelPlacement, placement } from '../geom/placement.ts';
-import { rectProfile } from '../geom/profile.ts';
+import {
+  type Profile2D,
+  cornerRadiusFits,
+  rectProfile,
+  roundedCornerProfile,
+} from '../geom/profile.ts';
 import { v3, type SignedAxis, type Vec2 } from '../geom/vec.ts';
 import { type BandingRule, BAND_NONE, resolveBanding } from './spec.ts';
 
@@ -55,6 +62,14 @@ interface UnitPart {
   readonly role: PanelRole;
   readonly length: Mm;
   readonly width: Mm;
+  /**
+   * The part's shape, when it is not the plain `length` × `width` rectangle.
+   *
+   * A rounded corner is tangent to both edges, so the bounding box does not move and `length` and
+   * `width` stay the size the part is nested and cut as — which is right for a saw, where the
+   * blank comes off the sheet and the curve is cut from the blank (§4.8).
+   */
+  readonly profile?: Profile2D;
   readonly placement: PanelPlacement;
   readonly materialId: string;
   readonly bandedDirections: BandingRule;
@@ -84,7 +99,7 @@ const toPanels = (
     role: part.role,
     name: part.name,
     materialId: part.materialId,
-    profile: rectProfile(part.length, part.width),
+    profile: part.profile ?? rectProfile(part.length, part.width),
     placement: part.placement,
     features: part.features ?? [],
     edgeBanding: resolveBanding(part.placement, part.bandedDirections, edgeBandId),
@@ -190,11 +205,24 @@ const benchtopParts = (
       );
     }
 
+    /*
+     * The rounded front corner, over a radiused base cabinet.
+     *
+     * A radius the section cannot hold is **dropped and reported**, never thrown: the rule engine
+     * has to keep producing a drawable cabinet for a half-typed number, and "200" arrives as "2"
+     * on its way through. Same reason `substrateRadius` resolves to null rather than throwing —
+     * see §4.5's crash, which was exactly this on a curve.
+     */
+    const corners = sectionCorners(top, i, sections.length);
+    const cornersFit = cornerRadiusFits(mm(sectionLength), depth, corners) === undefined;
+    const rounded = cornersFit && Object.keys(corners).length > 0;
+
     parts.push({
       name: sections.length > 1 ? `Benchtop ${i + 1}` : 'Benchtop',
       role: 'benchtop',
       length: mm(sectionLength),
       width: depth,
+      profile: rounded ? roundedCornerProfile(mm(sectionLength), depth, corners) : undefined,
       // Lies flat, decor face up: u along the run, v from the front towards the back, so
       // u × v = +Y. The origin is therefore the **front**-left corner of the section.
       placement: placement(v3(leftEdge + start, 0, frontEdge), '+X', '-Z'),
@@ -202,9 +230,36 @@ const benchtopParts = (
       bandedDirections: banded,
       grain: 'length-along-grain',
       features,
-      note: sections.length > 1 ? `Section ${i + 1} of ${sections.length}` : undefined,
+      note: [
+        sections.length > 1 ? `Section ${i + 1} of ${sections.length}` : undefined,
+        // §3: a curved edge cannot go through the edgebander. It is hand work, and whoever is
+        // cutting needs to know that before the part reaches the bander rather than at it.
+        rounded ? 'Rounded corner — band the curve by hand' : undefined,
+      ]
+        .filter(Boolean)
+        .join('. ') || undefined,
     });
   });
+
+  warnings.push(...benchtopCornerProblems(top));
+
+  /*
+   * A waterfall or a mitre at a rounded corner is not modelled, and guessing at one would be
+   * worse than saying so. A waterfall panel is mitred to the top along a straight line; where the
+   * top turns a quarter circle there is no straight line to mitre to, and the panel would have to
+   * be a developed curve on the §4.5 rules. Nobody has asked for one.
+   */
+  for (const side of ['left', 'right'] as const) {
+    if (top.corners[side] <= 0) continue;
+    const end = top.ends[side];
+    if (end === 'waterfall' || end === 'mitred') {
+      warnings.push(
+        `${top.name}: the ${side} end is ${end === 'waterfall' ? 'a waterfall' : 'mitred'} and ` +
+          'also carries a corner radius. That join is not modelled — square the corner or ' +
+          'square the end.',
+      );
+    }
+  }
 
   /*
    * Waterfall ends.

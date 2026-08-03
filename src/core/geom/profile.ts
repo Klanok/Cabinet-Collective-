@@ -107,6 +107,98 @@ export const notchedRectProfile = (
 };
 
 /**
+ * A rectangle with one or more corners rounded off to a quarter circle.
+ *
+ * Each named corner is replaced by an arc tangent to both edges meeting there, so the outline
+ * closes smoothly whatever the radii are and a cutter following it never has to stop. A corner
+ * left out of `radii`, or given zero, stays square — which is what makes this safe to call
+ * unconditionally rather than branching at every call site.
+ *
+ * **The corners are named, and there is no default.** Same rule `notchedRectProfile` and
+ * `bowedFrontProfile` follow, and for the same reason: which part-space corner faces the front of
+ * a room depends entirely on the panel's placement, so a caller that guessed would round the
+ * corner against the wall — the right radius, in the wrong quarter, passing any test that only
+ * measures the part.
+ *
+ * Throws on a radius the rectangle cannot hold. That is deliberate at this level and must not be
+ * relied on at the level above: the rule engine may never throw, so a builder validates with
+ * `cornerRadiusFits` first and reports. One exported check, one arithmetic, no boundary for the
+ * two to disagree about — the same split `substrateRadius` uses.
+ */
+export const roundedCornerProfile = (
+  length: Mm,
+  width: Mm,
+  radii: Partial<Record<Corner, Mm>>,
+): Profile2D => {
+  const r = (c: Corner): number => Math.max(0, radii[c] ?? 0);
+  const [r00, r10, r11, r01] = [r('x0y0'), r('x1y0'), r('x1y1'), r('x0y1')];
+  if (r00 === 0 && r10 === 0 && r11 === 0 && r01 === 0) return rectProfile(length, width);
+
+  const fits = cornerRadiusFits(length, width, radii);
+  if (fits !== undefined) throw new Error(`roundedCornerProfile: ${fits}`);
+
+  // tan(90° / 4). Positive is convex on a counter-clockwise ring, and every one of these bows
+  // outward into the corner it is cutting off — see `quarterDiscProfile` for the same sign.
+  const bulge = Math.tan(Math.PI / 8);
+  const l = length;
+  const w = width;
+  const outline: Vertex2[] = [];
+
+  /*
+   * Walked counter-clockwise, visiting the corners in the order x0y0 → x1y0 → x1y1 → x0y1. A
+   * square corner contributes its own point; a rounded one contributes two — where the arriving
+   * edge stops and where the leaving edge starts — with the bulge on the first, because a bulge
+   * belongs to the edge *leaving* the vertex it sits on.
+   */
+  if (r00 > 0) outline.push({ x: 0, y: r00, bulge }, v2(r00, 0));
+  else outline.push(v2(0, 0));
+
+  if (r10 > 0) outline.push({ x: l - r10, y: 0, bulge }, v2(l, r10));
+  else outline.push(v2(l, 0));
+
+  if (r11 > 0) outline.push({ x: l, y: w - r11, bulge }, v2(l - r11, w));
+  else outline.push(v2(l, w));
+
+  if (r01 > 0) outline.push({ x: r01, y: w, bulge }, v2(0, w - r01));
+  else outline.push(v2(0, w));
+
+  return { outline, holes: [] };
+};
+
+/**
+ * Why a set of corner radii will not fit a `length` × `width` rectangle, or `undefined` if it
+ * does.
+ *
+ * Exported so the warning and the geometry are the same arithmetic. Two radii sharing an edge
+ * have to fit along it together, which is the check that actually bites — a single radius is
+ * limited by the shorter side, but two 400mm corners on one end of a 700mm top overlap while
+ * each looks perfectly reasonable on its own.
+ */
+export const cornerRadiusFits = (
+  length: Mm,
+  width: Mm,
+  radii: Partial<Record<Corner, Mm>>,
+): string | undefined => {
+  const r = (c: Corner): number => Math.max(0, radii[c] ?? 0);
+  const pairs: readonly (readonly [Corner, Corner, Mm, string])[] = [
+    ['x0y0', 'x1y0', length, 'along the y = 0 edge'],
+    ['x0y1', 'x1y1', length, 'along the y = width edge'],
+    ['x0y0', 'x0y1', width, 'up the x = 0 edge'],
+    ['x1y0', 'x1y1', width, 'up the x = length edge'],
+  ];
+  for (const [a, b, span, where] of pairs) {
+    const total = r(a) + r(b);
+    if (total > span) {
+      return (
+        `radii of ${Math.round(r(a))}mm and ${Math.round(r(b))}mm need ${Math.round(total)}mm ` +
+        `${where}, and there is only ${Math.round(span)}mm`
+      );
+    }
+  }
+  return undefined;
+};
+
+/**
  * The radius of an arc that spans `chord` and stands `sagitta` proud of it at the middle.
  *
  * `r = (c²/4 + s²) / 2s`, straight from the intersecting-chords theorem. This is the

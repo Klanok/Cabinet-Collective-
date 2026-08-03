@@ -176,6 +176,32 @@ export function BenchtopPanel({
               </label>
             </div>
 
+            {/*
+              Corner radii. Generated from a radiused cabinet at the end of the run and editable
+              from then on, like everything else on a top — see `model/benchtop.ts`. Zero is a
+              square corner, which is what almost every top has.
+            */}
+            <div className="row-grid">
+              <label>
+                Left corner R
+                <Num
+                  value={top.corners.left}
+                  onChange={(n) =>
+                    onUpdateBenchtop(top.id, { corners: { ...top.corners, left: n } })
+                  }
+                />
+              </label>
+              <label>
+                Right corner R
+                <Num
+                  value={top.corners.right}
+                  onChange={(n) =>
+                    onUpdateBenchtop(top.id, { corners: { ...top.corners, right: n } })
+                  }
+                />
+              </label>
+            </div>
+
             <div className="row-grid">
               <label>
                 Left end
