@@ -1007,7 +1007,31 @@ export function Inspector({
           defaultLabel={nameOfStyle(project.defaults.doorStyleId)}
           onChange={(doorStyleId) => onUpdate(cabinet.id, { doorStyleId })}
         />
+        <label className="field"><span>Front grain</span><div className="field-input"><select
+          value={cabinet.options.frontGrain ?? ''}
+          onChange={(e) =>
+            onUpdateOptions(cabinet.id, {
+              frontGrain: (e.target.value || undefined) as 'vertical' | 'horizontal' | undefined,
+            })
+          }
+        >
+          <option value="">By part (default)</option>
+          <option value="vertical">Vertical</option>
+          <option value="horizontal">Horizontal</option>
+        </select></div></label>
       </div>
+      {cabinet.options.frontGrain === undefined ? (
+        <p className="note subtle">
+          Grain runs the way each part's shape wants it: up a door, across a bank of drawer
+          fronts. Set it here to run every front on this cabinet the same way.
+        </p>
+      ) : (
+        <p className="note subtle">
+          Every door, drawer front, false front and applied end on this cabinet is cut with the
+          grain running {cabinet.options.frontGrain}. Carcass parts are unaffected — their grain
+          is a construction fact, and leaving it free is what lets the nester turn them for yield.
+        </p>
+      )}
       {built.doorStyle.kind !== 'slab' && (
         <p className="note subtle">
           {built.doorStyle.name} — routed into the face of every door, drawer front and applied

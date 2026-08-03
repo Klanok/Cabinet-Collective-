@@ -7,7 +7,7 @@
 
 import { type Cabinet, isRadiused } from '../model/cabinet.ts';
 import { findConstruction } from '../model/construction.ts';
-import type { Panel } from '../model/panel.ts';
+import type { GrainConstraint, Panel } from '../model/panel.ts';
 import type { Project } from '../model/project.ts';
 import { profileExtent } from '../geom/profile.ts';
 import { type DoorStyle, resolveDoorStyle } from '../standards/doorStyles.ts';
@@ -110,6 +110,38 @@ const machineFront = (
   });
 };
 
+/**
+ * The grain a front is cut with, once the cabinet has had its say.
+ *
+ * **A `GrainConstraint` is relative to the part, and the shop thinks about the room.** A door's
+ * length runs up it, so `length-along-grain` is a vertical grain; a drawer front's length runs
+ * across a bank, so on that part the very same value is a *horizontal* grain. Handing the user
+ * that enum would be handing them a control whose meaning changes per part.
+ *
+ * So the option is stated as the room sees it — vertical or horizontal — and translated here by
+ * reading back which way this part's length actually runs. `u` already records it, and
+ * `machineFront` reads it the same way a few lines up to keep a V-groove upright on a drawer.
+ * This is the same class of trap as writing part-space hardware coordinates by hand: the wrong
+ * answer is the right *size* and passes anything that only measures the part.
+ *
+ * Only fronts are touched. A carcass part's grain is a construction fact rather than a
+ * preference, and on the white melamine most carcasses are cut from it is `any`, which is what
+ * lets the nester turn the part for yield. Overriding that would cost board to no visible end.
+ *
+ * `any` is never produced here: asking for a direction and getting "either" is not an answer.
+ */
+const grainForFront = (
+  instance: PartInstance,
+  want: 'vertical' | 'horizontal' | undefined,
+): GrainConstraint => {
+  if (!want || !isStyledFrontRole(instance.role)) return instance.grain;
+  const lengthRunsVertically =
+    instance.placement.u === '+Y' || instance.placement.u === '-Y';
+  return (want === 'vertical') === lengthRunsVertically
+    ? 'length-along-grain'
+    : 'width-along-grain';
+};
+
 const toPanel = (
   instance: PartInstance,
   ownerId: string,
@@ -117,6 +149,7 @@ const toPanel = (
   materials: ResolvedMaterials,
   styleFeatures: StyledFront,
   boring: readonly PanelFeature[],
+  grain: GrainConstraint,
 ): Panel => ({
   id: panelId,
   ownerId,
@@ -128,7 +161,7 @@ const toPanel = (
   placement: instance.placement,
   features: [...(instance.features ?? []), ...styleFeatures.features, ...boring],
   edgeBanding: resolveBanding(instance.placement, instance.bandedDirections, materials.edgeBand),
-  grain: instance.grain,
+  grain,
   forming: instance.forming,
   note: instance.note,
 });
@@ -206,7 +239,15 @@ export const buildCabinet = (cabinet: Cabinet, project: Project): BuiltCabinet =
     const styled = machineFront(instance, doorStyle, thicknesses);
     styled.warnings.forEach((w) => styleWarnings.add(w));
     panels.push(
-      toPanel(instance, cabinet.id, id, materials, styled, boring.perInstance[i] ?? []),
+      toPanel(
+        instance,
+        cabinet.id,
+        id,
+        materials,
+        styled,
+        boring.perInstance[i] ?? [],
+        grainForFront(instance, merged.options.frontGrain),
+      ),
     );
   });
 

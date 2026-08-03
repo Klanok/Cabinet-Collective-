@@ -499,6 +499,8 @@ having something other than memory re-checking it.
 | — | Banquette seating — upholstery material type, cushions, an inside corner | **done**, cushions viewport-only |
 | — | The banquette carcass — a solid front, an inset lift-up under the cushion, a sane overhang | **done** — rejected at the bench, then rebuilt |
 | — | A lid stay for the banquette lift-up | not started — no such part in the hardware library yet |
+| — | Grain direction on a cabinet's fronts, chosen as the room sees it | **done** |
+| — | Grain and per-edge banding on a standalone panel | not started |
 | — | Fabric, foam and upholstery labour on the quote | not started |
 | — | A wireframe view, for seeing the construction and checking a joint | **done** |
 | — | Wall openings — bulkheads, windows, out-of-square walls and scribes | not started |

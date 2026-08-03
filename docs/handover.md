@@ -101,6 +101,7 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | Saved cabinet types | Working |
 | Viewport — R3F, orbit + WASD/QE, drag to move, walls | Working |
 | Wireframe view — a third mode beside 3D and Plan | Working, see 5.8 |
+| Grain direction on a cabinet's fronts | Working, see 5.4 — stated as the room sees it, translated per part |
 | Decor textures on parts, at true scale, turned by grain | **Working, see 5.8.** Bundled images, mapped through the nest |
 | Banquette seating — solid front, hinged lift-up, cushions | Rejected at the bench, **rebuilt to the shop's own answers — see 5.4.** Lid stay still unmodelled |
 | Inside banquette corner — a quarter-circle connector | Working, on the same formers-and-bendy-ply rules as 4.5. Its own access question unasked, see 5.4 |
@@ -1638,7 +1639,38 @@ speculatively.
   record, viewport, cutlist, nesting, costing and CAM paths as generated cabinet parts rather than
   becoming a separate drawing-only object. This is for fillers, scribes, loose ends, backing pieces
   and other job panels that do not belong to a carcass. This first version is vertical-grain and
-  bands all four edges; editable grain and per-edge banding are the next controls, not hidden data.
+  bands all four edges; per-edge banding is the next control, not hidden data. Grain is now
+  editable per cabinet — see the entry below — but a standalone panel is not a *front*, so the
+  control does not reach it and its grain is still fixed vertical.
+- ~~**No option for grain direction.**~~ **Done, per cabinet.** Asked for from the bench as simply
+  *"i dont seem to have an option for grain direction"*, and the control was indeed missing
+  everywhere: grain was chosen by each part builder, shown read-only on the cutlist, and settable
+  nowhere. `CabinetOptions.frontGrain` is now `'vertical' | 'horizontal'`, unset meaning each part
+  keeps whatever its own shape wants.
+
+  **The translation is the whole of it, and it is a trap worth naming.** A `GrainConstraint` is
+  relative to the **part's own length**, and a door's length runs up it while a drawer front's runs
+  across a bank — so `length-along-grain` is a *vertical* grain on one and a *horizontal* grain on
+  the other. The same value, opposite directions. Handing that enum to the user would be handing
+  them a control whose meaning changes per part, so the option is stated as the room sees it and
+  `grainForFront` in `rules/build.ts` translates it by reading back the part's `u` axis. That is
+  the same move `machineFront` makes three lines earlier to keep a V-groove upright on a drawer,
+  and it is the same class of error as writing part-space hardware coordinates by hand: the wrong
+  answer is the right *size* and passes anything that only measures the part. `tests/banquette.test.ts`
+  therefore asserts a real-world direction on both a door and a drawer front, and asserts that the
+  two come back with **different** constraints from one setting.
+
+  Resolved in `build.ts` rather than in the part builders, for the reason §4.3 gives about door
+  styles: fronts are produced in several places, and a rule wired into three of them is a kitchen
+  with one door cut the wrong way. **Only fronts are touched** — `isStyledFrontRole`, so doors,
+  drawer fronts, false fronts and applied ends. A carcass part's grain is a construction fact
+  rather than a preference, and on white melamine it is `any`, which is exactly what lets the
+  nester turn it for yield; overriding that would cost board to no visible end.
+
+  **It reaches the nest, not just the picture.** `orientationsFor` turns a grain constraint into
+  the orientations a part may take on the sheet, so on a grained decor a door switched to
+  horizontal goes from `as-cut` to `turned` — the cut plan, the sheet count and the 3D texture all
+  follow. On an ungrained white melamine nothing moves, which is correct rather than a gap.
 - **Banquette seating — rejected at the bench, and rebuilt to what the shop actually builds.**
 
   > "the banquettes are not currently fit for purpose — I would never build them as they currently

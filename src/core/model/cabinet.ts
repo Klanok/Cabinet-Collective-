@@ -107,6 +107,20 @@ export interface CabinetOptions {
   /** How far the lid overhangs the carcass on each exposed side. */
   readonly lidOverhang?: Mm;
   /**
+   * Which way the grain runs on this cabinet's **fronts**, stated as the room sees it.
+   *
+   * Unset means each part keeps whatever its own builder chose, which is the sensible default
+   * for its shape: a door's grain runs up it, a drawer front's runs across a bank.
+   *
+   * Stated as `vertical` / `horizontal` rather than as a `GrainConstraint` on purpose. A
+   * `GrainConstraint` is relative to the **part's own length**, and a door's length runs up while
+   * a drawer front's runs across — so `length-along-grain` means *opposite* real-world directions
+   * on the two, and a control offering it would be a control nobody could use. `build.ts`
+   * translates this into the right constraint per part by reading the part's `u` axis, which is
+   * the same trick `machineFront` already uses to keep a V-groove upright on a drawer.
+   */
+  readonly frontGrain?: 'vertical' | 'horizontal';
+  /**
    * A solid front in door decor that does not open — the face of a banquette.
    *
    * Deliberately not a door: it takes no hinges and is bored for nothing, but a door style
