@@ -1135,3 +1135,82 @@ export const lidPanel = (ctx: RuleContext, overhang: Mm): PartInstance => {
     note: 'Sits on the carcass — not housed',
   };
 };
+
+/**
+ * A solid fixed front, in door decor, that does not open.
+ *
+ * This is the face of a banquette. It is `false-front` rather than `door` and the distinction
+ * carries real weight: `rules/boring.ts` selects `door` and `drawer-front` to bore, so a fixed
+ * front takes **no hinge cups and no plates**, and none appear on the hardware BOM. It is still
+ * in `STYLED_FRONT_ROLES`, so a shaker or V-groove kitchen routes it exactly like the doors
+ * either side of it, which is the whole reason it is a front and not a panel.
+ *
+ * **Part length runs across, not up** — modelled on `drawerFronts` rather than on `doors`. A
+ * banquette front is wide and low, so grain runs horizontally along the run the way a drawer
+ * bank is matched. A door is tall and its grain runs up it; copying the door here would stand
+ * the grain on end on a 1200 × 380 front, which is not how one is built.
+ */
+export const fixedFrontPanel = (ctx: RuleContext): PartInstance[] => {
+  const rS = ctx.construction.revealSides;
+  const height = mm(ctx.H - ctx.construction.revealTop - ctx.construction.revealBottom);
+  const zone = doorZone(ctx);
+  const width = mm(zone.width - 2 * rS);
+  if (height <= 0 || width <= 0) return [];
+  return [{
+    name: 'Front',
+    role: 'false-front',
+    profile: rectProfile(width, height),
+    placement: placement(v3(mm(zone.x0 + rS), ctx.construction.revealBottom, ctx.frontBackZ), '+X', '+Y'),
+    material: 'door',
+    bandedDirections: BAND_ALL,
+    grain: 'length-along-grain',
+    note: 'Fixed — no hinges. Grain horizontal.',
+  }];
+};
+
+/**
+ * The hinged lift-up panel that gives access to the storage void under a banquette seat.
+ *
+ * **Inset, not sitting on top.** It drops into the carcass opening so its top face finishes
+ * flush with the top edges of the sides, the back and the front. The cushion sits on that flush
+ * surface and comes off before the panel is lifted, so the panel carries no cushion fixing and
+ * the two are independent parts.
+ *
+ * That is the correction to the first version, which perched a slab on top of the carcass and
+ * overhung it by 20mm on both ends and the front. An overhanging lid cannot be built next to
+ * anything: two banquettes side by side overlapped their lids by 40mm, and the inside corner's
+ * lid was flush, so the two units this feature exists to join could not line up.
+ *
+ * Cut from carcass board rather than door decor because nothing sees it — it lives under a
+ * cushion — but banded all round, because it is handled every time the storage is opened.
+ *
+ * **The hinge itself is not modelled.** A lid stay is not in the Blum library this build ships,
+ * and inventing a part number and a price is exactly the failure `npm run report`'s unchecked
+ * list exists to prevent. The panel is cut to be hinged along its back edge; what it is hinged
+ * *with*, and whether it lands on cleats or on nothing but the hinge, is an open question — see
+ * §5.4 of the handover.
+ */
+export const liftUpPanel = (ctx: RuleContext, clearance: Mm): PartInstance[] => {
+  const c = Math.max(0, clearance);
+  const length = mm(ctx.interiorWidth - 2 * c);
+  const width = mm(ctx.horizontalDepth - 2 * c);
+  if (length <= 0 || width <= 0) return [];
+  return [{
+    name: 'Lift-up',
+    role: 'lid',
+    profile: rectProfile(length, width),
+    /*
+     * Top face flush with the top of the carcass, so the cushion lands on one continuous plane.
+     *
+     * v is −Z, not +Z, and that is the whole of it: the thickness runs along u × v, so +X × +Z
+     * puts the board *below* the origin and the seat finishes a board thickness low. +X × −Z
+     * puts it above. Same footprint either way, which is exactly why this is asserted as
+     * occupancy rather than as a size — a size test passes on both.
+     */
+    placement: placement(v3(mm(ctx.t + c), mm(ctx.H - ctx.t), mm(ctx.D - c)), '+X', '-Z'),
+    material: 'carcass',
+    bandedDirections: BAND_ALL,
+    grain: 'any',
+    note: `Inset, hinged along the back edge, ${c}mm clearance all round`,
+  }];
+};

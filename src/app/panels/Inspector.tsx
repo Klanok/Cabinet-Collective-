@@ -666,7 +666,17 @@ export function Inspector({
               suffix=""
               onChange={(n) => onUpdateOptions(cabinet.id, { dividerCount: Math.round(n) })}
             />
+            {isBanquette && (cabinet.options.dividerCount ?? 0) === 0 && cabinet.width - 2 * 16 > 1200 && (
+              <p className="note subtle">
+                A divider is added anyway above a 1200mm clear span, to stiffen the seat.
+              </p>
+            )}
             {isBanquette && <>
+              <label className="field field-check"><input type="checkbox" checked={cabinet.options.hasFixedFront !== false} onChange={(e) => onUpdateOptions(cabinet.id, { hasFixedFront: e.target.checked })} /><span>Solid front (door decor, fixed)</span></label>
+              <label className="field field-check"><input type="checkbox" checked={cabinet.options.hasLiftUp !== false} onChange={(e) => onUpdateOptions(cabinet.id, { hasLiftUp: e.target.checked })} /><span>Hinged lift-up</span></label>
+              {cabinet.options.hasLiftUp !== false && (
+                <NumberField label="Lift-up clearance" value={cabinet.options.liftUpClearance ?? 2} min={0} max={10} step={1} onChange={(n) => onUpdateOptions(cabinet.id, { liftUpClearance: mm(n) })} />
+              )}
               <NumberField label="Seat cushion" value={cabinet.options.seatCushionThickness ?? 80} min={30} max={200} step={5} onChange={(n) => onUpdateOptions(cabinet.id, { seatCushionThickness: mm(n) })} />
               <NumberField label="Cushion inset" value={cabinet.options.seatCushionInset ?? 5} min={0} max={100} step={5} onChange={(n) => onUpdateOptions(cabinet.id, { seatCushionInset: mm(n) })} />
               <NumberField label="Cushion radius" value={cabinet.options.cushionCornerRadius ?? 18} min={1} max={150} step={5} onChange={(n) => onUpdateOptions(cabinet.id, { cushionCornerRadius: mm(n) })} />
@@ -930,8 +940,8 @@ export function Inspector({
         />
         {isPanel && (
           <p className="note subtle">
-            Panel thickness comes from the selected sheet material. This first version keeps the
-            grain vertical and bands all four edges.
+            Panel thickness comes from the selected sheet material. All four edges are banded;
+            per-edge banding is not a control yet.
           </p>
         )}
         {!isPanel && <>
@@ -997,7 +1007,38 @@ export function Inspector({
           defaultLabel={nameOfStyle(project.defaults.doorStyleId)}
           onChange={(doorStyleId) => onUpdate(cabinet.id, { doorStyleId })}
         />
+        <label className="field"><span>{isPanel ? 'Grain' : 'Front grain'}</span><div className="field-input"><select
+          value={cabinet.options.grainDirection ?? ''}
+          onChange={(e) =>
+            onUpdateOptions(cabinet.id, {
+              grainDirection: (e.target.value || undefined) as 'vertical' | 'horizontal' | undefined,
+            })
+          }
+        >
+          <option value="">{isPanel ? 'Vertical (default)' : 'By part (default)'}</option>
+          <option value="vertical">Vertical</option>
+          <option value="horizontal">Horizontal</option>
+        </select></div></label>
       </div>
+      {cabinet.options.grainDirection === undefined ? (
+        <p className="note subtle">
+          {isPanel
+            ? 'A standalone panel is cut with the grain running up it unless you say otherwise.'
+            : "Grain runs the way each part's shape wants it: up a door, across a bank of drawer " +
+              'fronts. Set it here to run every front on this cabinet the same way.'}
+        </p>
+      ) : (
+        <p className="note subtle">
+          {isPanel
+            ? `This panel is cut with the grain running ${cabinet.options.grainDirection}.`
+            : `Every door, drawer front, false front and applied end on this cabinet is cut with ` +
+              `the grain running ${cabinet.options.grainDirection}. Carcass parts are unaffected — ` +
+              `their grain is a construction fact, and leaving it free is what lets the nester ` +
+              `turn them for yield.`}
+          {' '}On a grained decor this decides which way the part is turned on the sheet, so the
+          cut plan follows it.
+        </p>
+      )}
       {built.doorStyle.kind !== 'slab' && (
         <p className="note subtle">
           {built.doorStyle.name} — routed into the face of every door, drawer front and applied

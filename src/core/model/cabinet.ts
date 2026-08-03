@@ -106,6 +106,38 @@ export interface CabinetOptions {
   readonly hasLid?: boolean;
   /** How far the lid overhangs the carcass on each exposed side. */
   readonly lidOverhang?: Mm;
+  /**
+   * Which way the grain runs on this cabinet's **show parts**, stated as the room sees it.
+   *
+   * Show parts are the fronts — doors, drawer fronts, false fronts, applied ends — and a
+   * standalone panel, which is nothing but a show part. Carcass parts are deliberately excluded:
+   * their grain is a construction fact rather than a preference. See `GRAIN_CHOICE_ROLES`.
+   *
+   * Unset means each part keeps whatever its own builder chose, which is the sensible default
+   * for its shape: a door's grain runs up it, a drawer front's runs across a bank.
+   *
+   * Stated as `vertical` / `horizontal` rather than as a `GrainConstraint` on purpose. A
+   * `GrainConstraint` is relative to the **part's own length**, and a door's length runs up while
+   * a drawer front's runs across — so `length-along-grain` means *opposite* real-world directions
+   * on the two, and a control offering it would be a control nobody could use. `build.ts`
+   * translates this into the right constraint per part by reading the part's `u` axis, which is
+   * the same trick `machineFront` already uses to keep a V-groove upright on a drawer.
+   */
+  readonly grainDirection?: 'vertical' | 'horizontal';
+  /**
+   * A solid front in door decor that does not open — the face of a banquette.
+   *
+   * Deliberately not a door: it takes no hinges and is bored for nothing, but a door style
+   * still routes it. See `fixedFrontPanel`.
+   */
+  readonly hasFixedFront?: boolean;
+  /**
+   * A hinged panel inset into the top of the carcass, giving access to the storage void under
+   * a banquette seat. The cushion sits on it and lifts off separately.
+   */
+  readonly hasLiftUp?: boolean;
+  /** Gap all round the lift-up panel so it can swing without binding. */
+  readonly liftUpClearance?: Mm;
   readonly seatCushionThickness?: Mm;
   readonly seatCushionInset?: Mm;
   readonly hasBackCushion?: boolean;

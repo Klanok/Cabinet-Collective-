@@ -40,14 +40,33 @@ a named machine — one `.nc` per nested sheet.
 *dialect* is unverified — the geometry is asserted and can be trusted, but whether this controller
 wants `G81`, and where its Z zero is, cannot be known from here. Every program says so in its own
 header. Getting one `.nc` file off the machine to compare against is ten minutes' work and is worth
-more than any other open item in this document.
+more than any other open item in this document. **It is still open.** Everything listed in the next
+paragraph landed after it was written, and none of it went near the machine.
+
+**Since then the work has been the 3D view earning its keep, and seating.** Both halves of §5.8
+shipped: a **wireframe mode** beside 3D and Plan, and **real decor textures** — an image per decor,
+scaled in millimetres and turned by the part's grain, and laid on from **where the part lands on the
+nested sheet**, so grain runs continuously across parts cut out of one board. Then **banquette
+seating** (§5.4): a seat carcass under a lift-up lid, upholstery as a material type of its own, and
+an inside corner built on the §4.5 formers-and-bendy-ply rules.
+
+**The banquette carcass was then rejected at the bench — "I would never build them as they
+currently come in" — and rebuilt.** It had no front, the wrong kind of access, and an overhang
+default that the plain unit and the corner unit did not even agree on. It now has a solid fixed
+front in door decor that takes no hinges but is still routed by a door style, a hinged lift-up
+inset flush into the top, and a divider only above a 1200mm clear span. **Read §5.4** — it records
+what was wrong as well as what replaced it, because the shape of the mistake is the lesson. Two
+things there are still open: the **lid stay is not modelled** (no such part in the Blum library,
+and inventing one is the failure the unchecked list exists to prevent), and the cushions are
+**drawn but not costed** — no fabric, no foam, no upholstery labour on the quote, and nothing on
+the report says so yet.
 
 Section 4 records how each works and why; section 5 is what is actually left to do.
 
 ```
 npm install
 npm run dev       # the app
-npm test          # 625 tests
+npm test          # 736 tests
 npm run build
 npm run report    # cutlist, hardware BOM, drilling, nest, G-code and costing for the sample kitchen
 npm run report -- shaker-57    # the same kitchen with routed fronts
@@ -70,7 +89,7 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 |---|---|
 | Coordinate convention (world / cabinet / part, A-face) | Fixed and documented |
 | Geometry engine — profile + extrude, ear-clipping | Straight edges **and circular arcs** |
-| Rule engine — specs as data over a construction method | base, wall, tall, drawer-bank, custom, radius-end |
+| Rule engine — specs as data over a construction method | base, wall, tall, drawer-bank, custom, radius-end, banquette, banquette-corner, panel, appliance — all ten in `rules/registry.ts` |
 | Panel features (the Phase 4 CAM interface) | Types defined; door styles populate pocket and profiled-cut, **hardware rules populate the drilling** |
 | Door styles — shaker, V-groove, routed MDF | **Model half done — toolpaths are Phase 4, see 5.3** |
 | Tool profiles — a cutter's cross-section | Defined; a short shipped list, no editor |
@@ -81,6 +100,12 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | Shop standards + per-job settings | Working, persisted to browser |
 | Saved cabinet types | Working |
 | Viewport — R3F, orbit + WASD/QE, drag to move, walls | Working |
+| Wireframe view — a third mode beside 3D and Plan | Working, see 5.8 |
+| Grain direction — a cabinet's fronts, and a standalone panel | Working, see 5.4 — stated as the room sees it, translated per part |
+| Decor textures on parts, at true scale, turned by grain | **Working, see 5.8.** Bundled images, mapped through the nest |
+| Banquette seating — solid front, hinged lift-up, cushions | Rejected at the bench, **rebuilt to the shop's own answers — see 5.4.** Lid stay still unmodelled |
+| Inside banquette corner — a quarter-circle connector | Working, on the same formers-and-bendy-ply rules as 4.5. Its own access question unasked, see 5.4 |
+| Upholstery as its own material type | Working — Warwick Caulfield, nine colours, `library/upholstery.au.ts` |
 | Room — any shape, drawn in a 2D plan with typed lengths | Working |
 | Cabinets placed against a named wall, at any angle | Working |
 | CI — typecheck, tests, build, cutlist smoke run on every PR | Working, `.github/workflows/ci.yml` |
@@ -134,12 +159,30 @@ materials.
 
 **Migrations must never quietly change anyone's parts.** Every migration carries old values
 forward so a saved job cuts exactly as it did; adopting a new default is then a deliberate
-edit. Schema is at **v11**; migrations run in sequence in `model/project.ts`. Shop standards are
-versioned separately and are at **v7** — and they get a *real* migration rather than a
+edit. Schema is at **v22**; migrations run in sequence in `model/project.ts`. Shop standards are
+versioned separately and are at **v18** — and they get a *real* migration rather than a
 rejection, because refusing to load them silently replaces a shop's accumulated kick heights,
 reveals, door styles and saved cabinet types with the shipped Australian defaults.
 
-**v9 and v11 are the two exceptions, and both say so out loud.** They are the same argument twice:
+**Read the migration list, not this paragraph.** Every migration carries its own reasoning in a doc
+comment directly above it, and *that* is the record — a version number in prose goes stale, a
+comment sitting on the function cannot. What follows is a map, not a substitute.
+
+Only four migrations have changed a job that already existed rather than adding to it. **v9 and
+v11** both re-price, and are argued below. **v13** is the 2mm front standoff, and it moves the
+finished face of every front in every saved job. **v15 and v16** move holes — shelf-pin rows and
+runner fixings respectively — and neither moves or resizes a single part; a side panel comes out
+the same rectangle in the same place with a different set of Ø5 holes in it. Each of the four says
+so in its own comment rather than being quiet about it, which is the standard for this file.
+
+Everything from **v17 on is additive** and is the same shape of change repeated: supplier decors,
+their swatch textures, the Warwick upholstery range and the full MERIVOBOX height list reach a
+job's own snapshot of the libraries **without replacing any material or runner already chosen**. A
+new choice appears in the picker; nothing already selected moves. v20 exists only because a browser
+keeps `localhost` storage across separately extracted source folders, so a snapshot could be
+stamped current while missing the texture fields v18 was meant to add — a repair, not a change.
+
+**v9 and v11 are the two exceptions on price, and both say so out loud.** They are the same argument twice:
 no part that already existed moves, and the job gets dearer because it was being quoted for less
 than it takes to build. v9 added the hardware a kitchen always had; v11 charges the board a
 kitchen always took. Both halves of each are asserted separately — `tests/hardware.test.ts` and
@@ -792,8 +835,10 @@ the quote as its own line. Cutlist, hardware and drilling CSV export. `npm run r
 it, which is the cheapest way to check any claim below.
 
 **The sample kitchen, before and after.** *(Figures as they stood at §4.6. The sample has since
-grown a dishwasher space, an end base and two ladder bases — see §4.7 — so the current report reads
-87 parts and 554 holes. The reasoning below is unaffected.)* 63 parts became 69 — the six extra are a bottom and a back
+grown a dishwasher space, an end base and two ladder bases — see §4.7 — and the drilling has been
+corrected twice since, at v15 and v16, so the current report reads 87 parts and 486 holes. Run
+`npm run report` for today's figure rather than trusting any number in this file. The reasoning
+below is unaffected.)* 63 parts became 69 — the six extra are a bottom and a back
 for each of D1's three drawers, and not one of the original 63 moved by a millimetre. On top of
 those: 3 MERIVOBOX sets at NL 500, 20 hinges, 20 plates, 28 shelf pins, and 460 holes across 26
 parts, 72 of them in the back face. **None of those 26 parts turns over** — each is machined on one
@@ -1292,9 +1337,11 @@ takes plain-text ISO G-code rather than a proprietary format the way a Homag (`.
 **What shipped.** `cam/` turns panels plus the nest into an ordered, machine-independent operation
 list. `post/` turns that into G-code for a named machine. A machine picker and a `.nc` download per
 sheet on the Nest tab, a CAM section in `npm run report`, and two shipped profiles: the KDT, and a
-generic ISO one for simulating. The sample kitchen comes out as **5 programs, 641 operations, 554
-holes** — the same 554 the drilling sheet has had since §4.6, because CAM reads the features rather
-than inventing any.
+generic ISO one for simulating. The sample kitchen comes out as **5 programs, 573 operations, 486
+holes** — the same 486 the drilling sheet reports, because CAM reads the features rather than
+inventing any. *(It read 641 and 554 when this was written. Both figures moved together, which is
+the point: the invariant is that CAM and the drilling sheet agree, not that either holds a
+particular number. Check the current pair with `npm run report`, never this sentence.)*
 
 #### Decisions worth not undoing
 
@@ -1400,6 +1447,19 @@ anything.
 
 **Phases 4 and 5 have shipped — see 4.9.** What is left of them is §5.10, and the first item on it is
 the only one that matters.
+
+**5.8 has shipped, both halves — the wireframe view and real decor textures.** They were listed
+together because they are the two ends of one slider and live in the same three files, and doing
+them together is what happened. §5.8 now records how the textures work rather than what they should
+be, including the part that exceeded the plan: a decor is mapped from the part's **position on the
+nested sheet**, so the 3D view reads the cut plan.
+
+**The banquette in 5.4 shipped, was rejected at the bench, and has been rebuilt to the shop's own
+answers.** Solid fixed front in door decor, hinged lift-up inset flush into the top, no divider
+below a 1200mm clear span, nothing overhanging anything. What is still open there: the **lid stay
+is not modelled**, the corner unit has never been asked the same access question, and the
+**cushions are not costed** — nothing on the quote carries fabric, foam or upholstery labour, and
+nothing warns they are missing.
 
 **If asked which to do next: get one `.nc` file off the KDT and pin the dialect.** It is not a
 phase, it is ten minutes, and until it is done every program this tool writes is a draft that has to
@@ -1579,16 +1639,129 @@ speculatively.
   record, viewport, cutlist, nesting, costing and CAM paths as generated cabinet parts rather than
   becoming a separate drawing-only object. This is for fillers, scribes, loose ends, backing pieces
   and other job panels that do not belong to a carcass. This first version is vertical-grain and
-  bands all four edges; editable grain and per-edge banding are the next controls, not hidden data.
-- **Banquette seating with realistic upholstery.** Add a banquette unit that can begin as a
-  configurable cabinet carcass with seat and optional back cushions, then grow into corner and run
-  arrangements. Record cushion width, depth, finished thickness, back height/angle and clearances
-  separately from the boards underneath. Upholstery needs its own material type—fabric or vinyl,
-  colour, image texture, real-world repeat/scale and optional direction—rather than pretending it is
-  a sheet material. Render cushions with believable rounded/soft geometry and correctly scaled
-  textures, while keeping the structural panels on the existing cutlist, nesting, costing and CAM
-  paths. Later extensions can cover foam grades, seam/piping styles, removable lids, storage access,
-  fabric quantities and upholstery labour; do not invent those in the first version.
+  bands all four edges; per-edge banding is the next control, not hidden data. **Grain is now
+  editable** — see the entry below.
+- ~~**No option for grain direction.**~~ **Done, per cabinet, and it reaches a standalone panel.**
+  Asked for from the bench as simply *"i dont seem to have an option for grain direction"*, and
+  the control was indeed missing everywhere: grain was chosen by each part builder, shown
+  read-only on the cutlist, and settable nowhere. `CabinetOptions.grainDirection` is now
+  `'vertical' | 'horizontal'`, unset meaning each part keeps whatever its own shape wants.
+
+  **The translation is the whole of it, and it is a trap worth naming.** A `GrainConstraint` is
+  relative to the **part's own length**, and a door's length runs up it while a drawer front's runs
+  across a bank — so `length-along-grain` is a *vertical* grain on one and a *horizontal* grain on
+  the other. The same value, opposite directions. Handing that enum to the user would be handing
+  them a control whose meaning changes per part, so the option is stated as the room sees it and
+  `grainForFront` in `rules/build.ts` translates it by reading back the part's `u` axis. That is
+  the same move `machineFront` makes three lines earlier to keep a V-groove upright on a drawer,
+  and it is the same class of error as writing part-space hardware coordinates by hand: the wrong
+  answer is the right *size* and passes anything that only measures the part. `tests/banquette.test.ts`
+  therefore asserts a real-world direction on both a door and a drawer front, and asserts that the
+  two come back with **different** constraints from one setting.
+
+  Resolved in `build.ts` rather than in the part builders, for the reason §4.3 gives about door
+  styles: fronts are produced in several places, and a rule wired into three of them is a kitchen
+  with one door cut the wrong way.
+
+  **Which parts it governs is its own list, and that is deliberate.** `GRAIN_CHOICE_ROLES` is the
+  styled fronts *plus* `panel` — a loose panel is nothing but a show part, and *"standalone panels
+  need grain direction"* came straight back from the bench once the fronts had it. The obvious
+  shortcut is to add `panel` to `STYLED_FRONT_ROLES` and reuse that; **do not.** That list decides
+  what a **door style routes**, so it would cut shaker grooves into every filler, scribe and
+  backing piece in the job. The two lists overlap on doors because a door is both a styled front
+  and a part whose grain you choose — they are answering different questions, and
+  `tests/standalonePanel.test.ts` pins them apart with a panel built under `shaker-57` that comes
+  out with no front-style features on it.
+
+  Carcass parts are left alone. A carcass part's grain is a construction fact rather than a
+  preference, and on white melamine it is `any`, which is exactly what lets the nester turn it for
+  yield; overriding that would cost board to no visible end.
+
+  **It reaches the nest, not just the picture.** `orientationsFor` turns a grain constraint into
+  the orientations a part may take on the sheet, so on a grained decor a door switched to
+  horizontal goes from `as-cut` to `turned` — the cut plan, the sheet count and the 3D texture all
+  follow. On an ungrained white melamine nothing moves, which is correct rather than a gap.
+- **Banquette seating — rejected at the bench, and rebuilt to what the shop actually builds.**
+
+  > "the banquettes are not currently fit for purpose — I would never build them as they currently
+  > come in, I would have a solid front maybe with some kind of inset lift up below the cushion to
+  > access the space for long term storage — the overhangs don't make sense as they default either"
+
+  Three faults, the geometry backed all three, and all three are now fixed. Keeping the record of
+  what was wrong because the *shape* of the mistake is the lesson: every one of them passed a test
+  suite that counted parts and never asked where they were.
+
+  **There was no front of any kind.** A 1200 banquette built Side L, Side R, Bottom, Back, Divider
+  and Lid — you looked straight into the carcass. Worse, `customCabinet.ts` *warns* when a lid and
+  a door are combined, so the model actively discouraged the one arrangement the shop builds.
+  **Access was wrong in kind, not in detail.** A slab sat on top of the carcass; what a banquette
+  has is an inset panel under the cushion, hinged at the back. **And the overhang default was
+  incoherent across the two banquette types.** On a 1200×500 carcass the lid came out **1240 × 520
+  at x = −20** — 20mm proud at both ends and the front — while `banquette-corner`'s lid was **500 ×
+  500 at x = 0**, dead flush. Put the two together, which is the entire reason the corner exists,
+  and one lid stood 20mm proud of the other; two plain banquettes overlapped their lids by 40mm and
+  could not be built at all. The cushion compounded it — sized off the *carcass* at 1190 against a
+  1240 lid, so a 25mm ledge stuck out all round underneath it, which is what made the render look
+  wrong before anything was measured.
+
+  **What it is now**, from the shop's own answers — *"solid fixed front in door decor, hinged
+  lift-up, no divider… cushion comes off… may introduce one internally above a span of 1200 for
+  structural rigidity"*:
+
+  - **A solid fixed front in door decor.** Role `false-front`, not `door`, and the distinction does
+    real work: `boring.ts` selects `door` and `drawer-front`, so a fixed front takes **no hinge cups
+    and no plates** and none reach the hardware BOM — but `false-front` is in `STYLED_FRONT_ROLES`,
+    so a shaker or V-groove kitchen still routes it like the doors either side. It stands off the
+    carcass by exactly what a door does, so a banquette lines up in a run. **Part length runs
+    across, not up** — modelled on `drawerFronts`, not `doors`, because a seat front is wide and
+    low and its grain runs horizontally along the run. Copying the door would have stood the grain
+    on end across a 1200 × 397 front.
+  - **A hinged lift-up, inset.** Sized to the opening less a 2mm clearance all round, its top face
+    flush with the top of the carcass so the cushion lands on one continuous plane. Cut from
+    carcass board, because nothing sees it, but banded all round because it is handled every time
+    the storage is opened. The cushion is a separate thing that lifts off first.
+  - **No divider, until the span needs one.** `dividerCount: 0`, and `banquetteDividerCount` adds
+    one above a **1200mm clear span** — measured on the span between the sides, not the nominal
+    width, because the span is what deflects. It takes the maximum of that and whatever was asked
+    for, so it only ever adds; a shop wanting three bays in a 900 seat still gets three.
+  - **Nothing overhangs anything.** There is no lid to overhang: the top of the carcass is one flat
+    plane. `tests/banquette.test.ts` asserts occupancy rather than size for exactly this reason —
+    the placement bug found while writing it put the lift-up a board thickness low with a
+    *correct* footprint, and a size assertion passes on that.
+
+  **The hinge itself is deliberately not modelled.** There is no lid stay in the Blum library this
+  build ships, and inventing a part number and a price is the failure `npm run report`'s unchecked
+  list exists to prevent. **Open, and needing the shop:** which stay, and whether the panel lands on
+  cleats, a rebate or nothing but the hinge. None of those change the panel's cut size, which is why
+  the carcass could be built without them — but a banquette's hardware line is empty until they are
+  answered. The same access question has **not** been asked of `banquette-corner`, whose lid is
+  still a plain flush quarter-circle in door decor.
+
+  What follows is what else shipped with the original and still stands.
+
+  `banquette-corner` is a quarter-circle connector for two banquettes meeting at 90°, built on the
+  §4.5 formers-and-bendy-ply rules; it validates that width and depth both equal its radius, because
+  anything else is not one circular corner. Upholstery is **its own material type** rather than a
+  sheet — brand, collection, colour, fallback hex, texture, roll width, composition and abrasion
+  rating — shipped as the nine Warwick Caulfield colours. Cushion width, depth, thickness, inset,
+  back height, back thickness, back angle and corner radius are all recorded separately from the
+  boards, and end cushions are per-side flags.
+  **Three things are deliberately still open, and the first is the one that matters:**
+  **(a)** cushions are **viewport-only** — no fabric quantity, no foam, no upholstery labour reaches
+  the quote, which was the right call for a first version but means a banquette currently quotes as
+  though the seating were free, and unlike the hardware figures nothing on the report says so. A
+  warning line is the cheap half of the fix. **(b)** The cushion renderer mutates `repeat` on the
+  texture `useLoader` hands back, and that object is **shared and cached** — two banquettes in one
+  fabric fight over the weave scale, last one rendered wins. `PanelMesh` avoids this by baking UVs
+  into the geometry and never writing to the texture; the cushion path should do the same or clone.
+  **(c)** Cushion textures are scaled in UV units off the cabinet's bounding box (`width / 250`),
+  not in millimetres off the cushion — which is the rule §5.8 sets for board decors and the board
+  path keeps. Foam grades and seam or piping styles remain unstarted and are still not worth
+  inventing. Storage access is no longer on that list — it is the lift-up above.
+- **The banquette corner has no bottom panel.** The plain banquette does; the corner produces backs,
+  formers, skin and a lid and nothing to stand on. That may well be right for a connector spanning
+  two units, but nothing asserts it either way, so a later reader cannot tell a decision from an
+  omission. Decide it and write the test.
 - ~~**Cabinets must snap to applied ends as well as cabinet carcasses.**~~ **Done.** Neighbour
   snapping targets the applied end's outer face using the selected door board's actual thickness.
   It accounts for the contacting end on both cabinets, keeps the carcass edge when no panel is
@@ -1703,34 +1876,59 @@ part, a price or a hole; both change whether the view is worth showing somebody.
 
 #### Real decor textures, not an approximate colour
 
+**Shipped.**
+
 > "i don't want vaguely correct colour doors, i want textures and colours"
 
 Fair. `SheetMaterial.colour` (§5.4) is one flat hex per decor and it was always the cheap version —
 enough that a walnut door does not render the same off-white as a white melamine carcass, and no
 more than that. A Notaio Walnut door and a Sepia Oak door are two browns.
 
-What this wants is an **image per decor**, mapped onto the part:
+What it wanted was an **image per decor**, mapped onto the part, and that is what it now has:
 
 - A `texture` field on `SheetMaterial`, beside `colour`, which stays as the fallback for any decor
   that hasn't got an image. The suppliers publish swatch images; they are the shop's to hold.
 - **Scaled in millimetres, not in UV units.** A woodgrain repeat is a real distance — of the order
-  of a metre — so the map has to be laid on at a real-world scale or a 300mm drawer front and a
-  2000mm tall door end up with grain of two different sizes. The texture record therefore carries
-  the physical size of one repeat.
+  of a metre — so the map is laid on at a real-world scale, or a 300mm drawer front and a 2000mm
+  tall door end up with grain of two different sizes. The texture record carries the physical size
+  of one repeat, and `PanelMesh` divides millimetres by it to get UVs.
 - **Rotated by the part's own grain.** This is the part that makes it more than decoration.
-  `SheetMaterial.grain` and `Panel.grain` already exist, and a texture laid down the part's length
+  `SheetMaterial.grain` and `Panel.grain` already existed, and a texture laid down the part's length
   or across it *by that constraint* turns the 3D view into a **check on grain direction** — a door
   with the grain running the wrong way stops being a line in a cutlist note and becomes something
-  you can see. That is worth having.
+  you can see. That is worth having, and it is the reason to prefer this over a shader trick.
+
+**It went one better than the plan, and that is the piece worth not losing.** A part is not textured
+from its own origin — it is textured from **where it actually lands on the nested sheet**.
+`viewport/sheetTexture.ts` indexes the derived nest, `pointOnSheet` maps a point on a panel blank
+into real sheet coordinates (handling a part the nest turned 90°), and `PanelMesh` bakes those into
+the geometry's UVs. So the grain runs continuously across parts cut side by side out of one board,
+exactly as it will in the room, and a deterministic per-sheet offset stops two purchased sheets
+starting on the identical pixel. The **nest is the source of the picture**, which means the 3D view
+is now reading the cut plan rather than approximating it.
+
+Note the mechanism: UVs are baked into each panel's geometry and the shared `Texture` object is
+never written to. That matters because `useLoader` caches and hands the *same* texture to every
+part using that decor — the banquette cushion path did not follow this and mutates `repeat`, which
+is the bug recorded in §5.4.
 
 **It stays a screen approximation, and the note that says so must stay with it.** Nothing is cut,
 priced or ordered from an image any more than from a hex — the decor *name* is the fact, and it is
 what goes on the supplier order. A texture is more convincing than a colour, which makes saying so
 more important rather than less.
 
-The one genuinely open question is where the images live: bundled into the app (fixed set, no
+**The open question was answered: the images are bundled.** Eight Polytec board designs and nine
+Warwick upholstery colours live in `public/materials/`, resolved through `viewport/assetUrl.ts` so
+they survive being hosted under a sub-path. That is the fixed-set, no-setup half of the choice
+below, and it costs ~2.5 MB in the repo and in every deploy. Per-job folders remain unbuilt; the
+next decor a shop wants still means a commit. `assetUrl` is applied to fabrics only when the brand
+is Warwick and the collection is Caulfield — a hardcoded pair, duplicated in two components — so
+any fabric added later with a local path skips the fix and 404s off-root. Generalise it before
+adding a second supplier.
+
+The question it answered, for the record — where the images live: bundled into the app (fixed set, no
 setup), or loaded per job from a folder the shop points at (any decor, but a job that has to carry
-its images with it). Worth asking before building.
+its images with it). Bundled won.
 
 #### A wireframe view
 

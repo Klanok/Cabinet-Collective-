@@ -43,3 +43,52 @@ describe('standalone panel', () => {
     expect(actualThicknessOf(findSheet(project.materials, panel.materialId))).toBe(18);
   });
 });
+
+/**
+ * Grain on a loose panel.
+ *
+ * Asked for from the bench after the per-cabinet control shipped for fronts: *"standalone panels
+ * need grain direction"*. A loose panel is nothing but a show part, so it is in
+ * `GRAIN_CHOICE_ROLES` — but pointedly **not** in `STYLED_FRONT_ROLES`, and the last test here is
+ * what keeps those two apart.
+ */
+describe('standalone panel grain', () => {
+  const panelOf = (options: Record<string, unknown> = {}, styleId?: string) => {
+    const base = createEmptyProject('Grain');
+    const project = styleId
+      ? { ...base, defaults: { ...base.defaults, doorStyleId: styleId } }
+      : base;
+    const cabinet = createCabinet(
+      { typeId: 'panel', name: 'Loose end', width: mm(650), height: mm(2300), x: mm(0) },
+      project.defaults,
+      project.constructions,
+    );
+    return buildCabinet({ ...cabinet, options: { ...cabinet.options, ...options } }, project)
+      .panels[0]!;
+  };
+
+  it('runs the grain up the panel when nothing is asked for', () => {
+    const panel = panelOf();
+    expect(panel.placement.u).toBe('+Y'); // length runs up the part
+    expect(panel.grain).toBe('length-along-grain');
+  });
+
+  it('turns the grain across the panel when asked for horizontal', () => {
+    // Its length runs vertically, so a horizontal grain has to cross the length. The panel is
+    // still cut 2300 x 650 — only the constraint moves, which is what tells the nester to turn it.
+    const panel = panelOf({ grainDirection: 'horizontal' });
+    expect(panel.grain).toBe('width-along-grain');
+    expect(panelExtent(panel)).toEqual({ length: mm(2300), width: mm(650) });
+  });
+
+  it('keeps vertical as vertical when asked for it explicitly', () => {
+    expect(panelOf({ grainDirection: 'vertical' }).grain).toBe('length-along-grain');
+  });
+
+  it('is still never routed by a door style, whatever its grain', () => {
+    // The reason `panel` is in GRAIN_CHOICE_ROLES and not in STYLED_FRONT_ROLES. A filler or a
+    // scribe has no business coming off the machine with shaker grooves in it.
+    const panel = panelOf({ grainDirection: 'horizontal' }, 'shaker-57');
+    expect(panel.features.filter((f) => f.purpose === 'front-style')).toEqual([]);
+  });
+});

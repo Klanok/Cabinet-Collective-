@@ -16,27 +16,30 @@ before running anything. See [G-code](#g-code) below.
 ```bash
 npm install
 npm run dev       # the app
-npm test          # 625 tests
+npm test          # 736 tests
 npm run report    # cutlist, hardware, drilling, nest, G-code and costing for the sample kitchen
 ```
 
 ## What it does today
 
-Draw the room, then lay base, wall, tall, drawer-bank, custom and radiused-end cabinets
-against its walls.
+Draw the room, then lay base, wall, tall, drawer-bank, custom, radiused-end, banquette,
+banquette-corner, standalone-panel and appliance-space units against its walls.
 
 The **custom** cabinet is the same carcass with its part list chosen rather than fixed — top
 panel, rails or open; back or none; shelves; vertical dividers; a lid; drawers or doors.
-Between them those options cover a banquette base, a pigeon-hole unit and open shelving
-without a bespoke cabinet type for each. Configure one, hit **Save as a cabinet type**, and
-it's available in every job from then on. Every part — sides,
+Between them those options cover a pigeon-hole unit and open shelving without a bespoke cabinet
+type for each. Configure one, hit **Save as a cabinet type**, and it's available in every job from
+then on.
+
+The **banquette** is a seat box with a solid fixed front in door decor, a hinged lift-up panel
+inset into the top for long-term storage, and upholstered cushions that lift off it. Every part — sides,
 bottoms, top rails, backs, shelves, doors, drawer fronts, kicks — is derived from three
 driving dimensions plus a construction method. Change a width, a drawer count or the carcass
 thickness and the parts, the cutlist and the cost all move together, because there is only
 one copy of each part in the system.
 
 The sample kitchen is a 4200mm base run with 2400mm of wall cabinets over it: 8 cabinets and a
-dishwasher space, 87 parts, 37 cutlist lines, 3 MERIVOBOX drawer sets, 22 hinges, 554 holes, one
+dishwasher space, 87 parts, 37 cutlist lines, 3 MERIVOBOX drawer sets, 22 hinges, 486 holes, one
 stone benchtop and two ladder bases, 5 sheets of board, ~$7,600 on the seeded rates.
 
 ## Hardware and drilling
@@ -427,7 +430,7 @@ builders, which is the test of whether that's actually true.
 
 ## Verification
 
-625 tests, and the ones that matter are hand-calculated rather than snapshot:
+736 tests, and the ones that matter are hand-calculated rather than snapshot:
 
 - Every part size for the reference 900×720×560 base cabinet, worked out longhand in the test
   file header and asserted individually.
@@ -494,7 +497,13 @@ having something other than memory re-checking it.
 | — | A separate ladder kick under a run, rather than a kick per cabinet | **done** |
 | — | An appliance space, so a top runs over a dishwasher and not over a fridge | **done** |
 | — | Waterfall and mitred benchtop corners linked to each other, not just flagged per top | not started |
-| — | Real decor textures on parts, laid on at true scale and turned by the part's grain | not started |
+| — | Real decor textures on parts, laid on at true scale and turned by the part's grain | **done** — and laid on from where the part lands on the nested sheet |
+| — | Banquette seating — upholstery material type, cushions, an inside corner | **done**, cushions viewport-only |
+| — | The banquette carcass — a solid front, an inset lift-up under the cushion, a sane overhang | **done** — rejected at the bench, then rebuilt |
+| — | A lid stay for the banquette lift-up | not started — no such part in the hardware library yet |
+| — | Grain direction — a cabinet's fronts and a standalone panel, chosen as the room sees it | **done** |
+| — | Per-edge banding on a standalone panel | not started |
+| — | Fabric, foam and upholstery labour on the quote | not started |
 | — | A wireframe view, for seeing the construction and checking a joint | **done** |
 | — | Wall openings — bulkheads, windows, out-of-square walls and scribes | not started |
 | 3 | Guillotine nesting — real sheets, an ordered cut sequence, offcuts, whole-sheet costing | **done** |
