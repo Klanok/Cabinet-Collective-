@@ -48,9 +48,15 @@ shipped: a **wireframe mode** beside 3D and Plan, and **real decor textures** �
 scaled in millimetres and turned by the part's grain, and laid on from **where the part lands on the
 nested sheet**, so grain runs continuously across parts cut out of one board. Then **banquette
 seating** (§5.4): a seat carcass under a lift-up lid, upholstery as a material type of its own, and
-an inside corner built on the §4.5 formers-and-bendy-ply rules. The cushions are **drawn but not
-costed** — no fabric, no foam, no upholstery labour on the quote, and nothing on the report says so
-yet. That, and the two rendering faults recorded in §5.4, are the live ends of this work.
+an inside corner built on the §4.5 formers-and-bendy-ply rules.
+
+**The banquette carcass has since been rejected at the bench — "I would never build them as they
+currently come in".** No front, the wrong kind of access, and an overhang default that the plain
+unit and the corner unit do not even agree on. The upholstery material type and the corner's
+construction are sound; the carcass needs designing with the shop rather than adjusting. **Read
+§5.4 before touching it**, and do not treat the banquette as a worked example of anything. The
+cushions are also **drawn but not costed** — no fabric, no foam, no upholstery labour on the quote,
+and nothing on the report says so yet.
 
 Section 4 records how each works and why; section 5 is what is actually left to do.
 
@@ -93,8 +99,8 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | Viewport — R3F, orbit + WASD/QE, drag to move, walls | Working |
 | Wireframe view — a third mode beside 3D and Plan | Working, see 5.8 |
 | Decor textures on parts, at true scale, turned by grain | **Working, see 5.8.** Bundled images, mapped through the nest |
-| Banquette seating — carcass, lift-up lid, cushions | Working, see 5.4. **Cushions are viewport-only — not costed, see 5.4** |
-| Inside banquette corner — a quarter-circle connector | Working, on the same formers-and-bendy-ply rules as 4.5 |
+| Banquette seating — carcass, lift-up lid, cushions | **Rejected at the bench — not fit to build, see 5.4.** No front, wrong access, incoherent overhang |
+| Inside banquette corner — a quarter-circle connector | Construction sound; inherits the banquette's overhang mismatch, see 5.4 |
 | Upholstery as its own material type | Working — Warwick Caulfield, nine colours, `library/upholstery.au.ts` |
 | Room — any shape, drawn in a 2D plan with typed lengths | Working |
 | Cabinets placed against a named wall, at any angle | Working |
@@ -1444,10 +1450,12 @@ them together is what happened. §5.8 now records how the textures work rather t
 be, including the part that exceeded the plan: a decor is mapped from the part's **position on the
 nested sheet**, so the 3D view reads the cut plan.
 
-**The banquette in 5.4 has shipped, with an inside corner.** Its structural panels go down the
-existing cutlist, nesting, costing and CAM paths; its **cushions do not** — nothing on the quote
-carries fabric, foam or upholstery labour, and nothing warns that they are missing. §5.4 records
-that, two rendering faults worth fixing before more seating is built, and one unasserted decision.
+**The banquette in 5.4 shipped and was then rejected at the bench, and that is the open item.** It
+has no front, its access is a lid on top rather than an inset lift-up under the cushion, and its
+overhang default contradicts the corner unit it is meant to sit beside. Its **cushions are not
+costed** either — nothing on the quote carries fabric, foam or upholstery labour, and nothing warns
+they are missing. §5.4 records the shop's own words, the geometry that confirms each fault, what is
+worth keeping, and the build questions that have to be answered before the carcass is redesigned.
 
 **If asked which to do next: get one `.nc` file off the KDT and pin the dialect.** It is not a
 phase, it is ten minutes, and until it is done every program this tool writes is a draft that has to
@@ -1628,8 +1636,43 @@ speculatively.
   becoming a separate drawing-only object. This is for fillers, scribes, loose ends, backing pieces
   and other job panels that do not belong to a carcass. This first version is vertical-grain and
   bands all four edges; editable grain and per-edge banding are the next controls, not hidden data.
-- ~~**Banquette seating with realistic upholstery.**~~ **First version shipped, and the corner with
-  it.** `banquette` is the custom carcass with `hasLid` and no fronts — an open seat box under a
+- **Banquette seating — shipped, then rejected at the bench. Do not build on it as it stands.**
+
+  > "the banquettes are not currently fit for purpose — I would never build them as they currently
+  > come in, I would have a solid front maybe with some kind of inset lift up below the cushion to
+  > access the space for long term storage — the overhangs don't make sense as they default either"
+
+  Three faults, and the geometry backs all three. **There is no front of any kind.** A 1200
+  banquette builds Side L, Side R, Bottom, Back, Divider and Lid — you look straight into the
+  carcass. `BANQUETTE_SPEC` sets `doorCount: 0` and `topStyle: 'open'`, and `customCabinet.ts`
+  actively *warns* when a lid and a door are combined ("A lid and doors on the same cabinet is
+  unusual"), so the model currently discourages the one arrangement the shop actually builds.
+  **Access is wrong in kind, not just in detail.** The lid is a slab sitting on top of the carcass;
+  what the shop builds is an **inset lift-up panel below the cushion**, opening a storage void meant
+  for long-term storage. Those are different parts with different edges, different banding and
+  different hardware — a lid stay is not the same as a loose top. **And the overhang default is
+  incoherent across the two banquette types.** On a 1200×500 carcass the lid comes out **1240 × 520
+  at x = −20** — 20mm proud at both ends and the front — while `banquette-corner`'s lid is **500 ×
+  500 at x = 0**, dead flush. Put the two next to each other, which is the entire reason the corner
+  exists, and one lid stands 20mm proud of the other. Two plain banquettes side by side overlap
+  their lids by 40mm, which cannot be built at all. The cushion compounds it: it is sized off the
+  *carcass* (1190 wide) and the lid is 1240, so a 25mm ledge sticks out all round underneath it,
+  which is what makes the render look wrong before any dimension is checked.
+
+  **What this means for the next session: treat the banquette carcass as unbuilt.** The upholstery
+  material type, the cushion options and the corner's formers-and-bendy-ply construction are all
+  sound and worth keeping. The *carcass* — front, access, overhang — needs designing with the shop
+  rather than adjusting. Open questions that must be answered before any of it is cut: whether the
+  front is fixed or openable and whether it takes door decor or carcass board; whether the lift-up
+  is hinged (hardware, and a stay) or lift-out; what it lands on — a rebate, cleats, or a rail
+  frame; whether the cushion travels with the panel or is lifted off first; and whether the full-
+  height `dividerCount: 1` should be there at all, since it splits a 1200 seat into two 584mm bays
+  and "the space for long term storage" is one space, not two.
+
+  What follows is what shipped, recorded because the parts of it that are right should not be
+  rebuilt from scratch.
+
+  `banquette` is the custom carcass with `hasLid` and no fronts — an open seat box under a
   lift-up lid — so it inherits the proven carcass rules rather than restating them, and its
   structural panels flow through cutlist, nesting, costing and CAM exactly as any other part does.
   `banquette-corner` is a quarter-circle connector for two banquettes meeting at 90°, built on the
