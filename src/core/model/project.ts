@@ -37,7 +37,7 @@ import {
 } from '../library/blum.ts';
 import { AU_BENCHTOP_MATERIALS, AU_MATERIAL_LIBRARY, AU_SHEET_MATERIALS } from '../library/materials.au.ts';
 
-export const CURRENT_SCHEMA_VERSION = 24 as const;
+export const CURRENT_SCHEMA_VERSION = 25 as const;
 
 /**
  * The bendy ply an older job is given when it is migrated forward. It has no curved parts in
@@ -49,6 +49,34 @@ export const DEFAULT_NESTING_SETTINGS: NestingSettings = {
   kerf: mm(6),
   sheetEdgeTrim: mm(6),
   usableOffcutMin: mm(300),
+};
+
+/**
+ * The shipped labour rates.
+ *
+ * Here rather than in `library/defaults.au.ts` for the same reason `DEFAULT_NESTING_SETTINGS` is:
+ * **a migration has to be able to reach them.** The library imports this file, so this file cannot
+ * import the library back without a cycle — and a cycle here does not fail loudly, it silently
+ * builds a default object with `undefined` fields in it, which is a worse version of the bug
+ * `migrateV24toV25` exists to repair. `defaults.au.ts` spreads these into `AU_DEFAULT_SETTINGS`,
+ * so there is still exactly one place that knows what a rate is.
+ *
+ * The two laminate figures are **unchecked** — see `unconfirmedLabourFigures` and the note on
+ * `LabourRates` for why they are two numbers rather than one rate.
+ */
+export const DEFAULT_LABOUR_RATES: LabourRates = {
+  ratePerHourExGst: 85,
+  minutesPerPanel: 4,
+  minutesPerBandedEdge: 1.5,
+  minutesPerCabinet: 25,
+  // Prep, spray both faces and wait ~15 minutes for it to tack off. Fixed per curve because the
+  // wait is a wait. Unchecked — the shop reports wide variance between people.
+  laminateSetupMinutesPerCurve: 25,
+  // Cut oversize, lay on, trim-route. Unchecked, same reason.
+  laminateMinutesPerM2: 20,
+  installRatePerHourExGst: 85,
+  installHoursMode: 'mirror-manufacturing',
+  installFixedHours: 0,
 };
 
 /**
@@ -603,6 +631,58 @@ const migrateV23toV24 = (raw: Record<string, unknown>): Record<string, unknown> 
 };
 
 /**
+ * v24 → v25: **the labour rates a saved job never got, and the NaN they were printing.**
+ *
+ * Reported from the bench as costing returning NaN in the permanent total and low down the Cost
+ * tab. The cause is worth writing out, because the *shape* of it will recur and the symptom points
+ * nowhere near it.
+ *
+ * v23 added the finish laminate over a curved wrap. It migrated the **construction methods** so
+ * they carried `finishLaminate`, and the **materials** so the laminate sheet was on the price list
+ * — and it did not migrate `settings.labour`, which had gained two new rates in the same change.
+ * So every job saved before then loaded with `laminateSetupMinutesPerCurve` undefined, and
+ * `costing.ts` computes:
+ *
+ * ```
+ *   laminatedCurves * settings.labour.laminateSetupMinutesPerCurve
+ * ```
+ *
+ * **`0 * undefined` is `NaN`.** So it did not wait for a job with a curve in it — a plain square
+ * kitchen went NaN too, and the NaN then flowed through `laminateLabourCost` into `totalCost` and
+ * every figure below it, including the total in the corner of the screen. One absent number, and
+ * the whole quote reads NaN.
+ *
+ * Two things follow, and the second is the one to keep.
+ *
+ * **The repair.** Every `LabourRates` field absent from a saved job is filled from the shipped
+ * defaults, and a rate the shop has deliberately set is left exactly alone — the same rule
+ * v11 → v12 followed for the screen colours. Nothing that was set moves, so nothing re-prices;
+ * what changes is that a job which was printing NaN now prints a number.
+ *
+ * **The lesson.** A migration that adds a field has to ask *every* place that field is read, not
+ * just the one it was written for. `finishLaminate` on a construction method and the two rates on
+ * `LabourRates` arrived in one commit for one feature, and only one of them was carried forward.
+ * The generic backfill below is deliberately written over the whole record rather than naming the
+ * two fields, so the next rate added cannot repeat this.
+ */
+const migrateV24toV25 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const settings = (raw.settings as Record<string, unknown> | undefined) ?? {};
+  const labour = (settings.labour as Record<string, unknown> | undefined) ?? {};
+  const shipped = DEFAULT_LABOUR_RATES as unknown as Record<string, unknown>;
+  // Absent only. A rate somebody typed is theirs, including a deliberate zero — which is why this
+  // tests for the key rather than for falsiness.
+  const filled: Record<string, unknown> = { ...labour };
+  for (const [key, value] of Object.entries(shipped)) {
+    if (!(key in filled) || filled[key] === undefined) filled[key] = value;
+  }
+  return {
+    ...raw,
+    schemaVersion: 25,
+    settings: { ...settings, labour: filled },
+  };
+};
+
+/**
  * v11 → v12. **The screen colours, backfilled onto jobs that never had them.**
  *
  * Reported from the bench as "changing the door to Notaio Walnut has done nothing", and the
@@ -876,6 +956,7 @@ export const migrateProject = (raw: unknown): Project => {
   if (data.schemaVersion === 21) data = migrateV21toV22(data);
   if (data.schemaVersion === 22) data = migrateV22toV23(data);
   if (data.schemaVersion === 23) data = migrateV23toV24(data);
+  if (data.schemaVersion === 24) data = migrateV24toV25(data);
 
   if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`migrateProject: could not migrate schema version ${String(version)}`);

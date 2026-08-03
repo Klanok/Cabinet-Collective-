@@ -66,7 +66,7 @@ Section 4 records how each works and why; section 5 is what is actually left to 
 ```
 npm install
 npm run dev       # the app
-npm test          # 790 tests
+npm test          # 796 tests
 npm run build
 npm run report    # cutlist, hardware BOM, drilling, nest, G-code and costing for the sample kitchen
 npm run report -- shaker-57    # the same kitchen with routed fronts
@@ -163,7 +163,7 @@ materials.
 
 **Migrations must never quietly change anyone's parts.** Every migration carries old values
 forward so a saved job cuts exactly as it did; adopting a new default is then a deliberate
-edit. Schema is at **v24**; migrations run in sequence in `model/project.ts`. Shop standards are
+edit. Schema is at **v25**; migrations run in sequence in `model/project.ts`. Shop standards are
 versioned separately and are at **v19** — and they get a *real* migration rather than a
 rejection, because refusing to load them silently replaces a shop's accumulated kick heights,
 reveals, door styles and saved cabinet types with the shipped Australian defaults.
@@ -1213,6 +1213,45 @@ a cutlist comparison asserts it.
 `withProfileFixingPositions`; `library/blum.ts` for the sheet figures with their provenance;
 `rules/boring.ts` walks the list rather than naming a front and a rear, so a system with a different
 count needs nothing there.
+### 4.14 The NaN quote, and the migration that was half done
+
+Reported from the bench as **costing returning NaN** in the permanent total in the corner of the
+screen and in several figures low down the Cost tab. Both are one number: everything from
+`totalCost` down is derived from a single sum, so one NaN upstream takes the whole quote.
+
+**The cause is nowhere near the symptom, which is why it is worth writing out.** §5.0's finish
+laminate arrived at project v23. That migration carried `finishLaminate` onto every construction
+method and put the laminate sheet on every job's price list — and it did **not** touch
+`settings.labour`, which had gained two new rates in the same commit. So every job saved before it
+loaded with `laminateSetupMinutesPerCurve` undefined, and `costing.ts` computes:
+
+```
+  laminatedCurves * settings.labour.laminateSetupMinutesPerCurve
+```
+
+`0 * undefined` is `NaN`. **So it did not wait for a job with a curve in it** — the sample kitchen
+has no curved part anywhere and went NaN too. That is why it reached every job rather than the few
+with a radius, and why it looked like the costing engine rather than a missing field.
+
+**v25 backfills every absent `LabourRates` field** from the shipped defaults, leaving anything the
+shop set alone — including a deliberate zero, which is why it tests for the key rather than for
+falsiness. The same rule v12 followed for the screen colours. Nothing that was set moves, so
+nothing re-prices; what changes is that a job printing NaN now prints a number.
+
+**Two lessons, and the second one cost an hour.**
+
+- **A migration that adds a field has to ask every place that field is read**, not just the one it
+  was written for. Two fields arrived in one commit for one feature and only one was carried
+  forward. The backfill is deliberately written over the **whole record** rather than naming the
+  two fields, so the next rate added cannot repeat this.
+- **`DEFAULT_LABOUR_RATES` lives in `model/project.ts`, not in `library/defaults.au.ts`**, beside
+  `DEFAULT_NESTING_SETTINGS` and for exactly the same reason: **a migration has to be able to reach
+  it.** The library imports the model, so the model cannot import the library back. The first
+  attempt at this fix did import it, and the cycle did not fail loudly — it silently built
+  `AU_DEFAULT_SETTINGS` with `nesting: undefined` in it, which is a worse version of the bug being
+  repaired. Caught by the suite, and worth remembering: **an import cycle here does not throw, it
+  hands you an object full of holes.**
+
 ### 4.13 A benchtop follows the curve under it
 
 A kitchen with a radiused end had a **square top over a round cabinet**. The cabinet's box does not

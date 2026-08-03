@@ -13,7 +13,12 @@
  */
 
 import { mm } from '../units.ts';
-import { DEFAULT_NESTING_SETTINGS, type ProjectDefaults, type ProjectSettings } from '../model/project.ts';
+import {
+  DEFAULT_LABOUR_RATES,
+  DEFAULT_NESTING_SETTINGS,
+  type ProjectDefaults,
+  type ProjectSettings,
+} from '../model/project.ts';
 
 export const AU_BASE_CARCASS_HEIGHT = mm(720);
 export const AU_BASE_CARCASS_DEPTH = mm(560);
@@ -69,18 +74,8 @@ export const AU_DEFAULT_SETTINGS: ProjectSettings = {
   // The one that matters is the kerf — see `NestingSettings` for why it is not zero.
   nesting: DEFAULT_NESTING_SETTINGS,
   deliveryFeeExGst: 0,
-  labour: {
-    ratePerHourExGst: 85,
-    minutesPerPanel: 4,
-    minutesPerBandedEdge: 1.5,
-    minutesPerCabinet: 25,
-    // Prep, spray both faces and wait ~15 minutes for it to tack off. Fixed per curve because
-    // the wait is a wait. Unchecked — the shop reports wide variance between people.
-    laminateSetupMinutesPerCurve: 25,
-    // Cut oversize, lay on, trim-route. Unchecked, same reason.
-    laminateMinutesPerM2: 20,
-    installRatePerHourExGst: 85,
-    installHoursMode: 'mirror-manufacturing',
-    installFixedHours: 0,
-  },
+  // The rates themselves live in `model/project.ts`, beside the nesting settings and for the same
+  // reason: a migration has to be able to reach them, and the library cannot be imported from
+  // there without a cycle. One place knows what a rate is; this is where it is chosen.
+  labour: DEFAULT_LABOUR_RATES,
 };
