@@ -66,7 +66,7 @@ Section 4 records how each works and why; section 5 is what is actually left to 
 ```
 npm install
 npm run dev       # the app
-npm test          # 750 tests
+npm test          # 755 tests
 npm run build
 npm run report    # cutlist, hardware BOM, drilling, nest, G-code and costing for the sample kitchen
 npm run report -- shaker-57    # the same kitchen with routed fronts
@@ -162,8 +162,8 @@ materials.
 
 **Migrations must never quietly change anyone's parts.** Every migration carries old values
 forward so a saved job cuts exactly as it did; adopting a new default is then a deliberate
-edit. Schema is at **v22**; migrations run in sequence in `model/project.ts`. Shop standards are
-versioned separately and are at **v18** — and they get a *real* migration rather than a
+edit. Schema is at **v23**; migrations run in sequence in `model/project.ts`. Shop standards are
+versioned separately and are at **v19** — and they get a *real* migration rather than a
 rejection, because refusing to load them silently replaces a shop's accumulated kick heights,
 reveals, door styles and saved cabinet types with the shipped Australian defaults.
 
@@ -1537,6 +1537,13 @@ remains are gaps rather than missing work, and none of them blocks anything.
   shrink, so the top is the right size — but its corner is square over a round cabinet. A benchtop
   is its own object now (§4.7), so this is a real thing to fix — give the top an arc — rather than a
   limitation of a slab the viewport was inventing.
+- **A curve carries a 1mm finish laminate over the ply**, applied by hand after machining so it
+  shows the same decor as the doors. The formers and the wrap are cut a laminate under size, so the
+  finished face lands on the radius that was asked for and the cabinet a client measures does not
+  change. Shipped at 1mm on new methods; **saved jobs and standards migrate to zero** (project v23,
+  standards v19) because a curve already quoted was cut without it. It is a dimension, not a part —
+  nothing is machined for it, and whether the laminate itself should be costed and ordered has not
+  been asked.
 - **Bendy ply is sold barrel or column form** and the model still doesn't record which; the
   wrap's note tells whoever cuts it to check the sheet. Same `SheetMaterial` field 5.1 wants.
 - **Deferred, confirmed as much later:** a shelf cannot sensibly carry a bowed front *and* a

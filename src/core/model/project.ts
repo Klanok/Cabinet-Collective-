@@ -17,6 +17,7 @@ import {
   withAppliedEnds,
   withFrontStandoff,
   withShelfPinClearance,
+  withFinishLaminate,
   withLadderKick,
   withSystemHoles,
 } from './construction.ts';
@@ -36,7 +37,7 @@ import {
 } from '../library/blum.ts';
 import { AU_BENCHTOP_MATERIALS, AU_MATERIAL_LIBRARY, AU_SHEET_MATERIALS } from '../library/materials.au.ts';
 
-export const CURRENT_SCHEMA_VERSION = 22 as const;
+export const CURRENT_SCHEMA_VERSION = 23 as const;
 
 /**
  * The bendy ply an older job is given when it is migrated forward. It has no curved parts in
@@ -521,6 +522,20 @@ const migrateV10toV11 = (raw: Record<string, unknown>): Record<string, unknown> 
 };
 
 /**
+ * v22 → v23: the finish laminate over a curved wrap, at zero on everything already saved.
+ *
+ * **No part moves and nothing is re-priced.** The field arrives at zero, which is precisely the
+ * arithmetic every saved job already used — formers sized to the plies alone. A shop adopting the
+ * 1mm laminate does it by editing the method, and at that point the former radii and the skins'
+ * developed lengths move, which is a change somebody made on purpose rather than one that
+ * happened on load. New jobs take the shipped method and get 1mm from the start.
+ */
+const migrateV22toV23 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const constructions = (raw.constructions as Record<string, unknown>[] | undefined) ?? [];
+  return { ...raw, schemaVersion: 23, constructions: constructions.map(withFinishLaminate) };
+};
+
+/**
  * v11 → v12. **The screen colours, backfilled onto jobs that never had them.**
  *
  * Reported from the bench as "changing the door to Notaio Walnut has done nothing", and the
@@ -792,6 +807,7 @@ export const migrateProject = (raw: unknown): Project => {
   if (data.schemaVersion === 19) data = migrateV19toV20(data);
   if (data.schemaVersion === 20) data = migrateV20toV21(data);
   if (data.schemaVersion === 21) data = migrateV21toV22(data);
+  if (data.schemaVersion === 22) data = migrateV22toV23(data);
 
   if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`migrateProject: could not migrate schema version ${String(version)}`);

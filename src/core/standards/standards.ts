@@ -38,6 +38,7 @@ import {
   withAppliedEnds,
   withFrontStandoff,
   withShelfPinClearance,
+  withFinishLaminate,
   withLadderKick,
   withSystemHoles,
 } from '../model/construction.ts';
@@ -54,7 +55,7 @@ import {
   DEFAULT_RUNNER_SYSTEM_ID,
 } from '../library/blum.ts';
 
-export const CURRENT_STANDARDS_VERSION = 18 as const;
+export const CURRENT_STANDARDS_VERSION = 19 as const;
 
 export interface ShopStandards {
   readonly version: typeof CURRENT_STANDARDS_VERSION;
@@ -322,6 +323,7 @@ export const labelForConstructionKey = (key: keyof ConstructionMethod): string =
     shelfSetback: 'Shelf setback',
     shelfSideClearance: 'Shelf side clearance',
     fixingStripWidth: 'Fixing strip at a radius',
+    finishLaminate: 'Finish laminate over a curve',
     systemPitch: 'System hole pitch',
     systemFrontSetback: 'First hole from front',
     systemBackSetback: 'First hole from back',
@@ -372,6 +374,7 @@ export const migrateStandards = (raw: unknown): ShopStandards => {
   if (data.version === 15) data = migrateStandardsV15toV16(data);
   if (data.version === 16) data = migrateStandardsV16toV17(data);
   if (data.version === 17) data = migrateStandardsV17toV18(data);
+  if (data.version === 18) data = migrateStandardsV18toV19(data);
 
   if (data.version !== CURRENT_STANDARDS_VERSION) {
     throw new Error(`migrateStandards: could not migrate version ${String(version)}`);
@@ -587,6 +590,19 @@ const migrateStandardsV12toV13 = (raw: Record<string, unknown>): Record<string, 
       ),
     },
   };
+};
+
+/**
+ * Standards v18 → v19: the finish laminate over a curved wrap, at zero on stored methods.
+ *
+ * Zero rather than the shipped 1mm, for the same reason project v23 does it — a shop's saved
+ * method describes how its existing jobs were cut, and a curve cut without the allowance must
+ * keep being cut that way until somebody decides otherwise. Setting it is one edit under
+ * Settings → Construction.
+ */
+const migrateStandardsV18toV19 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const constructions = (raw.constructions as Record<string, unknown>[] | undefined) ?? [];
+  return { ...raw, version: 19, constructions: constructions.map(withFinishLaminate) };
 };
 
 /** Standards v13 → v14: new jobs inherit supplier-authored decor swatches. */

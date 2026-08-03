@@ -1,4 +1,4 @@
-import { type Mm } from '../src/core/units.ts';
+import { type Mm, mm } from '../src/core/units.ts';
 import { type Panel, panelExtent } from '../src/core/model/panel.ts';
 import { actualThicknessOf, findSheet } from '../src/core/model/material.ts';
 import { partToCabinet } from '../src/core/geom/placement.ts';
@@ -114,3 +114,22 @@ export const drillingStaysOnThePart = (panel: Panel): boolean => {
 /** Holes of one purpose, in the order they were emitted. */
 export const drilledFor = (panel: Panel, purpose: string) =>
   drilledPoints(panel).filter((p) => p.purpose === purpose);
+
+/**
+ * The same job with no finish laminate on its curved work.
+ *
+ * The shipped construction method allows **1mm of finish laminate** over a bendy-ply wrap, applied
+ * by hand after machining so the curve carries the same decor as the doors. That allowance moves
+ * the formers and the substrate in by a millimetre, which is correct and is asserted in its own
+ * tests — but it is a *second* thing happening on top of the wrap arithmetic.
+ *
+ * Every figure in the curved-work suites was worked out longhand for the wrap alone, and those
+ * derivations are still exactly right about the wrap. Pinning the allowance to zero keeps each of
+ * those tests measuring the one relationship it was written to measure, rather than measuring it
+ * plus an unrelated allowance and reporting a number nobody derived. The laminate's own effect —
+ * substrate in by 1mm, finished face unmoved — is asserted separately.
+ */
+export const withoutFinishLaminate = (project: Project): Project => ({
+  ...project,
+  constructions: project.constructions.map((c) => ({ ...c, finishLaminate: mm(0) })),
+});

@@ -199,6 +199,13 @@ export interface CornerRadiusInput {
   readonly t: Mm;
   readonly tb: Mm;
   readonly ts: Mm;
+  /**
+   * The finish laminate over the wrap — the construction method's `finishLaminate`.
+   *
+   * Optional so the two specs that build a corner without a full construction method in hand keep
+   * working; absent means zero, which is exactly what every job cut before this existed.
+   */
+  readonly finishLaminate?: Mm;
   /** The construction method's fixing strip — the flat front the wrap is fixed to. */
   readonly stripWidth: Mm;
 }
@@ -281,14 +288,30 @@ export const wrapLayerCount = (layers: number): number => Math.max(1, Math.round
  * and disagreeing about the boundary is how you get a warning that says it's fine and a
  * builder that throws anyway.
  */
-export const substrateRadius = (radius: Mm, layers: number, ts: Mm): Mm =>
-  mm(radius - wrapLayerCount(layers) * ts);
+/**
+ * Radius the formers are cut to — the finished radius less everything that goes on outside them.
+ *
+ * That is the bendy-ply layers **and** the finish laminate over them. The laminate counts once,
+ * not once per layer: it is a single sheet applied to the outside of the finished wrap, not
+ * something between the plies.
+ *
+ * Leaving it out puts the formers over size and the finished curve proud of the radius that was
+ * asked for — by the thickness of the laminate, on a face that has to line up with the doors.
+ */
+export const substrateRadius = (
+  radius: Mm,
+  layers: number,
+  ts: Mm,
+  finishLaminate: Mm = mm(0),
+): Mm => mm(radius - (wrapLayerCount(layers) * ts + finishLaminate));
 
 export const resolveCornerRadius = (input: CornerRadiusInput): CornerRadius => {
   const { corner, radius: r, W, D, t, tb, ts } = input;
+  const finishLaminate = input.finishLaminate ?? mm(0);
   const layers = wrapLayerCount(input.layers);
-  const skin = mm(layers * ts);
-  const rSub = substrateRadius(r, layers, ts);
+  // Everything outboard of the formers: the plies, and the finish laminate over them.
+  const skin = mm(layers * ts + finishLaminate);
+  const rSub = substrateRadius(r, layers, ts, finishLaminate);
 
   const sign: 1 | -1 = corner === 'front-right' ? 1 : -1;
   /** Un-mirrored → real. Front-right is the frame everything is written in, so it is identity. */

@@ -106,13 +106,15 @@ import type { Project } from '../src/core/model/project.ts';
 import { machinedFaces, requiresFlip } from '../src/core/model/feature.ts';
 import { buildCabinet, buildProject } from '../src/core/rules/build.ts';
 import { panelExtent } from '../src/core/model/panel.ts';
-import { byName, drilledFor, drillingStaysOnThePart, size } from './helpers.ts';
+import { byName, drilledFor, drillingStaysOnThePart, size, withoutFinishLaminate } from './helpers.ts';
 
 let project: Project;
 
 beforeEach(() => {
   resetIdCounter();
-  project = createEmptyProject('Boring');
+  // Boring positions on a radiused cabinet are derived from the wrap alone; the 1mm finish
+  // laminate is a separate allowance tested on its own. See `withoutFinishLaminate`.
+  project = withoutFinishLaminate(createEmptyProject('Boring'));
 });
 
 const build = (typeId: CabinetTypeId, options: CabinetOptions = {}, patch: Partial<{ width: number; depth: number; height: number }> = {}) =>

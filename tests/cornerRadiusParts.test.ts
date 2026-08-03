@@ -82,7 +82,7 @@ import { partToCabinet } from '../src/core/geom/placement.ts';
 import { profileHasArcs } from '../src/core/geom/profile.ts';
 import { v3 } from '../src/core/geom/vec.ts';
 import { actualThicknessOf, findSheet } from '../src/core/model/material.ts';
-import { byName, namesOf, occupies, size } from './helpers.ts';
+import { byName, namesOf, occupies, size, withoutFinishLaminate } from './helpers.ts';
 
 const QUARTER = Math.PI / 2;
 
@@ -107,7 +107,15 @@ const build = (
     depth: mm(dims.D),
     options,
   });
-  const withCabinet: Project = { ...project, cabinets: [cabinet] };
+  /*
+   * No finish laminate here. Every figure in this file was derived longhand for the wrap alone —
+   * formers, substrate radius, developed lengths — and those derivations are still exactly right
+   * about the wrap. The 1mm the shipped method allows for hand-laminating a curve is a separate
+   * allowance on top, and it has its own tests below; folding it in here would leave each figure
+   * a millimetre off a number somebody worked out on paper, for a reason unrelated to what the
+   * test is about.
+   */
+  const withCabinet: Project = { ...withoutFinishLaminate(project), cabinets: [cabinet] };
   const built = buildCabinet(cabinet, withCabinet);
   return { project: withCabinet, panels: built.panels, warnings: built.warnings };
 };
@@ -583,5 +591,88 @@ describe('what it says when the numbers do not work', () => {
       shelfBow: mm(40),
     });
     expect(both.warnings.join(' ')).toMatch(/two curves arguing over one edge/i);
+  });
+});
+
+/**
+ * The finish laminate over a curved wrap.
+ *
+ * From the bench: *"we need to start allowing 1mm for laminating now, which will be done by hand
+ * after machining"* — *"this will mean the curve has the finish texture applied to match the
+ * doors"*. The bendy ply is substrate; a 1mm laminate goes over it as the finish so the curve
+ * carries the same decor as the fronts either side of it.
+ *
+ * Every assertion here is about the difference between what the **machine** cuts and what the
+ * **finished cabinet** measures. Those were the same number until the laminate existed, which is
+ * exactly why it is worth pinning down.
+ */
+describe('the finish laminate over a curve', () => {
+  const laminated = (allowance: number): Built => {
+    const project = createEmptyProject('Laminated curve');
+    const cabinet = createCabinet({
+      typeId: 'base',
+      name: 'X1',
+      x: mm(0),
+      width: mm(900),
+      height: mm(720),
+      depth: mm(560),
+      options: { radiusCorner: 'front-right', carcassRadius: mm(200), doorCount: 2 },
+    });
+    const withLam: Project = {
+      ...project,
+      constructions: project.constructions.map((c) => ({ ...c, finishLaminate: mm(allowance) })),
+      cabinets: [cabinet],
+    };
+    const built = buildCabinet(cabinet, withLam);
+    return { project: withLam, panels: built.panels, warnings: built.warnings };
+  };
+
+  it('ships on the shipped method, at 1mm', () => {
+    const project = createEmptyProject('Shipped');
+    expect(project.constructions[0]!.finishLaminate).toBe(1);
+  });
+
+  it('brings the machined wrap in by the laminate, and no more', () => {
+    const bare = laminated(0);
+    const withLam = laminated(1);
+    const outer = (b: Built) =>
+      bentEnvelope(byName(b.panels, 'Skin layer 2'), b.project).x[1];
+
+    // The ply is substrate now, so it stops a laminate short of where it used to finish.
+    expect(outer(bare)).toBeCloseTo(900, 6);
+    expect(outer(withLam)).toBeCloseTo(899, 6);
+  });
+
+  it('leaves the finished cabinet exactly the size it was — the box still does not shrink', () => {
+    // The invariant the whole radius feature exists to protect, restated for a laminated curve:
+    // the machined parts come in by 1mm and the laminate puts it back, so the cabinet a client
+    // measures is still 900 wide.
+    const b = laminated(1);
+    const lam = b.project.constructions[0]!.finishLaminate;
+    const carcass = b.panels.filter((p) => p.role !== 'door' && p.role !== 'kick');
+    const machined = Math.max(...carcass.map((p) => bentEnvelope(p, b.project).x[1]));
+    expect(machined + lam).toBeCloseTo(900, 6);
+  });
+
+  it('cuts the substrate corner a laminate smaller too, so the curve is round at the finish', () => {
+    /*
+     * Taking the laminate off the skin alone would leave the plate cut to the old 184 and the
+     * finished curve proud of its own radius — round, but not the radius that was asked for.
+     *
+     * Measured the way the bare case is measured a few tests up: the corner bite is
+     * `r² (1 − π/4)`, so a substrate radius of 183 rather than 184 leaves a *bigger* plate.
+     */
+    const cornerNote = (b: Built) => byName(b.panels, 'Bottom').note;
+    // 200 finished, less two 8mm plies = 184 with no laminate; less the 1mm laminate as well = 183.
+    expect(cornerNote(laminated(0))).toContain('184mm radius');
+    expect(cornerNote(laminated(1))).toContain('183mm radius');
+  });
+
+  it('is a dimension, not a part — the machine never sees it', () => {
+    // It goes on by hand at the bench, so nothing is cut for it and nothing appears on the
+    // cutlist. If it ever becomes a costed material that is a separate decision.
+    const bare = laminated(0);
+    const withLam = laminated(1);
+    expect(namesOf(withLam.panels)).toEqual(namesOf(bare.panels));
   });
 });

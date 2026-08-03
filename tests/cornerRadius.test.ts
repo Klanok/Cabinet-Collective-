@@ -57,7 +57,7 @@ import type { CabinetOptions, CabinetTypeId } from '../src/core/model/cabinet.ts
 import type { Project } from '../src/core/model/project.ts';
 import { type Panel, panelArea, panelExtent } from '../src/core/model/panel.ts';
 import { profileHasArcs } from '../src/core/geom/profile.ts';
-import { byName, namesOf, occupies, size } from './helpers.ts';
+import { byName, namesOf, occupies, size, withoutFinishLaminate } from './helpers.ts';
 
 const QUARTER = Math.PI / 2;
 
@@ -72,7 +72,9 @@ const build = (
   dims: { W: number; H: number; D: number },
   options: CabinetOptions,
 ): Built => {
-  const project = createEmptyProject('Corner radius');
+  // The wrap arithmetic alone — see `withoutFinishLaminate`. The 1mm laminate the shipped
+  // method allows is a separate allowance with its own tests.
+  const project = withoutFinishLaminate(createEmptyProject('Corner radius'));
   const cabinet = createCabinet({
     typeId,
     name: 'X1',
