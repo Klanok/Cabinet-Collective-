@@ -1503,6 +1503,34 @@ remains are gaps rather than missing work, and none of them blocks anything.
   right is that the blank is measured round the *outside* of the arc, which `panelExtent` has done
   since §4.4 and `tests/nesting.test.ts` now asserts on a skin and a bowed shelf. A router nest that
   reads the true shape is §5.9.
+- **The corner radius finishes at the carcass, not at the finished front face — and it should be
+  the front face.** Raised from the bench as *"why has the radius applied to cabinets not updated
+  to meet the finished door depth yet?"*, and the answer is that it was never wired up. Measured on
+  a 900 × 560 base with a 200mm front-right radius and 18mm doors:
+
+  | | finishes at |
+  |---|---|
+  | doors either side | **580** — `finishedFrontZ` |
+  | outer bendy-ply skin | **560** — the carcass front |
+
+  So the curve sits **20mm behind** the doors beside it, which is exactly `frontStandoff` (2) plus
+  the door board (18). `resolveCornerRadius` works entirely off the carcass depth `D`:
+  `tangentZ = D − r`, `subFrontZ = D − skin`, and the file contains **no reference at all** to
+  `finishedFrontZ`, `td` or `doorThickness`.
+
+  **It is worse than a single wrong datum, because the cabinet already uses both.** The curved
+  kick *is* set from the finished face — `parts.ts` takes `finishedFrontZ − kickSetback` — and so
+  is the applied end panel, whose own comment calls `finishedFrontZ` "the same plane a radiused
+  corner has to land in, resolved once in the context so the two cannot drift apart". They have
+  drifted apart: within one radiused cabinet the kick and the end panel are referenced to the
+  finished face and the carcass curve is referenced to the carcass, 20mm behind it.
+
+  **Not fixed here, deliberately.** It moves the tangent point, the substrate radius, every skin's
+  developed length and the former profiles, so it re-cuts every radiused cabinet in every saved
+  job — a migration with a "this changes your parts" note, in the class of v13 and v15. It also
+  wants the shop's answer on how a door meets the curve once the curve reaches the door's own
+  plane, and it lands in the same area as the three §4.5 decisions below that were never checked
+  against a real job. Worth doing next, with somebody to ask.
 - **The plan view draws a cabinet's footprint as a rectangle**, so a radiused corner reads
   square there. Cosmetic.
 - **A benchtop over a radiused base cabinet is still a rectangle.** The cabinet's box does not
