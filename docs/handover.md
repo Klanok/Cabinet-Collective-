@@ -66,7 +66,7 @@ Section 4 records how each works and why; section 5 is what is actually left to 
 ```
 npm install
 npm run dev       # the app
-npm test          # 760 tests
+npm test          # 790 tests
 npm run build
 npm run report    # cutlist, hardware BOM, drilling, nest, G-code and costing for the sample kitchen
 npm run report -- shaker-57    # the same kitchen with routed fronts
@@ -118,6 +118,7 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | Hettich, the second hardware brand | Not started — one more record in `library/`, see 5.2 |
 | Curved / radiused parts — arcs, bowed shelves, radiused ends | Working, see 4.4 |
 | A corner radius on a base, wall or tall cabinet | Working — bendy ply and formers, see 4.5 |
+| A benchtop following the curve under it | **Working, see 4.13.** Owned, seeded from the run, refreshed on regenerate |
 | The same corner routed from door board instead | **Not started — see 5.7, now unblocked** |
 | Guillotine nesting — sheets, cut sequence, offcuts | **Working, see 4.8.** Nest tab, two CSVs |
 | Choosing which sheet size a material is cut from | Working, see 4.8 and 5.9 — per material, on the Nest tab |
@@ -162,7 +163,7 @@ materials.
 
 **Migrations must never quietly change anyone's parts.** Every migration carries old values
 forward so a saved job cuts exactly as it did; adopting a new default is then a deliberate
-edit. Schema is at **v23**; migrations run in sequence in `model/project.ts`. Shop standards are
+edit. Schema is at **v24**; migrations run in sequence in `model/project.ts`. Shop standards are
 versioned separately and are at **v19** — and they get a *real* migration rather than a
 rejection, because refusing to load them silently replaces a shop's accumulated kick heights,
 reveals, door styles and saved cabinet types with the shipped Australian defaults.
@@ -1212,6 +1213,77 @@ a cutlist comparison asserts it.
 `withProfileFixingPositions`; `library/blum.ts` for the sheet figures with their provenance;
 `rules/boring.ts` walks the list rather than naming a front and a rear, so a system with a different
 count needs nothing there.
+### 4.13 A benchtop follows the curve under it
+
+A kitchen with a radiused end had a **square top over a round cabinet**. The cabinet's box does not
+shrink when its corner is rounded (§4.5), so the slab was always the right *size* — it simply had a
+sharp corner standing up to 200mm proud of the curve, on the one corner of a kitchen where the
+top's edge is the thing a hand lands on.
+
+**`Benchtop.corners` is owned data, and that is the whole design.** The obvious implementation is
+to read the end cabinets when the parts are built, and it is wrong: `model/runUnit.ts` says
+`fromCabinetIds` is for regenerate and nothing else, because the moment something else reads it,
+moving a cabinet starts moving a benchtop again and the ownership is a fiction. So the corner
+radius is generated from the run **once**, carried like `carcassDepth`, refreshed on regenerate,
+and editable in between. Nothing at build time knows a cabinet exists.
+
+**The radius the top takes is the cabinet's own, exactly, and that is not an approximation.** A
+corner radius is struck about `finishedFrontZ` — the door plane, 580 on a 560 carcass (§5.0) — and
+the shop's standard 20mm front overhang puts the top's front edge on that same plane, while the 0
+end overhang lands its end on the cabinet's end face. So a fillet of radius `r` at the top's corner
+is *concentric with the cabinet's arc*, and the top follows the curve with a constant overhang the
+whole way round. That coincidence is why `corners` can be seeded from `carcassRadius` with no
+arithmetic in between. Change an overhang afterwards and the arc stays tangent to both edges — it
+is a fillet, so the outline is always valid — but it stops being concentric, which is the owner's
+business rather than something the model should fight them about.
+
+**Decisions worth not undoing:**
+
+- **A radiused end is generated as `exposed`, not `wall`.** Everywhere else the generator assumes a
+  wall, because an end wrongly called exposed puts a charged edge profile on a quote for an edge
+  nobody sees. A curve is the exception and it is not a guess: nobody rounds a corner that dies
+  into a wall, which is the same fact `radiusCorner` records by offering only the two front
+  corners. Seeding it as `wall` would generate a top that contradicts itself the moment it exists.
+- **`roundedCornerProfile` names its corners and has no default**, like `notchedRectProfile` and
+  `bowedFrontProfile`. A slab lies decor face up with `v = −Z`, so part y runs from the **front**
+  towards the back and the front corners are `x0y0` and `x1y0`. A caller that guessed would round
+  the corners against the wall — right radius, right size, right blank, wrong quarter.
+- **The geometry primitive throws and the builder never does.** `cornerRadiusFits` is the one
+  exported check both use, so there is no boundary for them to disagree about — the same split
+  `substrateRadius` uses. A radius the section cannot hold is cut square and reported, because a
+  number field fires on every keystroke and "2000" arrives as "2" on its way through. §4.5's crash
+  was exactly this on a curve.
+- **The bounding box does not move**, so the nest still reserves the blank. Right for a saw: the
+  rectangle comes off the sheet and the curve is cut from it (§4.8).
+- **Only the first and last section carry a corner**, the same `isFirst`/`isLast` rule the banding
+  already follows — a join in the middle of a top has two square ends meeting at it.
+- **A waterfall or a mitre at a rounded corner is reported, not built.** A waterfall panel is
+  mitred to the top along a straight line, and where the top turns a quarter circle there is no
+  straight line to mitre to; the panel would have to be a developed curve on the §4.5 rules.
+- **The curve is charged as hand work.** §3: a curved edge cannot go through the edgebander. The
+  part carries a note saying so, and it reaches the cutlist line.
+
+**Two figures moved, both downwards, and both were wrong before.** A rounded corner is *shorter*
+than the square one it replaces — it takes `r` off the front and `r` off the end and gives back a
+quarter circle, so the net is `r(π/2 − 2)`, about 86mm on a 200 radius. Charging the square corner
+over-buys the edge profile by that much, which on a stone top is a per-metre rate. And the slab
+loses `(1 − π/4)r²` of area. Small, and worth doing because it is the same figure a fabricator's
+invoice is worked from.
+
+**Project v24. Nothing already saved moves**, and this time in the strong sense rather than the
+careful one: a square corner is not a compatible default chosen to preserve old behaviour, it is
+the only shape a top has ever had. The version is bumped anyway, for the reason v4 was — a top with
+a curve in it is a different part, and an older build would quietly cut it square. A radius reaches
+an existing top by **regenerating** it, deliberately, because filling them in during the migration
+would be a migration reading `fromCabinetIds` as a dependency.
+
+**Where to look:** `geom/profile.ts` for `roundedCornerProfile` and `cornerRadiusFits`;
+`model/benchtop.ts` for `corners`, `sectionCorners` and the corrected edge and area;
+`project/generate.ts` for `cornersFromRun` and the concentricity argument;
+`rules/runUnits.ts` for the slab. `tests/benchtopCorner.test.ts` is the contract and carries the
+longhand figures in its header — including why the **arc's centre** is the assertion that matters,
+which is §4.4's former axis and §4.9's mirrored arc for the fourth time.
+
 ### 4.8 Guillotine nesting — Phase 3
 
 Definition of done was stated as ten assertions before anything was written, per §6, and all of them
@@ -1535,10 +1607,9 @@ remains are gaps rather than missing work, and none of them blocks anything.
   its finish.
 - **The plan view draws a cabinet's footprint as a rectangle**, so a radiused corner reads
   square there. Cosmetic.
-- **A benchtop over a radiused base cabinet is still a rectangle.** The cabinet's box does not
-  shrink, so the top is the right size — but its corner is square over a round cabinet. A benchtop
-  is its own object now (§4.7), so this is a real thing to fix — give the top an arc — rather than a
-  limitation of a slab the viewport was inventing.
+- ~~**A benchtop over a radiused base cabinet is still a rectangle.**~~ **Done — see 4.13.** The
+  top takes the cabinet's own radius, and it is owned data seeded from the run rather than read
+  back off the cabinets at build time.
 - **A curve carries a 1mm finish laminate over the ply**, applied by hand after machining so it
   shows the same decor as the doors. The formers and the wrap are cut a laminate under size, so the
   finished face lands on the radius that was asked for and the cabinet a client measures does not
@@ -1856,10 +1927,7 @@ metre. What remains:
   least visible and the model should keep out of it.
 - **Drainer grooves and tap-hole *sets*** are not modelled. A tap hole is a cutout like any other; a
   drainer is a pattern of shallow grooves and would be a `groove` feature run to a recipe.
-- **A benchtop over a radiused base cabinet is still a rectangle.** The cabinet's box does not
-  shrink, so the top is the right size, but its corner is square over a round cabinet. Now that a
-  top is a first-class object with its own profile, this is a real thing to fix rather than a
-  limitation of a derived slab — §5.0's note about it can be closed by giving the top an arc.
+- ~~**A benchtop over a radiused base cabinet is still a rectangle.**~~ **Done — see 4.13.**
 - **A shop-made top's *thickness* is the sheet's.** A 33mm laminate top built up from 18mm MDF and a
   substrate strip is two parts and a lamination, and the model cuts it as one 18mm part. Fine for a
   timber or single-thickness top; wrong for a built-up one.

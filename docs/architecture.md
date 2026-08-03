@@ -24,7 +24,7 @@ src/core/                        pure model layer
                                  also the tool profile — a cutter's cross-section
     hardware.ts                  runner and hinge systems as data; box and boring arithmetic
     runUnit.ts                   what a benchtop and a ladder base share: how they are *owned*
-    benchtop.ts                  a benchtop: supply, overhangs, ends, joins, cutouts
+    benchtop.ts                  a benchtop: supply, overhangs, ends, corners, joins, cutouts
     kickBase.ts                  a ladder base: ribs to the floor, rails cut short
     forming.ts                   how a flat part bends after it is cut; developed length
     material.ts                  sheet goods, edge banding, grain, nominal vs actual thickness

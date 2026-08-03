@@ -14,9 +14,11 @@
 import { mm } from '../units.ts';
 import {
   type Benchtop,
+  type BenchtopCorners,
+  type BenchtopEnd,
   DEFAULT_BENCHTOP_OVERHANGS,
 } from '../model/benchtop.ts';
-import type { Cabinet } from '../model/cabinet.ts';
+import { type Cabinet, isRadiused } from '../model/cabinet.ts';
 import { findConstruction } from '../model/construction.ts';
 import type { KickBase } from '../model/kickBase.ts';
 import type { Project } from '../model/project.ts';
@@ -39,22 +41,71 @@ const takenIds = (units: readonly { fromCabinetIds: readonly string[] }[]): Set<
 
 /* ── Benchtops ──────────────────────────────────────────────────────────────────────────── */
 
-const benchtopFromRun = (run: CabinetRun, name: string, materialId: string): Benchtop => ({
-  id: newId('top'),
-  name,
-  fromCabinetIds: run.memberIds,
-  placement: runPlacement(run),
-  length: run.length,
-  carcassDepth: run.carcassDepth,
-  materialId,
-  overhangs: DEFAULT_BENCHTOP_OVERHANGS,
-  // Both ends into a wall is the safe assumption rather than the common one: an end wrongly called
-  // exposed puts a charged edge profile on a quote for an edge nobody will ever see, and an end
-  // wrongly called a wall is visible in the 3D view the moment you look at it.
-  ends: { left: 'wall', right: 'wall' },
-  joins: [],
-  cutouts: [],
-});
+/**
+ * The corner radii a run hands its top, read off the cabinets at each end of it.
+ *
+ * **The radius the top takes is the cabinet's own**, and that is not an approximation. A corner
+ * radius is struck about `finishedFrontZ` — the door plane, 580 on a 560 carcass (§5.0) — and the
+ * shop's standard 20mm front overhang puts the top's front edge on exactly that plane, with the
+ * end overhang at zero landing it on the cabinet's end face. The fillet's centre is then the
+ * cabinet's arc centre, and the top follows the curve with a constant overhang all the way round.
+ *
+ * Change an overhang afterwards and the arc stays tangent to both edges — it is a fillet, so the
+ * outline is always valid — but it stops being concentric with the cabinet's. That is the owner's
+ * business, which is the whole point of a run unit being owned: `corners` is a field somebody can
+ * edit, not a derivation that would fight them.
+ *
+ * `memberIds` is in order along the run, so the first cabinet is at the left-hand end looking from
+ * the front, and cabinets in a run share a yaw — so a cabinet's `front-left` is the run's left.
+ */
+const cornersFromRun = (run: CabinetRun, project: Project): BenchtopCorners => {
+  const at = (id: string | undefined): Cabinet | undefined =>
+    project.cabinets.find((c) => c.id === id);
+  const first = at(run.memberIds[0]);
+  const last = at(run.memberIds[run.memberIds.length - 1]);
+  const radiusOf = (cabinet: Cabinet | undefined, corner: 'front-left' | 'front-right'): number =>
+    cabinet && isRadiused(cabinet.options) && cabinet.options.radiusCorner === corner
+      ? (cabinet.options.carcassRadius ?? 0)
+      : 0;
+  return {
+    left: mm(radiusOf(first, 'front-left')),
+    right: mm(radiusOf(last, 'front-right')),
+  };
+};
+
+const benchtopFromRun = (
+  run: CabinetRun,
+  name: string,
+  materialId: string,
+  project: Project,
+): Benchtop => {
+  const corners = cornersFromRun(run, project);
+  /*
+   * Both ends into a wall is the safe assumption rather than the common one: an end wrongly called
+   * exposed puts a charged edge profile on a quote for an edge nobody will ever see, and an end
+   * wrongly called a wall is visible in the 3D view the moment you look at it.
+   *
+   * **A radiused end is the exception, and it is not a guess.** Nobody rounds a corner that dies
+   * into a wall — the curve is there because that end of the run is on show, which is the same
+   * fact `radiusCorner` records by offering only the two front corners. Leaving it as `wall` would
+   * generate a top that warns about itself the moment it exists.
+   */
+  const endFor = (radius: number): BenchtopEnd => (radius > 0 ? 'exposed' : 'wall');
+  return {
+    id: newId('top'),
+    name,
+    fromCabinetIds: run.memberIds,
+    placement: runPlacement(run),
+    length: run.length,
+    carcassDepth: run.carcassDepth,
+    materialId,
+    overhangs: DEFAULT_BENCHTOP_OVERHANGS,
+    ends: { left: endFor(corners.left), right: endFor(corners.right) },
+    corners,
+    joins: [],
+    cutouts: [],
+  };
+};
 
 /**
  * A benchtop for every run that hasn't got one yet.
@@ -69,7 +120,7 @@ export const generateBenchtops = (project: Project, materialId: string): readonl
   for (const run of benchtopRuns(project)) {
     if (isCovered(run, taken)) continue;
     n += 1;
-    fresh.push(benchtopFromRun(run, `Top ${n}`, materialId));
+    fresh.push(benchtopFromRun(run, `Top ${n}`, materialId, project));
   }
   return fresh;
 };
@@ -90,7 +141,18 @@ export const regenerateBenchtop = (project: Project, top: Benchtop): Benchtop =>
     r.memberIds.some((id) => top.fromCabinetIds.includes(id)),
   );
   if (!run) return top;
-  return regenerated(top, benchtopFromRun(run, top.name, top.materialId));
+  const fresh = benchtopFromRun(run, top.name, top.materialId, project);
+  /*
+   * `corners` follows the run, like `carcassDepth` and unlike the overhangs.
+   *
+   * It is a fact about the carcasses — which cabinet is at the end of this run and whether it is
+   * radiused — and "put the top back over them" has to mean putting the curve back over the curve.
+   * A top that kept a 200mm corner after the radiused cabinet under it was deleted would be a
+   * rounded corner over a square one, which is the bug this whole change exists to fix, arriving
+   * from the other direction. The ends are left alone: `exposed` is a seeding decision, and by
+   * regenerate time somebody may well have corrected it.
+   */
+  return { ...regenerated(top, fresh), corners: fresh.corners };
 };
 
 /* ── Ladder bases ───────────────────────────────────────────────────────────────────────── */

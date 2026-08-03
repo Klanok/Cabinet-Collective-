@@ -25,6 +25,7 @@ import {
   type Benchtop,
   benchtopDepth,
   benchtopLength,
+  benchtopPlanArea,
   benchtopSections,
   finishedEdgeLength,
 } from '../model/benchtop.ts';
@@ -62,7 +63,9 @@ export interface BenchtopCharge {
 const chargeableAreaM2 = (top: Benchtop): number => {
   const depth = benchtopDepth(top);
   const length = benchtopLength(top);
-  let area = length * depth;
+  // The slab less its rounded corners. A waterfall and an upstand are still rectangles — a curve
+  // at the top of a waterfall panel is the join §4.7 leaves unmodelled, not a shape to charge for.
+  let area = benchtopPlanArea(top);
   // Floor to the top surface — the same face the panel is cut to on a shop-made one.
   const waterfallDrop = -top.placement.anchor.y;
   if (top.ends.left === 'waterfall') area += waterfallDrop * depth;

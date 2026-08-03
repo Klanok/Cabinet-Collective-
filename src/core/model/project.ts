@@ -37,7 +37,7 @@ import {
 } from '../library/blum.ts';
 import { AU_BENCHTOP_MATERIALS, AU_MATERIAL_LIBRARY, AU_SHEET_MATERIALS } from '../library/materials.au.ts';
 
-export const CURRENT_SCHEMA_VERSION = 23 as const;
+export const CURRENT_SCHEMA_VERSION = 24 as const;
 
 /**
  * The bendy ply an older job is given when it is migrated forward. It has no curved parts in
@@ -577,6 +577,32 @@ const migrateV22toV23 = (raw: Record<string, unknown>): Record<string, unknown> 
 };
 
 /**
+ * v23 → v24: benchtops learn about their corners, and every saved one gets square ones.
+ *
+ * **No part moves and nothing is re-priced**, and this time that is true in the strong sense
+ * rather than the careful one: a square corner is not a compatible default chosen to preserve old
+ * behaviour, it is the only shape a top has ever had. The field arrives at the value the geometry
+ * already implied.
+ *
+ * The version is bumped anyway, for the reason v4 was: a top with a curve in it is a **different
+ * part**, and an older build reading one would quietly cut the corner square, band it square and
+ * charge for the square. Refusing the file is the honest failure.
+ *
+ * A radius reaches an existing top by regenerating it — deliberately, because that is the action
+ * that means "put the top back over the cabinets". Filling them in here from the cabinets would be
+ * a migration reading `fromCabinetIds` as a dependency, which is exactly what `model/runUnit.ts`
+ * says nothing but regenerate may ever do.
+ */
+const migrateV23toV24 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const benchtops = (raw.benchtops as Record<string, unknown>[] | undefined) ?? [];
+  return {
+    ...raw,
+    schemaVersion: 24,
+    benchtops: benchtops.map((top) => ({ ...top, corners: { left: 0, right: 0 } })),
+  };
+};
+
+/**
  * v11 → v12. **The screen colours, backfilled onto jobs that never had them.**
  *
  * Reported from the bench as "changing the door to Notaio Walnut has done nothing", and the
@@ -849,6 +875,7 @@ export const migrateProject = (raw: unknown): Project => {
   if (data.schemaVersion === 20) data = migrateV20toV21(data);
   if (data.schemaVersion === 21) data = migrateV21toV22(data);
   if (data.schemaVersion === 22) data = migrateV22toV23(data);
+  if (data.schemaVersion === 23) data = migrateV23toV24(data);
 
   if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`migrateProject: could not migrate schema version ${String(version)}`);
