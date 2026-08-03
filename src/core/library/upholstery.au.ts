@@ -1,6 +1,19 @@
 import { mm } from '../units.ts';
 import type { UpholsteryMaterial } from '../model/material.ts';
 
+/**
+ * How much fabric one Warwick swatch image covers, edge to edge.
+ *
+ * **An estimate, and it should be corrected against a real sample.** Warwick publish these as
+ * pictures of a fabric, not as scaled drawings, so nothing in the file says what they cover. A
+ * swatch photographed for a website is typically a hand-sized piece, and 300mm renders a weave
+ * that reads as fabric at cushion scale rather than as noise or as flat colour.
+ *
+ * Nothing is cut, priced or ordered from it — it decides how big the weave looks on screen and
+ * nothing else. Measure a sample against the image and change this one number.
+ */
+const SWATCH_COVERS = mm(300);
+
 const caulfield = (colour: string, fallback: string, extension = 'jpg'): UpholsteryMaterial => ({
   id: `warwick-caulfield-${colour.toLowerCase()}`,
   brand: 'Warwick',
@@ -8,6 +21,7 @@ const caulfield = (colour: string, fallback: string, extension = 'jpg'): Upholst
   colour,
   colourFallback: fallback,
   textureUrl: `/materials/upholstery/${colour.toLowerCase()}.${extension}`,
+  textureRepeat: SWATCH_COVERS,
   sourceUrl: `https://www.warwick.com.au/products/caulfield/${colour.toLowerCase()}/`,
   width: mm(1420),
   composition: '100% polyester',
@@ -21,7 +35,15 @@ export const AU_UPHOLSTERY_MATERIALS: readonly UpholsteryMaterial[] = [
   caulfield('Taupe', '#8d7c6c'),
   caulfield('Rust', '#9b5037'),
   caulfield('Moss', '#66705a'),
-  caulfield('Pickle', '#78853f'),
+  /*
+   * Pickle points at the `.webp`, and that is the fix rather than an inconsistency.
+   *
+   * `pickle.jpg` in `public/` is not a JPEG — it is byte-for-byte the same WebP as
+   * `pickle.webp`, saved under the wrong extension. Browsers sniff the content and decode it
+   * anyway, so it renders, which is exactly why nobody caught it. Naming the file that is what
+   * it says it is beats relying on sniffing. `pickle.jpg` is now unreferenced.
+   */
+  caulfield('Pickle', '#78853f', 'webp'),
   caulfield('Ocean', '#3e6870'),
   caulfield('Navy', '#263849'),
   caulfield('Charcoal', '#414344'),

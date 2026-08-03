@@ -98,12 +98,24 @@ export function CostPanel({ cost, settings, onUpdateSettings }: Props) {
       <div className="subhead">Breakdown</div>
       <div className="cost-rows">
         <Row label="Sheet goods" value={formatAud(cost.sheetCost)} />
+        {cost.laminatedCurves > 0 && (
+          <Row
+            label={`Curve laminate (${cost.laminateSheets} × ${cost.laminateSheetLabel}, ${cost.laminatedM2.toFixed(2)}m² used)`}
+            value={formatAud(cost.laminateCost)}
+          />
+        )}
         <Row label="Edge banding" value={formatAud(cost.edgeBandCost)} />
         <Row label="Material" value={formatAud(cost.materialCost)} />
         <Row
           label={`Manufacturing (${(cost.labourMinutes / 60).toFixed(1)} h)`}
           value={formatAud(cost.labourCost)}
         />
+        {cost.laminateMinutes > 0 && (
+          <Row
+            label={`Laminating ${cost.laminatedCurves} curve${cost.laminatedCurves === 1 ? '' : 's'} (${(cost.laminateMinutes / 60).toFixed(1)} h)`}
+            value={formatAud(cost.laminateLabourCost)}
+          />
+        )}
         {cost.machiningMinutes > 0 && (
           <Row
             label={`Routing ${cost.machinedFrontCount} fronts (${(cost.machiningMinutes / 60).toFixed(1)} h)`}

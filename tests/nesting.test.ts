@@ -774,3 +774,178 @@ describe('cut depth', () => {
     expect(stagesOn(carcass)).toBeGreaterThan(0);
   });
 });
+
+/**
+ * Choosing the sheet size.
+ *
+ * Asked for from the bench as *"i want to be able to select the size of carcass sheet i am
+ * cutting"*. The nester already searched every size and took the cheapest, which is the right
+ * default — but what the supplier has on the rack, what fits in the van and what two people can
+ * lift onto the saw are facts it cannot see, and any of them beats a few dollars a sheet.
+ *
+ * The assertions are about the **sheet order**, not about a field being stored: a choice that did
+ * not change what gets bought would not be a choice.
+ */
+describe('choosing the sheet size', () => {
+  const CARCASS = 'hmr-white-16';
+
+  const withChoice = (project: Project, key: string | undefined): Project => ({
+    ...project,
+    settings: {
+      ...project.settings,
+      nesting: {
+        ...project.settings.nesting,
+        sheetSizes: key === undefined ? {} : { [CARCASS]: key },
+      },
+    },
+  });
+
+  const carcassNest = (project: Project): MaterialNest => {
+    const found = nestProject(project).byMaterial.find((m) => m.materialId === CARCASS);
+    if (!found) throw new Error('the sample kitchen has no carcass board in it');
+    return found;
+  };
+
+  it('leaves the search in charge when nothing is chosen', () => {
+    const nest = carcassNest(createSampleKitchen());
+    expect(nest.sizeChoice).toBe('automatic');
+    // The sample kitchen's carcass comes out on the large sheet on price.
+    expect([nest.sheet.length, nest.sheet.width]).toEqual([3600, 1800]);
+  });
+
+  it('cuts the size it is told to, and buys different sheets for it', () => {
+    const auto = carcassNest(createSampleKitchen());
+    const forced = carcassNest(withChoice(createSampleKitchen(), '2400x1200'));
+
+    expect(forced.sizeChoice).toBe('chosen');
+    expect([forced.sheet.length, forced.sheet.width]).toEqual([2400, 1200]);
+
+    // A smaller sheet holds less, so the order is for more of them. This is the assertion that
+    // makes the setting real rather than cosmetic.
+    expect(forced.sheetCount).toBeGreaterThan(auto.sheetCount);
+    expect(forced.sheet.priceExGst).toBeLessThan(auto.sheet.priceExGst);
+  });
+
+  it('carries the choice through to what the job is quoted', () => {
+    const auto = costProject(createSampleKitchen());
+    const forced = costProject(withChoice(createSampleKitchen(), '2400x1200'));
+    expect(forced.sheetCost).not.toBe(auto.sheetCost);
+  });
+
+  it('may be told to cut the size the search would not have picked', () => {
+    // The point of the control: naming the dearer-per-job size is allowed, because the reason for
+    // it is outside the model.
+    const forced = carcassNest(withChoice(createSampleKitchen(), '3600x1800'));
+    expect(forced.sizeChoice).toBe('chosen');
+    expect([forced.sheet.length, forced.sheet.width]).toEqual([3600, 1800]);
+  });
+
+  it('reports a stale choice and nests anyway rather than failing', () => {
+    // A size the material does not come in — what a saved job holds after its material changed.
+    const project = withChoice(createSampleKitchen(), '9999x9999');
+    const nest = nestProject(project);
+    const carcass = nest.byMaterial.find((m) => m.materialId === CARCASS)!;
+
+    expect(carcass.sizeChoice).toBe('chosen-unavailable');
+    expect(carcass.sheets.length).toBeGreaterThan(0);
+    expect(nest.warnings.join(' ')).toContain('does not come in');
+  });
+
+  it('leaves every other material alone', () => {
+    const project = withChoice(createSampleKitchen(), '2400x1200');
+    for (const m of nestProject(project).byMaterial) {
+      if (m.materialId !== CARCASS) expect(m.sizeChoice).toBe('automatic');
+    }
+  });
+});
+
+/**
+ * Keeping a drawer bank together on a grained board.
+ *
+ * From the bench: *"when using a grained material the bank should be cut together not split to
+ * ensure the grain match"*. Fronts taken from different parts of a sheet step at every joint, and
+ * a bank is the one place in a kitchen where four parts sit directly above one another and get
+ * looked at together.
+ *
+ * The parts stay separate — this constrains where they land, it does not merge them. Each front
+ * keeps its own panel id, placement and cutlist line, so CAM and the 3D view are untouched.
+ */
+describe('a grained drawer bank comes off one strip', () => {
+  const GRAINED = 'poly-boston-oak-18';
+
+  const bankJob = (doorMaterialId: string): Project => {
+    const project = createEmptyProject('Bank');
+    const cabinet = createCabinet(
+      { typeId: 'drawer-bank', name: 'D1', width: mm(600), x: mm(0) },
+      project.defaults,
+      project.constructions,
+    );
+    return {
+      ...project,
+      defaults: { ...project.defaults, doorMaterialId },
+      cabinets: [cabinet],
+    };
+  };
+
+  const frontsOf = (project: Project) => {
+    const nest = nestProject(project);
+    const material = nest.byMaterial.find((m) => m.materialId === project.defaults.doorMaterialId)!;
+    const fronts = material.parts.filter((p) => p.bank);
+    const placed = material.sheets.flatMap((s) =>
+      s.placements
+        .filter((pl) => fronts.some((f) => f.panelId === pl.partId))
+        .map((pl) => ({ sheet: s.index, ...pl })),
+    );
+    return { material, fronts, placed };
+  };
+
+  it('puts every front of the bank on one sheet, touching, in bank order', () => {
+    const { fronts, placed } = frontsOf(bankJob(GRAINED));
+    expect(fronts.length).toBe(4);
+    expect(placed.length).toBe(4);
+
+    // One sheet.
+    expect(new Set(placed.map((p) => p.sheet)).size).toBe(1);
+
+    /*
+     * The board is length-grained and a drawer front is `length-along-grain`, so the two agree
+     * about which axis the grain runs on and the front is laid **as cut**. The strip therefore
+     * stacks across the sheet's width — the fronts share an x and step in y, which is a rip down
+     * the board with the grain running through all four.
+     */
+    expect(new Set(placed.map((p) => p.orientation))).toEqual(new Set(['as-cut']));
+
+    const inOrder = [...placed].sort((a, b) => a.at.y - b.at.y);
+    for (const p of inOrder) expect(p.at.x).toBe(inOrder[0]!.at.x);
+    for (const p of inOrder) expect(p.at.length).toBe(inOrder[0]!.at.length);
+    for (let i = 1; i < inOrder.length; i++) {
+      const prev = inOrder[i - 1]!;
+      expect(inOrder[i]!.at.y).toBe(prev.at.y + prev.at.width + 6); // 6mm kerf
+    }
+  });
+
+  it('replays back to exactly the parts, rips included', () => {
+    // The rips between fronts are real cuts in the sequence, not placements dropped in after the
+    // fact — which is the only reason this invariant still holds for a stacked bank.
+    const { material } = frontsOf(bankJob(GRAINED));
+    for (const sheet of material.sheets) {
+      const { pieces, problems } = replayCuts(sheet.usable, sheet.cuts, mm(6));
+      expect(problems).toEqual([]);
+      const produced = pieces.map((r) => `${r.x},${r.y},${r.length},${r.width}`).sort();
+      const expected = [
+        ...sheet.placements.map((p) => `${p.at.x},${p.at.y},${p.at.length},${p.at.width}`),
+        ...sheet.offcuts.map((r) => `${r.x},${r.y},${r.length},${r.width}`),
+      ].sort();
+      expect(produced).toEqual(expected);
+    }
+  });
+
+  it('leaves the bank to the packer on an ungrained board', () => {
+    // Nothing to match, so forcing a strip would cost yield for no visible gain.
+    const { fronts } = frontsOf(bankJob('poly-classic-white-18'));
+    expect(fronts.length).toBe(4);
+    // The parts are still all present and nested; they are simply not constrained together.
+    const nest = nestProject(bankJob('poly-classic-white-18'));
+    expect(nest.warnings).toEqual([]);
+  });
+});

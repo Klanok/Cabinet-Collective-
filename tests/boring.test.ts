@@ -106,13 +106,15 @@ import type { Project } from '../src/core/model/project.ts';
 import { machinedFaces, requiresFlip } from '../src/core/model/feature.ts';
 import { buildCabinet, buildProject } from '../src/core/rules/build.ts';
 import { panelExtent } from '../src/core/model/panel.ts';
-import { byName, drilledFor, drillingStaysOnThePart, size } from './helpers.ts';
+import { byName, drilledFor, drillingStaysOnThePart, size, withoutFinishLaminate } from './helpers.ts';
 
 let project: Project;
 
 beforeEach(() => {
   resetIdCounter();
-  project = createEmptyProject('Boring');
+  // Boring positions on a radiused cabinet are derived from the wrap alone; the 1mm finish
+  // laminate is a separate allowance tested on its own. See `withoutFinishLaminate`.
+  project = withoutFinishLaminate(createEmptyProject('Boring'));
 });
 
 const build = (typeId: CabinetTypeId, options: CabinetOptions = {}, patch: Partial<{ width: number; depth: number; height: number }> = {}) =>
@@ -359,10 +361,12 @@ describe('mounting plates', () => {
   });
 
   it('says so when the radius has eaten the side a door hinges onto', () => {
-    // A full-depth radius on the left takes the left side out from under a left-hung door.
+    // A radius that consumes the **finished** depth on the left takes the left side out from
+    // under a left-hung door. 580, not 560: the curve is struck about the plane the fronts
+    // finish in, so it is that plane the radius has to reach to leave nothing behind it.
     const radiused = build('base', {
       radiusCorner: 'front-left',
-      carcassRadius: mm(560),
+      carcassRadius: mm(580),
       doorCount: 1,
       doorSwing: 'left',
       shelfCount: 0,

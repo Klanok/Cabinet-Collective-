@@ -21,13 +21,15 @@
  * sheets, counted, with the yield it actually achieved reported rather than assumed.
  */
 
-import { type Cents, type Mm, type Mm2, mm2ToM2 } from '../units.ts';
+import { type Cents, type Mm, type Mm2, mm, mm2ToM2 } from '../units.ts';
 import {
   type GrainDirection,
   type MaterialLibrary,
   type SheetMaterial,
   type SheetSize,
   findSheet,
+  sheetSizeKey,
+  sheetSizeLabel,
 } from '../model/material.ts';
 import { type GrainConstraint, type Panel, panelExtent } from '../model/panel.ts';
 import type { Project } from '../model/project.ts';
@@ -80,6 +82,14 @@ export interface NestPart {
   readonly length: Mm;
   readonly width: Mm;
   readonly grain: GrainConstraint;
+  /**
+   * The bank this part is a drawer front of, and where it sits in it — bottom-first.
+   *
+   * Only drawer fronts carry it, and only so a grained bank can be kept together on the sheet.
+   * See `bankBlanks`: a bank cut from a grained board has to come off **one strip, in order**, or
+   * the grain steps at every joint between fronts and the bank reads as four unrelated boards.
+   */
+  readonly bank?: { readonly id: string; readonly order: number };
 }
 
 export interface NestedSheet extends PackedSheet {
@@ -96,6 +106,15 @@ export interface MaterialNest {
   readonly label: string;
   /** The sheet size chosen for this material. */
   readonly sheet: SheetSize;
+  /**
+   * How that size came to be the one — the tool's search, or the shop naming it.
+   *
+   * Reported for the same reason `strategy` is: it is the honest answer to "why is it cutting
+   * that sheet?", and the two answers lead somewhere different. `chosen-unavailable` means a
+   * saved choice named a size this material no longer comes in, so it was dropped and the search
+   * ran instead; that is a thing to fix rather than a thing to read past.
+   */
+  readonly sizeChoice: 'automatic' | 'chosen' | 'chosen-unavailable';
   readonly sheets: readonly NestedSheet[];
   readonly parts: readonly NestPart[];
   /**
@@ -143,8 +162,10 @@ export const nestParts = (project: Project): NestPart[] => {
     ...buildProject(project).map((b) => ({ name: b.cabinet.name, panels: b.panels })),
     ...buildRunUnits(project).map((u) => ({ name: u.name, panels: u.panels })),
   ];
-  return groups.flatMap(({ name, panels }) =>
-    panels.map((panel) => {
+  return groups.flatMap(({ name, panels }) => {
+    // Fronts come out of the builder bottom-first, so their order here is the order up the bank.
+    let frontIndex = 0;
+    return panels.map((panel) => {
       const { length, width } = panelExtent(panel);
       return {
         panelId: panel.id,
@@ -154,9 +175,12 @@ export const nestParts = (project: Project): NestPart[] => {
         length,
         width,
         grain: panel.grain,
+        ...(panel.role === 'drawer-front'
+          ? { bank: { id: panel.ownerId, order: frontIndex++ } }
+          : {}),
       };
-    }),
-  );
+    });
+  });
 };
 
 interface SizeAttempt {
@@ -167,6 +191,86 @@ interface SizeAttempt {
   readonly strategy: PackStrategy;
 }
 
+/**
+ * A drawer bank's fronts, gathered so they come off one strip in order.
+ *
+ * **Only on a grained board**, and that is the whole justification. On a plain white melamine
+ * there is nothing to match, and forcing the fronts to share a strip would cost yield to no
+ * visible end — the packer is free to put them wherever they fit best. On a grained decor the
+ * opposite is true: fronts cut from different parts of a sheet step at every joint, and a bank is
+ * the one place in a kitchen where four parts sit directly above one another and get looked at
+ * together.
+ *
+ * A bank only groups when every front is the **same width across**, which is what makes a strip a
+ * strip. They always are on a real bank; a bank where they are not is not one piece of board and
+ * is left to the packer part by part.
+ *
+ * The parts stay separate throughout — this is a constraint on where they land, not a merge.
+ * Each front keeps its own panel id, its own placement and its own line on the cutlist, so CAM
+ * and the 3D view see exactly what they saw before.
+ */
+const bankStacks = (
+  parts: readonly NestPart[],
+  material: SheetMaterial,
+  kerf: Mm,
+): { packable: PackablePart[]; members: Map<string, NestPart[]> } => {
+  const packable: PackablePart[] = [];
+  const members = new Map<string, NestPart[]>();
+  const loose: NestPart[] = [];
+
+  if (material.grain === 'none') {
+    return {
+      packable: parts.map((p) => ({
+        id: p.panelId,
+        length: p.length,
+        width: p.width,
+        orientations: orientationsFor(p.grain, material.grain),
+      })),
+      members,
+    };
+  }
+
+  const banks = new Map<string, NestPart[]>();
+  for (const part of parts) {
+    if (part.bank) {
+      const list = banks.get(part.bank.id);
+      if (list) list.push(part);
+      else banks.set(part.bank.id, [part]);
+    } else loose.push(part);
+  }
+
+  for (const [bankId, fronts] of banks) {
+    const sameWidth = fronts.every((f) => f.length === fronts[0]!.length);
+    if (fronts.length < 2 || !sameWidth) {
+      loose.push(...fronts);
+      continue;
+    }
+    const ordered = [...fronts].sort((a, b) => a.bank!.order - b.bank!.order);
+    const stacked = mm(
+      ordered.reduce((sum, f) => sum + f.width, 0) + kerf * (ordered.length - 1),
+    );
+    const id = `bank:${bankId}`;
+    members.set(id, ordered);
+    packable.push({
+      id,
+      length: ordered[0]!.length,
+      width: stacked,
+      orientations: orientationsFor(ordered[0]!.grain, material.grain),
+      stack: ordered.map((f) => ({ id: f.panelId, size: f.width })),
+    });
+  }
+
+  for (const p of loose) {
+    packable.push({
+      id: p.panelId,
+      length: p.length,
+      width: p.width,
+      orientations: orientationsFor(p.grain, material.grain),
+    });
+  }
+  return { packable, members };
+};
+
 const trySize = (
   parts: readonly NestPart[],
   material: SheetMaterial,
@@ -174,14 +278,13 @@ const trySize = (
   kerf: Mm,
   trim: Mm,
 ): SizeAttempt => {
-  const packable: PackablePart[] = parts.map((p) => ({
-    id: p.panelId,
-    length: p.length,
-    width: p.width,
-    orientations: orientationsFor(p.grain, material.grain),
-  }));
+  const { packable, members } = bankStacks(parts, material, kerf);
   const result = packBest(packable, { kerf, usable: usableArea(sheet.length, sheet.width, trim) });
-  const oversize = result.unplaced.map((id) => parts.find((p) => p.panelId === id)!);
+  // A strip that will not fit puts *every* front in it out of the nest, so the oversize report
+  // names the fronts rather than a bank id nobody would recognise.
+  const oversize = result.unplaced.flatMap((id) =>
+    members.get(id) ?? [parts.find((p) => p.panelId === id)!],
+  );
   return {
     sheet,
     packed: result.sheets,
@@ -194,28 +297,42 @@ const trySize = (
 };
 
 /**
- * Nest one material's parts, choosing the sheet size.
+ * Nest one material's parts, choosing the sheet size — or cutting the one it was told to.
  *
- * **One size per material, chosen by what the job costs.** Every size the material comes in is
- * nested in full and the cheapest wins; a size that cannot hold every part loses to one that can,
- * however cheap it is per square metre. That is a real decision and not only an optimisation — a
- * sheet size is what goes on the supplier order, and a nest that mixed 3600×1800 and 2400×1200
- * across one material would be a nest whose first line is "work out which of these is which".
+ * **One size per material.** A nest that mixed 3600×1800 and 2400×1200 across one material would
+ * be a nest whose first line is "work out which of these is which", and a sheet size is what goes
+ * on the supplier order.
  *
- * A shop that genuinely wants to mix sizes on one material is describing a different order, and it
- * would want saying so per material rather than falling out of a search.
+ * **Which size, by default, is chosen by what the job costs.** Every size the material comes in
+ * is nested in full and the cheapest wins; a size that cannot hold every part loses to one that
+ * can, however cheap it is per square metre.
+ *
+ * **`chosen` overrides that, and the shop usually should.** What the supplier has on the rack
+ * this week, what fits in the van, what two people can lift onto the saw and what there is half a
+ * pallet of already are all facts the search cannot see, and any of them beats a few dollars a
+ * sheet. Named by `sheetSizeKey`.
+ *
+ * A `chosen` size the material does not come in is **reported, not obeyed and not fatal**. It
+ * means the material was changed under a saved choice, and the honest response is to nest what
+ * can actually be bought and say the choice was dropped — failing the build would lose the job's
+ * whole nest over a stale preference.
  */
 export const nestMaterial = (
   parts: readonly NestPart[],
   material: SheetMaterial,
   kerf: Mm,
   trim: Mm,
+  chosen?: string,
 ): MaterialNest => {
   if (material.sheets.length === 0) {
     throw new Error(`nestMaterial: ${material.id} has no sheet sizes`);
   }
 
-  const attempts = material.sheets.map((s) => trySize(parts, material, s, kerf, trim));
+  const wanted = chosen ? material.sheets.filter((s) => sheetSizeKey(s) === chosen) : [];
+  const unavailable = chosen !== undefined && wanted.length === 0;
+  const sizes = wanted.length > 0 ? wanted : material.sheets;
+
+  const attempts = sizes.map((s) => trySize(parts, material, s, kerf, trim));
   // Fewest parts that don't fit first, then cheapest. A size that leaves nothing over always beats
   // one that does, so the comparison never trades an uncuttable part against a few dollars.
   const best = attempts.reduce((a, b) =>
@@ -242,6 +359,7 @@ export const nestMaterial = (
     materialId: material.id,
     label: materialLabel(material),
     sheet: best.sheet,
+    sizeChoice: unavailable ? 'chosen-unavailable' : wanted.length > 0 ? 'chosen' : 'automatic',
     sheets,
     parts,
     strategy: best.strategy,
@@ -264,7 +382,7 @@ export const nestMaterial = (
  */
 export const nestProject = (project: Project): ProjectNest => {
   const library: MaterialLibrary = project.materials;
-  const { kerf, sheetEdgeTrim } = project.settings.nesting;
+  const { kerf, sheetEdgeTrim, sheetSizes } = project.settings.nesting;
 
   const byId = new Map<string, NestPart[]>();
   for (const part of nestParts(project)) {
@@ -277,7 +395,14 @@ export const nestProject = (project: Project): ProjectNest => {
   const byMaterial = [...byId.entries()]
     .map(([materialId, parts]) => {
       const material = findSheet(library, materialId);
-      const nest = nestMaterial(parts, material, kerf, sheetEdgeTrim);
+      const nest = nestMaterial(parts, material, kerf, sheetEdgeTrim, sheetSizes?.[materialId]);
+      if (nest.sizeChoice === 'chosen-unavailable') {
+        warnings.push(
+          `${nest.label} is set to be cut from ${sheetSizes?.[materialId]}, which it does not ` +
+            `come in. The sheet size was chosen automatically instead — ` +
+            `${sheetSizeLabel(nest.sheet)}. Set it again under the Nest tab.`,
+        );
+      }
       for (const part of nest.oversize) {
         warnings.push(
           `"${part.name}" is ${Math.round(part.length)}×${Math.round(part.width)}mm — too big ` +

@@ -58,6 +58,20 @@ export interface PackablePart {
   readonly width: Mm;
   /** The ways this part may be laid. Never empty — a part with no legal orientation cannot be cut. */
   readonly orientations: readonly Orientation[];
+  /**
+   * Parts that must come off **one piece, in this order**, ripped apart after it is cut out.
+   *
+   * A drawer bank in a grained decor is the case this exists for: the fronts have to be cut from
+   * one strip in order or the grain steps at every joint and the bank reads as four unrelated
+   * boards. So the packer finds a home for the whole strip, then rips it — and the rips are
+   * **real cuts in the sequence**, not placements dropped in afterwards, which is what keeps
+   * `replayCuts` meaningful. Somebody at the saw makes those cuts.
+   *
+   * Each `size` is measured along this part's own **width**, which is the axis the members stack
+   * along; `length` is the dimension they all share. Sizes plus the kerfs between them add up to
+   * the part's width, so the stack is exactly the blank the packer was asked to place.
+   */
+  readonly stack?: readonly { readonly id: string; readonly size: Mm }[];
 }
 
 export interface Placement {
@@ -212,6 +226,62 @@ const firstAxis = (
 };
 
 /**
+ * Rip one blank into the parts that had to come off it together, in order.
+ *
+ * Reached only once the blank has been cut out of the sheet, so `piece` is exactly the strip. The
+ * members stack along the blank's own **width**, which lands on the sheet's `y` axis when the
+ * blank is laid as cut and on `x` when it is turned — the same swap `footprintOf` makes, for the
+ * same reason.
+ *
+ * Every rip is a real `cut` node, so the sequence somebody follows at the saw includes them and
+ * `replayCuts` verifies them like any other. That is the whole reason this lives in the packer
+ * rather than expanding a placement afterwards: a placement nothing cut out would replay as a
+ * part that appears from nowhere.
+ */
+const ripStack = (
+  piece: Rect,
+  members: readonly { readonly id: string; readonly size: Mm }[],
+  orientation: Orientation,
+  kerf: Mm,
+  stage: number,
+): Node => {
+  const alongX = orientation === 'turned';
+  const [head, ...tail] = members;
+  if (!head) return { kind: 'free', rect: piece };
+
+  const at: Rect = alongX
+    ? { x: piece.x, y: piece.y, length: head.size, width: piece.width }
+    : { x: piece.x, y: piece.y, length: piece.length, width: head.size };
+  const part: Node = { kind: 'part', rect: at, placement: { partId: head.id, orientation, at } };
+  // The last member is the whole of what is left — there is nothing after it to cut away.
+  if (tail.length === 0) return part;
+
+  const rest: Rect = alongX
+    ? {
+        x: mm(piece.x + head.size + kerf),
+        y: piece.y,
+        length: mm(piece.length - head.size - kerf),
+        width: piece.width,
+      }
+    : {
+        x: piece.x,
+        y: mm(piece.y + head.size + kerf),
+        length: piece.length,
+        width: mm(piece.width - head.size - kerf),
+      };
+
+  return {
+    kind: 'cut',
+    rect: piece,
+    axis: alongX ? 'x' : 'y',
+    at: alongX ? mm(piece.x + head.size) : mm(piece.y + head.size),
+    stage,
+    keep: part,
+    rest: ripStack(rest, tail, orientation, kerf, stage + 1),
+  };
+};
+
+/**
  * Cut `piece` down until what is left is exactly the part, recording each cut on the way.
  *
  * The recursion is the point: a part is placed by cutting the piece it sits in, and the piece it
@@ -227,6 +297,7 @@ const placeInPiece = (
   kerf: Mm,
   stage: number,
   split: PackStrategy['split'],
+  stack?: readonly { readonly id: string; readonly size: Mm }[],
 ): Node => {
   const exactX = fitsExactly(piece.length, length);
   const exactY = fitsExactly(piece.width, width);
@@ -235,6 +306,7 @@ const placeInPiece = (
     // The blank's own size, not the piece's — the piece may be a fraction larger through
     // arithmetic noise, and a placement is what gets drawn, exported and checked for overlap.
     const at: Rect = { x: piece.x, y: piece.y, length, width };
+    if (stack && stack.length > 1) return ripStack(at, stack, orientation, kerf, stage);
     return { kind: 'part', rect: at, placement: { partId, orientation, at } };
   }
 
@@ -255,7 +327,7 @@ const placeInPiece = (
       axis: 'x',
       at: mm(piece.x + length),
       stage,
-      keep: placeInPiece(keepRect, partId, orientation, length, width, kerf, stage + 1, split),
+      keep: placeInPiece(keepRect, partId, orientation, length, width, kerf, stage + 1, split, stack),
       rest: rectIsReal(restRect) ? { kind: 'free', rect: restRect } : null,
     };
   }
@@ -274,7 +346,7 @@ const placeInPiece = (
     axis: 'y',
     at: mm(piece.y + width),
     stage,
-    keep: placeInPiece(keepRect, partId, orientation, length, width, kerf, stage + 1, split),
+    keep: placeInPiece(keepRect, partId, orientation, length, width, kerf, stage + 1, split, stack),
     rest: rectIsReal(restRect) ? { kind: 'free', rect: restRect } : null,
   };
 };
@@ -489,6 +561,7 @@ export const packSheets = (
           kerf,
           1 + stageOfLeaf(roots[i]!, candidate.leaf),
           split,
+          part.stack,
         ),
       );
       placed = true;
@@ -517,6 +590,7 @@ export const packSheets = (
           kerf,
           1,
           split,
+          part.stack,
         ),
       ),
     );

@@ -196,6 +196,21 @@ export interface DrawerRunnerSystem {
    * Read it through `runnerAboveFrontBottom`, never directly.
    */
   readonly runnerAboveCabinetFloor: Mm;
+  /**
+   * How much taller than the box side a **drawer front** has to be for that side to be usable.
+   *
+   * This is what decides which box height a given front can take, and therefore what
+   * `tallestSideHeightFor` will pick. A box side taller than its front shows above or below it,
+   * so the front has to cover the side and then some — the "and then some" is this figure.
+   *
+   * **It is an estimate and is listed in `unconfirmedFigures`.** Blum publish a minimum front
+   * height per side height rather than a single clearance, and that table has not been read off a
+   * catalogue here. 30mm puts the four MERIVOBOX profiles at roughly 98 / 121 / 159 / 222mm
+   * minimum fronts, which is close to the published minimums but is *derived from a guess and
+   * must not be treated as Blum's own*. Read the table and replace this before a bank whose
+   * fronts are near a boundary gets cut.
+   */
+  readonly frontCoverAboveSideHeight: Mm;
   /** Underside of the drawer bottom panel, above the bottom of the runner. Blum's `20`. */
   readonly bottomPanelAboveRunner: Mm;
   /**
@@ -261,6 +276,39 @@ export const findSideHeight = (
   system: DrawerRunnerSystem,
   code: string | undefined,
 ): DrawerSideHeight | null => system.sideHeights.find((h) => h.code === code) ?? null;
+
+/**
+ * The tallest box this system makes that a front of this height can carry.
+ *
+ * **The deepest box a drawer can take is free capacity**, which is why "tallest that fits" is the
+ * rule rather than "whatever the cabinet's default says". A 300mm pot drawer running an M box is
+ * a drawer with 90mm of usable side and 200mm of air above it, and nothing about the cabinet says
+ * so — it just holds less than it should.
+ *
+ * A mixed bank is the case that makes this matter, and the case that makes it *per drawer*: put a
+ * 150mm cutlery front over two 300mm pot fronts and one code for the bank has to suit the
+ * shortest, so both pot drawers get shallow boxes to keep the cutlery drawer legal.
+ *
+ * Returns `null` when nothing fits, which is a real answer rather than a failure — a 60mm front
+ * carries no MERIVOBOX at all, and the honest outcome is no box and a warning rather than a box
+ * that stands proud of its own front. `hardwareProblems` reports it.
+ */
+/** The shortest front this system can carry any box behind — what to tell somebody who is under it. */
+export const shortestFrontFor = (system: DrawerRunnerSystem): Mm => {
+  const shortest = system.sideHeights.reduce((a, b) => (b.height < a.height ? b : a));
+  return mm(shortest.height + system.frontCoverAboveSideHeight);
+};
+
+export const tallestSideHeightFor = (
+  system: DrawerRunnerSystem,
+  frontHeight: Mm,
+): DrawerSideHeight | null => {
+  const usable = system.sideHeights.filter(
+    (h) => h.height + system.frontCoverAboveSideHeight <= frontHeight,
+  );
+  if (usable.length === 0) return null;
+  return usable.reduce((tallest, h) => (h.height > tallest.height ? h : tallest));
+};
 
 /**
  * Add verified shipped box-height choices to a stored copy of the same runner system.

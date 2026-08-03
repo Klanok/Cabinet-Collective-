@@ -164,6 +164,26 @@ export interface ConstructionMethod {
    * too small to fix to.
    */
   readonly fixingStripWidth: Mm;
+  /**
+   * Thickness of the finish laminate applied over a curved wrap.
+   *
+   * A curve is not finished when the bendy ply is on: the ply is substrate, and a **1mm laminate
+   * goes over it as the finish**, so the curve carries the same decor and texture as the doors
+   * either side of it. It is applied **by hand after machining** — the machine cuts the formers
+   * and the flat skins, and the laminate goes on at the bench — so it is a dimension the model has
+   * to allow for rather than a part the machine ever sees.
+   *
+   * It counts **once, over the whole wrap**, not once per ply: it is a single sheet on the
+   * outside, not something between the layers. The formers are therefore cut to the finished
+   * radius less the plies *and* this, so the laminated face lands exactly on the radius asked for.
+   * Leave it out and every radiused cabinet finishes a millimetre proud, on the one face that has
+   * to line up with the doors.
+   *
+   * **Existing jobs and standards migrate to zero, not to 1mm.** A job already quoted was cut
+   * without the allowance and must keep cutting that way; adopting it is a deliberate edit per
+   * method.
+   */
+  readonly finishLaminate: Mm;
 
   /** System 32 hole pitch. */
   readonly systemPitch: Mm;
@@ -236,6 +256,8 @@ export const FRAMELESS_32: ConstructionMethod = {
   shelfSetback: mm(10),
   shelfSideClearance: mm(2),
   fixingStripWidth: mm(50),
+  // 1mm finish laminate over a curved wrap, applied by hand after machining — see the field.
+  finishLaminate: mm(1),
   systemPitch: mm(32),
   systemFrontSetback: mm(37),
   systemBackSetback: mm(37),
@@ -330,6 +352,22 @@ export const withLadderKick = (c: Record<string, unknown>): Record<string, unkno
  * 96mm is three pitches and is a shop figure rather than a measured one. It is on screen under
  * Joinery, where it can be changed in one place for the whole job.
  */
+/**
+ * Fill in the finish laminate on a stored method that predates the field — **at zero**.
+ *
+ * Zero rather than the shipped 1mm, and that is the whole point of the migration. A radiused
+ * cabinet already quoted was cut with formers sized to the plies alone, and it has to keep being
+ * cut that way or the parts in the job stop matching the parts on the rack. Adopting the
+ * allowance moves the former radii and every skin's developed length, so it is a deliberate edit
+ * to a method rather than something that happens to a saved job on load.
+ *
+ * New jobs get 1mm, because new jobs get the shipped method.
+ */
+export const withFinishLaminate = (c: Record<string, unknown>): Record<string, unknown> => ({
+  ...c,
+  finishLaminate: typeof c.finishLaminate === 'number' ? c.finishLaminate : 0,
+});
+
 export const withShelfPinClearance = (c: Record<string, unknown>): Record<string, unknown> => ({
   ...c,
   systemHoleEndClearance:

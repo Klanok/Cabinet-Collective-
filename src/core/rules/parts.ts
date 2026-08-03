@@ -609,10 +609,16 @@ export const kickPanel = (ctx: RuleContext): PartInstance[] => {
    * flat part the wrap is, at a tighter radius.
    *
    * That radius is picked so the kick's flat run lands exactly where a square cabinet's kick
-   * lands. Setting it back from the *finished curve* instead would put the kick 18mm further
-   * back than its neighbour's in a run, and you would see the step.
+   * lands, which is `kickSetback` behind the finished front face.
+   *
+   * **It is simply the curve, set back.** It used to read `r + td + frontStandoff − kickSetback`,
+   * and those three extra terms were compensation: the carcass curve was struck about a centre
+   * 20mm behind the finished face, so the kick had to add the 20 back to land in the right plane.
+   * Now that the curve is struck about the finished face itself — see `resolveCornerRadius` — the
+   * two share a centre, and the kick is the same arc a setback tighter. The compensation is gone
+   * rather than re-tuned, which is the sign the datum was the thing that was wrong.
    */
-  const finished = mm(rad.r + ctx.td + c.frontStandoff - c.kickSetback);
+  const finished = mm(rad.r - c.kickSetback);
   const inner = mm(finished - ctx.ts);
   if (inner <= 0) return [];
   const flatFront = mm(Math.abs(rad.tangentX - (rad.sign > 0 ? 0 : ctx.W)));

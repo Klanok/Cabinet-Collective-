@@ -37,6 +37,21 @@ export default function App() {
   const updateOptions = useProjectStore((s) => s.updateOptions);
   const removeCabinet = useProjectStore((s) => s.removeCabinet);
   const updateSettings = useProjectStore((s) => s.updateSettings);
+  /*
+   * Naming a sheet size, or handing the choice back to the search.
+   *
+   * Stored per material rather than globally: a job often has one board it must cut from what the
+   * supplier has and another it does not care about. Choosing "automatic" deletes the entry rather
+   * than storing a sentinel, so an unset material is genuinely unset and stays that way if the
+   * material's sizes change under it.
+   */
+  const chooseSheetSize = (materialId: string, key: string | undefined) => {
+    const current = project.settings.nesting.sheetSizes ?? {};
+    const next = { ...current };
+    if (key === undefined) delete next[materialId];
+    else next[materialId] = key;
+    updateSettings({ nesting: { ...project.settings.nesting, sheetSizes: next } });
+  };
   const loadSampleKitchen = useProjectStore((s) => s.loadSampleKitchen);
   const generateBenchtops = useProjectStore((s) => s.generateBenchtops);
   const regenerateBenchtop = useProjectStore((s) => s.regenerateBenchtop);
@@ -273,7 +288,13 @@ export default function App() {
           </nav>
           {tab === 'cutlist' && <CutlistPanel lines={cutlist} project={project} />}
           {/* The nest the quote was costed from, not a second one — see `CostBreakdown.nest`. */}
-          {tab === 'nest' && <NestPanel project={project} nest={cost.nest} />}
+          {tab === 'nest' && (
+            <NestPanel
+              project={project}
+              nest={cost.nest}
+              onChooseSheetSize={chooseSheetSize}
+            />
+          )}
           {tab === 'hardware' && <HardwarePanel project={project} />}
           {tab === 'tops' && (
             <BenchtopPanel

@@ -17,6 +17,7 @@ import {
   withAppliedEnds,
   withFrontStandoff,
   withShelfPinClearance,
+  withFinishLaminate,
   withLadderKick,
   withSystemHoles,
 } from './construction.ts';
@@ -36,7 +37,7 @@ import {
 } from '../library/blum.ts';
 import { AU_BENCHTOP_MATERIALS, AU_MATERIAL_LIBRARY, AU_SHEET_MATERIALS } from '../library/materials.au.ts';
 
-export const CURRENT_SCHEMA_VERSION = 22 as const;
+export const CURRENT_SCHEMA_VERSION = 23 as const;
 
 /**
  * The bendy ply an older job is given when it is migrated forward. It has no curved parts in
@@ -73,6 +74,34 @@ export interface LabourRates {
   /** Assembly allowance per cabinet. */
   readonly minutesPerCabinet: number;
 
+  /*
+   * ── Laminating a curve, which is a hand job with two very different halves ────────────────
+   *
+   * Described from the bench: *"you have to cut to size (oversized), spray on contact to both
+   * pieces (after preparing the area), wait for it to tack off for about 15 mins, apply, let it
+   * stick, then trim route the excess"* — and, tellingly, *"it seems to take some staff an
+   * absolute age and some no time at all"*.
+   *
+   * That variance is why these are **two figures rather than one rate**, and why both are
+   * reported as unchecked. Splitting them is not tidiness: the tack-off is a **wait**, and a
+   * wait does not get longer because the curve is bigger. Rolling it into a per-m² rate would
+   * charge a 2100mm tall curve five times the waiting a 400mm one gets, which is not what
+   * happens at the bench.
+   */
+
+  /**
+   * Per curve: preparing the surface, spraying contact to both faces, and the tack-off wait.
+   *
+   * Fixed regardless of size, because that is how a wait behaves. **Unchecked** — see
+   * `unconfirmedLabourFigures`.
+   */
+  readonly laminateSetupMinutesPerCurve: number;
+  /**
+   * Per square metre of finished curve: cutting the sheet oversize, laying it on, and
+   * trim-routing the excess. **Unchecked** — the shop reports wide variance between people.
+   */
+  readonly laminateMinutesPerM2: number;
+
   /** On-site install rate, ex-GST. Usually differs from the shop rate. */
   readonly installRatePerHourExGst: number;
   /**
@@ -91,6 +120,26 @@ export interface NestingSettings {
   readonly kerf: Mm;
   readonly sheetEdgeTrim: Mm;
   readonly usableOffcutMin: Mm;
+  /**
+   * The sheet size to cut a given material from, by material id, keyed by `sheetSizeKey`.
+   *
+   * **Absent means the nester chooses**, which is what it has always done: every size the
+   * material comes in is nested in full and the cheapest job wins. That is the right default and
+   * stays the default — this is an override for when the choice is not the tool's to make.
+   *
+   * It usually is not. What the supplier has on the rack this week, what fits in the van, what
+   * two people can lift onto the saw, and what the shop has half a pallet of already are all
+   * facts the optimiser cannot see, and all of them beat a few dollars per sheet. So a shop can
+   * name the size and the nest cuts from that.
+   *
+   * A stale entry — a size the material no longer comes in, because the material was changed
+   * under it — falls back to choosing and says so rather than failing. See `nestMaterial`.
+   *
+   * Optional with no migration behind it, and that is safe rather than lazy: an absent map is
+   * byte-for-byte the behaviour every existing job already has, so no saved job cuts or prices
+   * differently for this field arriving.
+   */
+  readonly sheetSizes?: Readonly<Record<string, string>>;
 }
 
 export interface ProjectSettings {
@@ -501,6 +550,33 @@ const migrateV10toV11 = (raw: Record<string, unknown>): Record<string, unknown> 
 };
 
 /**
+ * v22 → v23: the finish laminate over a curved wrap, at zero on everything already saved.
+ *
+ * **No part moves and nothing is re-priced.** The field arrives at zero, which is precisely the
+ * arithmetic every saved job already used — formers sized to the plies alone. A shop adopting the
+ * 1mm laminate does it by editing the method, and at that point the former radii and the skins'
+ * developed lengths move, which is a change somebody made on purpose rather than one that
+ * happened on load. New jobs take the shipped method and get 1mm from the start.
+ */
+const migrateV22toV23 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const constructions = (raw.constructions as Record<string, unknown>[] | undefined) ?? [];
+  // The allowance and the material it stands for arrive together — a job that knows a curve is
+  // laminated but has no laminate on its price list could not quote one.
+  const materials = (raw.materials as Record<string, unknown> | undefined) ?? {};
+  const sheets = (materials.sheets as Record<string, unknown>[] | undefined) ?? [];
+  const have = new Set(sheets.map((s) => s.id));
+  return {
+    ...raw,
+    schemaVersion: 23,
+    constructions: constructions.map(withFinishLaminate),
+    materials: {
+      ...materials,
+      sheets: [...sheets, ...AU_SHEET_MATERIALS.filter((s) => !have.has(s.id))],
+    },
+  };
+};
+
+/**
  * v11 → v12. **The screen colours, backfilled onto jobs that never had them.**
  *
  * Reported from the bench as "changing the door to Notaio Walnut has done nothing", and the
@@ -772,6 +848,7 @@ export const migrateProject = (raw: unknown): Project => {
   if (data.schemaVersion === 19) data = migrateV19toV20(data);
   if (data.schemaVersion === 20) data = migrateV20toV21(data);
   if (data.schemaVersion === 21) data = migrateV21toV22(data);
+  if (data.schemaVersion === 22) data = migrateV22toV23(data);
 
   if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`migrateProject: could not migrate schema version ${String(version)}`);

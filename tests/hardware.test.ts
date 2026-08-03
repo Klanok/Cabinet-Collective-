@@ -73,6 +73,7 @@ import {
   migrateStandards,
 } from '../src/core/standards/standards.ts';
 import { buildCabinet, buildProject } from '../src/core/rules/build.ts';
+import { panelExtent } from '../src/core/model/panel.ts';
 import {
   MERIVOBOX,
   CLIP_TOP_BLUMOTION,
@@ -845,5 +846,71 @@ describe('a job saved while the profile had two fixings', () => {
     const strip = (lines: ReturnType<typeof buildCutlist>) =>
       lines.map(({ ...line }) => ({ ...line, ids: undefined }));
     expect(strip(buildCutlist(migrated))).toEqual(strip(buildCutlist(fresh)));
+  });
+});
+
+/**
+ * Front heights set one at a time, and the box height that follows.
+ *
+ * From the bench: *"I need to be able to set the front heights individually of each other"* and
+ * *"when i change the front heights as above it should automatically change to the tallest drawer
+ * hardware available"*. The second only happens because of the first, and the restraint in it —
+ * that a bank nobody has edited keeps the box height it was quoted with — is asserted here too,
+ * because silently re-specifying saved jobs is the failure this file's migrations exist to avoid.
+ */
+describe('drawer front heights, set individually', () => {
+  const bank = (options: Record<string, unknown>) => {
+    const project = createEmptyProject('Bank');
+    const cabinet = createCabinet(
+      { typeId: 'drawer-bank', name: 'D1', width: mm(600), x: mm(0) },
+      project.defaults,
+      project.constructions,
+    );
+    return buildCabinet({ ...cabinet, options: { ...cabinet.options, ...options } }, project);
+  };
+
+  const frontHeights = (built: ReturnType<typeof bank>) =>
+    built.panels.filter((p) => p.role === 'drawer-front').map((p) => panelExtent(p).width);
+
+  const backHeights = (built: ReturnType<typeof bank>) =>
+    built.panels.filter((p) => p.role === 'drawer-back').map((p) => panelExtent(p).width);
+
+  it('cuts each front to the height it was given', () => {
+    const built = bank({ drawerFrontHeights: [mm(300), mm(150), mm(150)] });
+    expect(frontHeights(built)).toEqual([300, 150, 150]);
+  });
+
+  it('gives each drawer the tallest box its own front will carry', () => {
+    // 300 takes E (192 + 30 cover), 150 takes M (91 + 30) but not K (129 + 30 = 159 > 150).
+    const built = bank({ drawerFrontHeights: [mm(300), mm(150), mm(150)] });
+    const backs = backHeights(built);
+    expect(backs[0]).toBe(184); // E's wooden back
+    expect(backs[1]).toBe(83); // M's
+    expect(backs[2]).toBe(83);
+    // The point of doing it per drawer: one bank, two different boxes.
+    expect(new Set(backs).size).toBe(2);
+  });
+
+  it('does not deepen the boxes of a bank nobody has edited', () => {
+    // Equal fronts, no explicit list — the job default stands, and a saved job keeps the
+    // hardware it was quoted for.
+    const built = bank({ drawerCount: 3 });
+    expect(new Set(backHeights(built))).toEqual(new Set([83])); // the default M
+  });
+
+  it('leaves a cabinet that names its own box height alone', () => {
+    const built = bank({
+      drawerFrontHeights: [mm(300), mm(300)],
+      drawerSideHeightCode: 'M',
+    });
+    // Both fronts would carry an E; the explicit choice outranks the derived one.
+    expect(new Set(backHeights(built))).toEqual(new Set([83]));
+  });
+
+  it('cuts no box at all for a front too short to carry one', () => {
+    // 60mm cannot take even an N (68.5 + 30). A box standing proud of its own front is worse
+    // than no box, which is the same call `drawerBoxes` already makes when no runner fits.
+    const built = bank({ drawerFrontHeights: [mm(60), mm(300)] });
+    expect(backHeights(built)).toEqual([184]);
   });
 });

@@ -57,7 +57,7 @@ import type { CabinetOptions, CabinetTypeId } from '../src/core/model/cabinet.ts
 import type { Project } from '../src/core/model/project.ts';
 import { type Panel, panelArea, panelExtent } from '../src/core/model/panel.ts';
 import { profileHasArcs } from '../src/core/geom/profile.ts';
-import { byName, namesOf, occupies, size } from './helpers.ts';
+import { byName, namesOf, occupies, size, withoutFinishLaminate } from './helpers.ts';
 
 const QUARTER = Math.PI / 2;
 
@@ -72,7 +72,9 @@ const build = (
   dims: { W: number; H: number; D: number },
   options: CabinetOptions,
 ): Built => {
-  const project = createEmptyProject('Corner radius');
+  // The wrap arithmetic alone — see `withoutFinishLaminate`. The 1mm laminate the shipped
+  // method allows is a separate allowance with its own tests.
+  const project = withoutFinishLaminate(createEmptyProject('Corner radius'));
   const cabinet = createCabinet({
     typeId,
     name: 'X1',
@@ -181,7 +183,7 @@ describe('invariant 1 — radius 0 is today’s cabinet, untouched', () => {
 
 describe('invariant 2 — radius = width = depth is the quarter-round unit', () => {
   /** The unit that already exists, and the thing the other half has to reproduce. */
-  const quarterRound = () => build('radius-end', { W: 560, H: 720, D: 560 }, {});
+  const quarterRound = (r = 560) => build('radius-end', { W: r, H: 720, D: r }, {});
 
   it('pins what the quarter-round unit produces, since that is the target', () => {
     const { panels, warnings } = quarterRound();
@@ -207,16 +209,31 @@ describe('invariant 2 — radius = width = depth is the quarter-round unit', () 
    * Was skipped until `radiusCorner` reached the part builders — a red test on main teaches
    * everyone to ignore red tests. Unskipped by the commit that made it pass.
    */
-  it('reproduces the quarter-round unit from a base cabinet at radius = width = depth', () => {
-    const target = quarterRound();
+  it('reproduces the quarter-round unit from a base cabinet at radius = width = finished depth', () => {
+    /*
+     * **Finished depth, not carcass depth**, and the change is the corner-radius datum fix
+     * rather than a weakened invariant.
+     *
+     * A corner radius is struck about the plane the *fronts* finish in — 560 of carcass plus a
+     * 2mm standoff and an 18mm door is 580 — because at that corner the ply is the finish and
+     * has to land where the doors land. So the radius consumes the cabinet when it equals the
+     * width *and* that 580, not when it equals the 560 somebody typed into the depth box.
+     *
+     * The quarter-round unit itself is unmoved: it carries no doors, so its own front face is
+     * its finish and its geometry is untouched. What this test still proves is the thing it was
+     * written to prove — that the general corner builder degenerates into the special unit of
+     * its own accord, with nothing special-cased at the limit.
+     */
+    // The unit at the same radius the base cabinet's curve is struck at.
+    const target = quarterRound(580);
     const full = build(
       'base',
-      { W: 560, H: 720, D: 560 },
-      { radiusCorner: 'front-right', carcassRadius: mm(560) },
+      { W: 580, H: 720, D: 560 },
+      { radiusCorner: 'front-right', carcassRadius: mm(580) },
     );
 
     // The end panel and the doors have to go of their own accord — the end panel because its
-    // depth is the full depth less the radius, the doors because the door zone is the width
+    // depth is the finished depth less the radius, the doors because the door zone is the width
     // less the radius less the fixing strip. Neither is special-cased at the limit.
     expect(namesOf(full.panels)).not.toContain('Side R');
     expect(namesOf(full.panels)).not.toContain('Door L');

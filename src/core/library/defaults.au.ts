@@ -74,6 +74,11 @@ export const AU_DEFAULT_SETTINGS: ProjectSettings = {
     minutesPerPanel: 4,
     minutesPerBandedEdge: 1.5,
     minutesPerCabinet: 25,
+    // Prep, spray both faces and wait ~15 minutes for it to tack off. Fixed per curve because
+    // the wait is a wait. Unchecked — the shop reports wide variance between people.
+    laminateSetupMinutesPerCurve: 25,
+    // Cut oversize, lay on, trim-route. Unchecked, same reason.
+    laminateMinutesPerM2: 20,
     installRatePerHourExGst: 85,
     installHoursMode: 'mirror-manufacturing',
     installFixedHours: 0,

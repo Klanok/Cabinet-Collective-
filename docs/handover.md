@@ -66,7 +66,7 @@ Section 4 records how each works and why; section 5 is what is actually left to 
 ```
 npm install
 npm run dev       # the app
-npm test          # 736 tests
+npm test          # 760 tests
 npm run build
 npm run report    # cutlist, hardware BOM, drilling, nest, G-code and costing for the sample kitchen
 npm run report -- shaker-57    # the same kitchen with routed fronts
@@ -110,6 +110,8 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | Cabinets placed against a named wall, at any angle | Working |
 | CI — typecheck, tests, build, cutlist smoke run on every PR | Working, `.github/workflows/ci.yml` |
 | Drawer boxes and runners — MERIVOBOX | Working, see 4.6 |
+| Drawer front heights set one at a time | Working — and each drawer then takes the tallest box its own front carries, see 5.2 |
+| A grained drawer bank cut from one strip, in order | Working, see 4.8 — the rips are real cuts in the sequence |
 | Hinge, runner and System 32 drilling | Working, see 4.6 |
 | Hardware BOM, priced onto the quote | Working, indicative Blum pricing |
 | Cutlist / hardware / drilling CSV export | Working. **PDF not done — print from the browser** |
@@ -118,6 +120,7 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | A corner radius on a base, wall or tall cabinet | Working — bendy ply and formers, see 4.5 |
 | The same corner routed from door board instead | **Not started — see 5.7, now unblocked** |
 | Guillotine nesting — sheets, cut sequence, offcuts | **Working, see 4.8.** Nest tab, two CSVs |
+| Choosing which sheet size a material is cut from | Working, see 4.8 and 5.9 — per material, on the Nest tab |
 | CAM — panels + nest → machine-independent operations | **Working, see 4.9** |
 | G-code — a post-processor per machine, `.nc` per sheet | **Working, see 4.9. Dialect UNVERIFIED — simulate first** |
 | Nesting a curved part | **Nested as its blank, which is right for a saw — see 4.8** |
@@ -159,8 +162,8 @@ materials.
 
 **Migrations must never quietly change anyone's parts.** Every migration carries old values
 forward so a saved job cuts exactly as it did; adopting a new default is then a deliberate
-edit. Schema is at **v22**; migrations run in sequence in `model/project.ts`. Shop standards are
-versioned separately and are at **v18** — and they get a *real* migration rather than a
+edit. Schema is at **v23**; migrations run in sequence in `model/project.ts`. Shop standards are
+versioned separately and are at **v19** — and they get a *real* migration rather than a
 rejection, because refusing to load them silently replaces a shop's accumulated kick heights,
 reveals, door styles and saved cabinet types with the shipped Australian defaults.
 
@@ -1251,11 +1254,18 @@ job from $7,449.31 to $7,636.52 — 2.5% on a job that was being quoted a third 
   runs along, has to be turned. A nester that only knows how to decline rotation lays those the
   wrong way round and passes every test that checks the part fits. `orientationsFor` takes both
   records and returns the ways round that are legal, which may be one, and which one it is matters.
-- **One sheet size per material, chosen by cost.** Every size the material comes in is nested in
-  full and the cheapest wins; a size that cannot hold every part loses to one that can, however
-  cheap it is per square metre. A sheet size is what goes on the supplier order, and a nest mixing
-  3600×1800 and 2400×1200 across one material is an order whose first line is "work out which of
-  these is which". See §5.9 — there is a real cost to this and it is written down.
+- **One sheet size per material — chosen by cost, or named by the shop.** By default every size the
+  material comes in is nested in full and the cheapest wins; a size that cannot hold every part
+  loses to one that can, however cheap it is per square metre. A sheet size is what goes on the
+  supplier order, and a nest mixing 3600×1800 and 2400×1200 across one material is an order whose
+  first line is "work out which of these is which".
+  **`NestingSettings.sheetSizes` overrides the search, per material**, and the shop often should:
+  what the supplier has on the rack this week, what fits in the van, what two people can lift onto
+  the saw and what there is half a pallet of already are all facts the search cannot see, and any
+  of them beats a few dollars a sheet. Set on the Nest tab, where the sheet count and the price
+  move as you change it. A saved choice naming a size the material no longer comes in is
+  **reported and dropped, not obeyed and not fatal** — losing a job's whole nest over a stale
+  preference would be the worse failure.
 - **Eighteen strategies are run and the best kept.** A nest is a search, and no single heuristic
   wins on every job — that is the state of the art, not a gap here. The packer is cheap enough to
   run eighteen times on a kitchen, and picking one in advance costs sheets to save microseconds.
@@ -1493,12 +1503,49 @@ remains are gaps rather than missing work, and none of them blocks anything.
   right is that the blank is measured round the *outside* of the arc, which `panelExtent` has done
   since §4.4 and `tests/nesting.test.ts` now asserts on a skin and a bowed shelf. A router nest that
   reads the true shape is §5.9.
+- ~~**The corner radius finishes at the carcass, not at the finished front face.**~~ **Fixed.**
+  Raised from the bench as *"why has the radius applied to cabinets not updated to meet the
+  finished door depth yet?"* — and it never had. Every figure in `resolveCornerRadius` was measured
+  off the carcass depth `D`, so on a 900 × 560 base with 18mm doors the curve finished at 560 while
+  the doors either side finished at 580. Twenty millimetres — a 2mm standoff plus the door — behind
+  the fronts, on the one corner of a kitchen where the board *is* the finish.
+
+  It is struck about `finishedFrontZ` now, so the arc's centre moves forward with the plane and the
+  laminated face lands on the doors' plane exactly. Verified end to end: outer ply at 579, plus the
+  1mm finish laminate, is 580 — the door face — and 899 + 1 = 900 across.
+
+  **Two consequences are worth knowing before reading the geometry.** The substrate now sits
+  *forward* of the carcass front rather than behind it: at a 200 radius the plate reaches z = 564,
+  4mm proud of the 560 carcass, because forward of the end panel the plate is the only thing
+  holding the curve. And the curved kick's radius dropped three compensating terms — it read
+  `r + td + frontStandoff − kickSetback` and now reads `r − kickSetback`, because the kick and the
+  carcass curve finally share a centre. A compensation disappearing rather than being re-tuned is
+  the sign the datum was the thing that was wrong.
+
+  **This re-cuts every radiused cabinet in every saved job, and no migration can prevent it.** The
+  other part-moving changes in this file — v13, v15, v16 — each added a *field*, so an old value
+  could be carried forward. This is a corrected derivation with nothing to carry: the old numbers
+  were wrong, not merely different. A job with a curve in it that was quoted before this must be
+  re-checked against the new figures before it is cut.
+
+  **`radius = width = depth` no longer degenerates into the quarter-round unit — `radius = width =
+  finished depth` does.** The radius consumes the cabinet when it reaches the plane the curve is
+  struck about, which is 580 on a 560-deep carcass. `tests/cornerRadius.test.ts` states it that way
+  now. The standalone radius-end unit is untouched: it carries no doors, so its own front face is
+  its finish.
 - **The plan view draws a cabinet's footprint as a rectangle**, so a radiused corner reads
   square there. Cosmetic.
 - **A benchtop over a radiused base cabinet is still a rectangle.** The cabinet's box does not
   shrink, so the top is the right size — but its corner is square over a round cabinet. A benchtop
   is its own object now (§4.7), so this is a real thing to fix — give the top an arc — rather than a
   limitation of a slab the viewport was inventing.
+- **A curve carries a 1mm finish laminate over the ply**, applied by hand after machining so it
+  shows the same decor as the doors. The formers and the wrap are cut a laminate under size, so the
+  finished face lands on the radius that was asked for and the cabinet a client measures does not
+  change. Shipped at 1mm on new methods; **saved jobs and standards migrate to zero** (project v23,
+  standards v19) because a curve already quoted was cut without it. It is a dimension, not a part —
+  nothing is machined for it, and whether the laminate itself should be costed and ordered has not
+  been asked.
 - **Bendy ply is sold barrel or column form** and the model still doesn't record which; the
   wrap's note tells whoever cuts it to check the sheet. Same `SheetMaterial` field 5.1 wants.
 - **Deferred, confirmed as much later:** a shelf cannot sensibly carry a bowed front *and* a
@@ -1952,13 +1999,25 @@ one for showing a client, one for checking the build — and because both live i
 
 **Built and merged; see 4.8 for what it does and why.** What remains, none of it blocking:
 
-- **One sheet size per material, and it costs something real.** The sample kitchen's fourth carcass
-  sheet holds a single 720×544 side panel. A 3600×1800 costs $138 and a 2400×1200 costs $63, so
-  finishing that job on a small sheet would save $75 — and the model will not, because it picks one
-  size per material. That is a defensible ordering decision (§4.8) rather than an oversight, but the
-  number is real and the fix is bounded: `MaterialNest.sheet` becomes plural, `NestedSheet` already
-  carries its own `usable` rectangle, and the search gains a per-sheet size choice. **Worth doing
-  the next time somebody actually looks at a sheet order and asks about it.**
+- ~~**One sheet size per material, and it costs something real.**~~ **Half done: the shop can now
+  choose the size.** Asked for from the bench as *"i want to be able to select the size of carcass
+  sheet i am cutting"*, and the honest finding was that the nester was already better than this
+  section claimed — it does not pick one size blindly, it nests **every** size in full and takes
+  the cheapest. What was missing was not a better search but a way to overrule it, because the
+  reasons to overrule it are all outside the model. `NestingSettings.sheetSizes` maps a material id
+  to a `sheetSizeKey`; absent means the search decides, which stays the default.
+
+  **Watch what it does to oversize parts, because it is the point rather than a wrinkle.** Put the
+  sample kitchen's carcass on 2400×1200 and the 3000mm plinth rails stop fitting any sheet: the
+  nest reports them as oversize, allows a whole sheet each as a floor, and the job goes from 5
+  sheets to 10. That is the correct answer loudly given, and it is exactly why the choice belongs
+  to a person.
+
+  **What is still not done is mixing sizes within one material** — finishing a job on one small
+  sheet after three big ones. The sample kitchen's fourth carcass sheet still holds a single
+  720×544 side panel, and $138 against $63 is still real money. That needs `MaterialNest.sheet` to
+  become plural and the search to choose per sheet rather than per material, and it needs an
+  answer to what the supplier order then says.
 - **True-shape nesting, for a router.** A CNC can cut a part out of the middle of a sheet, so a
   radiused shelf's corner offcut could take another part — which a guillotine can never do. This is
   Phase 6 in the README's roadmap and it is genuinely a *second* nester rather than an improvement
