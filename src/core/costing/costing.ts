@@ -20,9 +20,12 @@ import {
   findEdgeBand,
   findSheet,
 } from '../model/material.ts';
-import { type Panel, bandedEdgeCount, bandedLength, panelExtent, panelFootprint } from '../model/panel.ts';
+import { type Panel, bandedEdgeCount, bandedLength, panelArea, panelExtent, panelFootprint } from '../model/panel.ts';
 import type { GstMode, Project } from '../model/project.ts';
 import { buildProject } from '../rules/build.ts';
+
+/** The decor laminate a curve is finished with. One id, so the order and the cost agree. */
+export const LAMINATE_MATERIAL_ID = 'laminate-1mm';
 import { machinedFronts } from '../rules/frontStyle.ts';
 import { type HardwareBomLine, hardwareForCabinet } from '../hardware/bom.ts';
 import { buildRunUnits } from '../rules/runUnits.ts';
@@ -117,6 +120,23 @@ export interface CostBreakdown {
    */
   readonly machiningMinutes: number;
   readonly machiningCost: Cents;
+  /**
+   * Laminating the curves — the sheet, and the hand work to put it on.
+   *
+   * Its own lines rather than folded into `sheetCost` and `labourCost`, for two reasons. The
+   * laminate is **not nested**: it is cut oversize by hand and trimmed, so it has no place in a
+   * cut plan and its sheets are counted off area instead. And the labour is shop time that must
+   * not flow into the install estimate that mirrors the shop hours — laminating a curve in the
+   * factory does not make it slower to hang on site.
+   */
+  readonly laminatedM2: number;
+  readonly laminatedCurves: number;
+  readonly laminateSheets: number;
+  /** Which size those sheets are — what goes on the order. */
+  readonly laminateSheetLabel: string;
+  readonly laminateCost: Cents;
+  readonly laminateMinutes: number;
+  readonly laminateLabourCost: Cents;
   /** How many fronts actually came out routed. Fronts that fell back to a slab don't count. */
   readonly machinedFrontCount: number;
 
@@ -347,6 +367,77 @@ export const costProject = (project: Project): CostBreakdown => {
     (machiningMinutes / 60) * settings.labour.ratePerHourExGst * 100,
   );
 
+  /*
+   * Laminating the curves.
+   *
+   * **The area is the outermost skin's own blank**, and that is the right measure rather than a
+   * convenient one: the laminate is cut *oversize* and trim-routed after it is stuck, so what
+   * gets consumed is at least the developed face it covers. Taking the longest skin per cabinet
+   * finds the outer layer without having to know how many there are — each layer wraps the one
+   * under it and is therefore longer.
+   *
+   * Sheets are counted off area and **rounded up to whole ones**, for the reason §4.8 gives
+   * about board: nobody sells a third of a sheet. It is not a nest and does not pretend to be —
+   * a hand-applied, hand-trimmed sheet has no cut plan. Polytec do sell part sheets in certain
+   * sizes, which would come off this figure; that is not modelled and is worth saying rather
+   * than quietly assuming the shop always buys full ones.
+   */
+  let laminatedMm2 = 0;
+  let laminatedCurves = 0;
+  for (const b of built) {
+    const skins = b.panels.filter((p) => p.role === 'skin');
+    if (skins.length === 0) continue;
+    const outer = skins.reduce((a, p) => (panelArea(p) > panelArea(a) ? p : a));
+    laminatedMm2 += panelArea(outer);
+    laminatedCurves += 1;
+  }
+  const laminatedM2 = mm2ToM2(laminatedMm2 as Mm2);
+  /*
+   * A job whose price list has no laminate on it still gets its curves *reported*, not silently
+   * priced at nothing. Reaching for `findSheet` here would throw and take the whole quote with
+   * it, which is worse than a curve costed short and said so.
+   */
+  const laminateMaterial =
+    project.materials.sheets.find((m) => m.id === LAMINATE_MATERIAL_ID) ?? null;
+
+  /*
+   * **The cheapest way to buy the area, not the cheapest rate per square metre.**
+   *
+   * The same comparison §4.8 makes for board, and it matters more here because a laminated curve
+   * is small. One 720-tall curve takes about half a square metre; charged against the best-value
+   * 3660 × 1830 that is a whole $400 sheet for 8% of it. The shop's own note is that full sheets
+   * are the norm *but part sheets can be bought in certain sizes*, and picking the smallest size
+   * that does the job is how that shows up in a quote without modelling a cut-to-size service.
+   *
+   * Still whole sheets of whatever size wins — nobody sells a third of one — and still not a
+   * nest: a hand-applied, hand-trimmed sheet has no cut plan.
+   */
+  const laminateBuy =
+    laminatedCurves > 0 && laminateMaterial !== null && laminateMaterial.sheets.length > 0
+      ? laminateMaterial.sheets
+          .map((size) => {
+            const count = Math.ceil(laminatedM2 / mm2ToM2((size.length * size.width) as Mm2));
+            return { size, count, cost: count * size.priceExGst };
+          })
+          .reduce((a, b) => (b.cost < a.cost ? b : a))
+      : null;
+  const laminateSheets = laminateBuy?.count ?? 0;
+  const laminateCost = laminateBuy === null ? 0 : roundCents(laminateBuy.cost);
+  if (laminatedCurves > 0 && laminateMaterial === null) {
+    warnings.push(
+      `This job has ${laminatedCurves} laminated curve${laminatedCurves === 1 ? '' : 's'} in it ` +
+        `but no finish laminate on its price list, so the sheet is not costed. Add ` +
+        `"${LAMINATE_MATERIAL_ID}" under Settings → Materials. The labour is still charged.`,
+    );
+  }
+  // Two components, because the tack-off is a wait and a wait does not scale with the curve.
+  const laminateMinutes =
+    laminatedCurves * settings.labour.laminateSetupMinutesPerCurve +
+    laminatedM2 * settings.labour.laminateMinutesPerM2;
+  const laminateLabourCost = roundCents(
+    (laminateMinutes / 60) * settings.labour.ratePerHourExGst * 100,
+  );
+
   // Install is its own subtotal. Until there is a real per-cabinet install model, its hours
   // mirror the shop hours — rough, but visible and easy to override per job. Router time is
   // left out of that mirror: routing a door takes no longer to hang.
@@ -356,7 +447,21 @@ export const costProject = (project: Project): CostBreakdown => {
       : labourMinutes / 60;
   const installCost = roundCents(installHours * settings.labour.installRatePerHourExGst * 100);
 
-  const totalCost = materialCost + labourCost + machiningCost + installCost;
+  /*
+   * The laminate lands on both halves of the job and neither can be left out.
+   *
+   * `laminateCost` is board that gets bought, so it belongs with the materials; `laminateLabourCost`
+   * is shop time, so it sits beside the routing rather than inside `labourCost` — which is the same
+   * separation `machiningCost` already has, and for the same reason: the install estimate mirrors
+   * the shop hours, and laminating a curve in the factory does not make it slower to hang.
+   */
+  const totalCost =
+    materialCost +
+    laminateCost +
+    labourCost +
+    machiningCost +
+    laminateLabourCost +
+    installCost;
   const marginAmount = roundCents(totalCost * (settings.marginPercent / 100));
   const subtotalExGst = totalCost + marginAmount;
   // Delivery is a flat charge passed on, not a cost being sold on, so it sits outside margin.
@@ -392,6 +497,13 @@ export const costProject = (project: Project): CostBreakdown => {
     labourCost,
     machiningMinutes,
     machiningCost,
+    laminatedM2,
+    laminatedCurves,
+    laminateSheets,
+    laminateSheetLabel: laminateBuy ? `${laminateBuy.size.length}×${laminateBuy.size.width}` : '',
+    laminateCost,
+    laminateMinutes,
+    laminateLabourCost,
     machinedFrontCount,
     installHours,
     installCost,

@@ -404,6 +404,35 @@ export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
     sheets: [IMPORTED(6_400)],
     indicativePricing: true,
   },
+  /*
+   * ── Finish laminate, for wrapping a curve ────────────────────────────────────────────────
+   *
+   * The 1mm decorative laminate that goes over a bendy-ply wrap so the curve shows the same
+   * decor as the doors. Not a substrate and never a carcass part: it is glued on by hand after
+   * machining and trimmed, which is why it is priced off area rather than nested.
+   *
+   * **The price is the shop's own figure — "generally around $60 per sqm"** — and Polytec do not
+   * publish a per-metre trade rate publicly, so it is indicative like everything else here and
+   * wants the real one before a curved job is quoted from it. The sheet sizes are the footprints
+   * Polytec list for laminate; check them against the **decorative** range rather than the
+   * compact one, since this is the 1mm face material and not the 13mm structural board.
+   */
+  {
+    id: 'laminate-1mm',
+    brand: 'Polytec',
+    decor: 'Finish laminate 1mm — matched to the door decor',
+    substrate: 'MDF',
+    thickness: mm(1),
+    grain: 'none',
+    // A neutral, and nothing is ever drawn from it: the laminate is not a part, so no mesh reads
+    // this. It is here because every sheet on the price list carries a screen colour, and the
+    // real answer — "whatever the door decor is" — is not a hex.
+    colour: '#cfc8bd',
+    decorFaces: 1,
+    // $60/m²: 3660 × 1830 = 6.6978m² → $401.87; 2440 × 1220 = 2.9768m² → $178.61.
+    sheets: [sheet(3660, 1830, 40_187), sheet(2440, 1220, 17_861)],
+    indicativePricing: true,
+  },
   {
     /*
      * The shop's bendy ply. Two layers make 16mm of wrap, which is what the corner is actually

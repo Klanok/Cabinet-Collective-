@@ -275,12 +275,24 @@ row('Sheet goods', formatAud(cost.sheetCost));
 row('Edge banding', formatAud(cost.edgeBandCost));
 row('Hardware', formatAud(cost.hardwareCost));
 if (cost.benchtopCost > 0) row('Benchtops (bought in)', formatAud(cost.benchtopCost));
-row('Material', formatAud(cost.materialCost));
+if (cost.laminatedCurves > 0) {
+  row(
+    `Curve laminate (${cost.laminateSheets} × ${cost.laminateSheetLabel}, ${cost.laminatedM2.toFixed(2)}m² used)`,
+    formatAud(cost.laminateCost),
+  );
+}
+row('Material', formatAud(cost.materialCost + cost.laminateCost));
 row(`Labour (${(cost.labourMinutes / 60).toFixed(1)} h)`, formatAud(cost.labourCost));
 if (cost.machiningMinutes > 0) {
   row(
     `Routing ${cost.machinedFrontCount} fronts (${(cost.machiningMinutes / 60).toFixed(1)} h)`,
     formatAud(cost.machiningCost),
+  );
+}
+if (cost.laminateMinutes > 0) {
+  row(
+    `Laminating ${cost.laminatedCurves} curve${cost.laminatedCurves === 1 ? '' : 's'} (${(cost.laminateMinutes / 60).toFixed(1)} h)`,
+    formatAud(cost.laminateLabourCost),
   );
 }
 row(`Install (${cost.installHours.toFixed(1)} h)`, formatAud(cost.installCost));

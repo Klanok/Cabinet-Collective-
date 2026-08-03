@@ -209,3 +209,80 @@ describe('cost breakdown', () => {
     expect(costProject(oversized).warnings.join(' ')).toMatch(/too big for any/);
   });
 });
+
+/**
+ * Laminating a curve — the sheet, and the hand work.
+ *
+ * From the bench: the 1mm finish laminate is *"a costed ordered material"* and *"has a
+ * significant labour component"*, described as cut oversize, contact sprayed on both faces,
+ * **about 15 minutes waiting for it to tack off**, applied, then trim-routed.
+ *
+ * That wait is why the labour is two figures rather than a rate. A wait does not get longer
+ * because the curve is bigger, and rolling it into a per-m² rate would charge a tall curve
+ * several times the waiting a short one gets.
+ */
+describe('laminating a curve', () => {
+  const job = (options: Record<string, unknown>): Project => {
+    const project = createEmptyProject('Laminate');
+    const cabinet = createCabinet(
+      { typeId: 'base', name: 'R1', width: mm(900), x: mm(0) },
+      project.defaults,
+      project.constructions,
+    );
+    return { ...project, cabinets: [{ ...cabinet, options: { ...cabinet.options, ...options } }] };
+  };
+
+  const curved = () => job({ radiusCorner: 'front-right', carcassRadius: mm(200) });
+  const square = () => job({});
+
+  it('costs nothing on a job with no curve in it', () => {
+    const cost = costProject(square());
+    expect(cost.laminatedCurves).toBe(0);
+    expect(cost.laminateCost).toBe(0);
+    expect(cost.laminateMinutes).toBe(0);
+  });
+
+  it('buys whole sheets off the laminated area', () => {
+    const cost = costProject(curved());
+    expect(cost.laminatedCurves).toBe(1);
+    expect(cost.laminatedM2).toBeGreaterThan(0);
+    // Nobody sells a third of a sheet — §4.8's rule, applied to a material that is not nested
+    // because it is cut oversize and trimmed by hand.
+    expect(Number.isInteger(cost.laminateSheets)).toBe(true);
+    expect(cost.laminateSheets).toBeGreaterThanOrEqual(1);
+    expect(cost.laminateCost).toBeGreaterThan(0);
+  });
+
+  it('charges the tack-off once per curve and the rest by the metre', () => {
+    const project = curved();
+    const { laminateSetupMinutesPerCurve, laminateMinutesPerM2 } = project.settings.labour;
+    const cost = costProject(project);
+    expect(cost.laminateMinutes).toBeCloseTo(
+      laminateSetupMinutesPerCurve + cost.laminatedM2 * laminateMinutesPerM2,
+      6,
+    );
+  });
+
+  it('does not let the wait scale with the size of the curve', () => {
+    // The assertion the split exists for. A curve on a 2100 tall cabinet has far more area than
+    // one on a 720, so the per-m² half grows — but the waiting does not.
+    const short = costProject(curved());
+    const tall = costProject({
+      ...curved(),
+      cabinets: curved().cabinets.map((c) => ({ ...c, height: mm(2100) })),
+    });
+    expect(tall.laminatedM2).toBeGreaterThan(short.laminatedM2 * 2);
+    const setup = short.laminateMinutes - short.laminatedM2 * 20;
+    const tallSetup = tall.laminateMinutes - tall.laminatedM2 * 20;
+    expect(tallSetup).toBeCloseTo(setup, 6);
+  });
+
+  it('reaches the quote — both the sheet and the hours', () => {
+    // A curve that is drawn, cut and never charged for is the failure this exists to prevent.
+    const withCurve = costProject(curved());
+    const without = costProject(square());
+    expect(withCurve.totalCost - without.totalCost).toBeGreaterThan(
+      withCurve.laminateCost + withCurve.laminateLabourCost - 1,
+    );
+  });
+});
