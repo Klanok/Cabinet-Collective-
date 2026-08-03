@@ -28,9 +28,8 @@ banquette-corner, standalone-panel and appliance-space units against its walls.
 The **custom** cabinet is the same carcass with its part list chosen rather than fixed — top
 panel, rails or open; back or none; shelves; vertical dividers; a lid; drawers or doors.
 Between them those options cover a pigeon-hole unit and open shelving without a bespoke cabinet
-type for each — and the **banquette** is exactly that carcass with a lift-up lid and no fronts,
-plus upholstered cushions on top of it. *(The banquette carcass has been rejected at the bench and
-is being redesigned — see the roadmap below. The upholstery and the inside corner stand.)* Configure one, hit **Save as a cabinet type**, and
+type for each. The **banquette** is a seat box with a solid fixed front in door decor, a hinged
+lift-up panel inset into the top for long-term storage, and upholstered cushions that lift off it. Configure one, hit **Save as a cabinet type**, and
 it's available in every job from then on. Every part — sides,
 bottoms, top rails, backs, shelves, doors, drawer fronts, kicks — is derived from three
 driving dimensions plus a construction method. Change a width, a drawer count or the carcass
@@ -498,7 +497,8 @@ having something other than memory re-checking it.
 | — | Waterfall and mitred benchtop corners linked to each other, not just flagged per top | not started |
 | — | Real decor textures on parts, laid on at true scale and turned by the part's grain | **done** — and laid on from where the part lands on the nested sheet |
 | — | Banquette seating — upholstery material type, cushions, an inside corner | **done**, cushions viewport-only |
-| — | The banquette carcass — a solid front, an inset lift-up under the cushion, a sane overhang | **rejected at the bench — needs redesigning, not adjusting** |
+| — | The banquette carcass — a solid front, an inset lift-up under the cushion, a sane overhang | **done** — rejected at the bench, then rebuilt |
+| — | A lid stay for the banquette lift-up | not started — no such part in the hardware library yet |
 | — | Fabric, foam and upholstery labour on the quote | not started |
 | — | A wireframe view, for seeing the construction and checking a joint | **done** |
 | — | Wall openings — bulkheads, windows, out-of-square walls and scribes | not started |

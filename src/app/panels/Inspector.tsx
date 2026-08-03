@@ -666,7 +666,17 @@ export function Inspector({
               suffix=""
               onChange={(n) => onUpdateOptions(cabinet.id, { dividerCount: Math.round(n) })}
             />
+            {isBanquette && (cabinet.options.dividerCount ?? 0) === 0 && cabinet.width - 2 * 16 > 1200 && (
+              <p className="note subtle">
+                A divider is added anyway above a 1200mm clear span, to stiffen the seat.
+              </p>
+            )}
             {isBanquette && <>
+              <label className="field field-check"><input type="checkbox" checked={cabinet.options.hasFixedFront !== false} onChange={(e) => onUpdateOptions(cabinet.id, { hasFixedFront: e.target.checked })} /><span>Solid front (door decor, fixed)</span></label>
+              <label className="field field-check"><input type="checkbox" checked={cabinet.options.hasLiftUp !== false} onChange={(e) => onUpdateOptions(cabinet.id, { hasLiftUp: e.target.checked })} /><span>Hinged lift-up</span></label>
+              {cabinet.options.hasLiftUp !== false && (
+                <NumberField label="Lift-up clearance" value={cabinet.options.liftUpClearance ?? 2} min={0} max={10} step={1} onChange={(n) => onUpdateOptions(cabinet.id, { liftUpClearance: mm(n) })} />
+              )}
               <NumberField label="Seat cushion" value={cabinet.options.seatCushionThickness ?? 80} min={30} max={200} step={5} onChange={(n) => onUpdateOptions(cabinet.id, { seatCushionThickness: mm(n) })} />
               <NumberField label="Cushion inset" value={cabinet.options.seatCushionInset ?? 5} min={0} max={100} step={5} onChange={(n) => onUpdateOptions(cabinet.id, { seatCushionInset: mm(n) })} />
               <NumberField label="Cushion radius" value={cabinet.options.cushionCornerRadius ?? 18} min={1} max={150} step={5} onChange={(n) => onUpdateOptions(cabinet.id, { cushionCornerRadius: mm(n) })} />

@@ -106,6 +106,20 @@ export interface CabinetOptions {
   readonly hasLid?: boolean;
   /** How far the lid overhangs the carcass on each exposed side. */
   readonly lidOverhang?: Mm;
+  /**
+   * A solid front in door decor that does not open — the face of a banquette.
+   *
+   * Deliberately not a door: it takes no hinges and is bored for nothing, but a door style
+   * still routes it. See `fixedFrontPanel`.
+   */
+  readonly hasFixedFront?: boolean;
+  /**
+   * A hinged panel inset into the top of the carcass, giving access to the storage void under
+   * a banquette seat. The cushion sits on it and lifts off separately.
+   */
+  readonly hasLiftUp?: boolean;
+  /** Gap all round the lift-up panel so it can swing without binding. */
+  readonly liftUpClearance?: Mm;
   readonly seatCushionThickness?: Mm;
   readonly seatCushionInset?: Mm;
   readonly hasBackCushion?: boolean;

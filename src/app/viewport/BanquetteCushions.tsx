@@ -72,7 +72,7 @@ export function BanquetteCushions({ cabinet, upholstery, selected, wireframe }: 
 
   return <>
     <RoundedBox args={[seatWidth, seatT, seatDepth]} radius={Math.min(radius, seatT / 2 - 1, seatDepth / 2 - 1)} smoothness={4}
-      position={[cabinet.width / 2, cabinet.height + 16 + seatT / 2, cabinet.depth / 2]} castShadow receiveShadow>
+      position={[cabinet.width / 2, cabinet.height + seatT / 2, cabinet.depth / 2]} castShadow receiveShadow>
       {fabricMaterial()}
     </RoundedBox>
     {cabinet.options.hasBackCushion !== false && (() => {
@@ -83,16 +83,16 @@ export function BanquetteCushions({ cabinet, upholstery, selected, wireframe }: 
       const backRadius = Math.min(radius, thickness / 2 - 1, height / 2 - 1);
       return <>
         <WedgeBack width={seatWidth} height={height} thickness={thickness} angle={angle}
-          radius={backRadius} x={inset} y={cabinet.height + 16 + seatT}>
+          radius={backRadius} x={inset} y={cabinet.height + seatT}>
           {fabricMaterial()}
         </WedgeBack>
         {cabinet.options.leftEndCushion && <group position={[inset, 0, cabinet.depth - inset]} rotation={[0, Math.PI / 2, 0]}>
           <WedgeBack width={endDepth} height={height} thickness={thickness} angle={angle}
-            radius={backRadius} x={0} y={cabinet.height + 16 + seatT}>{fabricMaterial()}</WedgeBack>
+            radius={backRadius} x={0} y={cabinet.height + seatT}>{fabricMaterial()}</WedgeBack>
         </group>}
         {cabinet.options.rightEndCushion && <group position={[cabinet.width - inset, 0, inset]} rotation={[0, -Math.PI / 2, 0]}>
           <WedgeBack width={endDepth} height={height} thickness={thickness} angle={angle}
-            radius={backRadius} x={0} y={cabinet.height + 16 + seatT}>{fabricMaterial()}</WedgeBack>
+            radius={backRadius} x={0} y={cabinet.height + seatT}>{fabricMaterial()}</WedgeBack>
         </group>}
       </>;
     })()}
@@ -139,10 +139,10 @@ export function BanquetteCornerCushions({ cabinet, upholstery, selected, wirefra
   const backThickness = cabinet.options.backCushionThickness ?? 80;
   const angle = Math.min(15, Math.max(0, cabinet.options.backCushionAngle ?? 0)) * Math.PI / 180;
   const backRadius = Math.max(1, Math.min(cabinet.options.cushionCornerRadius ?? 18, backThickness / 4));
-  const backY = cabinet.height + 16 + seatT;
+  const backY = cabinet.height + seatT;
 
   return <>
-    <mesh position={[0, cabinet.height + 16, r]} rotation={[-Math.PI / 2, 0, 0]} castShadow receiveShadow>
+    <mesh position={[0, cabinet.height, r]} rotation={[-Math.PI / 2, 0, 0]} castShadow receiveShadow>
       <extrudeGeometry args={[seatShape, { depth: seatT, bevelEnabled: true, bevelSize: 3, bevelThickness: 3, bevelSegments: 3 }]} />
       {material()}
     </mesh>
