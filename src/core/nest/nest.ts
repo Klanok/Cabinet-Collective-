@@ -21,7 +21,7 @@
  * sheets, counted, with the yield it actually achieved reported rather than assumed.
  */
 
-import { type Cents, type Mm, type Mm2, mm2ToM2 } from '../units.ts';
+import { type Cents, type Mm, type Mm2, mm, mm2ToM2 } from '../units.ts';
 import {
   type GrainDirection,
   type MaterialLibrary,
@@ -82,6 +82,14 @@ export interface NestPart {
   readonly length: Mm;
   readonly width: Mm;
   readonly grain: GrainConstraint;
+  /**
+   * The bank this part is a drawer front of, and where it sits in it — bottom-first.
+   *
+   * Only drawer fronts carry it, and only so a grained bank can be kept together on the sheet.
+   * See `bankBlanks`: a bank cut from a grained board has to come off **one strip, in order**, or
+   * the grain steps at every joint between fronts and the bank reads as four unrelated boards.
+   */
+  readonly bank?: { readonly id: string; readonly order: number };
 }
 
 export interface NestedSheet extends PackedSheet {
@@ -154,8 +162,10 @@ export const nestParts = (project: Project): NestPart[] => {
     ...buildProject(project).map((b) => ({ name: b.cabinet.name, panels: b.panels })),
     ...buildRunUnits(project).map((u) => ({ name: u.name, panels: u.panels })),
   ];
-  return groups.flatMap(({ name, panels }) =>
-    panels.map((panel) => {
+  return groups.flatMap(({ name, panels }) => {
+    // Fronts come out of the builder bottom-first, so their order here is the order up the bank.
+    let frontIndex = 0;
+    return panels.map((panel) => {
       const { length, width } = panelExtent(panel);
       return {
         panelId: panel.id,
@@ -165,9 +175,12 @@ export const nestParts = (project: Project): NestPart[] => {
         length,
         width,
         grain: panel.grain,
+        ...(panel.role === 'drawer-front'
+          ? { bank: { id: panel.ownerId, order: frontIndex++ } }
+          : {}),
       };
-    }),
-  );
+    });
+  });
 };
 
 interface SizeAttempt {
@@ -178,6 +191,86 @@ interface SizeAttempt {
   readonly strategy: PackStrategy;
 }
 
+/**
+ * A drawer bank's fronts, gathered so they come off one strip in order.
+ *
+ * **Only on a grained board**, and that is the whole justification. On a plain white melamine
+ * there is nothing to match, and forcing the fronts to share a strip would cost yield to no
+ * visible end — the packer is free to put them wherever they fit best. On a grained decor the
+ * opposite is true: fronts cut from different parts of a sheet step at every joint, and a bank is
+ * the one place in a kitchen where four parts sit directly above one another and get looked at
+ * together.
+ *
+ * A bank only groups when every front is the **same width across**, which is what makes a strip a
+ * strip. They always are on a real bank; a bank where they are not is not one piece of board and
+ * is left to the packer part by part.
+ *
+ * The parts stay separate throughout — this is a constraint on where they land, not a merge.
+ * Each front keeps its own panel id, its own placement and its own line on the cutlist, so CAM
+ * and the 3D view see exactly what they saw before.
+ */
+const bankStacks = (
+  parts: readonly NestPart[],
+  material: SheetMaterial,
+  kerf: Mm,
+): { packable: PackablePart[]; members: Map<string, NestPart[]> } => {
+  const packable: PackablePart[] = [];
+  const members = new Map<string, NestPart[]>();
+  const loose: NestPart[] = [];
+
+  if (material.grain === 'none') {
+    return {
+      packable: parts.map((p) => ({
+        id: p.panelId,
+        length: p.length,
+        width: p.width,
+        orientations: orientationsFor(p.grain, material.grain),
+      })),
+      members,
+    };
+  }
+
+  const banks = new Map<string, NestPart[]>();
+  for (const part of parts) {
+    if (part.bank) {
+      const list = banks.get(part.bank.id);
+      if (list) list.push(part);
+      else banks.set(part.bank.id, [part]);
+    } else loose.push(part);
+  }
+
+  for (const [bankId, fronts] of banks) {
+    const sameWidth = fronts.every((f) => f.length === fronts[0]!.length);
+    if (fronts.length < 2 || !sameWidth) {
+      loose.push(...fronts);
+      continue;
+    }
+    const ordered = [...fronts].sort((a, b) => a.bank!.order - b.bank!.order);
+    const stacked = mm(
+      ordered.reduce((sum, f) => sum + f.width, 0) + kerf * (ordered.length - 1),
+    );
+    const id = `bank:${bankId}`;
+    members.set(id, ordered);
+    packable.push({
+      id,
+      length: ordered[0]!.length,
+      width: stacked,
+      orientations: orientationsFor(ordered[0]!.grain, material.grain),
+      stack: ordered.map((f) => ({ id: f.panelId, size: f.width })),
+    });
+  }
+
+  for (const p of loose) {
+    packable.push({
+      id: p.panelId,
+      length: p.length,
+      width: p.width,
+      orientations: orientationsFor(p.grain, material.grain),
+    });
+  }
+  return { packable, members };
+};
+
 const trySize = (
   parts: readonly NestPart[],
   material: SheetMaterial,
@@ -185,14 +278,13 @@ const trySize = (
   kerf: Mm,
   trim: Mm,
 ): SizeAttempt => {
-  const packable: PackablePart[] = parts.map((p) => ({
-    id: p.panelId,
-    length: p.length,
-    width: p.width,
-    orientations: orientationsFor(p.grain, material.grain),
-  }));
+  const { packable, members } = bankStacks(parts, material, kerf);
   const result = packBest(packable, { kerf, usable: usableArea(sheet.length, sheet.width, trim) });
-  const oversize = result.unplaced.map((id) => parts.find((p) => p.panelId === id)!);
+  // A strip that will not fit puts *every* front in it out of the nest, so the oversize report
+  // names the fronts rather than a bank id nobody would recognise.
+  const oversize = result.unplaced.flatMap((id) =>
+    members.get(id) ?? [parts.find((p) => p.panelId === id)!],
+  );
   return {
     sheet,
     packed: result.sheets,

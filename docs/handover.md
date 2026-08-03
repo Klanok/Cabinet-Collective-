@@ -66,7 +66,7 @@ Section 4 records how each works and why; section 5 is what is actually left to 
 ```
 npm install
 npm run dev       # the app
-npm test          # 747 tests
+npm test          # 750 tests
 npm run build
 npm run report    # cutlist, hardware BOM, drilling, nest, G-code and costing for the sample kitchen
 npm run report -- shaker-57    # the same kitchen with routed fronts
@@ -111,6 +111,7 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | CI — typecheck, tests, build, cutlist smoke run on every PR | Working, `.github/workflows/ci.yml` |
 | Drawer boxes and runners — MERIVOBOX | Working, see 4.6 |
 | Drawer front heights set one at a time | Working — and each drawer then takes the tallest box its own front carries, see 5.2 |
+| A grained drawer bank cut from one strip, in order | Working, see 4.8 — the rips are real cuts in the sequence |
 | Hinge, runner and System 32 drilling | Working, see 4.6 |
 | Hardware BOM, priced onto the quote | Working, indicative Blum pricing |
 | Cutlist / hardware / drilling CSV export | Working. **PDF not done — print from the browser** |
