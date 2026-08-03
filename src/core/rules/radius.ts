@@ -206,6 +206,18 @@ export interface CornerRadiusInput {
    * working; absent means zero, which is exactly what every job cut before this existed.
    */
   readonly finishLaminate?: Mm;
+  /**
+   * The plane the curve has to **finish** in — the front face of a door, not the carcass.
+   *
+   * A radiused corner is the finish at that corner: there is no door over it, so the ply and its
+   * laminate *are* what somebody sees and touches, and they have to land where the fronts either
+   * side of them land. `context.ts` resolves this once as `finishedFrontZ` so the curve, the
+   * applied end panel and the kick face cannot end up on three different datums.
+   *
+   * Optional, and absent means the carcass front — which is what every job cut before this
+   * existed, and what the two specs that build a corner without a construction method still get.
+   */
+  readonly finishedFrontZ?: Mm;
   /** The construction method's fixing strip — the flat front the wrap is fixed to. */
   readonly stripWidth: Mm;
 }
@@ -322,8 +334,25 @@ export const resolveCornerRadius = (input: CornerRadiusInput): CornerRadius => {
   // a strip too small to fix to.
   const flatFront = Math.max(0, W - r);
   const strip = mm(Math.min(input.stripWidth, flatFront));
-  const tangentZ = mm(Math.max(0, D - r));
-  const subFrontZ = mm(D - skin);
+  /*
+   * **The curve finishes in the door plane, not on the carcass.**
+   *
+   * Reported from the bench as "why has the radius applied to cabinets not updated to meet the
+   * finished door depth yet?", and the answer was that it never had: every figure here was
+   * measured off `D`, so a curve finished 20mm — a 2mm standoff plus an 18mm door — behind the
+   * fronts beside it. On the one corner of the kitchen where the board *is* the finish, it sat
+   * proud of nothing and shy of everything.
+   *
+   * Two things follow, and the second is the one that looks odd until you build it. The arc's
+   * centre moves forward with the plane, so the tangent on the end face moves forward too. And
+   * the substrate now sits **forward of the carcass front** rather than behind it: at a 200
+   * radius on a 560 carcass the plate reaches z = 563, and the wrap over it lands on 580 with
+   * the doors. A bottom on a radiused cabinet was always doing a former's job as well as its
+   * own — this is that job stated properly.
+   */
+  const front = input.finishedFrontZ ?? D;
+  const tangentZ = mm(Math.max(0, front - r));
+  const subFrontZ = mm(front - skin);
 
   // A back panel whose front face is already inside the curve would stand outside the finished
   // face at the corner, and there is no flat end left to fix it to.

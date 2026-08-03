@@ -361,10 +361,12 @@ describe('mounting plates', () => {
   });
 
   it('says so when the radius has eaten the side a door hinges onto', () => {
-    // A full-depth radius on the left takes the left side out from under a left-hung door.
+    // A radius that consumes the **finished** depth on the left takes the left side out from
+    // under a left-hung door. 580, not 560: the curve is struck about the plane the fronts
+    // finish in, so it is that plane the radius has to reach to leave nothing behind it.
     const radiused = build('base', {
       radiusCorner: 'front-left',
-      carcassRadius: mm(560),
+      carcassRadius: mm(580),
       doorCount: 1,
       doorSwing: 'left',
       shelfCount: 0,

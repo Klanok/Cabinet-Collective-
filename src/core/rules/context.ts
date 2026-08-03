@@ -156,7 +156,7 @@ export interface HardwareSelection {
 const resolveRadius = (
   options: CabinetOptions,
   construction: ConstructionMethod,
-  dims: { W: Mm; D: Mm; t: Mm; tb: Mm; ts: Mm },
+  dims: { W: Mm; D: Mm; t: Mm; tb: Mm; ts: Mm; td: Mm },
 ): CornerRadius | null => {
   const corner = options.radiusCorner;
   const radius = options.carcassRadius ?? 0;
@@ -174,6 +174,7 @@ const resolveRadius = (
     tb: dims.tb,
     ts: dims.ts,
     finishLaminate,
+    finishedFrontZ: mm(dims.D + (construction.frontStandoff ?? 2) + dims.td),
     // Older methods that predate the field are migrated to the shipped 50, but a method
     // hand-built in a test may not be, so it falls back to the same number rather than to NaN.
     stripWidth: mm(construction.fixingStripWidth ?? 50),
@@ -224,6 +225,7 @@ export const buildContext = (
       t,
       tb,
       ts: thicknesses.skin,
+      td: thicknesses.door,
     }),
     hardware: resolveHardware(cabinet.options, hardware.library, hardware.defaults, {
       innerWidth: interiorWidth,
