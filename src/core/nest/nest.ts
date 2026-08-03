@@ -28,6 +28,8 @@ import {
   type SheetMaterial,
   type SheetSize,
   findSheet,
+  sheetSizeKey,
+  sheetSizeLabel,
 } from '../model/material.ts';
 import { type GrainConstraint, type Panel, panelExtent } from '../model/panel.ts';
 import type { Project } from '../model/project.ts';
@@ -96,6 +98,15 @@ export interface MaterialNest {
   readonly label: string;
   /** The sheet size chosen for this material. */
   readonly sheet: SheetSize;
+  /**
+   * How that size came to be the one — the tool's search, or the shop naming it.
+   *
+   * Reported for the same reason `strategy` is: it is the honest answer to "why is it cutting
+   * that sheet?", and the two answers lead somewhere different. `chosen-unavailable` means a
+   * saved choice named a size this material no longer comes in, so it was dropped and the search
+   * ran instead; that is a thing to fix rather than a thing to read past.
+   */
+  readonly sizeChoice: 'automatic' | 'chosen' | 'chosen-unavailable';
   readonly sheets: readonly NestedSheet[];
   readonly parts: readonly NestPart[];
   /**
@@ -194,28 +205,42 @@ const trySize = (
 };
 
 /**
- * Nest one material's parts, choosing the sheet size.
+ * Nest one material's parts, choosing the sheet size — or cutting the one it was told to.
  *
- * **One size per material, chosen by what the job costs.** Every size the material comes in is
- * nested in full and the cheapest wins; a size that cannot hold every part loses to one that can,
- * however cheap it is per square metre. That is a real decision and not only an optimisation — a
- * sheet size is what goes on the supplier order, and a nest that mixed 3600×1800 and 2400×1200
- * across one material would be a nest whose first line is "work out which of these is which".
+ * **One size per material.** A nest that mixed 3600×1800 and 2400×1200 across one material would
+ * be a nest whose first line is "work out which of these is which", and a sheet size is what goes
+ * on the supplier order.
  *
- * A shop that genuinely wants to mix sizes on one material is describing a different order, and it
- * would want saying so per material rather than falling out of a search.
+ * **Which size, by default, is chosen by what the job costs.** Every size the material comes in
+ * is nested in full and the cheapest wins; a size that cannot hold every part loses to one that
+ * can, however cheap it is per square metre.
+ *
+ * **`chosen` overrides that, and the shop usually should.** What the supplier has on the rack
+ * this week, what fits in the van, what two people can lift onto the saw and what there is half a
+ * pallet of already are all facts the search cannot see, and any of them beats a few dollars a
+ * sheet. Named by `sheetSizeKey`.
+ *
+ * A `chosen` size the material does not come in is **reported, not obeyed and not fatal**. It
+ * means the material was changed under a saved choice, and the honest response is to nest what
+ * can actually be bought and say the choice was dropped — failing the build would lose the job's
+ * whole nest over a stale preference.
  */
 export const nestMaterial = (
   parts: readonly NestPart[],
   material: SheetMaterial,
   kerf: Mm,
   trim: Mm,
+  chosen?: string,
 ): MaterialNest => {
   if (material.sheets.length === 0) {
     throw new Error(`nestMaterial: ${material.id} has no sheet sizes`);
   }
 
-  const attempts = material.sheets.map((s) => trySize(parts, material, s, kerf, trim));
+  const wanted = chosen ? material.sheets.filter((s) => sheetSizeKey(s) === chosen) : [];
+  const unavailable = chosen !== undefined && wanted.length === 0;
+  const sizes = wanted.length > 0 ? wanted : material.sheets;
+
+  const attempts = sizes.map((s) => trySize(parts, material, s, kerf, trim));
   // Fewest parts that don't fit first, then cheapest. A size that leaves nothing over always beats
   // one that does, so the comparison never trades an uncuttable part against a few dollars.
   const best = attempts.reduce((a, b) =>
@@ -242,6 +267,7 @@ export const nestMaterial = (
     materialId: material.id,
     label: materialLabel(material),
     sheet: best.sheet,
+    sizeChoice: unavailable ? 'chosen-unavailable' : wanted.length > 0 ? 'chosen' : 'automatic',
     sheets,
     parts,
     strategy: best.strategy,
@@ -264,7 +290,7 @@ export const nestMaterial = (
  */
 export const nestProject = (project: Project): ProjectNest => {
   const library: MaterialLibrary = project.materials;
-  const { kerf, sheetEdgeTrim } = project.settings.nesting;
+  const { kerf, sheetEdgeTrim, sheetSizes } = project.settings.nesting;
 
   const byId = new Map<string, NestPart[]>();
   for (const part of nestParts(project)) {
@@ -277,7 +303,14 @@ export const nestProject = (project: Project): ProjectNest => {
   const byMaterial = [...byId.entries()]
     .map(([materialId, parts]) => {
       const material = findSheet(library, materialId);
-      const nest = nestMaterial(parts, material, kerf, sheetEdgeTrim);
+      const nest = nestMaterial(parts, material, kerf, sheetEdgeTrim, sheetSizes?.[materialId]);
+      if (nest.sizeChoice === 'chosen-unavailable') {
+        warnings.push(
+          `${nest.label} is set to be cut from ${sheetSizes?.[materialId]}, which it does not ` +
+            `come in. The sheet size was chosen automatically instead — ` +
+            `${sheetSizeLabel(nest.sheet)}. Set it again under the Nest tab.`,
+        );
+      }
       for (const part of nest.oversize) {
         warnings.push(
           `"${part.name}" is ${Math.round(part.length)}×${Math.round(part.width)}mm — too big ` +

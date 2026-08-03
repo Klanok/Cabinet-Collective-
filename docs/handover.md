@@ -66,7 +66,7 @@ Section 4 records how each works and why; section 5 is what is actually left to 
 ```
 npm install
 npm run dev       # the app
-npm test          # 736 tests
+npm test          # 742 tests
 npm run build
 npm run report    # cutlist, hardware BOM, drilling, nest, G-code and costing for the sample kitchen
 npm run report -- shaker-57    # the same kitchen with routed fronts
@@ -118,6 +118,7 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | A corner radius on a base, wall or tall cabinet | Working — bendy ply and formers, see 4.5 |
 | The same corner routed from door board instead | **Not started — see 5.7, now unblocked** |
 | Guillotine nesting — sheets, cut sequence, offcuts | **Working, see 4.8.** Nest tab, two CSVs |
+| Choosing which sheet size a material is cut from | Working, see 4.8 and 5.9 — per material, on the Nest tab |
 | CAM — panels + nest → machine-independent operations | **Working, see 4.9** |
 | G-code — a post-processor per machine, `.nc` per sheet | **Working, see 4.9. Dialect UNVERIFIED — simulate first** |
 | Nesting a curved part | **Nested as its blank, which is right for a saw — see 4.8** |
@@ -1251,11 +1252,18 @@ job from $7,449.31 to $7,636.52 — 2.5% on a job that was being quoted a third 
   runs along, has to be turned. A nester that only knows how to decline rotation lays those the
   wrong way round and passes every test that checks the part fits. `orientationsFor` takes both
   records and returns the ways round that are legal, which may be one, and which one it is matters.
-- **One sheet size per material, chosen by cost.** Every size the material comes in is nested in
-  full and the cheapest wins; a size that cannot hold every part loses to one that can, however
-  cheap it is per square metre. A sheet size is what goes on the supplier order, and a nest mixing
-  3600×1800 and 2400×1200 across one material is an order whose first line is "work out which of
-  these is which". See §5.9 — there is a real cost to this and it is written down.
+- **One sheet size per material — chosen by cost, or named by the shop.** By default every size the
+  material comes in is nested in full and the cheapest wins; a size that cannot hold every part
+  loses to one that can, however cheap it is per square metre. A sheet size is what goes on the
+  supplier order, and a nest mixing 3600×1800 and 2400×1200 across one material is an order whose
+  first line is "work out which of these is which".
+  **`NestingSettings.sheetSizes` overrides the search, per material**, and the shop often should:
+  what the supplier has on the rack this week, what fits in the van, what two people can lift onto
+  the saw and what there is half a pallet of already are all facts the search cannot see, and any
+  of them beats a few dollars a sheet. Set on the Nest tab, where the sheet count and the price
+  move as you change it. A saved choice naming a size the material no longer comes in is
+  **reported and dropped, not obeyed and not fatal** — losing a job's whole nest over a stale
+  preference would be the worse failure.
 - **Eighteen strategies are run and the best kept.** A nest is a search, and no single heuristic
   wins on every job — that is the state of the art, not a gap here. The packer is cheap enough to
   run eighteen times on a kitchen, and picking one in advance costs sheets to save microseconds.
@@ -1952,13 +1960,25 @@ one for showing a client, one for checking the build — and because both live i
 
 **Built and merged; see 4.8 for what it does and why.** What remains, none of it blocking:
 
-- **One sheet size per material, and it costs something real.** The sample kitchen's fourth carcass
-  sheet holds a single 720×544 side panel. A 3600×1800 costs $138 and a 2400×1200 costs $63, so
-  finishing that job on a small sheet would save $75 — and the model will not, because it picks one
-  size per material. That is a defensible ordering decision (§4.8) rather than an oversight, but the
-  number is real and the fix is bounded: `MaterialNest.sheet` becomes plural, `NestedSheet` already
-  carries its own `usable` rectangle, and the search gains a per-sheet size choice. **Worth doing
-  the next time somebody actually looks at a sheet order and asks about it.**
+- ~~**One sheet size per material, and it costs something real.**~~ **Half done: the shop can now
+  choose the size.** Asked for from the bench as *"i want to be able to select the size of carcass
+  sheet i am cutting"*, and the honest finding was that the nester was already better than this
+  section claimed — it does not pick one size blindly, it nests **every** size in full and takes
+  the cheapest. What was missing was not a better search but a way to overrule it, because the
+  reasons to overrule it are all outside the model. `NestingSettings.sheetSizes` maps a material id
+  to a `sheetSizeKey`; absent means the search decides, which stays the default.
+
+  **Watch what it does to oversize parts, because it is the point rather than a wrinkle.** Put the
+  sample kitchen's carcass on 2400×1200 and the 3000mm plinth rails stop fitting any sheet: the
+  nest reports them as oversize, allows a whole sheet each as a floor, and the job goes from 5
+  sheets to 10. That is the correct answer loudly given, and it is exactly why the choice belongs
+  to a person.
+
+  **What is still not done is mixing sizes within one material** — finishing a job on one small
+  sheet after three big ones. The sample kitchen's fourth carcass sheet still holds a single
+  720×544 side panel, and $138 against $63 is still real money. That needs `MaterialNest.sheet` to
+  become plural and the search to choose per sheet rather than per material, and it needs an
+  answer to what the supplier order then says.
 - **True-shape nesting, for a router.** A CNC can cut a part out of the middle of a sheet, so a
   radiused shelf's corner offcut could take another part — which a guillotine can never do. This is
   Phase 6 in the README's roadmap and it is genuinely a *second* nester rather than an improvement

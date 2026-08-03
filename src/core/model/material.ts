@@ -31,6 +31,22 @@ export interface SheetSize {
   readonly priceExGst: Cents;
 }
 
+/**
+ * How one sheet size is named when it has to be stored or chosen.
+ *
+ * A `SheetSize` has no id of its own, and giving it one would mean migrating every material in
+ * every saved job to invent identifiers nobody types. Its dimensions already identify it — a
+ * material does not come in two different 2400×1200s — so they are the key.
+ *
+ * Deliberately not the price: a size a shop has *chosen* must keep pointing at that size when
+ * the supplier's price changes, which is the whole point of storing a choice rather than an
+ * outcome.
+ */
+export const sheetSizeKey = (s: SheetSize): string => `${s.length}x${s.width}`;
+
+/** Human form of the same thing, for a label or a report line. */
+export const sheetSizeLabel = (s: SheetSize): string => `${s.length}×${s.width}`;
+
 export interface SheetMaterial {
   readonly id: string;
   readonly brand: string;

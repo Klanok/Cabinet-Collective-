@@ -91,6 +91,26 @@ export interface NestingSettings {
   readonly kerf: Mm;
   readonly sheetEdgeTrim: Mm;
   readonly usableOffcutMin: Mm;
+  /**
+   * The sheet size to cut a given material from, by material id, keyed by `sheetSizeKey`.
+   *
+   * **Absent means the nester chooses**, which is what it has always done: every size the
+   * material comes in is nested in full and the cheapest job wins. That is the right default and
+   * stays the default — this is an override for when the choice is not the tool's to make.
+   *
+   * It usually is not. What the supplier has on the rack this week, what fits in the van, what
+   * two people can lift onto the saw, and what the shop has half a pallet of already are all
+   * facts the optimiser cannot see, and all of them beat a few dollars per sheet. So a shop can
+   * name the size and the nest cuts from that.
+   *
+   * A stale entry — a size the material no longer comes in, because the material was changed
+   * under it — falls back to choosing and says so rather than failing. See `nestMaterial`.
+   *
+   * Optional with no migration behind it, and that is safe rather than lazy: an absent map is
+   * byte-for-byte the behaviour every existing job already has, so no saved job cuts or prices
+   * differently for this field arriving.
+   */
+  readonly sheetSizes?: Readonly<Record<string, string>>;
 }
 
 export interface ProjectSettings {

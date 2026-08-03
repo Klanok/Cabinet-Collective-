@@ -12,6 +12,7 @@
  */
 
 import type { MaterialNest, NestPart, NestedSheet, ProjectNest } from '../../core/nest/nest.ts';
+import { type SheetSize, findSheet, sheetSizeKey, sheetSizeLabel } from '../../core/model/material.ts';
 import { usableOffcuts } from '../../core/nest/nest.ts';
 import type { Project } from '../../core/model/project.ts';
 import { cutSequenceCsv, nestCsv } from '../../core/cutlist/export.ts';
@@ -25,6 +26,56 @@ import { useState } from 'react';
 interface Props {
   project: Project;
   nest: ProjectNest;
+  onChooseSheetSize: (materialId: string, key: string | undefined) => void;
+}
+
+/**
+ * Which sheet this material gets cut from.
+ *
+ * Sits on the nest rather than under Settings because this is where the answer is visible — you
+ * are looking at "4 × 3600×1800, 69% yield" when you decide you would rather run 2400×1200, and
+ * the sheet count and the price move as soon as you say so.
+ *
+ * Every size the material comes in is offered with what the job costs on it, because that is the
+ * comparison being made. Automatic stays the default and stays first: the search is right
+ * whenever nothing outside the model is deciding, which is most of the time.
+ */
+function SheetSizeChooser({
+  material,
+  sizes,
+  onChoose,
+}: {
+  material: MaterialNest;
+  sizes: readonly SheetSize[];
+  onChoose: (key: string | undefined) => void;
+}) {
+  const chosen = material.sizeChoice === 'automatic' ? '' : sheetSizeKey(material.sheet);
+  return (
+    <>
+      <SettingRow label="Cut from" hint="Which sheet this material is bought and nested on">
+        <select
+          value={material.sizeChoice === 'chosen-unavailable' ? '' : chosen}
+          onChange={(e) => onChoose(e.target.value || undefined)}
+        >
+          <option value="">Automatic — cheapest for this job</option>
+          {sizes.map((s) => (
+            <option key={sheetSizeKey(s)} value={sheetSizeKey(s)}>
+              {sheetSizeLabel(s)} · ${(s.priceExGst / 100).toFixed(2)} a sheet
+            </option>
+          ))}
+        </select>
+      </SettingRow>
+      {material.sizeChoice === 'chosen-unavailable' && (
+        <p className="note warning">
+          This job asked for a size {material.label} does not come in, so the size was chosen
+          automatically. Pick one that exists to make it stick.
+        </p>
+      )}
+      {sizes.length === 1 && material.sizeChoice === 'automatic' && (
+        <p className="note subtle">Only one size is on file for this material.</p>
+      )}
+    </>
+  );
 }
 
 /** Colour a part by what it is for, so a cabinet's parts read as a group on the sheet. */
@@ -128,7 +179,7 @@ function SheetDiagram({
   );
 }
 
-export function NestPanel({ project, nest }: Props) {
+export function NestPanel({ project, nest, onChooseSheetSize }: Props) {
   const offcutMin = project.settings.nesting.usableOffcutMin;
 
   return (
@@ -152,6 +203,11 @@ export function NestPanel({ project, nest }: Props) {
             {m.label} — {m.sheetCount} × {m.sheet.length}×{m.sheet.width}, {(m.yield * 100).toFixed(0)}%
             yield
           </div>
+          <SheetSizeChooser
+            material={m}
+            sizes={findSheet(project.materials, m.materialId).sheets}
+            onChoose={(key) => onChooseSheetSize(m.materialId, key)}
+          />
           {m.oversize.length > 0 && (
             <p className="note warning">
               Not nested, because no sheet of this material will hold them:{' '}
@@ -193,7 +249,7 @@ export function NestPanel({ project, nest }: Props) {
  * The refusals are shown **instead of** a download button rather than beside one. A page that
  * warns you and still offers the file is a page where somebody clicks the file.
  */
-function GcodePanel({ project, nest }: Props) {
+function GcodePanel({ project, nest }: { project: Project; nest: ProjectNest }) {
   const [machineId, setMachineId] = useState(MACHINE_PROFILES[0]!.id);
   const machine = findMachine(machineId);
   const job = postProject(project, machine, nest);
