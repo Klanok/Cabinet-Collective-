@@ -197,13 +197,13 @@ describe('front grain direction, per cabinet', () => {
   });
 
   it('runs a door vertical by keeping its length on the grain', () => {
-    const door = named(built('base', 600, { frontGrain: 'vertical' }), 'Door L');
+    const door = named(built('base', 600, { grainDirection: 'vertical' }), 'Door L');
     expect(door.placement.u).toBe('+Y'); // length runs up the part
     expect(door.grain).toBe('length-along-grain');
   });
 
   it('runs a door horizontal by turning the grain across its length', () => {
-    const door = named(built('base', 600, { frontGrain: 'horizontal' }), 'Door L');
+    const door = named(built('base', 600, { grainDirection: 'horizontal' }), 'Door L');
     expect(door.grain).toBe('width-along-grain');
   });
 
@@ -211,7 +211,7 @@ describe('front grain direction, per cabinet', () => {
     // The same two requests produce the opposite two values here. If both parts came back with
     // the same constraint, the translation is not happening and one of them is cut wrong.
     const front = (want: string) =>
-      named(built('drawer-bank', 600, { frontGrain: want }), 'Drawer front 1');
+      named(built('drawer-bank', 600, { grainDirection: want }), 'Drawer front 1');
     expect(front('vertical').placement.u).toBe('+X'); // length runs across the part
     expect(front('vertical').grain).toBe('width-along-grain');
     expect(front('horizontal').grain).toBe('length-along-grain');
@@ -220,14 +220,14 @@ describe('front grain direction, per cabinet', () => {
   it('gives a door and a drawer front the same real-world grain from one setting', () => {
     // The property the control actually promises: one choice, one direction in the room, across
     // parts whose lengths run at right angles to each other.
-    const door = named(built('base', 600, { frontGrain: 'horizontal' }), 'Door L');
-    const drawer = named(built('drawer-bank', 600, { frontGrain: 'horizontal' }), 'Drawer front 1');
+    const door = named(built('base', 600, { grainDirection: 'horizontal' }), 'Door L');
+    const drawer = named(built('drawer-bank', 600, { grainDirection: 'horizontal' }), 'Drawer front 1');
     expect(door.grain).not.toBe(drawer.grain);
   });
 
   it('reaches a banquette front, which is a false-front rather than a door', () => {
     const project = createEmptyProject('BQ grain');
-    const { built: bq } = banquette(project, 1200, { frontGrain: 'vertical' });
+    const { built: bq } = banquette(project, 1200, { grainDirection: 'vertical' });
     const front = named(bq.panels, 'Front');
     expect(front.role).toBe('false-front');
     // Its length runs across, so vertical grain has to cross the length.
@@ -235,7 +235,7 @@ describe('front grain direction, per cabinet', () => {
   });
 
   it('leaves carcass parts alone — their grain is construction, not preference', () => {
-    const panels = built('base', 600, { frontGrain: 'horizontal' });
+    const panels = built('base', 600, { grainDirection: 'horizontal' });
     expect(named(panels, 'Side L').grain).toBe(named(built('base', 600, {}), 'Side L').grain);
     expect(named(panels, 'Bottom').grain).toBe(named(built('base', 600, {}), 'Bottom').grain);
   });

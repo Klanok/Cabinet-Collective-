@@ -7,7 +7,7 @@
 
 import { type Cabinet, isRadiused } from '../model/cabinet.ts';
 import { findConstruction } from '../model/construction.ts';
-import type { GrainConstraint, Panel } from '../model/panel.ts';
+import type { GrainConstraint, Panel, PanelRole } from '../model/panel.ts';
 import type { Project } from '../model/project.ts';
 import { profileExtent } from '../geom/profile.ts';
 import { type DoorStyle, resolveDoorStyle } from '../standards/doorStyles.ts';
@@ -18,7 +18,7 @@ import {
   thicknessesFor,
   validateContext,
 } from './context.ts';
-import { type StyledFront, isStyledFrontRole, styleFront } from './frontStyle.ts';
+import { STYLED_FRONT_ROLES, type StyledFront, isStyledFrontRole, styleFront } from './frontStyle.ts';
 import { boreCabinet } from './boring.ts';
 import { type ResolvedHardware, hardwareProblems } from './hardware.ts';
 import { appliedEndProblems, cornerRadiusProblems } from './parts.ts';
@@ -111,7 +111,20 @@ const machineFront = (
 };
 
 /**
- * The grain a front is cut with, once the cabinet has had its say.
+ * The parts whose grain is a **choice** rather than a construction fact.
+ *
+ * The styled fronts, plus the standalone panel. It is deliberately *not* `STYLED_FRONT_ROLES`
+ * itself and a standalone panel is deliberately not added to that list: `STYLED_FRONT_ROLES`
+ * decides what a **door style routes**, so putting `panel` in it would cut shaker grooves into
+ * every filler, scribe and backing piece in the job. The two lists overlap because a door is
+ * both a styled front and a part whose grain you choose; they are answering different questions.
+ */
+export const GRAIN_CHOICE_ROLES: readonly PanelRole[] = [...STYLED_FRONT_ROLES, 'panel'];
+
+const hasChoosableGrain = (role: PanelRole): boolean => GRAIN_CHOICE_ROLES.includes(role);
+
+/**
+ * The grain a show part is cut with, once the cabinet has had its say.
  *
  * **A `GrainConstraint` is relative to the part, and the shop thinks about the room.** A door's
  * length runs up it, so `length-along-grain` is a vertical grain; a drawer front's length runs
@@ -124,17 +137,17 @@ const machineFront = (
  * This is the same class of trap as writing part-space hardware coordinates by hand: the wrong
  * answer is the right *size* and passes anything that only measures the part.
  *
- * Only fronts are touched. A carcass part's grain is a construction fact rather than a
- * preference, and on the white melamine most carcasses are cut from it is `any`, which is what
- * lets the nester turn the part for yield. Overriding that would cost board to no visible end.
+ * Carcass parts are left alone. Their grain is a construction fact rather than a preference, and
+ * on the white melamine most carcasses are cut from it is `any`, which is what lets the nester
+ * turn the part for yield. Overriding that would cost board to no visible end.
  *
  * `any` is never produced here: asking for a direction and getting "either" is not an answer.
  */
-const grainForFront = (
+const grainForShowPart = (
   instance: PartInstance,
   want: 'vertical' | 'horizontal' | undefined,
 ): GrainConstraint => {
-  if (!want || !isStyledFrontRole(instance.role)) return instance.grain;
+  if (!want || !hasChoosableGrain(instance.role)) return instance.grain;
   const lengthRunsVertically =
     instance.placement.u === '+Y' || instance.placement.u === '-Y';
   return (want === 'vertical') === lengthRunsVertically
@@ -246,7 +259,7 @@ export const buildCabinet = (cabinet: Cabinet, project: Project): BuiltCabinet =
         materials,
         styled,
         boring.perInstance[i] ?? [],
-        grainForFront(instance, merged.options.frontGrain),
+        grainForShowPart(instance, merged.options.grainDirection),
       ),
     );
   });

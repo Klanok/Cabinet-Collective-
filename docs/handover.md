@@ -66,7 +66,7 @@ Section 4 records how each works and why; section 5 is what is actually left to 
 ```
 npm install
 npm run dev       # the app
-npm test          # 716 tests
+npm test          # 736 tests
 npm run build
 npm run report    # cutlist, hardware BOM, drilling, nest, G-code and costing for the sample kitchen
 npm run report -- shaker-57    # the same kitchen with routed fronts
@@ -101,7 +101,7 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | Saved cabinet types | Working |
 | Viewport — R3F, orbit + WASD/QE, drag to move, walls | Working |
 | Wireframe view — a third mode beside 3D and Plan | Working, see 5.8 |
-| Grain direction on a cabinet's fronts | Working, see 5.4 — stated as the room sees it, translated per part |
+| Grain direction — a cabinet's fronts, and a standalone panel | Working, see 5.4 — stated as the room sees it, translated per part |
 | Decor textures on parts, at true scale, turned by grain | **Working, see 5.8.** Bundled images, mapped through the nest |
 | Banquette seating — solid front, hinged lift-up, cushions | Rejected at the bench, **rebuilt to the shop's own answers — see 5.4.** Lid stay still unmodelled |
 | Inside banquette corner — a quarter-circle connector | Working, on the same formers-and-bendy-ply rules as 4.5. Its own access question unasked, see 5.4 |
@@ -1639,14 +1639,13 @@ speculatively.
   record, viewport, cutlist, nesting, costing and CAM paths as generated cabinet parts rather than
   becoming a separate drawing-only object. This is for fillers, scribes, loose ends, backing pieces
   and other job panels that do not belong to a carcass. This first version is vertical-grain and
-  bands all four edges; per-edge banding is the next control, not hidden data. Grain is now
-  editable per cabinet — see the entry below — but a standalone panel is not a *front*, so the
-  control does not reach it and its grain is still fixed vertical.
-- ~~**No option for grain direction.**~~ **Done, per cabinet.** Asked for from the bench as simply
-  *"i dont seem to have an option for grain direction"*, and the control was indeed missing
-  everywhere: grain was chosen by each part builder, shown read-only on the cutlist, and settable
-  nowhere. `CabinetOptions.frontGrain` is now `'vertical' | 'horizontal'`, unset meaning each part
-  keeps whatever its own shape wants.
+  bands all four edges; per-edge banding is the next control, not hidden data. **Grain is now
+  editable** — see the entry below.
+- ~~**No option for grain direction.**~~ **Done, per cabinet, and it reaches a standalone panel.**
+  Asked for from the bench as simply *"i dont seem to have an option for grain direction"*, and
+  the control was indeed missing everywhere: grain was chosen by each part builder, shown
+  read-only on the cutlist, and settable nowhere. `CabinetOptions.grainDirection` is now
+  `'vertical' | 'horizontal'`, unset meaning each part keeps whatever its own shape wants.
 
   **The translation is the whole of it, and it is a trap worth naming.** A `GrainConstraint` is
   relative to the **part's own length**, and a door's length runs up it while a drawer front's runs
@@ -1662,10 +1661,21 @@ speculatively.
 
   Resolved in `build.ts` rather than in the part builders, for the reason §4.3 gives about door
   styles: fronts are produced in several places, and a rule wired into three of them is a kitchen
-  with one door cut the wrong way. **Only fronts are touched** — `isStyledFrontRole`, so doors,
-  drawer fronts, false fronts and applied ends. A carcass part's grain is a construction fact
-  rather than a preference, and on white melamine it is `any`, which is exactly what lets the
-  nester turn it for yield; overriding that would cost board to no visible end.
+  with one door cut the wrong way.
+
+  **Which parts it governs is its own list, and that is deliberate.** `GRAIN_CHOICE_ROLES` is the
+  styled fronts *plus* `panel` — a loose panel is nothing but a show part, and *"standalone panels
+  need grain direction"* came straight back from the bench once the fronts had it. The obvious
+  shortcut is to add `panel` to `STYLED_FRONT_ROLES` and reuse that; **do not.** That list decides
+  what a **door style routes**, so it would cut shaker grooves into every filler, scribe and
+  backing piece in the job. The two lists overlap on doors because a door is both a styled front
+  and a part whose grain you choose — they are answering different questions, and
+  `tests/standalonePanel.test.ts` pins them apart with a panel built under `shaker-57` that comes
+  out with no front-style features on it.
+
+  Carcass parts are left alone. A carcass part's grain is a construction fact rather than a
+  preference, and on white melamine it is `any`, which is exactly what lets the nester turn it for
+  yield; overriding that would cost board to no visible end.
 
   **It reaches the nest, not just the picture.** `orientationsFor` turns a grain constraint into
   the orientations a part may take on the sheet, so on a grained decor a door switched to

@@ -940,8 +940,8 @@ export function Inspector({
         />
         {isPanel && (
           <p className="note subtle">
-            Panel thickness comes from the selected sheet material. This first version keeps the
-            grain vertical and bands all four edges.
+            Panel thickness comes from the selected sheet material. All four edges are banded;
+            per-edge banding is not a control yet.
           </p>
         )}
         {!isPanel && <>
@@ -1007,29 +1007,36 @@ export function Inspector({
           defaultLabel={nameOfStyle(project.defaults.doorStyleId)}
           onChange={(doorStyleId) => onUpdate(cabinet.id, { doorStyleId })}
         />
-        <label className="field"><span>Front grain</span><div className="field-input"><select
-          value={cabinet.options.frontGrain ?? ''}
+        <label className="field"><span>{isPanel ? 'Grain' : 'Front grain'}</span><div className="field-input"><select
+          value={cabinet.options.grainDirection ?? ''}
           onChange={(e) =>
             onUpdateOptions(cabinet.id, {
-              frontGrain: (e.target.value || undefined) as 'vertical' | 'horizontal' | undefined,
+              grainDirection: (e.target.value || undefined) as 'vertical' | 'horizontal' | undefined,
             })
           }
         >
-          <option value="">By part (default)</option>
+          <option value="">{isPanel ? 'Vertical (default)' : 'By part (default)'}</option>
           <option value="vertical">Vertical</option>
           <option value="horizontal">Horizontal</option>
         </select></div></label>
       </div>
-      {cabinet.options.frontGrain === undefined ? (
+      {cabinet.options.grainDirection === undefined ? (
         <p className="note subtle">
-          Grain runs the way each part's shape wants it: up a door, across a bank of drawer
-          fronts. Set it here to run every front on this cabinet the same way.
+          {isPanel
+            ? 'A standalone panel is cut with the grain running up it unless you say otherwise.'
+            : "Grain runs the way each part's shape wants it: up a door, across a bank of drawer " +
+              'fronts. Set it here to run every front on this cabinet the same way.'}
         </p>
       ) : (
         <p className="note subtle">
-          Every door, drawer front, false front and applied end on this cabinet is cut with the
-          grain running {cabinet.options.frontGrain}. Carcass parts are unaffected — their grain
-          is a construction fact, and leaving it free is what lets the nester turn them for yield.
+          {isPanel
+            ? `This panel is cut with the grain running ${cabinet.options.grainDirection}.`
+            : `Every door, drawer front, false front and applied end on this cabinet is cut with ` +
+              `the grain running ${cabinet.options.grainDirection}. Carcass parts are unaffected — ` +
+              `their grain is a construction fact, and leaving it free is what lets the nester ` +
+              `turn them for yield.`}
+          {' '}On a grained decor this decides which way the part is turned on the sheet, so the
+          cut plan follows it.
         </p>
       )}
       {built.doorStyle.kind !== 'slab' && (

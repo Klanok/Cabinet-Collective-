@@ -107,7 +107,11 @@ export interface CabinetOptions {
   /** How far the lid overhangs the carcass on each exposed side. */
   readonly lidOverhang?: Mm;
   /**
-   * Which way the grain runs on this cabinet's **fronts**, stated as the room sees it.
+   * Which way the grain runs on this cabinet's **show parts**, stated as the room sees it.
+   *
+   * Show parts are the fronts — doors, drawer fronts, false fronts, applied ends — and a
+   * standalone panel, which is nothing but a show part. Carcass parts are deliberately excluded:
+   * their grain is a construction fact rather than a preference. See `GRAIN_CHOICE_ROLES`.
    *
    * Unset means each part keeps whatever its own builder chose, which is the sensible default
    * for its shape: a door's grain runs up it, a drawer front's runs across a bank.
@@ -119,7 +123,7 @@ export interface CabinetOptions {
    * translates this into the right constraint per part by reading the part's `u` axis, which is
    * the same trick `machineFront` already uses to keep a V-groove upright on a drawer.
    */
-  readonly frontGrain?: 'vertical' | 'horizontal';
+  readonly grainDirection?: 'vertical' | 'horizontal';
   /**
    * A solid front in door decor that does not open — the face of a banquette.
    *
