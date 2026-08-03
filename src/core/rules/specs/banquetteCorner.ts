@@ -55,6 +55,16 @@ const backs = (ctx: RuleContext): PartInstance[] => {
 export const BANQUETTE_CORNER_SPEC: CabinetSpec = {
   typeId: 'banquette-corner',
   name: 'Inside banquette corner',
+  capabilities: {
+    // Same argument as the radiused end: this unit is already a single quarter circle, sized by
+    // `insideCornerRadius`, and `validate` rejects anything that is not.
+    cornerRadius:
+      'An inside banquette corner is already a quarter circle — its width and depth are its ' +
+      'radius. Change the corner radius rather than adding a second one to it.',
+    appliedEnds:
+      'An inside banquette corner is a connector: both of its ends butt into the banquettes it ' +
+      'joins, so neither is exposed. Put the end on the banquette at the end of the run.',
+  },
   defaultOptions: {
     formerSpacing: mm(250), skinLayers: 2, hasKick: false, hasBack: true,
     doorCount: 0, drawerCount: 0, shelfCount: 0, insideCornerRadius: mm(500),

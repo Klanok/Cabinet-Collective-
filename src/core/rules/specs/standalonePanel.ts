@@ -22,6 +22,14 @@ import { BAND_ALL } from '../spec.ts';
 export const STANDALONE_PANEL_SPEC: CabinetSpec = {
   typeId: 'panel',
   name: 'Standalone panel',
+  capabilities: {
+    cornerRadius:
+      'A standalone panel is a single flat board, not a carcass — there is no end to wrap and ' +
+      'nothing for a curve to be fixed to.',
+    appliedEnds:
+      'A standalone panel is the board an applied end is made of. Place a second panel rather ' +
+      'than applying one to this one.',
+  },
   isCarcass: false,
   defaultOptions: {
     hasKick: false,

@@ -22,6 +22,7 @@ import { STYLED_FRONT_ROLES, type StyledFront, isStyledFrontRole, styleFront } f
 import { boreCabinet } from './boring.ts';
 import { type ResolvedHardware, hardwareProblems } from './hardware.ts';
 import { appliedEndProblems, cornerRadiusProblems } from './parts.ts';
+import type { CornerRadius } from './radius.ts';
 import { getSpec } from './registry.ts';
 import { buildRunUnits } from './runUnits.ts';
 import { type MaterialSlot, type PartInstance, resolveBanding } from './spec.ts';
@@ -45,6 +46,15 @@ export interface BuiltCabinet {
    * that could pick a different one.
    */
   readonly hardware: ResolvedHardware;
+  /**
+   * The rounded front corner this cabinet was built with, or `null` for a square one.
+   *
+   * Carried out for the same reason `hardware` is, and it earns it: a banquette's cushions are
+   * not panels, so the only way for them to follow the curve is to read the corner the engine
+   * settled on. Reading `options.carcassRadius` instead would draw a curved cushion on a cabinet
+   * whose radius the bendy ply could not turn — built square, with a warning saying so.
+   */
+  readonly radius: CornerRadius | null;
 }
 
 const resolveMaterials = (cabinet: Cabinet, project: Project): ResolvedMaterials => ({
@@ -214,7 +224,7 @@ export const buildCabinet = (cabinet: Cabinet, project: Project): BuiltCabinet =
             '8mm; upgrading will change former radii, skin lengths and price.',
         ]
       : []),
-    ...cornerRadiusProblems(ctx),
+    ...cornerRadiusProblems(ctx, spec),
     ...appliedEndProblems(ctx, spec),
     ...hardwareProblems(ctx),
     ...(spec.validate?.(ctx) ?? []),
@@ -223,7 +233,14 @@ export const buildCabinet = (cabinet: Cabinet, project: Project): BuiltCabinet =
   // A cabinet whose driving dimensions don't work can't produce meaningful parts. Report and
   // stop rather than emitting negative-sized panels that look plausible in a cutlist.
   if (carcassProblems.length > 0) {
-    return { cabinet: merged, panels: [], warnings, doorStyle, hardware: ctx.hardware };
+    return {
+      cabinet: merged,
+      panels: [],
+      warnings,
+      doorStyle,
+      hardware: ctx.hardware,
+      radius: ctx.radius,
+    };
   }
 
   /*
@@ -270,6 +287,7 @@ export const buildCabinet = (cabinet: Cabinet, project: Project): BuiltCabinet =
     warnings: [...warnings, ...styleWarnings, ...boring.warnings],
     doorStyle,
     hardware: ctx.hardware,
+    radius: ctx.radius,
   };
 };
 

@@ -57,9 +57,55 @@ export interface PartRule {
   readonly produce: (ctx: RuleContext) => readonly PartInstance[];
 }
 
+/**
+ * One thing a spec either builds or does not: `true`, or the reason it does not, in the shop's
+ * words.
+ *
+ * **Refusing costs a sentence, and that is the point of the type.** A boolean lets a spec say
+ * "no" and leave the app to invent a reason from the type id — which is where the warning
+ * `'A rounded corner is only built on base, wall and tall cabinets'` came from, and why it went
+ * on saying it for months after the banquette started cutting formers and a wrap. A list of
+ * type ids held somewhere else is a second source of truth about what a spec does, and the spec
+ * is the only thing that actually knows.
+ *
+ * So the reason travels with the declaration, is written once by the spec that owns it, and is
+ * what the user is shown verbatim. A capability that goes from `false` to built is a one-line
+ * edit in one file, and it cannot be half-done.
+ */
+export type Capability = true | string;
+
+/**
+ * What a spec is built to do, stated by the spec itself.
+ *
+ * Every field is **required** — there is no default and there is deliberately no "assume yes".
+ * A new spec that forgets to answer does not compile, which is the whole mechanism: the
+ * alternative is a spec that silently inherits a capability it does not implement and produces
+ * a cabinet with the corner cut away and nothing wrapped round it.
+ *
+ * The rule for what belongs here: a capability is a **cabinet option that some specs build parts
+ * for and others do not**. Anything every spec implements is not a capability, it is the engine.
+ */
+export interface SpecCapabilities {
+  /**
+   * `carcassRadius` on a named front corner: the spec cuts the corner formers and the bendy-ply
+   * wrap. The shared carcass builders take the radius for any type — a bottom loses its corner
+   * whatever spec asked for it — so a spec that takes the radius without cutting the formers and
+   * the wrap produces a cabinet with a hole in the end of it.
+   */
+  readonly cornerRadius: Capability;
+  /** `appliedEnds`: the spec emits the board laid over an exposed carcass side. */
+  readonly appliedEnds: Capability;
+}
+
+/** The reason a capability is off, or `null` when it is on. */
+export const refusalOf = (capability: Capability): string | null =>
+  capability === true ? null : capability;
+
 export interface CabinetSpec {
   readonly typeId: CabinetTypeId;
   readonly name: string;
+  /** What this spec builds, and the reason in plain terms for whatever it does not. */
+  readonly capabilities: SpecCapabilities;
   /** Applied when a cabinet of this type doesn't specify them. */
   readonly defaultOptions: CabinetOptions;
   /**

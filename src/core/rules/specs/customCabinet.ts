@@ -72,6 +72,12 @@ const frontParts = (ctx: RuleContext): PartInstance[] => {
 export const CUSTOM_CABINET_SPEC: CabinetSpec = {
   typeId: 'custom',
   name: 'Custom cabinet',
+  capabilities: {
+    cornerRadius:
+      'A rounded corner is not built on a custom carcass — the corner would come out cut away ' +
+      'with nothing wrapped round it. A base, wall, tall or banquette unit builds one.',
+    appliedEnds: true,
+  },
   defaultOptions: {
     topStyle: 'panel',
     hasBack: true,

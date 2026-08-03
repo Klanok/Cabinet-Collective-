@@ -26,6 +26,7 @@ import {
 export const BASE_CABINET_SPEC: CabinetSpec = {
   typeId: 'base',
   name: 'Base cabinet',
+  capabilities: { cornerRadius: true, appliedEnds: true },
   defaultOptions: {
     shelfCount: 1,
     doorCount: 2,

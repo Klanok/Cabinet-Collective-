@@ -30,6 +30,7 @@ import { mm } from '../../units.ts';
 import type { CabinetSpec } from '../spec.ts';
 import type { RuleContext } from '../context.ts';
 import {
+  appliedEndPanels,
   backPanel,
   bayShelves,
   bottomPanel,
@@ -65,6 +66,15 @@ export const banquetteDividerCount = (ctx: RuleContext): number =>
 export const BANQUETTE_SPEC: CabinetSpec = {
   typeId: 'banquette',
   name: 'Banquette seating',
+  /*
+   * Both of these are built, and saying so is the point.
+   *
+   * The corner radius was built here from the day this spec was rebuilt — `formers` and `skin`
+   * are two of its part rules — but `cornerRadiusProblems` asked a hard-coded list of type ids
+   * and told the user it was not. A banquette is the run of the kitchen most likely to want a
+   * curve on its exposed end, because somebody walks past it and sits down beside it.
+   */
+  capabilities: { cornerRadius: true, appliedEnds: true },
   defaultOptions: {
     // The top is an opening, closed by the lift-up rather than by a panel or rails.
     topStyle: 'open',
@@ -127,5 +137,18 @@ export const BANQUETTE_SPEC: CabinetSpec = {
     // bottom carries the curve, and formers support the bendy-ply wrap up to the carcass top.
     { key: 'formers', produce: (ctx) => carcassCornerFormers(ctx, { hasTopPanel: false }) },
     { key: 'skin', produce: (ctx) => (ctx.radius ? wrapLayers(ctx, ctx.radius) : []) },
+    /*
+     * The exposed end of a run of seating, finished in door decor like the front is.
+     *
+     * `underBenchtop: false` because nothing lands on top of a banquette — the top edge of the
+     * panel is at seat height with a cushion beside it, which is about as seen as an edge gets.
+     * `standsOnKick: true` reads the drop off the cabinet's own anchor, which on a banquette's
+     * `carcassLift: () => mm(0)` is zero and costs nothing — and is still the right question to
+     * ask, because a seat box put on a ladder base has to reach the floor like anything else.
+     */
+    {
+      key: 'applied-ends',
+      produce: (ctx) => appliedEndPanels(ctx, { underBenchtop: false, standsOnKick: true }),
+    },
   ],
 };

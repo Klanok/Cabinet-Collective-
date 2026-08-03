@@ -30,6 +30,15 @@ import type { CabinetSpec } from '../spec.ts';
 export const APPLIANCE_SPACE_SPEC: CabinetSpec = {
   typeId: 'appliance',
   name: 'Appliance space',
+  capabilities: {
+    cornerRadius:
+      'An appliance space is a gap in the run rather than a cabinet, so there is no corner to ' +
+      'round. Put the radius on the cabinet beside it instead.',
+    // The sentence this file used to hand to a shared builder to say on its behalf.
+    appliedEnds:
+      'An appliance space is a gap in the run rather than a cabinet, so there is no side to ' +
+      'apply a panel to. Put the end on the cabinet beside it instead.',
+  },
   isCarcass: false,
   defaultOptions: {
     // The dishwasher case, because it is the one that was being got wrong. A fridge space is one
