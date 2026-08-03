@@ -1,13 +1,122 @@
-import { useMemo, type ReactNode } from 'react';
+import { useCallback, useMemo, type ReactNode } from 'react';
 import { RoundedBox } from '@react-three/drei';
 import { useLoader } from '@react-three/fiber';
-import { RepeatWrapping, Shape, SRGBColorSpace, TextureLoader } from 'three';
+import {
+  type BufferGeometry,
+  type Mesh,
+  RepeatWrapping,
+  Shape,
+  SRGBColorSpace,
+  TextureLoader,
+} from 'three';
 import type { Cabinet } from '../../core/model/cabinet.ts';
 import type { UpholsteryMaterial } from '../../core/model/material.ts';
 import { bundledAssetUrl } from './assetUrl.ts';
 
+/**
+ * Put a cushion's UVs into real fabric repeats.
+ *
+ * Every mesh here is an `ExtrudeGeometry` — including the seat, because drei's `RoundedBox` is
+ * an extrude with a bevelled shape. Three's default UV generator for that geometry emits
+ * **shape coordinates**, which in this model are millimetres, on the top faces and the side
+ * walls alike. They are not normalised and never were.
+ *
+ * That is the whole of the bug this function fixes. The old code left those UVs alone and set
+ * `map.repeat` to `cabinet.width / 250`, so a 1190mm seat asked for roughly **5,800 repeats
+ * across one cushion**. Every screen pixel then averaged the entire swatch, and the fabric
+ * rendered as flat off-white — indistinguishable from a texture that had failed to load, which
+ * is exactly how it was reported.
+ *
+ * Dividing millimetres by the fabric's real repeat is therefore not a correction factor, it is
+ * the unit conversion the generator's output was always one step away from. It also puts the
+ * cushions under the same rule §5.8 sets for board decors — scaled in millimetres, not in UV
+ * units — so a seat and the doors behind it show a weave at one consistent scale.
+ *
+ * Done to the geometry rather than to the texture on purpose. `useLoader` caches by URL and
+ * hands the **same** `Texture` to every mesh using that fabric, so writing `repeat` on it made
+ * two banquettes in one colour fight over the weave scale, last one rendered winning. `PanelMesh`
+ * already bakes its UVs for this reason and never writes to the texture; this now matches.
+ */
+const applyFabricScale = (geometry: BufferGeometry, repeatMm: number): void => {
+  const uv = geometry.attributes.uv;
+  if (!uv || repeatMm <= 0) return;
+  // Guard against a re-run on the same geometry — a ref callback can fire more than once, and
+  // scaling twice would shrink the weave by the square.
+  if (geometry.userData.fabricScaled === repeatMm) return;
+  const a = uv.array as Float32Array;
+  for (let i = 0; i < a.length; i++) a[i]! /= repeatMm;
+  uv.needsUpdate = true;
+  geometry.userData.fabricScaled = repeatMm;
+};
+
+/**
+ * The fabric image, resolved wherever this build is hosted.
+ *
+ * Applied to any texture stored as a site-absolute path rather than only to Warwick Caulfield,
+ * which is what it used to test. A hardcoded brand-and-collection pair meant the very next
+ * fabric anybody added would skip the fix and 404 under a sub-path deploy — the same bug that
+ * had already been fixed once for board decors.
+ */
+const fabricUrl = (upholstery: UpholsteryMaterial): string =>
+  upholstery.textureUrl.startsWith('/')
+    ? bundledAssetUrl(upholstery.textureUrl)
+    : upholstery.textureUrl;
+
+/**
+ * Load a fabric once and leave it alone.
+ *
+ * Nothing here writes `repeat` — see `applyFabricScale`. The wrap mode and colour space are
+ * properties of the image rather than of any one cushion, so setting them on the shared texture
+ * is safe in a way that setting a per-cabinet scale never was.
+ */
+const useFabric = (upholstery: UpholsteryMaterial) => {
+  const map = useLoader(TextureLoader, fabricUrl(upholstery));
+  map.colorSpace = SRGBColorSpace;
+  map.wrapS = RepeatWrapping;
+  map.wrapT = RepeatWrapping;
+  return map;
+};
+
+/** A ref callback that puts whatever geometry it is handed into this fabric's real repeats. */
+const useFabricScale = (upholstery: UpholsteryMaterial) =>
+  useCallback(
+    (mesh: Mesh | null) => {
+      if (mesh?.geometry) applyFabricScale(mesh.geometry, upholstery.textureRepeat);
+    },
+    [upholstery.textureRepeat],
+  );
+
+/**
+ * The cushion's surface.
+ *
+ * **Selection does not take the fabric away.** It used to set `map` to `null` and paint the
+ * cushion solid orange, which meant the texture was invisible for as long as the cabinet you
+ * were editing was the cabinet you were looking at — and a newly added banquette is selected, so
+ * the first thing anybody ever saw of a banquette was an untextured orange block. `PanelMesh`
+ * had already learned this and says so in its own comment: replacing a selected part with a flat
+ * colour "disguised texture-loading failures as selection behaviour". It did exactly that here.
+ *
+ * Selection now tints the fabric instead, so the weave stays readable and the cabinet still
+ * reads as picked.
+ */
+function FabricSurface({ map, upholstery, selected, wireframe }: {
+  map: ReturnType<typeof useFabric>;
+  upholstery: UpholsteryMaterial;
+  selected: boolean;
+  wireframe: boolean;
+}) {
+  return <meshStandardMaterial
+    color={selected ? '#ffb27a' : '#ffffff'}
+    map={map ?? null}
+    // Only reached when the image genuinely has not loaded, which is what the fallback is for.
+    {...(map ? {} : { color: selected ? '#ffb27a' : upholstery.colourFallback })}
+    roughness={0.95}
+    wireframe={wireframe}
+  />;
+}
+
 /** A back cushion with a vertical rear face and the requested lean cut into its front face. */
-function WedgeBack({ width, height, thickness, angle, radius, x, y, children }: {
+function WedgeBack({ width, height, thickness, angle, radius, x, y, scaleFabric, children }: {
   width: number;
   height: number;
   thickness: number;
@@ -15,6 +124,7 @@ function WedgeBack({ width, height, thickness, angle, radius, x, y, children }: 
   radius: number;
   x: number;
   y: number;
+  scaleFabric: (mesh: Mesh | null) => void;
   children: ReactNode;
 }) {
   const shape = useMemo(() => {
@@ -28,7 +138,7 @@ function WedgeBack({ width, height, thickness, angle, radius, x, y, children }: 
     return result;
   }, [angle, height, thickness]);
   const bevel = Math.max(0.5, Math.min(radius, thickness / 4, width / 4));
-  return <mesh position={[x + width, y, 0]} rotation={[0, -Math.PI / 2, 0]} castShadow receiveShadow>
+  return <mesh ref={scaleFabric} position={[x + width, y, 0]} rotation={[0, -Math.PI / 2, 0]} castShadow receiveShadow>
     <extrudeGeometry args={[shape, {
       depth: width,
       bevelEnabled: true,
@@ -47,31 +157,18 @@ export function BanquetteCushions({ cabinet, upholstery, selected, wireframe }: 
   selected: boolean;
   wireframe: boolean;
 }) {
-  const textureUrl = upholstery.brand === 'Warwick' && upholstery.collection === 'Caulfield'
-    ? bundledAssetUrl(upholstery.textureUrl.replace(/^\//, ''))
-    : upholstery.textureUrl;
-  const map = useLoader(TextureLoader, textureUrl);
-  map.colorSpace = SRGBColorSpace;
-  map.wrapS = RepeatWrapping;
-  map.wrapT = RepeatWrapping;
-  map.repeat.set(Math.max(1, cabinet.width / 250), Math.max(1, cabinet.depth / 250));
-  map.needsUpdate = true;
+  const map = useFabric(upholstery);
+  const scaleFabric = useFabricScale(upholstery);
 
   const seatT = cabinet.options.seatCushionThickness ?? 80;
   const inset = cabinet.options.seatCushionInset ?? 5;
   const seatWidth = Math.max(50, cabinet.width - inset * 2);
   const seatDepth = Math.max(50, cabinet.depth - inset * 2);
   const radius = Math.max(1, cabinet.options.cushionCornerRadius ?? 18);
-  const colour = selected ? '#ff9640' : upholstery.colourFallback;
-  const fabricMaterial = () => <meshStandardMaterial
-    color={map && !selected ? '#ffffff' : colour}
-    map={!selected ? map : null}
-    roughness={0.95}
-    wireframe={wireframe}
-  />;
+  const fabricMaterial = () => <FabricSurface map={map} upholstery={upholstery} selected={selected} wireframe={wireframe} />;
 
   return <>
-    <RoundedBox args={[seatWidth, seatT, seatDepth]} radius={Math.min(radius, seatT / 2 - 1, seatDepth / 2 - 1)} smoothness={4}
+    <RoundedBox ref={scaleFabric} args={[seatWidth, seatT, seatDepth]} radius={Math.min(radius, seatT / 2 - 1, seatDepth / 2 - 1)} smoothness={4}
       position={[cabinet.width / 2, cabinet.height + seatT / 2, cabinet.depth / 2]} castShadow receiveShadow>
       {fabricMaterial()}
     </RoundedBox>
@@ -82,16 +179,16 @@ export function BanquetteCushions({ cabinet, upholstery, selected, wireframe }: 
       const endDepth = Math.max(50, seatDepth - thickness);
       const backRadius = Math.min(radius, thickness / 2 - 1, height / 2 - 1);
       return <>
-        <WedgeBack width={seatWidth} height={height} thickness={thickness} angle={angle}
+        <WedgeBack scaleFabric={scaleFabric} width={seatWidth} height={height} thickness={thickness} angle={angle}
           radius={backRadius} x={inset} y={cabinet.height + seatT}>
           {fabricMaterial()}
         </WedgeBack>
         {cabinet.options.leftEndCushion && <group position={[inset, 0, cabinet.depth - inset]} rotation={[0, Math.PI / 2, 0]}>
-          <WedgeBack width={endDepth} height={height} thickness={thickness} angle={angle}
+          <WedgeBack scaleFabric={scaleFabric} width={endDepth} height={height} thickness={thickness} angle={angle}
             radius={backRadius} x={0} y={cabinet.height + seatT}>{fabricMaterial()}</WedgeBack>
         </group>}
         {cabinet.options.rightEndCushion && <group position={[cabinet.width - inset, 0, inset]} rotation={[0, -Math.PI / 2, 0]}>
-          <WedgeBack width={endDepth} height={height} thickness={thickness} angle={angle}
+          <WedgeBack scaleFabric={scaleFabric} width={endDepth} height={height} thickness={thickness} angle={angle}
             radius={backRadius} x={0} y={cabinet.height + seatT}>{fabricMaterial()}</WedgeBack>
         </group>}
       </>;
@@ -106,15 +203,8 @@ export function BanquetteCornerCushions({ cabinet, upholstery, selected, wirefra
   selected: boolean;
   wireframe: boolean;
 }) {
-  const textureUrl = upholstery.brand === 'Warwick' && upholstery.collection === 'Caulfield'
-    ? bundledAssetUrl(upholstery.textureUrl.replace(/^\//, ''))
-    : upholstery.textureUrl;
-  const map = useLoader(TextureLoader, textureUrl);
-  map.colorSpace = SRGBColorSpace;
-  map.wrapS = RepeatWrapping;
-  map.wrapT = RepeatWrapping;
-  map.repeat.set(Math.max(1, cabinet.width / 250), Math.max(1, cabinet.depth / 250));
-  map.needsUpdate = true;
+  const map = useFabric(upholstery);
+  const scaleFabric = useFabricScale(upholstery);
 
   const seatT = cabinet.options.seatCushionThickness ?? 80;
   const inset = Math.max(0, cabinet.options.seatCushionInset ?? 5);
@@ -127,13 +217,7 @@ export function BanquetteCornerCushions({ cabinet, upholstery, selected, wirefra
     shape.closePath();
     return shape;
   }, [r]);
-  const colour = selected ? '#ff9640' : upholstery.colourFallback;
-  const material = () => <meshStandardMaterial
-    color={map && !selected ? '#ffffff' : colour}
-    map={!selected ? map : null}
-    roughness={0.95}
-    wireframe={wireframe}
-  />;
+  const material = () => <FabricSurface map={map} upholstery={upholstery} selected={selected} wireframe={wireframe} />;
 
   const backHeight = cabinet.options.backCushionHeight ?? 400;
   const backThickness = cabinet.options.backCushionThickness ?? 80;
@@ -142,15 +226,15 @@ export function BanquetteCornerCushions({ cabinet, upholstery, selected, wirefra
   const backY = cabinet.height + seatT;
 
   return <>
-    <mesh position={[0, cabinet.height, r]} rotation={[-Math.PI / 2, 0, 0]} castShadow receiveShadow>
+    <mesh ref={scaleFabric} position={[0, cabinet.height, r]} rotation={[-Math.PI / 2, 0, 0]} castShadow receiveShadow>
       <extrudeGeometry args={[seatShape, { depth: seatT, bevelEnabled: true, bevelSize: 3, bevelThickness: 3, bevelSegments: 3 }]} />
       {material()}
     </mesh>
     {cabinet.options.hasBackCushion !== false && <>
-      <WedgeBack width={r} height={backHeight} thickness={backThickness} angle={angle}
+      <WedgeBack scaleFabric={scaleFabric} width={r} height={backHeight} thickness={backThickness} angle={angle}
         radius={backRadius} x={0} y={backY}>{material()}</WedgeBack>
       <group position={[0, 0, r]} rotation={[0, Math.PI / 2, 0]}>
-        <WedgeBack width={r} height={backHeight} thickness={backThickness} angle={angle}
+        <WedgeBack scaleFabric={scaleFabric} width={r} height={backHeight} thickness={backThickness} angle={angle}
           radius={backRadius} x={0} y={backY}>{material()}</WedgeBack>
       </group>
     </>}

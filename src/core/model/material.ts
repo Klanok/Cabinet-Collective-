@@ -156,6 +156,25 @@ export interface UpholsteryMaterial {
   readonly colour: string;
   readonly colourFallback: string;
   readonly textureUrl: string;
+  /**
+   * How much real fabric one tile of `textureUrl` covers, edge to edge.
+   *
+   * **Required, and the reason is a bug rather than tidiness.** The cushion meshes are
+   * `ExtrudeGeometry`, whose default UV generator emits **shape coordinates — millimetres** —
+   * rather than a normalised 0..1. Scaling the map by anything that is not a real distance
+   * therefore multiplies an already-huge number: a 1190mm seat came out at roughly 5,800 tiles
+   * across, every screen pixel averaged the whole swatch, and the fabric rendered as flat
+   * off-white. It looked exactly like a texture that had failed to load, and was not.
+   *
+   * So this is a physical size and the mesh divides millimetres by it. Same rule §5.8 sets for
+   * board decors, for the same reason: a weave is a real distance, and a cushion and a wall of
+   * doors have to show it at the same scale to be worth looking at.
+   *
+   * **The shipped figure is an estimate and is flagged as one** — see `SWATCH_COVERS` in
+   * `library/upholstery.au.ts`. Warwick publish the swatch as an image, not as a scale, so the
+   * only way to make it exact is to measure a real sample against the picture.
+   */
+  readonly textureRepeat: Mm;
   readonly sourceUrl: string;
   readonly width: Mm;
   readonly composition: string;
