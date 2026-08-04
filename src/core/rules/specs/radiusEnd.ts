@@ -133,6 +133,14 @@ const curvedKick = (ctx: RuleContext): PartInstance[] => {
 export const RADIUS_END_SPEC: CabinetSpec = {
   typeId: 'radius-end',
   name: 'Radiused end',
+  capabilities: {
+    // Not a refusal to build a curve — this unit *is* one. Its whole width and depth are the
+    // radius, so a second corner radius on top of it has nothing left to round.
+    cornerRadius:
+      'A radiused end is already one quarter circle — its width and depth are the radius. Set ' +
+      'the size to change the curve rather than adding a corner radius on top of it.',
+    appliedEnds: true,
+  },
   defaultOptions: {
     formerSpacing: mm(300),
     skinLayers: 2,

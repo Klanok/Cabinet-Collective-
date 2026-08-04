@@ -42,6 +42,15 @@ export const resolveFrontHeights = (ctx: RuleContext): Mm[] => {
 export const DRAWER_BANK_SPEC: CabinetSpec = {
   typeId: 'drawer-bank',
   name: 'Drawer bank',
+  capabilities: {
+    // A bank's fronts already lay out in the door zone, so the arithmetic is there — what is
+    // missing is the formers and the wrap, and a corner cut with nothing round it is worse than
+    // a square one. Turning this on is adding two part rules, not a rethink.
+    cornerRadius:
+      'A rounded corner is not built on a drawer bank yet — the corner would come out cut away ' +
+      'with nothing wrapped round it. Use a base cabinet at the end of the run.',
+    appliedEnds: true,
+  },
   defaultOptions: {
     drawerCount: 4,
     shelfCount: 0,

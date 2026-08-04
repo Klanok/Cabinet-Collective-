@@ -124,6 +124,12 @@ a cabinet type means adding a spec file and a registry line — never touching t
 engine, the viewport or costing. Base, wall and drawer-bank already share their carcass
 builders, which is the test of whether the abstraction is real.
 
+A spec also **declares what it builds**, in `capabilities`, and every field is required: a corner
+radius and applied end panels are options some specs cut parts for and others do not, so each one
+says `true` or gives the reason it does not. Both the warnings and the Inspector's controls read
+that declaration. They used to read a list of type ids kept elsewhere, and it went stale the day
+the banquette started cutting a rounded corner — see §4.15 of the handover.
+
 **`ConstructionMethod`** (`model/construction.ts`) holds the dimensional conventions as data.
 Switching the back from applied to inset resizes every dependent part with no code change, and
 so does changing the kick, the reveals or the shelf clearances.

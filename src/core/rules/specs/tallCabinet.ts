@@ -96,6 +96,7 @@ const tallDoors = (ctx: RuleContext): PartInstance[] => {
 export const TALL_CABINET_SPEC: CabinetSpec = {
   typeId: 'tall',
   name: 'Tall cabinet',
+  capabilities: { cornerRadius: true, appliedEnds: true },
   defaultOptions: {
     shelfCount: 4,
     doorCount: 2,

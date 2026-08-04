@@ -61,12 +61,27 @@ and inventing one is the failure the unchecked list exists to prevent), and the 
 **drawn but not costed** — no fabric, no foam, no upholstery labour on the quote, and nothing on
 the report says so yet.
 
+**Then a benchtop learned to follow the curve under it** (§4.13) — a kitchen with a radiused end
+had a square top over a round cabinet, and the top now takes the cabinet's own radius as owned data
+seeded from the run.
+
+**And then a session of real use produced seven reports at once, which is the most useful thing in
+this document right now.** One is fixed: costing was returning **NaN** on every job, curved or not,
+because §5.0's laminate arrived with two new labour rates and the migration that carried it forward
+never touched `settings.labour` — see §4.14, and note that `0 * undefined` is `NaN`, which is why a
+kitchen with no curve in it went down too. **Three more are closed by §4.15**, which is the piece
+of work three of those reports were all pointing at: every spec now **declares what it builds**,
+instead of the answer being whether somebody remembered to call a function. That closed applied
+ends doing nothing on a banquette and the half-built banquette corner in the same stroke. **§5.11
+is what is left of the list**, and **§5.12** is the feature asked for alongside it: custom grooves,
+holes and notches on an individual part.
+
 Section 4 records how each works and why; section 5 is what is actually left to do.
 
 ```
 npm install
 npm run dev       # the app
-npm test          # 796 tests
+npm test          # 822 tests
 npm run build
 npm run report    # cutlist, hardware BOM, drilling, nest, G-code and costing for the sample kitchen
 npm run report -- shaker-57    # the same kitchen with routed fronts
@@ -89,7 +104,7 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 |---|---|
 | Coordinate convention (world / cabinet / part, A-face) | Fixed and documented |
 | Geometry engine — profile + extrude, ear-clipping | Straight edges **and circular arcs** |
-| Rule engine — specs as data over a construction method | base, wall, tall, drawer-bank, custom, radius-end, banquette, banquette-corner, panel, appliance — all ten in `rules/registry.ts` |
+| Rule engine — specs as data over a construction method | base, wall, tall, drawer-bank, custom, radius-end, banquette, banquette-corner, panel, appliance — all ten in `rules/registry.ts`, each declaring what it builds (4.15) |
 | Panel features (the Phase 4 CAM interface) | Types defined; door styles populate pocket and profiled-cut, **hardware rules populate the drilling** |
 | Door styles — shaker, V-groove, routed MDF | **Model half done — toolpaths are Phase 4, see 5.3** |
 | Tool profiles — a cutter's cross-section | Defined; a short shipped list, no editor |
@@ -104,6 +119,8 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | Grain direction — a cabinet's fronts, and a standalone panel | Working, see 5.4 — stated as the room sees it, translated per part |
 | Decor textures on parts, at true scale, turned by grain | **Working, see 5.8.** Bundled images, mapped through the nest |
 | Banquette seating — solid front, hinged lift-up, cushions | Rejected at the bench, **rebuilt to the shop's own answers — see 5.4.** Lid stay still unmodelled |
+| A rounded corner on a banquette, carried by lid, front and cushion | **Working, see 4.15.** Applied ends build on one too |
+| What each cabinet type supports, declared by its own spec | **Working, see 4.15.** `CabinetSpec.capabilities` — refusing costs a sentence |
 | Inside banquette corner — a quarter-circle connector | Working, on the same formers-and-bendy-ply rules as 4.5. Its own access question unasked, see 5.4 |
 | Upholstery as its own material type | Working — Warwick Caulfield, nine colours, `library/upholstery.au.ts` |
 | Room — any shape, drawn in a 2D plan with typed lengths | Working |
@@ -118,7 +135,8 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | Hettich, the second hardware brand | Not started — one more record in `library/`, see 5.2 |
 | Curved / radiused parts — arcs, bowed shelves, radiused ends | Working, see 4.4 |
 | A corner radius on a base, wall or tall cabinet | Working — bendy ply and formers, see 4.5 |
-| A benchtop following the curve under it | **Working, see 4.13.** Owned, seeded from the run, refreshed on regenerate |
+| A benchtop following the curve under it | **Working, see 4.13.** Owned, seeded from the run, refreshed on regenerate — **no on-screen sign when it is out of step, see 5.11** |
+| Custom grooves, holes and notches on one part | Not started — see 5.12. The vocabulary and the stable part keys already exist |
 | The same corner routed from door board instead | **Not started — see 5.7, now unblocked** |
 | Guillotine nesting — sheets, cut sequence, offcuts | **Working, see 4.8.** Nest tab, two CSVs |
 | Choosing which sheet size a material is cut from | Working, see 4.8 and 5.9 — per material, on the Nest tab |
@@ -1554,6 +1572,124 @@ rule; `cam/operations.ts` for the generator; `post/machine.ts` for what a machin
 KDT profile and, at the top, **how to make it real from one `.nc` file**. `tests/cam.test.ts` is the
 contract and carries the longhand figures in its header.
 
+### 4.15 What each spec says it builds — and the banquette's rounded corner
+
+**Built and merged.** This section is the record of it rather than a plan, and the reason it is
+worth a section of its own is the bug it started from, which is a *shape* of bug rather than one
+mistake.
+
+#### The stale warning
+
+`cornerRadiusProblems` decided whether a cabinet could take a rounded corner by asking
+`['base', 'wall', 'tall'].includes(ctx.cabinet.typeId)`. When §5.4 rebuilt the banquette it gained
+`carcassCornerFormers` and `wrapLayers` as part rules, and the Inspector gained the radius control
+for it — and this list was not touched. So a banquette with a 200mm radius on it **cut the formers,
+cut the wrap, cut the bottom to the arc, and told the user**:
+
+> A rounded corner is only built on base, wall and tall cabinets — this one would come out with the
+> corner cut away and nothing wrapped round it.
+
+Correct parts, green suite, wrong sentence, for as long as it took somebody to try it. The failure
+is not that the list was wrong; it is that **the list was a second opinion about what a spec does**,
+kept somewhere a spec author has no reason to look. Adding a part rule and updating a list in
+another file are two edits, and only the first one is needed to make the cabinet come out right —
+so the second one is the one that does not happen.
+
+#### The declaration
+
+`CabinetSpec.capabilities`, **required**, one field per capability. Every field is
+`true | string` — either the spec builds it, or **the reason it does not, in the shop's words**:
+
+```ts
+capabilities: {
+  cornerRadius: true,
+  appliedEnds: true,
+},
+```
+
+```ts
+capabilities: {
+  cornerRadius:
+    'A radiused end is already one quarter circle — its width and depth are the radius. Set ' +
+    'the size to change the curve rather than adding a corner radius on top of it.',
+  appliedEnds: true,
+},
+```
+
+Three properties of that shape, each of which is doing work:
+
+- **Required, with no default.** A new spec that does not answer does not compile. The alternative
+  — `cornerRadius?: boolean` defaulting to something — is a spec silently inheriting a capability
+  it has not implemented, which is a cabinet with the corner cut away and nothing wrapped round it.
+- **`true | string`, not a boolean.** A boolean lets a spec say no and leaves somebody else to
+  invent the sentence. That is precisely how one spec's reason — an appliance space's *"a gap in the
+  run rather than a cabinet"* — came to be written in a shared builder behind `spec.isCarcass ===
+  false` and applied to anything that might ever refuse. It now sits in `applianceSpace.ts`, and the
+  banquette corner carries a different sentence beside it because it is refusing for a different
+  reason.
+- **The app asks the spec too.** `Inspector.tsx` held its own copy of the same list — it is what
+  offered the radius control on a banquette while the engine warned it could not have one. It reads
+  `spec.capabilities` now. A control a type refuses is hidden **unless the cabinet is already
+  carrying the option**, so a job retyped from a base to a custom can still be turned off rather
+  than warning forever with nothing on screen to clear.
+
+`tests/specCapabilities.test.ts` asserts the declaration against the rule engine rather than
+against itself: for every spec claiming `cornerRadius: true` it **builds a cabinet and looks for a
+former and a skin**, and for every spec that refuses it checks the warning is that spec's own
+sentence. A declaration nothing checks is a comment.
+
+#### What the banquette's corner then had to carry
+
+The carcass was right; the three things sitting on it were not.
+
+- **The lift-up.** The one that could not be built. A lift-up is flush with the top of the carcass
+  by definition, and on a lidless seat box `carcassCornerFormers` puts a former at that same height
+  — so at a 200mm radius the two occupied the same 217 × 180 of board at the same height. It now
+  takes a **square notch** to land on the former, for the reason a shelf's notch is square: **a
+  curved edge will not go through the edgebander**, and this panel is banded all round because it is
+  handled every time the storage is opened. What it clears is the **former**, not the arc's bounding
+  square — the former reaches inboard as far as the fixing strip, a strip's width further in than
+  the tangent. The clearances cancel: the notch measures exactly `endInnerX − stripInnerX` by
+  `D − tangentZ`, with no clearance term in it at all.
+- **The solid front.** Already correct, and worth saying so rather than leaving it to be
+  rediscovered: `fixedFrontPanel` lays out in `doorZone`, which stops at the fixing strip on a
+  radiused cabinet. It is now asserted at 947 × 397 landing on x ∈ [1.5, 948.5] instead of being
+  true by accident.
+- **The cushion.** Viewport-only, and still uncosted (§5.4 (a) stands). Its *plan shape* is now
+  arithmetic in `core/model/cushion.ts` where a test can read it, because the seat that sat 25mm
+  proud of its own lid was found by measuring and a cushion ignoring a 200mm radius would just have
+  looked like a slightly boxy cushion. The seat turns the same corner one inset tighter, and an end
+  bolster stops at the tangent rather than hanging over the curve in mid-air. It reads the corner
+  **the rule engine resolved**, carried out on `BuiltCabinet.radius`, not `options.carcassRadius`:
+  a radius the bendy ply cannot turn resolves to null and the carcass is built square, and the
+  cushion is the one part of a banquette nobody can check against a cutlist.
+
+**Applied ends now build on a banquette**, which they never did — the checkbox was offered on every
+type and the banquette spec had no `appliedEndPanels` rule, so ticking it did nothing and said
+nothing. `underBenchtop: false`, because nothing lands on top of a banquette and the panel's top
+edge is at seat height with a cushion beside it.
+
+Checked in the running app as well as in the suite, per §7: a 1200 × 400 × 500 banquette with a
+200mm front-right radius, an applied end on the left and both bolsters on, seeded into local
+storage and read back from a screenshot looking down on the seat.
+
+#### What is left
+
+- **Only two capabilities are declared.** They are the two that had a stale list behind them.
+  Others are candidates and none is urgent: whether a spec takes a door style, whether it joins a
+  benchtop run (§5.4 has an open question about exactly that), whether it can carry a lid. Add one
+  when a second place starts keeping a list of type ids, which is the signal.
+- **A drawer bank and a custom carcass still refuse a rounded corner**, and both say so. A bank's
+  fronts already lay out in the door zone, so turning it on is adding the two part rules the base
+  cabinet has — not a rethink. Nobody has asked for it.
+- **A shelf at a former's height still overlaps that former**, on every radiused carcass type and
+  not only on a banquette. The shelf notch clears the arc's bounding square, and the former reaches
+  a fixing strip's width further in than that. It bites only when a shelf lands at the same height
+  as a former, which is why it has not been seen — a lift-up is guaranteed to clash and a shelf is
+  not. Deliberately left, and written down so it is a known gap rather than a surprise.
+- **The lid stay is still not modelled**, and the cushions are still not costed. Both are §5.4 and
+  neither moved here.
+
 ---
 
 ## 5. Open items, in the order I'd do them
@@ -1577,15 +1713,27 @@ nested sheet**, so the 3D view reads the cut plan.
 
 **The banquette in 5.4 shipped, was rejected at the bench, and has been rebuilt to the shop's own
 answers.** Solid fixed front in door decor, hinged lift-up inset flush into the top, no divider
-below a 1200mm clear span, nothing overhanging anything. What is still open there: the **lid stay
-is not modelled**, the corner unit has never been asked the same access question, and the
-**cushions are not costed** — nothing on the quote carries fabric, foam or upholstery labour, and
-nothing warns they are missing.
+below a 1200mm clear span, nothing overhanging anything. **Its rounded corner now reaches the lid,
+the front and the cushion, and applied ends build on one — see 4.15**, which is also where the
+stale "only built on base, wall and tall" warning went and why each spec now declares what it
+supports. What is still open there: the **lid stay is not modelled**, the corner unit has never been
+asked the same access question, and the **cushions are not costed** — nothing on the quote carries
+fabric, foam or upholstery labour, and nothing warns they are missing.
 
-**If asked which to do next: get one `.nc` file off the KDT and pin the dialect.** It is not a
-phase, it is ten minutes, and until it is done every program this tool writes is a draft that has to
-be simulated. `library/machines.ts` says at the top exactly what to compare and in what order. Every
-other open item in this document is worth less than that one.
+**If asked which to do next, there are now two answers and they are for different people.**
+
+**For the machine: get one `.nc` file off the KDT and pin the dialect.** It is not a phase, it is
+ten minutes, and until it is done every program this tool writes is a draft that has to be
+simulated. `library/machines.ts` says at the top exactly what to compare and in what order. A real
+KDT program has since arrived and **contradicts the shipped profile** — see §4.9. Nothing about the
+G-code is safe until that is reconciled.
+
+**For the app: §5.12's custom part features, once §5.11's remaining bench items are judged.**
+Declared capabilities and the banquette's corner shipped as §4.15, which closed three of the seven
+August bench reports; **§5.11 is what is left of that list**, and the two worth doing before a new
+feature are the out-of-step indicator on an owned run unit and getting a job out of the browser
+without crashing the app first. §5.12 wanted §4.15 underneath it and now has it. The `.nc` work is
+still worth more than any *machine* item; it is not what the shop is blocked on at the bench.
 
 **A note that was here has been removed, and it is worth saying why rather than leaving a gap.**
 Both this document and `docs/architecture.md` carried a suggestion that Phase 3's CSVs could be
@@ -1907,7 +2055,9 @@ speculatively.
   **(a)** cushions are **viewport-only** — no fabric quantity, no foam, no upholstery labour reaches
   the quote, which was the right call for a first version but means a banquette currently quotes as
   though the seating were free, and unlike the hardware figures nothing on the report says so. A
-  warning line is the cheap half of the fix. **(b)** The cushion renderer mutates `repeat` on the
+  warning line is the cheap half of the fix. *(Their plan **shape** has since moved into
+  `core/model/cushion.ts` so a test can read it — §4.15 — but that is geometry, not money, and
+  nothing about the quote changed.)* **(b)** The cushion renderer mutates `repeat` on the
   texture `useLoader` hands back, and that object is **shared and cached** — two banquettes in one
   fabric fight over the weave scale, last one rendered wins. `PanelMesh` avoids this by baking UVs
   into the geometry and never writing to the texture; the cushion path should do the same or clone.
@@ -2173,6 +2323,137 @@ one for showing a client, one for checking the build — and because both live i
   ISO profile's output, which is what that profile is for.
 - **Feeds and speeds are guesses.** Deliberately slow ones — a feed too low wastes time, a feed too
   high breaks a bit. Copy the machine's own numbers when the `.nc` file arrives.
+
+### 5.11 Reported from the bench, August 2026 — what is left of that list
+
+A session's worth of use produced seven reports at once. **Three are now closed** — the NaN quote
+(§4.14), applied ends doing nothing on a banquette, and the half-built banquette corner (both
+§4.15). What follows is the remainder, plus the diagnosis of each, because two of them are known
+causes waiting on a decision rather than mysteries.
+
+**Read the closed ones anyway if you are new here**, because the *shape* of them is the lesson: a
+feature wired into some specs and not others, and a guard list kept in a second file that a spec
+author has no reason to look at. §4.15 is the fix and the argument for it.
+
+#### ~~The cause: a feature is wired into some specs and not others~~ — fixed, see 4.15
+
+`rules/registry.ts` holds ten specs, and they have grown by copy-paste. So **"does this cabinet
+type support X?" is answered by whether somebody remembered to call a function**, and nothing
+declares it. Today:
+
+- `appliedEndPanels` is called by six specs — base, wall, tall, drawer-bank, custom, radius-end.
+  **Not banquette, not banquette-corner.** So the tick box is offered, and ticking it does nothing,
+  silently.
+- The corner radius is guarded by `!['base','wall','tall'].includes(typeId)` in
+  `cornerRadiusProblems`, **but the banquette spec has `formers` and `skin` rules wired in.** So a
+  radiused banquette builds two formers and two skin layers *and* warns that the corner "would come
+  out with the corner cut away and nothing wrapped round it". The guard describes a cabinet that
+  does not exist.
+
+§4.3 already solved this once, for door styles, by resolving in `build.ts` rather than in the part
+builders — *"fronts are produced in four places and a style wired into three of them is a kitchen
+with one plain door in it"*. The lesson was learned for one feature and not generalised.
+
+**The fix was to make each spec declare what it supports**, so the UI stops offering what is not
+built and the builder stops half-applying it. **Built — `CabinetSpec.capabilities`, see §4.15**,
+where the declaration is required, carries the shop's own sentence when a spec refuses, and is
+asserted against the rule engine rather than against itself.
+
+#### ~~The banquette's corner radius~~ — built, see 4.15. **The distinction under it still matters**
+
+**A finished radius at the end of a run is not the same curve as the internal connector**, and
+this file has now recorded the confusion in both directions, so it is worth stating plainly:
+
+- **`banquette-corner`** is a quarter-circle connector joining **two runs** meeting at 90°.
+- **A corner radius on a plain banquette** is the finished curve where **a run stops** — the same
+  family as §4.5's front corner radius on a base cabinet.
+
+They are different parts doing different jobs, and a banquette needs both. It was proposed in this
+session that the connector made the corner radius redundant; **the shop corrected it directly** —
+*"with the banquette the internal curve is not the same as finish curve on the end of a run"* — and
+that correction is why this paragraph exists.
+
+All four things that had to follow the carcass now do — the lift-up takes a square notch onto the
+former, the solid front stops at the fixing strip, the cushion follows through `model/cushion.ts`,
+and applied ends build on a banquette. **§4.15 is the record.** One thing there is worth carrying
+forward rather than forgetting: the cushion's `cushionCornerRadius` is the **soft edge of an
+upholstered pad**, 18mm, which is a different radius from the carcass one and has to coexist with
+it — not a duplicate to tidy away.
+
+#### The rest of the list
+
+- ~~**Costing returns NaN.**~~ **Fixed — see 4.14.** It was one absent labour rate, and it hit
+  every job rather than only curved ones.
+- **The benchtop radius "does not work".** It works; it is *owned* data (§4.13), so it follows the
+  cabinets only when the top is **regenerated**. The model is right and the app gives no signal:
+  there is no indication that a top is out of step with the cabinets under it, and no hint that
+  Regenerate is the answer. **Every owned field needs that indicator** — this is the cost of the
+  owned-not-derived bargain and nobody had paid it.
+- ~~**Applied ends do nothing on a banquette.**~~ **Fixed — see 4.15**, along with the stale guard
+  that caused it.
+- **Texture and laminate on a bendy-ply radius.** Reported, not yet reproduced.
+- **A banquette's back cushion draws in flat colour** until the cabinet is removed and re-added.
+  Consistent with §5.4(b) — the cushion renderer mutates `repeat` on the shared cached texture
+  rather than baking UVs the way `PanelMesh` does.
+- **Changing a drawer front's height can change the cabinet's height**, and the input for the
+  bottom front is partly off-screen. Not yet reproduced; the useful detail when it is reported
+  again is whether the height moves *as you type* or *on save*, because those are two different
+  bugs.
+- **The UI is navigable but cluttered**, in the user's own words *"any other user may struggle"*.
+  Panels have grown per feature with no pass over the whole.
+
+#### Not reported, and a bigger risk than anything above
+
+**A job lives only in the browser's storage for `localhost`.** Clearing browser data wipes it with
+no warning, it does not travel between machines, and the shop runs this from a downloaded ZIP — so
+"the same browser" is doing more work than anyone has asked it to. There *is* a save-to-file path,
+and it is in `app/ErrorScreen.tsx`, which means **the only way to get a job out of this app is to
+crash it first**. That is the wrong way round. An ordinary Save-a-copy and an Open-a-file button,
+using the export that already exists, is a small piece of work and protects the thing that took
+somebody a day to measure. Nobody has asked for it, which is exactly why it is written down here.
+
+### 5.12 Custom features on an individual part
+
+**Asked for directly:** *"I need to be able edit individual parts to add custom grooves and cut
+outs to them — so say I add a drawer bank and want to do a cut out in the left hand end"*. All
+three kinds are wanted, not one: **a round hole** through a panel for a waste pipe or a cable, **a
+notch** off an edge or a corner for a skirting or a stud, and **a groove or rebate** in a face.
+
+**Three of the four pieces already exist**, which is why this is tractable:
+
+- **The vocabulary.** `GrooveFeature`, `CutoutFeature`, `RebateFeature`, `PocketFeature` and
+  `DrillFeature` are all defined in `model/feature.ts`, each carrying a tool, a depth and a face.
+- **A stable name for every part.** `build.ts` already ids a panel as
+  `` `${cabinet.id}:${rule.key}:${i}` ``, and the rule keys are meaningful and stable —
+  `side-left`, `side-right`, `bottom`, `back`, `rails`, `fronts`, `kick`. So "the left hand end of
+  that drawer bank" is `side-left`, and that name survives resizing the cabinet, changing the board
+  or adding a shelf. **If it were an array index it would not**, and this feature would be far
+  nastier — adding a shelf would move somebody's cutout to a different part.
+- **CAM already reads features**, so a drawn cutout reaches the G-code the way a hinge cup does.
+  Note §4.9's limits: pockets are cleared only when rectangular, and rebates are reported rather
+  than machined.
+
+What is missing is somewhere on the **cabinet** to store them, resolution onto the right part
+during the build, and a UI to place them. Panels stay derived and never stored — that rule does not
+bend — so the features live on the cabinet keyed by part name and are attached as the parts are
+produced.
+
+**The one thing that must not be got wrong: never store a raw part-space x and y.** A side panel's
+part axes run opposite ways on the left and the right hand. "100 in from the front edge" stored as
+`x = 100` lands 100 from the front on one side and 100 from the **back** on the other — the same
+hole, the same diameter, on a part of exactly the right size, passing any test that counts holes.
+That is §4.6's mounting plate, §4.4's former axis and §4.9's mirrored arc for the fourth time. So a
+user feature is **stated from named edges** — *"250 up from the bottom, 100 in from the front"* —
+and resolved through the part's own placement, exactly as hardware is stated in cabinet space and
+converted by `cabinetToPart`. It also means the position survives the cabinet getting deeper,
+because it is measured from an edge that still exists rather than from an origin that moved.
+
+**The nest has to know which kind it is.** A hole in the middle of a panel does not change the
+blank; a notch off an edge does. Handle that once, when the three kinds are built, rather than
+bolting it on the first time somebody cuts a notch.
+
+This wants **§4.15's declared capabilities underneath it**, because "can this part take a user
+feature?" is the same question in a different coat.
 
 ---
 

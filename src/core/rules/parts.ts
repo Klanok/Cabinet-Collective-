@@ -37,6 +37,7 @@ import {
   BAND_NONE,
   type CabinetSpec,
   type PartInstance,
+  refusalOf,
 } from './spec.ts';
 
 /** The lower and upper of two x positions, whichever hand the cabinet is. */
@@ -763,13 +764,16 @@ export const appliedEndProblems = (ctx: RuleContext, spec: CabinetSpec): string[
   if (ends.length === 0) return [];
   const problems: string[] = [];
 
-  if (spec.isCarcass === false) {
-    problems.push(
-      `An ${spec.name.toLowerCase()} is a gap in the run rather than a cabinet, so there is no ` +
-        'side to apply a panel to. Put the end on the cabinet beside it instead.',
-    );
-    return problems;
-  }
+  /*
+   * Whether this spec builds one at all, in its own words.
+   *
+   * This used to read `spec.isCarcass === false` and compose the sentence here, which was one
+   * spec's reason — an appliance space's — written in a shared builder and applied to every
+   * spec that might ever refuse. The appliance space now carries that sentence itself, and a
+   * banquette corner carries a different one, because they are refusing for different reasons.
+   */
+  const refusal = refusalOf(spec.capabilities.appliedEnds);
+  if (refusal) return [refusal];
 
   const rad = ctx.radius;
   if (rad) {
@@ -964,7 +968,7 @@ export const wrapLayers = (ctx: RuleContext, rad: CornerRadius): PartInstance[] 
  * with no radius on it produces nothing here, which is what lets the radius-zero invariant
  * compare warnings as well as parts.
  */
-export const cornerRadiusProblems = (ctx: RuleContext): string[] => {
+export const cornerRadiusProblems = (ctx: RuleContext, spec: CabinetSpec): string[] => {
   const problems: string[] = [];
   const corner = ctx.options.radiusCorner;
   const asked = ctx.options.carcassRadius ?? 0;
@@ -1008,15 +1012,19 @@ export const cornerRadiusProblems = (ctx: RuleContext): string[] => {
     return problems;
   }
 
-  // The carcass builders take the radius for any type, but only these three specs also cut the
-  // formers and the wrap. On anything else the corner would come out cut and bare, which looks
-  // like a finished cabinet in the viewport and is a hole in the end of one.
-  if (!['base', 'wall', 'tall'].includes(ctx.cabinet.typeId)) {
-    problems.push(
-      'A rounded corner is only built on base, wall and tall cabinets — this one would come ' +
-        'out with the corner cut away and nothing wrapped round it.',
-    );
-  }
+  /*
+   * The carcass builders take the radius for any type, but only a spec that also cuts the
+   * formers and the wrap can finish it. On anything else the corner comes out cut and bare,
+   * which looks like a finished cabinet in the viewport and is a hole in the end of one.
+   *
+   * **Asked of the spec, not of the type id**, and that is this check's whole history. It read
+   * `['base', 'wall', 'tall']` and went on reading it after the banquette started cutting its
+   * own formers and wrap — so the one cabinet the shop most wants a curve on told the user it
+   * could not have one, while building it correctly underneath. A hard-coded list of types is a
+   * second opinion about what a spec does, and it is the one that goes stale.
+   */
+  const refusal = refusalOf(spec.capabilities.cornerRadius);
+  if (refusal) problems.push(refusal);
 
   if (rad.r > ctx.W + 0.5 || rad.r > ctx.D + 0.5) {
     problems.push(
@@ -1175,6 +1183,50 @@ export const fixedFrontPanel = (ctx: RuleContext): PartInstance[] => {
 };
 
 /**
+ * The square notch a lift-up takes at a rounded corner, or `null` if the curve has eaten it.
+ *
+ * **What it clears is the top corner former, not the arc.** A shelf notches to the bounding
+ * square of the curve, because a shelf sits in clear air between the formers. This panel does
+ * not: `carcassCornerFormers` puts a plate at the top of the carcass on a lidless seat box, and
+ * a lift-up is flush with the top of the carcass by definition, so the two are the same board at
+ * the same height. The former reaches inboard as far as the **fixing strip** — `stripInnerX`,
+ * a strip's width further in than the tangent — so that is where the panel has to stop.
+ *
+ * The clearances cancel, which is worth seeing rather than trusting: the panel's edges are
+ * already `c` inside the opening and the notch has to stand `c` clear of the former, so the
+ * notch measures `|endInnerX − stripInnerX|` by `D − tangentZ` with no `c` in it at all.
+ */
+interface LiftUpNotch {
+  readonly profile: Profile2D;
+  readonly note?: string;
+}
+
+const liftUpNotch = (
+  ctx: RuleContext,
+  rad: CornerRadius,
+  length: Mm,
+  width: Mm,
+): LiftUpNotch | null => {
+  const notchLength = mm(Math.max(0, Math.abs(rad.endInnerX - rad.stripInnerX)));
+  // A former sitting entirely forward of the carcass front — a radius barely bigger than the
+  // wrap — never reaches the opening, so there is nothing to notch round.
+  const notchWidth = mm(Math.max(0, ctx.D - rad.tangentZ));
+  if (notchLength <= 0 || notchWidth <= 0) return { profile: rectProfile(length, width) };
+  if (notchLength >= length || notchWidth >= width) return null;
+
+  // The panel lies in with `v = −Z`, so part +Y runs toward the back and y = 0 is its front
+  // edge. The notch is therefore at the front, on whichever end the radius is.
+  const corner = rad.sign > 0 ? 'x1y0' : 'x0y0';
+  return {
+    profile: notchedRectProfile(length, width, corner, notchLength, notchWidth),
+    note:
+      `Square notch ${Math.round(notchLength)} × ${Math.round(notchWidth)} at the radiused ` +
+      'corner, to land on the top former — square, not curved, because a curved edge will not ' +
+      'go through the edgebander',
+  };
+};
+
+/**
  * The hinged lift-up panel that gives access to the storage void under a banquette seat.
  *
  * **Inset, not sitting on top.** It drops into the carcass opening so its top face finishes
@@ -1195,16 +1247,44 @@ export const fixedFrontPanel = (ctx: RuleContext): PartInstance[] => {
  * list exists to prevent. The panel is cut to be hinged along its back edge; what it is hinged
  * *with*, and whether it lands on cleats or on nothing but the hinge, is an open question — see
  * §5.4 of the handover.
+ *
+ * **On a banquette with a rounded corner it stops at the curve**, and it has to: the topmost
+ * corner former sits flush with the top of the carcass — exactly where this panel does — so a
+ * full rectangle and the former occupy the same board at the same height. Notched, it lands on
+ * the former instead of fighting it.
+ *
+ * The notch is **square, not curved**, for the reason the shelf notch is: a curved edge will not
+ * go through the edgebander, and this panel is banded all round because it is handled every time
+ * the storage is opened. See `radiusedShelf`.
  */
 export const liftUpPanel = (ctx: RuleContext, clearance: Mm): PartInstance[] => {
   const c = Math.max(0, clearance);
-  const length = mm(ctx.interiorWidth - 2 * c);
-  const width = mm(ctx.horizontalDepth - 2 * c);
+  const rad = ctx.radius;
+
+  /*
+   * The opening the panel drops into, which the radius moves: the side it runs into sets back
+   * behind the ply, so its inner face is `endInnerX` rather than `W − t`, and the back is gone
+   * entirely once the curve has run past it. Off the plain figures at radius zero, so nothing
+   * about a square banquette moves.
+   */
+  const { lo: openLo, hi: openHi } =
+    rad === null ? span(ctx.t, mm(ctx.W - ctx.t)) : span(rad.farInnerX, rad.endInnerX);
+  const backZ = rad === null ? ctx.interiorBackZ : rad.backZ;
+
+  const lo = mm(openLo + c);
+  const length = mm(openHi - openLo - 2 * c);
+  const width = mm(ctx.D - backZ - 2 * c);
   if (length <= 0 || width <= 0) return [];
+
+  const shape = rad === null ? null : liftUpNotch(ctx, rad, length, width);
+  // A notch that has eaten the panel means the curve has taken the whole opening — report it by
+  // producing nothing rather than by cutting a lid nobody could fit.
+  if (rad !== null && shape === null) return [];
+
   return [{
     name: 'Lift-up',
     role: 'lid',
-    profile: rectProfile(length, width),
+    profile: shape ? shape.profile : rectProfile(length, width),
     /*
      * Top face flush with the top of the carcass, so the cushion lands on one continuous plane.
      *
@@ -1213,10 +1293,12 @@ export const liftUpPanel = (ctx: RuleContext, clearance: Mm): PartInstance[] => 
      * puts it above. Same footprint either way, which is exactly why this is asserted as
      * occupancy rather than as a size — a size test passes on both.
      */
-    placement: placement(v3(mm(ctx.t + c), mm(ctx.H - ctx.t), mm(ctx.D - c)), '+X', '-Z'),
+    placement: placement(v3(lo, mm(ctx.H - ctx.t), mm(ctx.D - c)), '+X', '-Z'),
     material: 'carcass',
     bandedDirections: BAND_ALL,
     grain: 'any',
-    note: `Inset, hinged along the back edge, ${c}mm clearance all round`,
+    note:
+      `Inset, hinged along the back edge, ${c}mm clearance all round` +
+      (shape?.note ? `. ${shape.note}` : ''),
   }];
 };

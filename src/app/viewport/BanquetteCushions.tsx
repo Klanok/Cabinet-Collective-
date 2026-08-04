@@ -10,7 +10,10 @@ import {
   TextureLoader,
 } from 'three';
 import type { Cabinet } from '../../core/model/cabinet.ts';
+import { type SeatCushionPlan, seatCushionPlan } from '../../core/model/cushion.ts';
 import type { UpholsteryMaterial } from '../../core/model/material.ts';
+import type { CornerRadius } from '../../core/rules/radius.ts';
+import { mm } from '../../core/units.ts';
 import { bundledAssetUrl } from './assetUrl.ts';
 
 /**
@@ -151,8 +154,98 @@ function WedgeBack({ width, height, thickness, angle, radius, x, y, scaleFabric,
   </mesh>;
 }
 
-export function BanquetteCushions({ cabinet, upholstery, selected, wireframe }: {
+/**
+ * The seat, as a plan shape extruded upward.
+ *
+ * A plain seat is drawn by drei's `RoundedBox`, and still is — it is an extrude with a bevelled
+ * shape, and it gives the soft pillow edge on all six sides that a cushion wants. A seat on a
+ * cabinet with a rounded corner cannot be a box at all, so it is extruded from `seatCushionPlan`'s
+ * outline instead, bevelled the same way. The corner uses `absarc` rather than a rounded-box
+ * bevel because it is a real quarter circle of a stated radius, not a softened edge.
+ */
+function SeatCushion({ plan, thickness, bevel, y, scaleFabric, children }: {
+  plan: SeatCushionPlan;
+  thickness: number;
+  bevel: number;
+  y: number;
+  scaleFabric: (mesh: Mesh | null) => void;
+  children: ReactNode;
+}) {
+  const round = plan.round;
+  /*
+   * Shape space, and it is worth writing out because getting it back to front is invisible in a
+   * screenshot until you look for it. The mesh is turned `−π/2` about X, which maps a local
+   * point `(x, y, z)` to `(x, z, −y)` in the parent. So:
+   *
+   *   shape x  →  cabinet x, from the origin the mesh is placed at
+   *   shape y  →  cabinet z, **backwards**: y = 0 is the front, y = depth is the back
+   *   extrude  →  cabinet y, straight up
+   *
+   * Which is why the mesh is placed at `z1`, the cushion's **front** edge, and not at `z0`.
+   * `BanquetteCornerCushions` already does exactly this for its quarter seat.
+   */
+  const shape = useMemo(() => {
+    const w = plan.width;
+    const d = plan.depth;
+    const s = new Shape();
+    if (!round) {
+      s.moveTo(0, 0);
+      s.lineTo(w, 0);
+      s.lineTo(w, d);
+      s.lineTo(0, d);
+      s.closePath();
+      return s;
+    }
+    // Wound counter-clockwise in shape space, with the arc at y = 0 — the front.
+    const r = round.radius;
+    if (round.corner === 'front-right') {
+      s.moveTo(0, 0);
+      s.lineTo(w - r, 0);
+      s.absarc(w - r, r, r, -Math.PI / 2, 0, false);
+      s.lineTo(w, d);
+      s.lineTo(0, d);
+    } else {
+      s.moveTo(r, 0);
+      s.lineTo(w, 0);
+      s.lineTo(w, d);
+      s.lineTo(0, d);
+      s.lineTo(0, r);
+      s.absarc(r, r, r, Math.PI, 1.5 * Math.PI, false);
+    }
+    s.closePath();
+    return s;
+  }, [plan.width, plan.depth, round]);
+
+  /*
+   * The bevel is the pillow edge, and it grows the extrusion in *both* directions — so the
+   * extrusion is shortened by two of them and lifted by one, and the cushion finishes exactly
+   * `thickness` tall sitting on the seat. `RoundedBox` is centred and needs no such correction,
+   * which is why the two branches read differently.
+   */
+  const b = Math.max(0.5, Math.min(bevel, thickness / 2 - 1));
+  return <mesh ref={scaleFabric} position={[plan.x0, y + b, plan.z1]} rotation={[-Math.PI / 2, 0, 0]} castShadow receiveShadow>
+    <extrudeGeometry args={[shape, {
+      depth: Math.max(1, thickness - 2 * b),
+      bevelEnabled: true,
+      bevelSize: b,
+      bevelThickness: b,
+      bevelSegments: 3,
+      steps: 1,
+    }]} />
+    {children}
+  </mesh>;
+}
+
+export function BanquetteCushions({ cabinet, radius, upholstery, selected, wireframe }: {
   cabinet: Cabinet;
+  /**
+   * The corner the **rule engine** resolved, not the option the cabinet carries.
+   *
+   * A radius too tight for the bendy ply to turn resolves to null and the carcass is built
+   * square; drawing the cushion off `options.carcassRadius` would put a curve on it anyway, and
+   * a cushion is the one part of a banquette nobody can check against a cutlist.
+   */
+  radius: CornerRadius | null;
   upholstery: UpholsteryMaterial;
   selected: boolean;
   wireframe: boolean;
@@ -162,33 +255,55 @@ export function BanquetteCushions({ cabinet, upholstery, selected, wireframe }: 
 
   const seatT = cabinet.options.seatCushionThickness ?? 80;
   const inset = cabinet.options.seatCushionInset ?? 5;
-  const seatWidth = Math.max(50, cabinet.width - inset * 2);
-  const seatDepth = Math.max(50, cabinet.depth - inset * 2);
-  const radius = Math.max(1, cabinet.options.cushionCornerRadius ?? 18);
+  const plan = seatCushionPlan({
+    W: cabinet.width,
+    D: cabinet.depth,
+    inset: mm(inset),
+    round: radius ? { corner: radius.corner, radius: radius.r } : null,
+  });
+  const seatWidth = Math.max(50, plan.width);
+  const seatDepth = Math.max(50, plan.depth);
+  const radiusOpt = Math.max(1, cabinet.options.cushionCornerRadius ?? 18);
   const fabricMaterial = () => <FabricSurface map={map} upholstery={upholstery} selected={selected} wireframe={wireframe} />;
+  const softEdge = Math.min(radiusOpt, seatT / 2 - 1, seatDepth / 2 - 1);
 
   return <>
-    <RoundedBox ref={scaleFabric} args={[seatWidth, seatT, seatDepth]} radius={Math.min(radius, seatT / 2 - 1, seatDepth / 2 - 1)} smoothness={4}
-      position={[cabinet.width / 2, cabinet.height + seatT / 2, cabinet.depth / 2]} castShadow receiveShadow>
-      {fabricMaterial()}
-    </RoundedBox>
+    {plan.round
+      ? <SeatCushion plan={plan} thickness={seatT} bevel={Math.max(0.5, softEdge)} y={cabinet.height} scaleFabric={scaleFabric}>
+          {fabricMaterial()}
+        </SeatCushion>
+      : <RoundedBox ref={scaleFabric} args={[seatWidth, seatT, seatDepth]} radius={softEdge} smoothness={4}
+          position={[cabinet.width / 2, cabinet.height + seatT / 2, cabinet.depth / 2]} castShadow receiveShadow>
+          {fabricMaterial()}
+        </RoundedBox>}
     {cabinet.options.hasBackCushion !== false && (() => {
       const height = cabinet.options.backCushionHeight ?? 400;
       const thickness = cabinet.options.backCushionThickness ?? 80;
       const angle = Math.min(15, Math.max(0, cabinet.options.backCushionAngle ?? 0)) * Math.PI / 180;
-      const endDepth = Math.max(50, seatDepth - thickness);
-      const backRadius = Math.min(radius, thickness / 2 - 1, height / 2 - 1);
+      const backRadius = Math.min(radiusOpt, thickness / 2 - 1, height / 2 - 1);
+      /*
+       * An end bolster starts in front of the back cushion and runs forward until it meets the
+       * curve — see `SeatCushionPlan.endRun`, which is the full seat depth on a square end and
+       * stops at the tangent on a radiused one. Past the tangent the seat is turning away
+       * underneath and a straight bolster would be hanging over the curve in mid-air.
+       *
+       * The right-hand one also moves: it used to start hard against the back cushion and stop a
+       * bolster's thickness short of the front, which is the left-hand one back to front. Both
+       * now run the same span, so a banquette with both ends cushioned is symmetrical.
+       */
+      const endDepth = (end: 'left' | 'right') =>
+        Math.max(50, Math.min(seatDepth, plan.endRun[end]) - thickness);
       return <>
         <WedgeBack scaleFabric={scaleFabric} width={seatWidth} height={height} thickness={thickness} angle={angle}
           radius={backRadius} x={inset} y={cabinet.height + seatT}>
           {fabricMaterial()}
         </WedgeBack>
-        {cabinet.options.leftEndCushion && <group position={[inset, 0, cabinet.depth - inset]} rotation={[0, Math.PI / 2, 0]}>
-          <WedgeBack scaleFabric={scaleFabric} width={endDepth} height={height} thickness={thickness} angle={angle}
+        {cabinet.options.leftEndCushion && <group position={[inset, 0, plan.z0 + Math.min(seatDepth, plan.endRun.left)]} rotation={[0, Math.PI / 2, 0]}>
+          <WedgeBack scaleFabric={scaleFabric} width={endDepth('left')} height={height} thickness={thickness} angle={angle}
             radius={backRadius} x={0} y={cabinet.height + seatT}>{fabricMaterial()}</WedgeBack>
         </group>}
-        {cabinet.options.rightEndCushion && <group position={[cabinet.width - inset, 0, inset]} rotation={[0, -Math.PI / 2, 0]}>
-          <WedgeBack scaleFabric={scaleFabric} width={endDepth} height={height} thickness={thickness} angle={angle}
+        {cabinet.options.rightEndCushion && <group position={[cabinet.width - inset, 0, plan.z0 + thickness]} rotation={[0, -Math.PI / 2, 0]}>
+          <WedgeBack scaleFabric={scaleFabric} width={endDepth('right')} height={height} thickness={thickness} angle={angle}
             radius={backRadius} x={0} y={cabinet.height + seatT}>{fabricMaterial()}</WedgeBack>
         </group>}
       </>;
