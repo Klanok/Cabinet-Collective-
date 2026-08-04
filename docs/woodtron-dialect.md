@@ -1,8 +1,9 @@
 # The Woodtron dialect, read off real programs
 
 **Source:** ten `.nc` files from one job — `JN10_TallStore_339_B1..B5` (white carcass, 16.3mm) and
-`JN10_TallStore_687_E1..E8` (MDF doors, 18mm), with the job drawing
-`JN10_Tall_Cupboards__Pelmets_B.pdf` for reference. Supplied by the shop, August 2026.
+`JN10_TallStore_687_E1..E4,E8` (MDF doors, 18mm), with the job drawing
+`JN10_Tall_Cupboards__Pelmets_B.pdf`. Supplied by the shop, August 2026. All ten were read; the
+drawing is summarised in §9.
 
 **This is the document §4.9 has been asking for since it was written.** Every figure below is read
 off a program the machine actually runs, not inferred. Where two files disagree it is noted; they
@@ -104,7 +105,8 @@ own drilling pattern (§3). It has now been confirmed against a program the mach
 
 ## 5. Tooling
 
-The router:
+The router. **Two tools appear across the job**, which is what makes the pattern readable rather
+than a single example:
 
 ```
 (TOOL: 10COMP3W)          10mm compression spiral, 3 wing
@@ -115,6 +117,37 @@ G0 G53 Z0.
 G55 G43 H1                (ROUTER ORIGIN | TOOL LENGTH COMP)
 M31                       (ROUTER DOWN)
 ```
+
+and, in `E3` and `E4`, a second change mid-program:
+
+```
+(TOOL: 12COMP3W)
+G666 T8
+M28
+M3 S24000
+G0 G53 Z0.
+G55 G43 H8                ← H matches T
+M31
+```
+
+**`H` always equals `T`.** The length-offset register and the tool number are the same index, so a
+profile needs one number per tool rather than two. `T1` is the 10mm compression, `T8` the 12mm — so
+the tool table is sparse and the numbers are the machine's own pockets, not a sequence to invent.
+
+**A rip is not a contour, and it is written differently.** A trim cut plunges straight down and runs:
+
+```
+G0 X2446.9 Y1205.0
+Z38.0                     18 + 20
+Z28.0                     18 + 10
+G1 Z-0.2 F4000            straight plunge — no ramp
+Y0.0 F21000               one cut, edge to edge
+G0 Z38.0
+```
+
+No 20mm lead-in ramp: that is used for a closed part outline, where the tool has to enter the
+material somewhere it will later cut away. A straight rip across the sheet has nothing to lead into.
+The two cases are genuinely different and the post needs both.
 
 **Two work offsets, one per head** — and this is the single most structurally significant finding:
 
@@ -239,6 +272,37 @@ Machine-code summary, for the profile:
 | `M3 S<rpm>` / `M05` | spindle on / off |
 
 ---
+
+## 9. The job drawing, and what it settles
+
+`JN10_Tall_Cupboards__Pelmets_B.pdf` — *Ethereal Projects*, for McCormack / Clyde & Co, Level 10,
+600 Bourke Street Melbourne. Office tall cupboards and pelmets, "FOR CONSTRUCTION".
+
+**The finishes schedule names the real suppliers**, which matters for §5.13 item 7:
+
+| Code | Finish |
+|---|---|
+| FT03 | **Polytec** — Aston White, Smooth |
+| LM03 | **Polytec** — Black, Matt |
+| INT | **16mm White PB** |
+| KL | Battalion 1XRX6 straight cam lock |
+| — | Barben Bac 173/B, 100mm, transparent brass (handle) |
+
+Three things follow.
+
+**Polytec is a real supplier on real jobs**, so the instruction to price and size from Polytec's and
+Laminex's own published sheets is not hypothetical.
+
+**"16mm White PB" is the carcass**, and the machine cut it at **16.3**. Nominal on the drawing,
+actual on the machine — §4.1's whole argument, appearing on one job.
+
+**The 3115mm door sheet is explained.** The elevations show cupboards to **+2700** with doors around
+2700 and 2418 tall. A 2700 door does not come out of a 2400 sheet, which is why the door board is
+3115 long and the carcass board is 2410. **Sheet length is chosen by the tallest part**, which is an
+argument for §5.9's per-material sheet choice being a real need rather than a nicety.
+
+**Not modelled at all:** the cam lock. Cabinet locks are not in `library/blum.ts` or anywhere else,
+and this job has one per door.
 
 ## What this does **not** answer
 
