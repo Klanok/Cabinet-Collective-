@@ -1,5 +1,23 @@
 import { mm } from '../units.ts';
-import type { UpholsteryMaterial } from '../model/material.ts';
+import type { UpholsteryCharges, UpholsteryMaterial } from '../model/material.ts';
+
+/**
+ * What the upholsterer charges, from the shop.
+ *
+ * > "I generally allow $350 per lineal metre — that applies to the base and separately to the back
+ * > or any returns."
+ *
+ * **This one is the shop's own working figure, not a placeholder**, which makes it different from
+ * the dollars in `materials.au.ts` and `blum.ts`. It is an allowance rather than a quoted price —
+ * what he prices a job at before the upholsterer has quoted it — so it is flagged as indicative in
+ * the same way, and for the same reason: a number nobody has confirmed against an invoice is a
+ * number that gets trusted.
+ *
+ * One rate for the whole range, because it is charged by the metre of cushion rather than by the
+ * fabric. If a heavier fabric ever costs more to make up, this becomes a figure per record and
+ * nothing else changes — which is why it lives on the material rather than in settings.
+ */
+const UPHOLSTERER_CHARGES: UpholsteryCharges = { perLinealMetreExGst: 35_000 };
 
 /**
  * How much fabric one Warwick swatch image covers, edge to edge.
@@ -26,6 +44,8 @@ const caulfield = (colour: string, fallback: string, extension = 'jpg'): Upholst
   width: mm(1420),
   composition: '100% polyester',
   abrasionCycles: 75_000,
+  charges: UPHOLSTERER_CHARGES,
+  indicativePricing: true,
 });
 
 /** Initial official Warwick Caulfield palette for banquette upholstery. */

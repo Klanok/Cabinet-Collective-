@@ -1,8 +1,8 @@
 /**
- * The plan shape of a banquette's cushions.
+ * The plan shape of a banquette's cushions, and the lineal metres they are charged by.
  *
  * **Why this is in `core` and not in the viewport.** A cushion is not a `Panel` — nothing cuts
- * it, nests it or bores it, and §5.4 records that it is not costed either. But its *shape* is
+ * it, nests it or bores it. But its *shape* is
  * arithmetic, and the §7 standard is that arithmetic gets asserted rather than looked at: the
  * seat that sat 25mm proud of its own lid was found by measuring, not by looking, and the
  * cushion that ignored a 200mm corner radius would have looked like a slightly boxy cushion.
@@ -16,6 +16,15 @@
  * rounded corner is concentric with the carcass corner in x and sits back from the cabinet's own
  * arc in z by exactly the amount the whole cushion already sits back. It is one soft object with
  * one radius, not two arcs that have to agree to a tenth.
+ *
+ * ## The lineal metres are here for a sharper reason
+ *
+ * Cushions are **bought in as finished units** and charged by the lineal metre of each piece, so
+ * how long a cushion is has stopped being a drawing question and become a price. The viewport was
+ * already working those lengths out inline, to decide how wide to draw a bolster. Costing needs the
+ * identical numbers, and two descriptions would mean **a cushion you can see and a cushion you are
+ * charged for could be different lengths** — with nothing on screen looking wrong. So the lengths
+ * live here, once, and both read them.
  */
 
 import { type Mm, mm } from '../units.ts';
@@ -102,4 +111,125 @@ export const seatCushionPlan = (input: SeatCushionInput): SeatCushionPlan => {
     endRun:
       round.corner === 'front-right' ? { left: depth, right: run } : { left: run, right: depth },
   };
+};
+
+/* ── What gets charged ──────────────────────────────────────────────────────────────────────── */
+
+/**
+ * One cushion the upholsterer makes.
+ *
+ * Three kinds because the shop names three — *"the base and separately to the back or any
+ * returns"* — and each is a separate physical cushion at its own lineal charge.
+ */
+export type CushionKind = 'seat' | 'back' | 'return';
+
+export interface CushionPiece {
+  readonly kind: CushionKind;
+  /** What it is called on the order — "Seat", "Back", "Left return". */
+  readonly label: string;
+  /** How long the upholsterer measures it, along the run. */
+  readonly linealMm: Mm;
+}
+
+/**
+ * The smallest cushion worth drawing or charging.
+ *
+ * The viewport has always floored a bolster at 50mm so a degenerate one does not render as a
+ * sliver. The same floor applies here rather than a different one, because a cushion charged at a
+ * length it is not drawn at is exactly the disagreement this module exists to prevent.
+ */
+const MIN_CUSHION: Mm = mm(50);
+
+/**
+ * How far a return bolster runs, measured forward from the back cushion.
+ *
+ * `endRun` is the full seat depth on a square end and stops at the tangent on a radiused one —
+ * past the tangent the seat is turning away underneath and a straight bolster would hang over the
+ * curve in mid-air. The back cushion's own thickness comes off, because the return starts in front
+ * of it rather than inside it.
+ */
+export const returnRun = (
+  plan: SeatCushionPlan,
+  end: 'left' | 'right',
+  backThickness: Mm,
+): Mm => mm(Math.max(MIN_CUSHION, Math.min(plan.depth, plan.endRun[end]) - backThickness));
+
+/**
+ * The radius of a corner unit's quarter-disc seat.
+ *
+ * Its own function because the corner unit's cushion is not `seatCushionPlan` — that describes a
+ * rectangle with at most one rounded corner, and this is a quarter circle. Both the mesh and the
+ * charge need the one number.
+ */
+export const cornerSeatRadius = (W: Mm, D: Mm, inset: Mm): Mm =>
+  mm(Math.max(MIN_CUSHION, Math.min(W, D) - Math.max(0, inset)));
+
+export interface CushionPiecesInput {
+  readonly plan: SeatCushionPlan;
+  readonly hasBackCushion: boolean;
+  readonly backCushionThickness: Mm;
+  readonly leftEndCushion: boolean;
+  readonly rightEndCushion: boolean;
+}
+
+/**
+ * Every cushion on a plain banquette, in the order an order would list them.
+ *
+ * **The seat and the back are both charged at the cushion's own width**, not the cabinet's: the
+ * upholsterer makes and measures the cushion, which is held in from the carcass by the inset. On a
+ * 1200 cabinet at the shipped 5mm inset that is 1190, and the difference is 20mm of nobody's money.
+ *
+ * **A rounded front corner does not lengthen the seat.** The cushion still spans the same distance
+ * along the run; what changes is the shape of one corner of it. Charging the longer front edge
+ * would be reading "lineal metre" as "perimeter", which is not how a run of seating is measured.
+ */
+export const cushionPieces = (input: CushionPiecesInput): readonly CushionPiece[] => {
+  const width = mm(Math.max(MIN_CUSHION, input.plan.width));
+  const pieces: CushionPiece[] = [{ kind: 'seat', label: 'Seat', linealMm: width }];
+  if (!input.hasBackCushion) return pieces;
+
+  pieces.push({ kind: 'back', label: 'Back', linealMm: width });
+  if (input.leftEndCushion) {
+    pieces.push({
+      kind: 'return',
+      label: 'Left return',
+      linealMm: returnRun(input.plan, 'left', input.backCushionThickness),
+    });
+  }
+  if (input.rightEndCushion) {
+    pieces.push({
+      kind: 'return',
+      label: 'Right return',
+      linealMm: returnRun(input.plan, 'right', input.backCushionThickness),
+    });
+  }
+  return pieces;
+};
+
+/**
+ * Every cushion on the quarter-circle corner unit.
+ *
+ * **The seat is charged along its arc**, and that is a decision rather than an obvious reading. A
+ * lineal metre of seating is measured along the front of the run, and the front of this piece *is*
+ * the curve — so a 500mm corner is charged at 785mm, not at 500. The alternative readings are one
+ * leg (which charges a corner less than the straight metre either side of it, for more work) or
+ * both legs (which charges the same seat twice).
+ *
+ * **It is a reading, and it is on the unchecked list** — see §3. Nobody has put a corner unit to
+ * the upholsterer.
+ *
+ * The two backs run along the two straight edges and are each one radius long, which needs no
+ * interpretation.
+ */
+export const cornerCushionPieces = (
+  radius: Mm,
+  hasBackCushion: boolean,
+): readonly CushionPiece[] => {
+  const pieces: CushionPiece[] = [
+    { kind: 'seat', label: 'Corner seat', linealMm: mm((radius * Math.PI) / 2) },
+  ];
+  if (!hasBackCushion) return pieces;
+  pieces.push({ kind: 'back', label: 'Back — along the first run', linealMm: radius });
+  pieces.push({ kind: 'back', label: 'Back — along the second run', linealMm: radius });
+  return pieces;
 };

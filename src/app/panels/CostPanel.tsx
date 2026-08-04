@@ -105,6 +105,15 @@ export function CostPanel({ cost, settings, onUpdateSettings }: Props) {
           />
         )}
         <Row label="Edge banding" value={formatAud(cost.edgeBandCost)} />
+        {/*
+          Bought-in cushions. Its own row rather than folded into Material, because it is an
+          upholsterer's invoice for something this shop does not make — and because it was missing
+          from the quote entirely until §4.19, which is the sort of thing a visible line prevents
+          happening twice.
+        */}
+        {cost.cushionCost > 0 && (
+          <Row label="Cushions (bought in)" value={formatAud(cost.cushionCost)} />
+        )}
         <Row label="Material" value={formatAud(cost.materialCost)} />
         <Row
           label={`Manufacturing (${(cost.labourMinutes / 60).toFixed(1)} h)`}

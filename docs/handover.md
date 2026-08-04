@@ -56,10 +56,9 @@ default that the plain unit and the corner unit did not even agree on. It now ha
 front in door decor that takes no hinges but is still routed by a door style, a hinged lift-up
 inset flush into the top, and a divider only above a 1200mm clear span. **Read §5.4** — it records
 what was wrong as well as what replaced it, because the shape of the mistake is the lesson. Two
-things there are still open: the **lid stay is not modelled** (no such part in the Blum library,
-and inventing one is the failure the unchecked list exists to prevent), and the cushions are
-**drawn but not costed** — no fabric, no foam, no upholstery labour on the quote, and nothing on
-the report says so yet.
+one thing there is still open: the **lid stay is not modelled** (no such part in the Blum library,
+and inventing one is the failure the unchecked list exists to prevent). The cushions used to be the
+other one; they are costed now — see §4.19.
 
 **Then a benchtop learned to follow the curve under it** (§4.13) — a kitchen with a radiused end
 had a square top over a round cabinet, and the top now takes the cabinet's own radius as owned data
@@ -96,12 +95,19 @@ written down. §4.18 is the **out-of-step indicator**: the benchtop radius that 
 works, and always did, and the app now says when an owned unit no longer matches the cabinets under
 it — which is the bill for the owned-not-derived bargain, finally paid.
 
+**And the cushions are costed at last** (§4.19). They were drawn and free, and *nothing said so* —
+which is the serious half: a missing line that quotes at **zero** looks exactly like a finished
+quote. They are **bought in as whole units from the upholsterer** — the shop supplies templates or a
+particleboard substrate — so they are the same class of thing as a stone benchtop and produce no
+parts at all. The rate is the shop's own: **$350 a lineal metre, charged per cushion**, so a metre
+with a base and a back is $700 rather than $350.
+
 Section 4 records how each works and why; section 5 is what is actually left to do.
 
 ```
 npm install
 npm run dev       # the app
-npm test          # 884 tests
+npm test          # 905 tests
 npm run build
 npm run report    # cutlist, hardware BOM, drilling, nest, G-code and costing for the sample kitchen
 npm run report -- shaker-57    # the same kitchen with routed fronts
@@ -143,6 +149,7 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | What each cabinet type supports, declared by its own spec | **Working, see 4.15 and 4.16.** `CabinetSpec.capabilities` — refusing costs a sentence |
 | Inside banquette corner — a quarter-circle connector | Working, on the same formers-and-bendy-ply rules as 4.5. Its own access question unasked, see 5.4 |
 | Upholstery as its own material type | Working — Warwick Caulfield, nine colours, `library/upholstery.au.ts` |
+| Banquette cushions on the quote | **Working, see 4.19.** Bought in whole, $350/lin m **per cushion**, no parts produced |
 | Room — any shape, drawn in a 2D plan with typed lengths | Working |
 | Cabinets placed against a named wall, at any angle | Working |
 | CI — typecheck, tests, build, cutlist smoke run on every PR | Working, `.github/workflows/ci.yml` |
@@ -204,8 +211,8 @@ materials.
 
 **Migrations must never quietly change anyone's parts.** Every migration carries old values
 forward so a saved job cuts exactly as it did; adopting a new default is then a deliberate
-edit. Schema is at **v26**; migrations run in sequence in `model/project.ts`. Shop standards are
-versioned separately and are at **v19** — and they get a *real* migration rather than a
+edit. Schema is at **v27**; migrations run in sequence in `model/project.ts`. Shop standards are
+versioned separately and are at **v20** — and they get a *real* migration rather than a
 rejection, because refusing to load them silently replaces a shop's accumulated kick heights,
 reveals, door styles and saved cabinet types with the shipped Australian defaults.
 
@@ -213,8 +220,8 @@ reveals, door styles and saved cabinet types with the shipped Australian default
 comment directly above it, and *that* is the record — a version number in prose goes stale, a
 comment sitting on the function cannot. What follows is a map, not a substitute.
 
-Only four migrations have changed a job that already existed rather than adding to it. **v9 and
-v11** both re-price, and are argued below. **v13** is the 2mm front standoff, and it moves the
+Only five migrations have changed a job that already existed rather than adding to it. **v9, v11 and
+v27** all re-price, and are argued below. **v13** is the 2mm front standoff, and it moves the
 finished face of every front in every saved job. **v15 and v16** move holes — shelf-pin rows and
 runner fixings respectively — and neither moves or resizes a single part; a side panel comes out
 the same rectangle in the same place with a different set of Ø5 holes in it. Each of the four says
@@ -227,11 +234,13 @@ new choice appears in the picker; nothing already selected moves. v20 exists onl
 keeps `localhost` storage across separately extracted source folders, so a snapshot could be
 stamped current while missing the texture fields v18 was meant to add — a repair, not a change.
 
-**v9 and v11 are the two exceptions on price, and both say so out loud.** They are the same argument twice:
-no part that already existed moves, and the job gets dearer because it was being quoted for less
-than it takes to build. v9 added the hardware a kitchen always had; v11 charges the board a
-kitchen always took. Both halves of each are asserted separately — `tests/hardware.test.ts` and
-`tests/nesting.test.ts` — so nobody has to wonder whether a re-price was an accident.
+**v9, v11 and v27 are the three exceptions on price, and all of them say so out loud.** They are the
+same argument three times: no part that already existed moves, and the job gets dearer because it
+was being quoted for less than it takes to build. v9 added the hardware a kitchen always had; v11
+charges the board a kitchen always took; **v27 charges the cushions a banquette always had** (§4.19),
+and that one does not even move a part, because a bought-in cushion is not one. Both halves of each
+are asserted separately — `tests/hardware.test.ts`, `tests/nesting.test.ts` and
+`tests/cushionCost.test.ts` — so nobody has to wonder whether a re-price was an accident.
 
 **v9, in detail.** No part that already existed moves — that
 half of the rule is kept, and it is the half that protects a job on the saw. But a migrated job
@@ -1710,8 +1719,8 @@ storage and read back from a screenshot looking down on the seat.
   a fixing strip's width further in than that. It bites only when a shelf lands at the same height
   as a former, which is why it has not been seen — a lift-up is guaranteed to clash and a shelf is
   not. Deliberately left, and written down so it is a known gap rather than a surprise.
-- **The lid stay is still not modelled**, and the cushions are still not costed. Both are §5.4 and
-  neither moved here.
+- **The lid stay is still not modelled.** §5.4, and it did not move here. The cushions were the
+  other half of that sentence and have since been costed — §4.19.
 
 ### 4.16 Custom features on an individual part
 
@@ -1966,6 +1975,91 @@ and two plinths over one run takes three presses.
 **Where to look:** `project/outOfStep.ts` — the two rules it holds to are at the top of the file.
 `tests/outOfStep.test.ts` is the contract and its header carries the reference run worked longhand.
 
+### 4.19 Costing the banquette cushions
+
+§5.11 recorded that the cushions were *"drawn but not costed — no fabric, no foam, no upholstery
+labour on the quote, and nothing on the report says so"*. **The second half is the serious half.** A
+missing line that announces itself is a job to finish; a missing line that quotes silently at
+**zero** is a banquette sold for hundreds less than it costs, and nothing on the page tells you
+which you are looking at. Same shape as §4.14's NaN quote: a number that looks finished and is not.
+
+#### The two answers that decided everything, both from the shop
+
+> "Generally bought in as a whole unit from the upholsterer — we'd only supply templates or
+> particleboard substrates."
+
+> "I generally allow $350 per lineal metre — that applies to the base and separately to the back or
+> any returns, so 1 lineal metre of banquette with base and back would be $700."
+
+The first puts a cushion in **exactly the class §4.7 built for a stone benchtop**: a purchase order,
+not a part. Nothing here produces a `Panel`, nothing reaches the cutlist or the nest, and that zero
+is the point rather than an omission — inventing a part so the cutlist looked complete would put
+foam on a sheet order.
+
+The second is the whole of the arithmetic, and **the clause that matters is "separately"**. The rate
+is per *cushion*, not per run, which is the only reason a metre with a base and a back comes to $700.
+Read it as per-run and every banquette in every quote is out by half. That reference figure is the
+first assertion in `tests/cushionCost.test.ts`.
+
+#### Decisions worth not undoing
+
+- **The lineal lengths live in `model/cushion.ts` and the viewport reads them.** They used to be
+  worked out inline in `BanquetteCushions.tsx` to decide how wide to draw a bolster. The moment a
+  length became a *price*, two descriptions meant **a cushion you can see and a cushion you are
+  charged for could be different lengths, with nothing on screen looking wrong.** `returnRun` and
+  `cornerSeatRadius` are now shared, and `findUpholstery` is shared for the same reason — a cushion
+  drawn in one fabric and charged at another's rate is the same fault in money.
+- **A missing rate is a sentence, never a zero.** `cushionProblems` names the cabinet on the quote's
+  own warnings. This is the actual bug being fixed, so a later change that "helpfully" falls back to
+  a default rate would reintroduce it.
+- **The seat is charged at the cushion's width, not the cabinet's** — 1190 on a 1200 banquette at the
+  shipped 5mm inset. The upholsterer makes and measures the cushion.
+- **A rounded front corner does not lengthen the seat.** The cushion spans the same distance along
+  the run; one corner of it changes shape. Charging the longer front edge would be reading "lineal
+  metre" as "perimeter", which is not how a run of seating is measured.
+- **A return is charged only when there is a back**, because a return *is* the back turning the
+  corner. Switching the back off takes the returns with it.
+- **No minimum charge, deliberately.** A stone fabricator's minimum is on `FabricationCharges`
+  because it was stated; nobody has said whether this upholsterer has one, and inventing a plausible
+  figure is the failure the unchecked list exists to prevent.
+- **`$350/m` is flagged `indicativePricing` even though it is the shop's own number**, because it is
+  an *allowance* — what he prices at before the upholsterer has quoted — rather than an invoice.
+
+#### The one figure that is a reading
+
+**The corner unit's seat is charged along its arc**, so a 500mm corner is 785mm rather than 500.
+The reasoning: a lineal metre of seating is measured along the front of the run, and the front of a
+quarter-circle connector *is* the curve. The alternatives are one leg — which charges a corner less
+than the straight metre either side of it, for more work — or both legs, which charges the same seat
+twice. **Nobody has put a corner unit to the upholsterer**, so it belongs with `ladderFaceScribeEnd`
+on §3's unchecked list rather than being presented as a fact.
+
+#### It re-prices saved jobs, and says so
+
+**Project v27 and standards v20. This is the third migration in this file to make a saved job
+dearer**, after v9 and v11, and it is their argument for the third time: no part that already
+existed moves — nothing here produces a part at all — and the job gets dearer because it was being
+quoted for less than it takes to build. A 3m run with a back is about $2,100 of upholstery no quote
+mentioned. Both halves are asserted separately in `tests/cushionCost.test.ts`: a job with no
+banquette in it comes through at the identical total **to the cent**, and one with a banquette goes
+up by the cushions it always had. A rate a shop has typed itself is never overwritten.
+
+#### What is left
+
+- **The particleboard substrate is not modelled.** The shop supplies *"templates or particleboard
+  substrates"*, and only the first costs nothing. A substrate is a real part on a real sheet, and
+  adding one would change the parts of every existing banquette — so it wants asking for rather than
+  assuming. It is the obvious next question here.
+- **Nothing asks the upholsterer's minimum**, per above.
+- **The corner seat's arc reading** is unchecked.
+- Foam density, fabric metres and a fabric roll width are all still in the model and still unused,
+  because a bought-in cushion needs none of them. They earn their keep only if the shop ever makes
+  cushions itself.
+
+**Where to look:** `costing/cushionCost.ts` for the charge and the argument;
+`model/cushion.ts` for the lengths both the picture and the price read; `library/upholstery.au.ts`
+for the rate. `tests/cushionCost.test.ts` is the contract and carries every figure longhand.
+
 ---
 
 ## 5. Open items, in the order I'd do them
@@ -1993,8 +2087,9 @@ below a 1200mm clear span, nothing overhanging anything. **Its rounded corner no
 the front and the cushion, and applied ends build on one — see 4.15**, which is also where the
 stale "only built on base, wall and tall" warning went and why each spec now declares what it
 supports. What is still open there: the **lid stay is not modelled**, the corner unit has never been
-asked the same access question, and the **cushions are not costed** — nothing on the quote carries
-fabric, foam or upholstery labour, and nothing warns they are missing.
+asked the same access question. The **cushions are costed now** — §4.19, bought in whole from the
+upholsterer at $350 a lineal metre per cushion — and a cushion nobody can price now says so instead
+of quoting at zero.
 
 **If asked which to do next, there are now two answers and they are for different people.**
 
@@ -2007,11 +2102,13 @@ G-code is safe until that is reconciled.
 **For the app: the two items that were named here have both shipped** — the out-of-step indicator
 is §4.18 and getting a job out of the browser is §4.17, and §5.12's custom part features shipped
 before them as §4.16. **§5.11 is what is left of the August list**, and what is on it now is either
-not yet reproduced or is the UI as a whole. The two candidates with the clearest shape:
+not yet reproduced or is the UI as a whole. The cushions were on this list and have shipped as
+§4.19. What has the clearest shape now:
 
-- **The banquette cushions are drawn and free.** No fabric, no foam, no upholstery labour on the
-  quote, and nothing warns they are missing — which is the same shape as the NaN quote: a number
-  that looks finished and is not.
+- **The particleboard substrate under a bought-in cushion**, which §4.19 deliberately did not build.
+  The shop supplies *"templates or particleboard substrates"* and only the first costs nothing; a
+  substrate is a real part on a real sheet, so adding one changes the parts of every existing
+  banquette and wants asking for rather than assuming. It is the obvious next question.
 - **A pass over the whole UI.** The user's own words are *"any other user may struggle"*. Bigger and
   vaguer than anything else here, and worth agreeing a definition of done for before starting.
 
@@ -2335,12 +2432,13 @@ speculatively.
   back height, back thickness, back angle and corner radius are all recorded separately from the
   boards, and end cushions are per-side flags.
   **Three things are deliberately still open, and the first is the one that matters:**
-  **(a)** cushions are **viewport-only** — no fabric quantity, no foam, no upholstery labour reaches
-  the quote, which was the right call for a first version but means a banquette currently quotes as
-  though the seating were free, and unlike the hardware figures nothing on the report says so. A
-  warning line is the cheap half of the fix. *(Their plan **shape** has since moved into
-  `core/model/cushion.ts` so a test can read it — §4.15 — but that is geometry, not money, and
-  nothing about the quote changed.)* **(b)** The cushion renderer mutates `repeat` on the
+  ~~**(a)** cushions are **viewport-only** — a banquette quotes as though the seating were free, and
+  nothing on the report says so.~~ **Costed — see §4.19.** The answer turned out to make the fabric
+  and foam questions moot: cushions are **bought in as finished units**, so there is no fabric
+  quantity to work out and no foam to order, and the charge is $350 a lineal metre **per cushion**.
+  The half that mattered was the warning: a cushion nobody can price now says so by name rather than
+  quoting at zero. What is still open there is the **particleboard substrate**, which is a real part
+  and was deliberately not built. **(b)** The cushion renderer mutates `repeat` on the
   texture `useLoader` hands back, and that object is **shared and cached** — two banquettes in one
   fabric fight over the weave scale, last one rendered wins. `PanelMesh` avoids this by baking UVs
   into the geometry and never writing to the texture; the cushion path should do the same or clone.

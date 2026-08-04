@@ -37,7 +37,7 @@ import {
 } from '../library/blum.ts';
 import { AU_BENCHTOP_MATERIALS, AU_MATERIAL_LIBRARY, AU_SHEET_MATERIALS } from '../library/materials.au.ts';
 
-export const CURRENT_SCHEMA_VERSION = 26 as const;
+export const CURRENT_SCHEMA_VERSION = 27 as const;
 
 /**
  * The bendy ply an older job is given when it is migrated forward. It has no curved parts in
@@ -700,6 +700,57 @@ const migrateV25toV26 = (raw: Record<string, unknown>): Record<string, unknown> 
 });
 
 /**
+ * v26 → v27: the upholsterer's rate reaches a job's own copy of the fabric list (§4.19).
+ *
+ * **This one makes a saved job with a banquette in it dearer, and there is no version of it that
+ * does not.** It is the third migration in this file to re-price rather than merely to add, after
+ * v9 and v11, and it is the same argument they make for the third time: no part that already
+ * existed moves — nothing here produces a part at all — and the job gets dearer because it was
+ * being quoted for less than it takes to build.
+ *
+ * A banquette's cushions have always been drawn and have never been charged. A 3m run with a back
+ * is about $2,100 of upholstery that no quote mentioned. Leaving that under-quote in place to
+ * protect a number somebody has already sent would be the worse outcome by a wide margin, and it is
+ * the same call §2 records for v9's hardware: *"a kitchen with ten hinges and three drawer sets in
+ * it was being quoted as though the hardware were free."*
+ *
+ * **Both halves are asserted separately** in `tests/cushionCost.test.ts` — that a job without a
+ * banquette in it comes through at exactly the same total to the cent, and that one with a
+ * banquette goes up by the cushions it always had.
+ *
+ * Matched by **id** against the shipped library and written only where absent, so a rate a shop has
+ * deliberately set is never overwritten. A fabric the shop added itself gets no rate and is
+ * reported by `cushionProblems` rather than silently charged at nothing — which is the failure this
+ * whole change exists to end, and it must not be reintroduced by a migration being helpful.
+ */
+const migrateV26toV27 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const materials = (raw.materials as Record<string, unknown> | undefined) ?? {};
+  const upholstery = materials.upholstery as Record<string, unknown>[] | undefined;
+  // A job saved before upholstery existed has no list at all. Give it the shipped one: it has no
+  // banquettes either, so nothing is priced from it until somebody adds one.
+  const shipped = (AU_MATERIAL_LIBRARY.upholstery ?? []) as unknown as Record<string, unknown>[];
+  if (!upholstery) {
+    return {
+      ...raw,
+      schemaVersion: 27,
+      materials: { ...materials, upholstery: shipped },
+    };
+  }
+  return {
+    ...raw,
+    schemaVersion: 27,
+    materials: {
+      ...materials,
+      upholstery: upholstery.map((item) => {
+        if (item.charges !== undefined) return item;
+        const match = shipped.find((s) => s.id === item.id);
+        return match ? { ...item, charges: match.charges, indicativePricing: match.indicativePricing } : item;
+      }),
+    },
+  };
+};
+
+/**
  * v11 → v12. **The screen colours, backfilled onto jobs that never had them.**
  *
  * Reported from the bench as "changing the door to Notaio Walnut has done nothing", and the
@@ -975,6 +1026,7 @@ export const migrateProject = (raw: unknown): Project => {
   if (data.schemaVersion === 23) data = migrateV23toV24(data);
   if (data.schemaVersion === 24) data = migrateV24toV25(data);
   if (data.schemaVersion === 25) data = migrateV25toV26(data);
+  if (data.schemaVersion === 26) data = migrateV26toV27(data);
 
   if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`migrateProject: could not migrate schema version ${String(version)}`);

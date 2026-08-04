@@ -164,6 +164,36 @@ export interface BenchtopMaterial {
   readonly indicativePricing: boolean;
 }
 
+/**
+ * How an upholsterer quotes a banquette.
+ *
+ * **One rate by the lineal metre, charged separately for every cushion**, from the shop:
+ *
+ * > "I generally allow $350 per lineal metre — that applies to the base and separately to the back
+ * > or any returns, so 1 lineal metre of banquette with base and back would be $700."
+ *
+ * That is the whole pricing model and it is deliberately not dressed up as more. There is no area
+ * term, because an upholsterer quoting a banquette measures along it; no fabric line, because the
+ * cushions are **bought in as finished units** and the fabric is theirs; and no foam line for the
+ * same reason. The shop supplies templates or a particleboard substrate and takes delivery of
+ * cushions.
+ *
+ * **There is no minimum charge here, and its absence is deliberate rather than an omission.** A
+ * stone fabricator's minimum is on `FabricationCharges` because it was stated; nobody has said
+ * whether this upholsterer has one. Inventing a plausible figure is the failure the unchecked list
+ * exists to prevent, so it is written down as an open question instead — see §5.4.
+ */
+export interface UpholsteryCharges {
+  /**
+   * Per lineal metre of one cushion, ex GST.
+   *
+   * Applied **per piece, not per banquette**: a seat and a back over the same metre are two
+   * cushions and two charges. That is the shop's own arithmetic and it is what makes the
+   * reference figure — 1m with a base and a back — come to $700 rather than $350.
+   */
+  readonly perLinealMetreExGst: Cents;
+}
+
 /** Upholstery is rendered and specified, but is never treated as a sheet part or sent to CAM. */
 export interface UpholsteryMaterial {
   readonly id: string;
@@ -195,7 +225,35 @@ export interface UpholsteryMaterial {
   readonly width: Mm;
   readonly composition: string;
   readonly abrasionCycles: number;
+  /**
+   * What the upholsterer charges to make cushions in this fabric.
+   *
+   * Optional because a job saved before cushions were costed has a snapshot of the library without
+   * it, and **a rate that is absent must not silently become zero** — that is the whole failure
+   * this field exists to end. A banquette whose fabric carries no charges is reported, in words, on
+   * the quote and in the report.
+   */
+  readonly charges?: UpholsteryCharges;
+  /** Placeholder money, flagged exactly as `SheetMaterial` and `BenchtopMaterial` flag theirs. */
+  readonly indicativePricing?: boolean;
 }
+
+/**
+ * The fabric a cabinet's cushions are made in.
+ *
+ * One description, because the viewport and the quote must never disagree about it: a cushion you
+ * can see in a fabric and a cushion charged at another fabric's rate is the class of fault §2 has
+ * scar tissue about. The fallbacks are the ones the viewport has always used — the job's own list,
+ * then the shipped one, then its first entry when the cabinet names nothing.
+ */
+export const findUpholstery = (
+  materials: MaterialLibrary,
+  id: string | undefined,
+  shipped: readonly UpholsteryMaterial[],
+): UpholsteryMaterial | undefined => {
+  const list = materials.upholstery ?? shipped;
+  return list.find((item) => item.id === id) ?? list[0];
+};
 
 export interface MaterialLibrary {
   readonly sheets: readonly SheetMaterial[];

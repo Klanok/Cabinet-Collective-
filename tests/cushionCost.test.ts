@@ -1,0 +1,330 @@
+/**
+ * What a banquette's cushions cost.
+ *
+ * ## The reference figure, straight from the shop
+ *
+ * > "I generally allow $350 per lineal metre — that applies to the base and separately to the back
+ * > or any returns, so **1 lineal metre of banquette with base and back would be $700**."
+ *
+ * That last clause is the whole pricing model in one number, and it is the first assertion below.
+ * It is worth stating why it is $700 and not $350: the rate is charged **per cushion**, and a seat
+ * and a back over the same metre are two cushions. Get that wrong and every banquette in every
+ * quote is out by half.
+ *
+ * ## The rest of the figures, worked longhand
+ *
+ * A shipped banquette is 1200 wide and **500 deep** — seat depth, not a base cabinet's 560 — with a
+ * 5mm cushion inset and an 80mm back:
+ *
+ *     cushion width   1200 − 2 × 5                     = 1190      ← what the upholsterer makes
+ *     cushion depth    500 − 2 × 5                     =  490
+ *     seat             1.190 m × $350                  = $416.50
+ *     back             1.190 m × $350                  = $416.50
+ *     a return         (490 − 80) = 410mm × $350       = $143.50
+ *     seat + back                                      = $833.00
+ *
+ * The cushion is measured off the **carcass** and held in by the inset, so it is 1190 and not 1200
+ * — see `model/cushion.ts`. Twenty millimetres is nobody's money on one banquette and it is still
+ * the number the upholsterer would measure.
+ *
+ * A corner unit at 500 × 500 with the same 5mm inset:
+ *
+ *     seat radius      min(500, 500) − 5               =  495
+ *     seat, on its arc 495 × π/2 = 777.5mm             = $272.13
+ *     each back        495mm                           = $173.25
+ *
+ * **The corner seat charged along its arc is a reading, not a fact** — §3's unchecked list. Nobody
+ * has put a corner unit to the upholsterer, and the two other readings (one leg, or both legs) are
+ * argued against in `cornerCushionPieces`.
+ *
+ * ## And the thing this whole file is really guarding
+ *
+ * A cushion nobody can price used to be quoted at **zero**, silently. The tests at the bottom
+ * assert that a fabric with no rate produces a *problem in words* rather than a free banquette,
+ * because the second one looks exactly like a finished quote.
+ */
+
+import { beforeEach, describe, expect, it } from 'vitest';
+import { mm } from '../src/core/units.ts';
+import type { Project } from '../src/core/model/project.ts';
+import { CURRENT_SCHEMA_VERSION, migrateProject } from '../src/core/model/project.ts';
+import { cushionChargeTotal, cushionCharges, cushionProblems } from '../src/core/costing/cushionCost.ts';
+import { costProject } from '../src/core/costing/costing.ts';
+import { createCabinet, createEmptyProject, createSampleKitchen, resetIdCounter } from '../src/core/project/factory.ts';
+import { AU_SHOP_STANDARDS, CURRENT_STANDARDS_VERSION, migrateStandards } from '../src/core/standards/standards.ts';
+
+let project: Project;
+
+const withCabinets = (...args: Parameters<typeof createCabinet>[0][]): Project => ({
+  ...project,
+  cabinets: args.map((a) => createCabinet(a, project.defaults, project.constructions)),
+});
+
+/** A banquette of a stated width, with whatever cushion options the test is about. */
+const banquette = (width: number, options: Record<string, unknown> = {}): Project =>
+  withCabinets({ typeId: 'banquette', name: 'BQ1', width: mm(width), x: mm(0), options });
+
+const dollars = (cents: number): number => cents / 100;
+
+beforeEach(() => {
+  resetIdCounter();
+  project = createEmptyProject('Cushion cost test');
+});
+
+/*
+ * ── The shop's own worked example ─────────────────────────────────────────────────────────────
+ */
+
+describe('the reference figure', () => {
+  it('charges one lineal metre with a base and a back at $700', () => {
+    /*
+     * Stated as the shop stated it: one metre *of cushion*. So the cabinet is 1010 wide, which
+     * after the 5mm inset each side is exactly the 1000mm of cushion the figure is about — rather
+     * than a 1000 cabinet, which would make 990 of cushion and quietly prove a different claim.
+     */
+    const job = banquette(1010, { hasBackCushion: true });
+    const [charge] = cushionCharges(job);
+
+    expect(charge!.lines.map((l) => l.label)).toEqual(['Seat', 'Back']);
+    expect(charge!.lines.every((l) => l.linealM === 1)).toBe(true);
+    expect(dollars(charge!.totalExGst)).toBe(700);
+  });
+
+  it('is $700 because it is two cushions, not one metre', () => {
+    // The failure this guards: one charge for the run instead of one per piece.
+    const job = banquette(1010, { hasBackCushion: true });
+    const [charge] = cushionCharges(job);
+    expect(charge!.lines).toHaveLength(2);
+    expect(dollars(charge!.lines[0]!.costExGst)).toBe(350);
+    expect(dollars(charge!.lines[1]!.costExGst)).toBe(350);
+  });
+
+  it('charges a seat on its own when the back is switched off', () => {
+    const job = banquette(1010, { hasBackCushion: false });
+    const [charge] = cushionCharges(job);
+    expect(charge!.lines.map((l) => l.label)).toEqual(['Seat']);
+    expect(dollars(charge!.totalExGst)).toBe(350);
+  });
+});
+
+/*
+ * ── The shipped banquette, longhand ───────────────────────────────────────────────────────────
+ */
+
+describe('a shipped 1200 banquette', () => {
+  it('measures the cushion, not the cabinet', () => {
+    const [charge] = cushionCharges(banquette(1200));
+    // 1200 − 2 × 5 = 1190.
+    expect(charge!.lines[0]!.linealMm).toBe(1190);
+    expect(dollars(charge!.lines[0]!.costExGst)).toBe(416.5);
+    expect(dollars(charge!.totalExGst)).toBe(833);
+  });
+
+  it('adds a return that stops short of the back cushion', () => {
+    const [charge] = cushionCharges(banquette(1200, { leftEndCushion: true }));
+    // A banquette is 500 deep, not a base cabinet's 560: 500 − 2 × 5 = 490 of cushion, less the
+    // 80mm back the return starts in front of = 410.
+    const ret = charge!.lines.find((l) => l.kind === 'return')!;
+    expect(ret.label).toBe('Left return');
+    expect(ret.linealMm).toBe(410);
+    expect(dollars(ret.costExGst)).toBe(143.5);
+    expect(dollars(charge!.totalExGst)).toBe(833 + 143.5);
+  });
+
+  it('charges both returns when both ends are cushioned, and they match', () => {
+    const [charge] = cushionCharges(
+      banquette(1200, { leftEndCushion: true, rightEndCushion: true }),
+    );
+    const returns = charge!.lines.filter((l) => l.kind === 'return');
+    expect(returns).toHaveLength(2);
+    // Symmetrical on a square banquette — the two ends are the same cushion.
+    expect(returns[0]!.linealMm).toBe(returns[1]!.linealMm);
+  });
+
+  it('charges no returns without a back cushion, because a return is part of the back', () => {
+    const [charge] = cushionCharges(
+      banquette(1200, { hasBackCushion: false, leftEndCushion: true, rightEndCushion: true }),
+    );
+    expect(charge!.lines.map((l) => l.kind)).toEqual(['seat']);
+  });
+});
+
+/*
+ * ── The corner unit ───────────────────────────────────────────────────────────────────────────
+ */
+
+describe('the quarter-circle corner unit', () => {
+  const corner = (): Project =>
+    withCabinets({
+      typeId: 'banquette-corner',
+      name: 'BQC1',
+      width: mm(500),
+      depth: mm(500),
+      x: mm(0),
+    });
+
+  it('charges the seat along its arc, and a back down each run', () => {
+    const [charge] = cushionCharges(corner());
+    // radius = min(500, 500) − 5 = 495; arc = 495 × π/2 = 777.5mm.
+    const seat = charge!.lines[0]!;
+    expect(seat.label).toBe('Corner seat');
+    expect(seat.linealMm).toBeCloseTo(777.54, 1);
+    expect(dollars(seat.costExGst)).toBeCloseTo(272.14, 1);
+
+    const backs = charge!.lines.filter((l) => l.kind === 'back');
+    expect(backs).toHaveLength(2);
+    expect(backs.every((b) => b.linealMm === 495)).toBe(true);
+    expect(dollars(backs[0]!.costExGst)).toBe(173.25);
+  });
+
+  it('charges the corner seat more than one leg and less than two — which is the whole reading', () => {
+    const [charge] = cushionCharges(corner());
+    const seat = charge!.lines[0]!;
+    expect(seat.linealMm).toBeGreaterThan(495);
+    expect(seat.linealMm).toBeLessThan(990);
+  });
+});
+
+/*
+ * ── It reaches the quote ──────────────────────────────────────────────────────────────────────
+ */
+
+describe('on the quote', () => {
+  it('is its own line and is inside the material cost', () => {
+    const job = banquette(1010);
+    const cost = costProject(job);
+    expect(dollars(cost.cushionCost)).toBe(700);
+    expect(cost.materialCost).toBeGreaterThanOrEqual(cost.cushionCost);
+  });
+
+  it('moves the total by the cushions and nothing else', () => {
+    const job = banquette(1010);
+    const withNoRate: Project = {
+      ...job,
+      materials: {
+        ...job.materials,
+        upholstery: (job.materials.upholstery ?? []).map((u) => ({ ...u, charges: undefined })),
+      },
+    };
+    const difference = costProject(job).totalCost - costProject(withNoRate).totalCost;
+    expect(dollars(difference)).toBe(700);
+  });
+
+  it('produces no parts — the shop supplies templates, not cushions', () => {
+    const job = banquette(1010);
+    const withCushions = costProject(job);
+    const noCushionOptions = banquette(1010, { hasBackCushion: false });
+    // Switching the back off changes the price and not the part count: nothing here is cut.
+    expect(costProject(noCushionOptions).panelCount).toBe(withCushions.panelCount);
+    expect(costProject(noCushionOptions).cushionCost).toBeLessThan(withCushions.cushionCost);
+  });
+
+  it('leaves a job with no banquette in it completely alone', () => {
+    resetIdCounter();
+    const kitchen = createSampleKitchen(AU_SHOP_STANDARDS);
+    expect(cushionCharges(kitchen)).toEqual([]);
+    expect(costProject(kitchen).cushionCost).toBe(0);
+  });
+});
+
+/*
+ * ── A cushion nobody can price ────────────────────────────────────────────────────────────────
+ *
+ * The fault §5.11 actually reported. A missing line that announces itself is a job to finish; a
+ * missing line that quotes at zero is a banquette sold for hundreds less than it costs.
+ */
+
+describe('a fabric with no upholsterer’s rate', () => {
+  const rateless = (): Project => {
+    const job = banquette(1010);
+    return {
+      ...job,
+      materials: {
+        ...job.materials,
+        upholstery: (job.materials.upholstery ?? []).map((u) => ({ ...u, charges: undefined })),
+      },
+    };
+  };
+
+  it('is reported in words, naming the cabinet', () => {
+    const problems = cushionProblems(rateless());
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain('BQ1');
+    expect(problems[0]).toContain('quoted at nothing');
+  });
+
+  it('reaches the quote’s own warnings, not just a function nobody calls', () => {
+    expect(costProject(rateless()).warnings.some((w) => w.includes('BQ1'))).toBe(true);
+  });
+
+  it('charges nothing rather than guessing a rate', () => {
+    expect(cushionChargeTotal(cushionCharges(rateless()))).toBe(0);
+  });
+
+  it('says nothing at all about a job with no banquettes', () => {
+    resetIdCounter();
+    expect(cushionProblems(createSampleKitchen(AU_SHOP_STANDARDS))).toEqual([]);
+  });
+});
+
+/*
+ * ── The migration, and the re-price it admits to ──────────────────────────────────────────────
+ *
+ * The third migration in this codebase to make a saved job dearer, after v9 and v11. Both halves
+ * are asserted separately, which is the standard §2 sets for exactly this.
+ */
+
+describe('migrating a job saved before cushions were costed', () => {
+  /** A v26 job: current in every respect except that its fabric carries no rate. */
+  const asV26 = (job: Project): Record<string, unknown> => ({
+    ...(JSON.parse(JSON.stringify(job)) as object),
+    schemaVersion: 26,
+    materials: {
+      ...JSON.parse(JSON.stringify(job.materials)),
+      upholstery: (job.materials.upholstery ?? []).map((u) => {
+        const { charges: _c, indicativePricing: _i, ...rest } = u;
+        return rest;
+      }),
+    },
+  });
+
+  it('gives a banquette job the rate it always should have had, and it gets dearer', () => {
+    const job = banquette(1010);
+    const migrated = migrateProject(asV26(job));
+    expect(migrated.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
+    // The half that admits to re-pricing: $700 of cushions the old quote did not mention.
+    expect(dollars(costProject(migrated).cushionCost)).toBe(700);
+  });
+
+  it('changes a job with no banquette in it by nothing at all, to the cent', () => {
+    resetIdCounter();
+    const kitchen = createSampleKitchen(AU_SHOP_STANDARDS);
+    const before = costProject(kitchen).totalIncGst;
+    const migrated = migrateProject(asV26(kitchen));
+    expect(costProject(migrated).totalIncGst).toBe(before);
+  });
+
+  it('never overwrites a rate the shop has set for itself', () => {
+    const job = banquette(1010);
+    const edited = {
+      ...asV26(job),
+      materials: {
+        ...(asV26(job).materials as object),
+        upholstery: (job.materials.upholstery ?? []).map((u) => ({
+          ...u,
+          charges: { perLinealMetreExGst: 50_000 },
+        })),
+      },
+    };
+    const migrated = migrateProject(edited);
+    // $500/m, the shop's own, not the shipped $350.
+    expect(dollars(costProject(migrated).cushionCost)).toBe(1000);
+  });
+
+  it('carries the standards forward too', () => {
+    const old = { ...JSON.parse(JSON.stringify(AU_SHOP_STANDARDS)), version: 19 };
+    const migrated = migrateStandards(old);
+    expect(migrated.version).toBe(CURRENT_STANDARDS_VERSION);
+    expect(migrated.materials.upholstery?.[0]?.charges?.perLinealMetreExGst).toBe(35_000);
+  });
+});
