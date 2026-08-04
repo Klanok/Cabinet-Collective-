@@ -310,8 +310,8 @@ if (refused.length > 0) {
 }
 for (const w of [...new Set(posted.warnings)]) console.log(`      ! ${w}`);
 if (machine.unconfirmed.length > 0) {
-  console.log(`\n  ! ${machine.name} has NOT been checked against the machine. Simulate or`);
-  console.log('    air-cut before running anything. What is a guess:');
+  console.log(`\n  ! ${machine.name} has NOT been proved on the machine. Simulate or`);
+  console.log('    air-cut before running anything. What is unverified or missing:');
   for (const note of machine.unconfirmed) console.log(`      · ${note}`);
 }
 

@@ -38,12 +38,20 @@ second migration in this file that deliberately re-prices a saved job, and it sa
 §4.9 is **CAM and a post-processor**: an ordered, machine-independent operation list, and G-code for
 a named machine — one `.nc` per nested sheet.
 
-**One thing from §4.9 must not get lost.** The G-code has **never been run on a machine** and its
-*dialect* is unverified — the geometry is asserted and can be trusted, but whether this controller
-wants `G81`, and where its Z zero is, cannot be known from here. Every program says so in its own
-header. Getting one `.nc` file off the machine to compare against is ten minutes' work and is worth
-more than any other open item in this document. **It is still open.** Everything listed in the next
-paragraph landed after it was written, and none of it went near the machine.
+**One thing from §4.9 said the dialect was unverified and that one `.nc` file off the machine was
+worth more than any other open item in this document. Twenty-one of them arrived, and it was.**
+`docs/woodtron-dialect.md` is what they say; §4.20 is the model grown to hold it. `G81` turned out
+to be wrong — there is not one in twenty-one files — and Z zero turned out to be the table, which is
+the correction §4.9's own list was written for. **What is still open is the half that was always the
+harder half: none of this has been run on a machine.** A profile read off a program is a much better
+draft than a guessed one and it is still a draft, simulation is still the gate, and the Woodtron
+profile names four things it is known to get wrong.
+
+Two lessons in that worth keeping. **Reasoning soundly to the wrong answer is normal** — the Z datum
+shipped as `material-top` on the argument that it was the safer way to be wrong, the argument was
+good, and every program written before the correction cut air. And **the files answered questions
+nobody had thought to ask**, which is why they were worth more than a checklist: two work offsets,
+two rapid heights, and a through drill that stops where a through router does not.
 
 **Since then the work has been the 3D view earning its keep, and seating.** Both halves of §5.8
 shipped: a **wireframe mode** beside 3D and Plan, and **real decor textures** — an image per decor,
@@ -109,7 +117,7 @@ Section 4 records how each works and why; section 5 is what is actually left to 
 ```
 npm install
 npm run dev       # the app
-npm test          # 905 tests
+npm test          # 948 tests
 npm run build
 npm run report    # cutlist, hardware BOM, drilling, nest, G-code and costing for the sample kitchen
 npm run report -- shaker-57    # the same kitchen with routed fronts
@@ -173,10 +181,13 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | Guillotine nesting — sheets, cut sequence, offcuts | **Working, see 4.8.** Nest tab, two CSVs |
 | Choosing which sheet size a material is cut from | Working, see 4.8 and 5.9 — per material, on the Nest tab |
 | CAM — panels + nest → machine-independent operations | **Working, see 4.9** |
-| G-code — a post-processor per machine, `.nc` per sheet | **Working, see 4.9. Dialect UNVERIFIED — simulate first** |
+| G-code — a post-processor per machine, `.nc` per sheet | **Working, see 4.9. Still not run on a machine — simulate first** |
+| The Woodtron dialect, off 21 real programs | **Read and written down — `docs/woodtron-dialect.md`** |
+| A machine profile with two heads — origins, rapid heights, depths | **Working, see 4.20.** All four figures differ per head |
+| A Woodtron profile, every figure read rather than guessed | **Working, see 4.20** — and it names four things wrong with itself |
 | Nesting a curved part | **Nested as its blank, which is right for a saw — see 4.8** |
 | True-shape nesting for a router | Not started — a different cutting model, see 5.9 |
-| The drill bank — a System 32 row in one hit | Off until its codes are read off the machine |
+| The drill bank — a System 32 row in one hit | **Spindle map solved, bank still off — see 4.20.** One question blocks it |
 | Simulation / backplot | Not started, and it is the gate before anything runs |
 
 ---
@@ -2062,6 +2073,119 @@ up by the cushions it always had. A rate a shop has typed itself is never overwr
 `model/cushion.ts` for the lengths both the picture and the price read; `library/upholstery.au.ts`
 for the rate. `tests/cushionCost.test.ts` is the contract and carries every figure longhand.
 
+### 4.20 A machine has two heads — and the first profile that was read rather than guessed
+
+Definition of done was stated as assertions before anything was written, per §6, and all of them
+pass. **The whole of this section is downstream of `docs/woodtron-dialect.md`** — read that first,
+because every figure below came off a program the machine actually runs and the point of the work
+was to let the model hold them.
+
+**The one sentence version.** `MachineProfile` had one clearance height, one plunge clearance, one
+through overcut and one work offset buried in a preamble. A real nesting machine has **two of each**,
+one per head, and twenty-one of its own files say so.
+
+#### What the model could not express, and now can
+
+- **Two work offsets, one per head** — `G54` MULTIDRILL, `G55` ROUTER. **This is the one that would
+  have cost a job.** The two heads are bolted to the same gantry in different places and the machine
+  keeps a separate origin for each, so a post writing one origin for both puts *every hole wrong
+  relative to every cut*, by the distance between the heads. The file it writes is perfectly
+  plausible: every coordinate is a number the machine accepts, every part is the right size, and the
+  holes are simply somewhere else. There is no assertion about a part's size that catches it, which
+  is why the test is about which word is written and when.
+- **Two rapid heights** — the drill head rapids at +30 where the router rapids at +20. Straight off
+  `Z46.3` and `Z36.3` on a 16.3mm sheet.
+- **Two through depths, and this one is a safety rule rather than a preference.** A through *route*
+  finishes 0.2mm inside the spoilboard; a through *drill* stops **exactly at the table**, because a
+  Ø5 that overcut would be putting a hole in the bed on every through-hole, hundreds of times a
+  sheet. `throughOvercut` is therefore per head, and the drill head's is zero on every profile —
+  asserted as a difference between the heads so that setting the two equal fails.
+
+**A tool says which head it is on, and absent means the router.** That is what decides everything
+above: the post reads the head off the tool, writes that head's work offset when it changes, and
+rapids to that head's plane. An ordinary tool table needs no answer and a drill bank cannot be added
+without one.
+
+#### The drill bank — solved, and still switched off
+
+`DrillBank` was rewritten around dialect §6: a **flat list of spindles**, each with a position and a
+diameter, rather than a pitch and a count. Both parts of that matter — the two rows do not share a
+numbering origin (spindle 16 sits at Y160, not at 15 × 32), and a row is not all one size (`D3 7`
+puts a Ø3 in the middle of a row of Ø5). `drillRow` builds a row from the pitch rule so a profile
+does not hand-list seventeen entries, and `bitmaskSelect` reproduces every `B` code in the files —
+`B1`, `B3`, `B31`, `B64`, `B32768`, `B65536`.
+
+**It is not fitted, and the type is what stops it.** `WOODTRON_DRILL_BANK_WITHOUT_DATUM` is an
+`Omit<DrillBank, 'datum'>`, so it does not compile into a profile until somebody supplies the field.
+That field is the open question: whether a programmed coordinate positions the **reference spindle**
+or the **head origin**. Both give identical holes on a symmetric pattern and differ by **128mm** on
+an asymmetric one, and every drilled row in the twenty-one files is symmetric — so the files cannot
+settle it and neither can re-reading them. It wants one part whose true hole positions are known.
+
+Making the question a missing field rather than a comment is the same move as `bowedFrontProfile`
+taking its edge with no default (§4.4) and `radiusCorner` having none (§4.5). A default here would be
+a guess that compiles.
+
+#### The Woodtron profile, and the four things it says are wrong with itself
+
+`WOODTRON_NESTING_ROUTER` is in the picker beside the KDT. Z datum, clearance planes, plunge
+clearances, through depths, work offsets, `G666` tool changes with `G49` before them, `H` equal to
+`T`, a sparse `T1`/`T8` tool table, S24000, F21000, and the preamble and postamble verbatim — all
+read, none guessed. The 10mm compression spiral it cuts with is a new `straight-10` in `library/
+tools.ts`; a compression spiral is a straight-sided tool, because what it *leaves* is a 10mm slot and
+§2's rule is that a cutter's section is the only thing deciding a cut's width.
+
+**Four things are known to be wrong, and every one is on `unconfirmed`** — printed on screen, in the
+report, and at the top of every program it writes:
+
+1. **Parts do not come free.** The machine's two passes are **per sheet** — every contour down to a
+   1.0mm skin, then a second sheet-wide pass taking them all through — and that is what keeps each
+   part held on the vacuum while its neighbours are cut. The post finishes each part before starting
+   the next, so it writes the first pass only. `leaveUncut` therefore ships at the machine's own
+   **1.0mm**, and *that is the deliberate choice*: setting it to 0 to match the finished depth would
+   have the post cut each part clean out in turn and free the first one under a spinning cutter,
+   which is precisely what the two-pass structure exists to prevent. A program that does not finish
+   is an inconvenience; one that drops a part loose is not.
+2. **No holes are drilled at all.** Every drill on this machine is on the multidrill head, which is
+   off, and nothing in the files bores with the router — so the tool table has no drill in it and
+   every hole is reported by name and left out. Putting one in would be inventing a bit the machine
+   has not been seen to hold.
+3. **Arcs go out in I/J form** where the real programs use `R`; and every arc in twenty-one files is
+   `G3`, so the direction round a part is fixed there and is not here.
+4. **A rip is written like a contour**, with a lead-in ramp a full-width separation cut should not
+   have.
+
+#### What did not change, which is the invariant that protects everything already written
+
+**Not one move.** Every program the KDT writes for the sample kitchen is byte-for-byte what it was —
+same coordinates, same depths, same feeds, same G-words, `G54` in the same place — checked by
+dumping all five programs before and after. The only difference in the whole output is one added
+line of `unconfirmed` comment. The work offset moving out of the preamble and onto the head lands
+exactly where the preamble put it, because it is written **before** the retract rather than after:
+the clearance being rapided to is the *incoming* head's, so it has to be measured in the incoming
+head's own coordinate system.
+
+**Nothing about the Woodtron was copied into the KDT.** Twenty-one files exist for one machine and
+none for the other, and the only KDT fact anybody has is the Z datum, from the shop directly. So the
+KDT's two heads carry identical figures, and that sameness is a *statement that nobody has looked* —
+it is on its `unconfirmed` list in those words — rather than a claim that they match.
+
+#### Verified
+
+948 tests, up from 910. Checked in the running app as well as in the suite (§7, read back off the
+DOM): the Woodtron is in the machine picker, its nine `unconfirmed` lines render, and the
+nested-for-a-saw refusal correctly names **10mm** for its cutter where the KDT's says 6mm — the §4.9
+kerf check earning its keep on a second machine, which is the first time it has had one.
+
+Three deliberate mutations were run to check the assertions bite rather than merely pass: swapping
+`G54` and `G55` fails two, giving both heads the router's rapid height fails three, and moving the
+work offset to after the retract fails one.
+
+**Where to look:** `post/machine.ts` for `HeadProfile`, `DrillBank` and the Z helpers;
+`library/machines.ts` for both profiles, with each figure's dialect section named beside it;
+`post/iso.ts` for where the head is read off the tool. `tests/machineHeads.test.ts` is the contract
+and carries the whole §6 spindle table and every `B` code longhand in its header.
+
 ---
 
 ## 5. Open items, in the order I'd do them
@@ -2686,16 +2810,30 @@ one for showing a client, one for checking the build — and because both live i
 
 **Built and merged; see 4.9.** In rough order of what it is worth doing:
 
-- **Pin the dialect against a real `.nc` file.** The one item that matters, and it is not
-  development work. Take one program the KDT already runs — ideally one with drilling and one that
-  cuts parts out — and compare it line for line against what `post/iso.ts` writes. The five things
-  to check, in order, are listed at the top of `library/machines.ts`: **Z datum**, tool change,
-  drilling style, the drill bank, then feeds. Until that is done, `unconfirmed` stays populated and
-  every program says so in its own header.
-- **Turn the drill bank on**, once its codes are known. Biggest time saving available: a System 32
-  row in one hit instead of twenty-one plunges, on every side panel in every job. `DrillBank` is the
-  field and `post/iso.ts` is where the grouping would go — bores on the same line, at the bank's
-  pitch, become one selection and one plunge.
+- **~~Pin the dialect against a real `.nc` file.~~ Done for the Woodtron — see 4.20 and
+  `docs/woodtron-dialect.md`.** Twenty-one programs, every figure read off them. **Still open for the
+  KDT**, where the only fact anybody has is the Z datum and nothing from the Woodtron has been
+  carried across. One program off it would do the same job.
+- **The second pass, and it is now the item that matters most.** The Woodtron cuts every contour on
+  a sheet to a 1.0mm skin and then takes them **all** through in a second sheet-wide pass, which is
+  what keeps each part held on the vacuum while its neighbours are cut. The post finishes each part
+  before starting the next, so it writes the first pass only and parts come off still attached.
+  Doing this properly means the writer grouping perimeters into two sheet-wide passes rather than
+  stepping depth per part, which is a change to how `writeSheetProgram` walks the list rather than a
+  new number. Until then the Woodtron profile says so in nine words at the top of every program.
+- **Answer the drill bank's one question, then turn it on.** The spindle map is solved (4.20); what
+  blocks it is whether a programmed coordinate positions the *reference spindle* or the *head
+  origin* — 128mm apart on an asymmetric pattern. It needs **one part whose true hole positions are
+  known**, not more reading. Then it is `drillBank: { ...WOODTRON_DRILL_BANK_WITHOUT_DATUM, datum:
+  ... }` plus the grouping in `post/iso.ts`: bores on the same line, at the bank's pitch, become one
+  `B` mask and one plunge. Biggest time saving available — a System 32 row in one hit instead of
+  twenty-one plunges, on every side panel in every job.
+- **The Woodtron cannot drill anything at all** until that happens, because every drill on it is on
+  the bank and nothing bores with its router. Holes are reported by name and left out.
+- **Arcs in `R` form, and always `G3`.** The real programs use `R` where `post/iso.ts` writes `I`/`J`,
+  and there is not a single `G2` in twenty-one files — so that machine's direction round a part is
+  fixed and the post's is whichever way the ring happened to be wound. Half the parts would be cut
+  climb where they should be conventional, and every one of them would still be the right size.
 - **Ramp into a plunge**, and lead-in/lead-out arcs on a perimeter. A full-width plunge at the start
   of a cut is hard on a bit and leaves a mark. Real, and not a correctness problem.
 - **Second setups are named but not produced.** A shaker door is machined on both faces; the nested
@@ -2846,9 +2984,48 @@ below the overcut.
    The shop's words: *"a complete mess."* Note this also moves §4.19's corner-seat arc charge, which
    is measured along that front edge — the reading survives, the shape it measures does not.
 
+   **Picked up and deliberately put back down**, because "square less a quarter disc" has more than
+   one reading and they give visibly different seats. `quarterRing` in `banquetteCorner.ts` is the
+   one line to change; what is not decided is *what to change it to*. Three questions, and the
+   third is the one that decides the other two:
+   - **Is the removed disc's radius still the unit's own size?** Today `validate` insists
+     `W = D = insideCornerRadius`, the same rule the quarter-round end has. Keep it and inverting the
+     shape leaves a sliver of `r² − πr²/4` ≈ **0.21 r²** — for a 500 corner, a piece reaching only
+     207mm out along its own diagonal. That may well be right for a filler between two rounded runs,
+     and it is a surprising enough shape that it should be confirmed rather than deduced.
+   - **Or is the fillet radius a separate figure**, smaller than the unit, with the disc centred on
+     the unit's front corner? That keeps a full square seat with a rounded notch and is the reading
+     that makes the arc *tangent* to both runs' front edges.
+   - **Which of those two the shop means** is what the screenshot would settle in a second and no
+     amount of reasoning from here will. §4.5's four corner decisions carry the standing note that a
+     fresh session re-deriving a shop decision gets a different answer; this is the same class.
+
+   Whatever the answer, the cushion has to turn with it — `BanquetteCornerCushions` builds its
+   quarter from the same description and would otherwise sit convex on a concave seat.
+
 2. **A standalone panel should stand perpendicular to the wall, not flat against it**, and then turn
    in 90° increments from there. Today it snaps flat, which is the wrong default for the thing it is
    usually used as.
+
+   **Scoped but not built**, and the map is worth having because the change is smaller than it
+   looks and lands in three specific places. `snapToWall` in `project/wallPlacement.ts` parks a
+   dragged cabinet flush and square via `placeAgainstWall`, which sets `yawDeg` to
+   `yawAgainstWall(wall)` — flat, by construction. `wallAnchorOf` then only recognises a cabinet as
+   *against* a wall when its yaw matches that same figure, so a perpendicular panel stops being
+   "against the sink wall" and the Inspector falls through to its free-standing controls — where
+   **Turned** already exists on a 15° step and would want 90 for a panel. That fall-through is
+   probably the right behaviour rather than a problem to fix: a panel standing out into the room is
+   not on a wall in the sense §4.2's readout means.
+
+   Two things need answering before the code, and neither is guessable:
+   - **Which of the two perpendicular orientations is the default** — a panel off the north wall can
+     face east or west, and they are not the same panel. This is the handedness trap `radiusCorner`
+     and `bowedFrontProfile` both have scar tissue for: either choice passes any test that checks a
+     size, and only one of them is the end of the run.
+   - **What the snap measures.** `snapToWall` computes `along` from `cabinet.width`, assuming the
+     width runs along the wall. Turned 90° it is the panel's *thickness* that runs along the wall
+     and its width that runs into the room, so the flush-and-square arithmetic is against a
+     different edge — and `effectiveDepth` is doing the other half of the same job.
 
 3. **The custom cabinet is not custom enough.** Wanted: add and delete *any* part — left end, back,
    bottom, each individually — and choose the material **per part**. This is the largest item on the
@@ -2856,10 +3033,10 @@ below the overcut.
    fixed set of part rules and §4.15 made each spec declare what it supports. A cabinet whose part
    list is itself data is a different shape of object.
 
-4. ~~**Woodtron `.nc` files are coming.**~~ **They arrived — ten of them, and they are read up in
-   `docs/woodtron-dialect.md`.** Five carcass programs at 16.3mm and five MDF door programs at 18mm,
-   from one job. **Read that document before touching `post/` or `machines.ts`**; what follows is
-   only the headline.
+4. ~~**Woodtron `.nc` files are coming.**~~ **They arrived — twenty-one of them, read up in
+   `docs/woodtron-dialect.md`, and the model has since been grown to hold them: see §4.20.**
+   Carcass programs at 16.3mm and MDF door programs at 18mm, from one job. **Read that document
+   before touching `post/` or `machines.ts`**; what follows is only the headline.
 
    It answers far more than the datum. The corrected figures: `plungeClearance` is **10**, not 3;
    `throughOvercut` is **0.2**, not 0.5; `drillStyle` is **explicit**, not `canned-g81`; the tool
@@ -2874,9 +3051,16 @@ below the overcut.
      origin. The heads are physically apart and the machine keeps a separate zero for each. A post
      that writes one origin for both puts every hole wrong relative to every cut.
    - **The drill head and the router rapid at different heights** — +30 and +20.
-   - **The multidrill's programmed coordinate is the *head* position, not the hole position.**
-     `B<n>` is a bitmask selecting spindles, and the coordinate is offset by that group's distance
-     from the head origin — which is why real programs have negative X well outside the sheet.
+   - **`B<n>` is a bitmask selecting which spindles fire**, and the programmed coordinate is offset
+     from the holes by the firing group's distance from the head origin — which is why real programs
+     have negative X well outside the sheet. **Whether that coordinate is the head origin or the
+     reference spindle's own position is the one thing still open**; an earlier draft of this bullet
+     stated the first as settled and it was not, which is the §5.11 lesson about a stale *open item*
+     repeating itself inside one. See the paragraph below, and §4.20.
+
+   **The first two are built — §4.20.** `MachineProfile` now carries a `HeadProfile` per head, so
+   the two origins and the two rapid heights are expressible, and a `WOODTRON_NESTING_ROUTER`
+   profile exists with every figure read off these files.
 
    **Two things are confirmed that this codebase already believed**, which is worth as much as the
    corrections: the **Ø35 hinge cup at 13mm deep**, exactly as §3 has it off Blum's own pattern; and

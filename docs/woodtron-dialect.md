@@ -374,12 +374,57 @@ argument for §5.9's per-material sheet choice being a real need rather than a n
 **Not modelled at all:** the cam lock. Cabinet locks are not in `library/blum.ts` or anywhere else,
 and this job has one per door.
 
+---
+
+## 10. What the model now carries, and what it still cannot
+
+`MachineProfile` was grown to hold this document — see handover §4.20. **A `WOODTRON_NESTING_ROUTER`
+profile now exists**, every figure on it read off the sections above rather than guessed, and it is
+in the machine picker beside the KDT.
+
+What made it possible was giving a machine **two heads**. `HeadProfile` carries the work offset, the
+rapid height, the plunge clearance and the through overcut, and all four differ between §2's drill
+head and its router. The work offset is written when the head *changes*, so a router-only program
+still says `G55` exactly once.
+
+`DrillBank` was rewritten around §6: a flat list of spindles with a position and a diameter each,
+rather than a pitch and a count, because the two rows do not share a numbering origin and the
+diameters vary along a row. `WOODTRON_DRILL_BANK_WITHOUT_DATUM` holds the solved map — and its type
+is `Omit<DrillBank, 'datum'>`, so the sign question below is enforced by the compiler rather than by
+a comment. It cannot be fitted to the profile until somebody answers it.
+
+**Four things in the profile are known to be wrong or missing**, and each is on its `unconfirmed`
+list, printed on screen, in the report and at the top of every program it writes:
+
+- **Parts do not come free.** §7's two passes are *per sheet*, and the post finishes each part
+  before starting the next. So `leaveUncut` ships at the machine's own **1.0mm first-pass figure**
+  and the second pass has to be added by hand. Setting it to 0 to match the finished depth would do
+  the exact thing the two-pass structure exists to prevent — free the first part under the cutter.
+- **No holes are drilled.** Every drill in these files is on the multidrill head and nothing bores
+  with the router, so the tool table has no drill in it and every hole is reported by name and left
+  out. Putting one in would be inventing a bit the machine has not been seen to hold.
+- **Arcs go out in I/J form**, and every arc here is `R` — and every one is `G3`.
+- **A rip is written like a contour**, with the lead-in ramp §7 says it should not have.
+
 ## What this does **not** answer
 
-- **The spindle map** for the drill bank — which position is which diameter, and the full offset
-  table. The mechanism is clear; the numbers are not.
+- **The sign, and it is the one that blocks the drill bank.** §6 solved *which spindle is where*;
+  what is still open is whether the programmed coordinate positions the **reference spindle** or the
+  **head origin**. Every drilled row in the twenty-one files is symmetric about its part, so the two
+  readings produce identical output and no amount of re-reading these files will separate them. It
+  needs one part whose true hole positions are known. 128mm is the cost of guessing.
+- **Ø8.** The bank carries Ø3, Ø5, Ø10 and Ø35; this shop's hardware wants Ø8 dowels, which nothing
+  on the head matches. Even with the bank on, those want the borer.
+- **How long the first row is.** Spindle 7 is the highest number seen on it, and "1–15ish" is a
+  reading of the head rather than a count off a file.
+- **Where rows 1 and 2 sit relative to each other on the *other* axis.** Spindles 16 and 17 are only
+  ever referred to by a Y offset; their X is recorded as zero and is a guess.
 - **The KDT.** Every file here is Woodtron. The Z datum is confirmed for both by the shop directly,
-  but nothing else here should be assumed to carry across.
+  but nothing else here should be assumed to carry across — and nothing has been. The KDT's two
+  heads are given the same numbers deliberately, which is a statement that nobody has looked, not a
+  claim that they match.
 - **Whether the 3115 door sheet is a stock size or a cut-down.** It wants checking against Laminex
   and Polytec's published sizes along with the rest of §5.13 item 7.
-- **Tool numbers**: only `T1` (the 10mm compression) appears. Everything else is on the drill head.
+- **Tool numbers beyond `T1` and `T8`.** Those two are the whole of what the files show, so the
+  profile's table is sparse on purpose: the numbers are the machine's own pockets and a dense
+  `1..n` table would be a fiction.

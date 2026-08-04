@@ -272,8 +272,8 @@ function GcodePanel({ project, nest }: { project: Project; nest: ProjectNest }) 
 
       {machine.unconfirmed.length > 0 && (
         <p className="note warning">
-          <strong>{machine.name} has not been checked against this machine.</strong> Simulate or
-          air-cut before running anything. What is a guess:
+          <strong>{machine.name} has not been proved on this machine.</strong> Simulate or
+          air-cut before running anything. What is unverified or missing:
           <br />
           {machine.unconfirmed.map((u) => (
             <span key={u}>
