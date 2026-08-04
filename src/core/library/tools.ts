@@ -15,6 +15,15 @@ import type { ToolProfile } from '../model/feature.ts';
 
 export const STOCK_TOOLS: readonly ToolProfile[] = [
   { id: 'straight-6', name: '6mm straight', section: { kind: 'straight', diameter: mm(6) } },
+  /*
+   * The Woodtron's `10COMP3W` — a 10mm three-wing compression spiral, which is what that machine
+   * cuts parts out with. A compression spiral is straight-sided: up-cut at the tip and down-cut
+   * above it so both faces of a laminated board come out clean, but what it *leaves* is a 10mm
+   * slot, and §2's rule is that a cutter's section is the only thing that decides a cut's width.
+   * So it is a straight tool here, and the compression is a purchasing fact rather than a
+   * geometric one.
+   */
+  { id: 'straight-10', name: '10mm compression spiral', section: { kind: 'straight', diameter: mm(10) } },
   { id: 'straight-12', name: '12mm straight', section: { kind: 'straight', diameter: mm(12) } },
   { id: 'straight-16', name: '16mm straight', section: { kind: 'straight', diameter: mm(16) } },
   { id: 'vee-90', name: '90° vee', section: { kind: 'vee', includedAngleDeg: 90 } },

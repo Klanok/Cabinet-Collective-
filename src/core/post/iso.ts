@@ -39,12 +39,16 @@ import { type Vertex2, arcGeometry, isArcEdge } from '../geom/arc.ts';
 import { findToolOrNull } from '../library/tools.ts';
 import type { Operation, SheetProgram } from '../cam/operation.ts';
 import {
+  type Head,
   type MachineProfile,
   type MachineTool,
   boringToolFor,
   findMachineTool,
+  headOf,
+  throughDepth,
   zAtDepth,
   zClearance,
+  zPlunge,
 } from './machine.ts';
 
 /** Coordinates to two decimals — a hundredth of a millimetre is well past what a router holds. */
@@ -208,13 +212,27 @@ export const writeSheetProgram = (
   }
   for (const line of profile.preamble) w.push(line);
 
-  const clearance = zClearance(profile, program.thickness);
   let currentTool: MachineTool | null = null;
+  let currentHead: Head | null = null;
 
   const ensureTool = (tool: MachineTool) => {
-    if (currentTool?.pocket === tool.pocket) return;
+    const head = headOf(tool);
+    if (currentTool && headOf(currentTool) === head && currentTool.pocket === tool.pocket) return;
     if (currentTool) for (const line of profile.stopSpindle) w.push(line);
-    w.push(`G0 Z${n(clearance)}`);
+    /*
+     * The work offset before the retract, not after, and the order is load-bearing.
+     *
+     * The clearance about to be rapided to is the *incoming* head's, so it has to be measured in
+     * the incoming head's own coordinate system. Retracting first would put the tool at the new
+     * head's clearance height above the old head's zero, which is a number that means nothing on
+     * either. A single-head program emits this once and it lands exactly where a preamble `G54`
+     * used to sit.
+     */
+    if (head !== currentHead) {
+      w.push(profile.heads[head].workOffset);
+      currentHead = head;
+    }
+    w.push(`G0 Z${n(zClearance(profile, head, program.thickness))}`);
     for (const line of profile.toolChange(tool)) w.push(line);
     for (const line of profile.startSpindle(tool)) w.push(line);
     currentTool = tool;
@@ -239,7 +257,7 @@ export const writeSheetProgram = (
       continue;
     }
     ensureTool(tool);
-    writeOperation(w, op, profile, tool, program.thickness, clearance);
+    writeOperation(w, op, profile, tool, program.thickness);
   }
 
   if (currentTool) for (const line of profile.stopSpindle) w.push(line);
@@ -258,20 +276,28 @@ const writeOperation = (
   profile: MachineProfile,
   tool: MachineTool,
   thickness: Mm,
-  clearance: Mm,
 ) => {
+  // Every plane this operation moves between belongs to the head the tool is on, not to the
+  // machine — see `HeadProfile`. The two heads do not rapid at the same height.
+  const head = headOf(tool);
+  const clearance = zClearance(profile, head, thickness);
+  const plunge = zPlunge(profile, head, thickness);
+
   switch (op.kind) {
     case 'bore': {
-      const z = zAtDepth(profile, op.depth, thickness);
+      const z = zAtDepth(
+        profile,
+        throughDepth(profile, head, thickness, op.depth, op.through),
+        thickness,
+      );
       w.comment(`${op.partName} ${op.purpose} D${op.diameter}`);
       if (profile.drillStyle === 'canned-g81') {
-        const retract = zAtDepth(profile, mm(-profile.plungeClearance), thickness);
         w.push(`G0 X${n(op.at.x)} Y${n(op.at.y)}`);
-        w.push(`G81 Z${n(z)} R${n(retract)} F${tool.plungeFeed}`);
+        w.push(`G81 Z${n(z)} R${n(plunge)} F${tool.plungeFeed}`);
         w.push('G80');
       } else {
         w.push(`G0 X${n(op.at.x)} Y${n(op.at.y)}`);
-        w.push(`G0 Z${n(zAtDepth(profile, mm(-profile.plungeClearance), thickness))}`);
+        w.push(`G0 Z${n(plunge)}`);
         w.push(`G1 Z${n(z)} F${tool.plungeFeed}`);
         w.push(`G0 Z${n(clearance)}`);
       }
@@ -284,7 +310,7 @@ const writeOperation = (
       const start = op.path[0]!;
       w.comment(`${op.partName} ${op.purpose}`);
       w.push(`G0 X${n(start.x)} Y${n(start.y)}`);
-      w.push(`G0 Z${n(zAtDepth(profile, mm(-profile.plungeClearance), thickness))}`);
+      w.push(`G0 Z${n(plunge)}`);
       for (const depth of depthPasses(target, tool.maxDepthOfCut)) {
         w.push(`G1 Z${n(zAtDepth(profile, depth, thickness))} F${tool.plungeFeed}`);
         contourPass(w, op.path, op.closed, zAtDepth(profile, depth, thickness), tool.feed);
@@ -312,7 +338,7 @@ const writeOperation = (
       }
       const start = rings[0]![0]!;
       w.push(`G0 X${n(start.x)} Y${n(start.y)}`);
-      w.push(`G0 Z${n(zAtDepth(profile, mm(-profile.plungeClearance), thickness))}`);
+      w.push(`G0 Z${n(plunge)}`);
       for (const depth of depthPasses(op.depth, tool.maxDepthOfCut)) {
         for (const ring of rings) {
           w.push(`G0 X${n(ring[0]!.x)} Y${n(ring[0]!.y)}`);
@@ -329,7 +355,7 @@ const writeOperation = (
       w.comment(`${op.partName} ${op.purpose} with ${op.toolId}`);
       const start = op.path[0]!;
       w.push(`G0 X${n(start.x)} Y${n(start.y)}`);
-      w.push(`G0 Z${n(zAtDepth(profile, mm(-profile.plungeClearance), thickness))}`);
+      w.push(`G0 Z${n(plunge)}`);
       w.push(`G1 Z${n(zAtDepth(profile, op.depth, thickness))} F${tool.plungeFeed}`);
       for (const p of op.path.slice(1)) w.push(`G1 X${n(p.x)} Y${n(p.y)} F${tool.feed}`);
       w.push(`G0 Z${n(clearance)}`);

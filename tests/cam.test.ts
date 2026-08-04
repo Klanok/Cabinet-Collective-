@@ -580,12 +580,12 @@ describe('Z zero, confirmed from the shop', () => {
 
   it('puts the rapid plane above the sheet, not above the table', () => {
     // 16 + 20 = 36. On a material-top datum this would be a bare 20 and would rapid *through* it.
-    expect(zClearance(KDT_NESTING_ROUTER, mm(16))).toBe(36);
+    expect(zClearance(KDT_NESTING_ROUTER, 'router', mm(16))).toBe(36);
   });
 
   it('finishes a through cut just inside the spoilboard, at a small negative Z', () => {
     // 16 − (16 + 0.5) = −0.5, which is the shop's own description of what a negative Z means.
-    const through = mm(16 + KDT_NESTING_ROUTER.throughOvercut);
+    const through = mm(16 + KDT_NESTING_ROUTER.heads.router.throughOvercut);
     expect(zAtDepth(KDT_NESTING_ROUTER, through, mm(16))).toBeCloseTo(-0.5, 6);
   });
 
@@ -604,7 +604,7 @@ describe('Z zero, confirmed from the shop', () => {
       .map((s) => s.output)
       .filter((o) => o !== null);
     expect(programs.length).toBeGreaterThan(0);
-    const floor = -KDT_NESTING_ROUTER.throughOvercut;
+    const floor = -KDT_NESTING_ROUTER.heads.router.throughOvercut;
     for (const program of programs) {
       const zs = [...program!.text.matchAll(/Z(-?\d+(?:\.\d+)?)/g)].map((m) => Number(m[1]));
       expect(zs.length).toBeGreaterThan(0);

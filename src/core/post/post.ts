@@ -31,11 +31,18 @@ export interface PostedJob {
   readonly warnings: readonly string[];
 }
 
-/** What the machine profile says about how parts come off the sheet. */
+/**
+ * What the machine profile says about how parts come off the sheet.
+ *
+ * The overcut is the **router head's**, and asking for it by name is the point: CAM cuts parts out
+ * and clears cutouts, both of which are router work. A drill head has an overcut of its own — zero,
+ * normally, because a through hole stops at the table rather than putting a Ø5 in the bed — and it
+ * is applied where the hole is written, not here. See `HeadProfile.throughOvercut`.
+ */
 export const setupFor = (machine: MachineProfile): CamSetup => ({
   partCutterToolId: machine.partCutterToolId,
   leaveUncut: machine.leaveUncut,
-  throughOvercut: machine.throughOvercut,
+  throughOvercut: machine.heads.router.throughOvercut,
 });
 
 export const postProject = (
