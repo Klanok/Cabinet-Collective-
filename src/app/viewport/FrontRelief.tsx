@@ -1,5 +1,14 @@
 /**
- * A routed front, seen.
+ * What is cut into the face of a part, seen.
+ *
+ * A routed front, and — since §5.12 — a groove or a rebate somebody put on a part by hand. Both
+ * arrive the same way and are drawn by the same component on purpose: the viewport is told
+ * nothing about door styles and nothing about custom features either. It reads `PanelFeature[]`
+ * and shows what is there, so a groove drawn by hand and a groove cut by a style are the same
+ * mark on screen, because they are the same cut at the bench.
+ *
+ * A hole right through is **not** here: it is a real hole in the mesh, cut in `PanelMesh` through
+ * `panelDrawingProfile`.
  *
  * The viewport is told nothing about door styles. It reads the **features on the panel** — a
  * pocket, a run of profiled cuts — and shows what they describe. That is the same principle
@@ -137,8 +146,41 @@ export function FrontRelief({ panel, thickness, colour, wireframe = false }: Pro
   const strips = recess ? borderStrips(boundsOf(recess.outline), length, width) : [];
   const borderDepth = recess ? recess.depth : 0;
 
+  /*
+   * A flat-bottomed groove, drawn at the width it is actually cut and on the face it is cut into.
+   *
+   * Struck on the surface rather than modelled as a channel, and that is a limit worth naming
+   * rather than hiding: `extrudeProfile` cuts holes right through a part and does not scoop a
+   * floor into one, so a groove is a preview here exactly as a V-groove already was. What it
+   * *does* get right is the two things somebody checks on screen — which face it is on, and where
+   * it runs — and both come from the feature rather than from a guess.
+   */
+  const faceGrooves = panel.features.filter((f) => f.kind === 'groove');
+
   return (
     <>
+      {!wireframe &&
+        faceGrooves.flatMap((g) =>
+          g.path.slice(0, -1).map((a, i) => {
+            const b = g.path[i + 1]!;
+            const run = Math.hypot(b.x - a.x, b.y - a.y);
+            if (run <= 0.01) return null;
+            // Just proud of the face it is cut into, so it reads as a mark on that side and does
+            // not z-fight with the board. A B-face groove sits below zero, not above thickness.
+            const z = g.face === 'A' ? thickness + 0.1 : -0.1;
+            return (
+              <mesh
+                key={`${g.id}-${i}`}
+                position={[(a.x + b.x) / 2, (a.y + b.y) / 2, z]}
+                rotation={[0, 0, Math.atan2(b.y - a.y, b.x - a.x)]}
+              >
+                <planeGeometry args={[run, Math.max(g.width, 0.5)]} />
+                <meshStandardMaterial color="#6f6a63" roughness={0.9} metalness={0} />
+              </mesh>
+            );
+          }),
+        )}
+
       {!wireframe && strips.map((s) => (
         <mesh
           key={s.key}

@@ -26,7 +26,7 @@ import {
 export const WALL_CABINET_SPEC: CabinetSpec = {
   typeId: 'wall',
   name: 'Wall cabinet',
-  capabilities: { cornerRadius: true, appliedEnds: true },
+  capabilities: { cornerRadius: true, appliedEnds: true, customFeatures: true },
   defaultOptions: {
     shelfCount: 2,
     doorCount: 2,

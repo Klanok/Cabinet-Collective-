@@ -77,6 +77,7 @@ export const CUSTOM_CABINET_SPEC: CabinetSpec = {
       'A rounded corner is not built on a custom carcass — the corner would come out cut away ' +
       'with nothing wrapped round it. A base, wall, tall or banquette unit builds one.',
     appliedEnds: true,
+    customFeatures: true,
   },
   defaultOptions: {
     topStyle: 'panel',

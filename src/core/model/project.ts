@@ -37,7 +37,7 @@ import {
 } from '../library/blum.ts';
 import { AU_BENCHTOP_MATERIALS, AU_MATERIAL_LIBRARY, AU_SHEET_MATERIALS } from '../library/materials.au.ts';
 
-export const CURRENT_SCHEMA_VERSION = 25 as const;
+export const CURRENT_SCHEMA_VERSION = 26 as const;
 
 /**
  * The bendy ply an older job is given when it is migrated forward. It has no curved parts in
@@ -683,6 +683,23 @@ const migrateV24toV25 = (raw: Record<string, unknown>): Record<string, unknown> 
 };
 
 /**
+ * v25 → v26: cabinets may carry custom cutouts on named parts (§5.12).
+ *
+ * **Nothing is added and nothing moves.** A job saved before this has no custom features, which
+ * is exactly what a cabinet with no `customFeatures` means, so every part in every saved job
+ * comes off the saw the same size it did yesterday.
+ *
+ * The version is bumped anyway, and the reason is the same one v4 was bumped for: so an **older
+ * build refuses the file** rather than opening it and quietly cutting the parts without the
+ * cutouts in them. A missing hole is not a visible error — it is a side panel that looks
+ * perfectly correct until the waste pipe will not go past it.
+ */
+const migrateV25toV26 = (raw: Record<string, unknown>): Record<string, unknown> => ({
+  ...raw,
+  schemaVersion: 26,
+});
+
+/**
  * v11 → v12. **The screen colours, backfilled onto jobs that never had them.**
  *
  * Reported from the bench as "changing the door to Notaio Walnut has done nothing", and the
@@ -957,6 +974,7 @@ export const migrateProject = (raw: unknown): Project => {
   if (data.schemaVersion === 22) data = migrateV22toV23(data);
   if (data.schemaVersion === 23) data = migrateV23toV24(data);
   if (data.schemaVersion === 24) data = migrateV24toV25(data);
+  if (data.schemaVersion === 25) data = migrateV25toV26(data);
 
   if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`migrateProject: could not migrate schema version ${String(version)}`);

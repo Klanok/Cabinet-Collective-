@@ -36,18 +36,28 @@ import { buildCabinet } from '../src/core/rules/build.ts';
 import { createCabinet, createEmptyProject } from '../src/core/project/factory.ts';
 import { CABINET_SPECS, allSpecs } from '../src/core/rules/registry.ts';
 import { refusalOf } from '../src/core/rules/spec.ts';
-import type { CabinetOptions, CabinetTypeId } from '../src/core/model/cabinet.ts';
+import type { Cabinet, CabinetOptions, CabinetTypeId } from '../src/core/model/cabinet.ts';
+import type { CustomFeature } from '../src/core/model/partFeature.ts';
+import { panelExtent } from '../src/core/model/panel.ts';
+import { edgeDatumsOf } from '../src/core/rules/customFeatures.ts';
 
-const CAPABILITIES = ['cornerRadius', 'appliedEnds'] as const;
+const CAPABILITIES = ['cornerRadius', 'appliedEnds', 'customFeatures'] as const;
 
 /** A cabinet of a given type, built at a size every type can be. */
-const build = (typeId: CabinetTypeId, options: CabinetOptions) => {
+const build = (
+  typeId: CabinetTypeId,
+  options: CabinetOptions,
+  customFeatures: readonly CustomFeature[] = [],
+) => {
   const project = createEmptyProject('Capabilities');
-  const cabinet = createCabinet(
-    { typeId, name: 'C1', x: mm(0), width: mm(900), height: mm(720), depth: mm(560), options },
-    project.defaults,
-    project.constructions,
-  );
+  const cabinet: Cabinet = {
+    ...createCabinet(
+      { typeId, name: 'C1', x: mm(0), width: mm(900), height: mm(720), depth: mm(560), options },
+      project.defaults,
+      project.constructions,
+    ),
+    customFeatures,
+  };
   const withCabinet = { ...project, cabinets: [cabinet] };
   return buildCabinet(cabinet, withCabinet);
 };
@@ -109,6 +119,51 @@ describe('the declaration matches what the spec actually produces', () => {
     }
   });
 
+  it('puts a custom cutout on a part of every type that claims one', () => {
+    /*
+     * Same shape of check as the two above, and it needs the *parts* rather than an option: a
+     * feature is placed on a named part rule, so this builds each type, finds its biggest part,
+     * asks that part which edges it has, and measures a hole in from two of them. A spec claiming
+     * `customFeatures: true` and producing nothing to machine fails here.
+     */
+    for (const [typeId, spec] of Object.entries(CABINET_SPECS)) {
+      if (spec.capabilities.customFeatures !== true) continue;
+      const plain = build(typeId as CabinetTypeId, {});
+      const biggest = plain.panels
+        .map((panel, i) => ({ panel, key: plain.partKeys[i]! }))
+        .sort(
+          (a, b) =>
+            panelExtent(b.panel).length * panelExtent(b.panel).width -
+            panelExtent(a.panel).length * panelExtent(a.panel).width,
+        )[0]!;
+      const edges = edgeDatumsOf(biggest.panel.placement);
+      // Four edges, in opposite pairs, so the first and the third are at right angles.
+      expect(edges.length, typeId).toBe(4);
+
+      const built = build(typeId as CabinetTypeId, {}, [
+        {
+          id: 'cf-check',
+          kind: 'hole',
+          part: biggest.key.key,
+          index: biggest.key.index,
+          at: [
+            { from: edges[0]!, at: mm(60) },
+            { from: edges[2]!, at: mm(60) },
+          ],
+          diameter: mm(20),
+        },
+      ]);
+      // Found by its part key rather than by its panel id: each build makes a new cabinet with
+      // new ids, and the key is the thing that is stable across a rebuild — which is the whole
+      // reason a feature names one.
+      const at = built.partKeys.findIndex(
+        (k) => k.key === biggest.key.key && k.index === biggest.key.index,
+      );
+      expect(at, typeId).toBeGreaterThanOrEqual(0);
+      expect(built.panels[at]!.features.some((f) => f.purpose === 'custom'), typeId).toBe(true);
+    }
+  });
+
   it('says why, in the spec’s own words, on every type that refuses', () => {
     for (const [typeId, spec] of Object.entries(CABINET_SPECS)) {
       const radiusRefusal = refusalOf(spec.capabilities.cornerRadius);
@@ -121,6 +176,22 @@ describe('the declaration matches what the spec actually produces', () => {
           build(typeId as CabinetTypeId, { appliedEnds: ['left'] }).warnings,
           typeId,
         ).toContain(endRefusal);
+      }
+      const featureRefusal = refusalOf(spec.capabilities.customFeatures);
+      if (featureRefusal !== null) {
+        const built = build(typeId as CabinetTypeId, {}, [
+          {
+            id: 'cf-check',
+            kind: 'hole',
+            part: 'side-left',
+            at: [
+              { from: 'bottom', at: mm(100) },
+              { from: 'front', at: mm(100) },
+            ],
+            diameter: mm(20),
+          },
+        ]);
+        expect(built.warnings.join(' '), typeId).toContain(featureRefusal);
       }
     }
   });

@@ -280,6 +280,58 @@ export const bowedFrontProfile = (
 };
 
 /**
+ * A circle, as four quarter arcs, wound counter-clockwise.
+ *
+ * **Four rather than two**, and the reason is downstream rather than geometric: two semicircles
+ * describe the same circle exactly, and `cam/offset.ts` refuses a ring with fewer than three
+ * corners because it cannot tell a path from a polygon. A hole offset by nothing is a hole cut
+ * on its own centreline — oversize by a cutter radius all the way round, which is a waste pipe
+ * that rattles and a sink that drops through.
+ *
+ * Quarter arcs also make every join tangent, so the offset finds no corner to swing round and
+ * the toolpath comes out as one clean circle of `r − cutter` rather than four arcs and four
+ * fillets.
+ */
+export const circleRing = (centre: Vec2, radius: Mm): Polygon => {
+  if (radius <= 0) throw new Error('circleRing: radius must be positive');
+  // tan(90° / 4) — a quarter turn, counter-clockwise, convex outward.
+  const bulge = Math.tan(Math.PI / 8);
+  const { x, y } = centre;
+  return [
+    { x: x + radius, y, bulge },
+    { x, y: y + radius, bulge },
+    { x: x - radius, y, bulge },
+    { x, y: y - radius, bulge },
+  ];
+};
+
+/**
+ * The same ring travelled the other way — which turns an outline into a hole and back.
+ *
+ * A bulge belongs to the edge **leaving** its vertex, so reversing the traversal carries every
+ * bulge back one place, and travelling an arc backwards negates its sweep. Both, or the curve
+ * comes out as the complement of the one wanted.
+ */
+export const reversePolygon = (poly: Polygon): Polygon => {
+  const n = poly.length;
+  const out: Vertex2[] = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const bulge = poly[(i - 1 + n) % n]!.bulge;
+    const { x, y } = poly[i]!;
+    out.push(bulge === undefined || bulge === 0 ? { x, y } : { x, y, bulge: -bulge });
+  }
+  return out;
+};
+
+/** Move a whole profile, outline and holes together. */
+export const translateProfile = (p: Profile2D, dx: Mm, dy: Mm): Profile2D => {
+  if (dx === 0 && dy === 0) return p;
+  const move = (poly: Polygon): Polygon =>
+    poly.map((v) => (v.bulge === undefined ? v2(v.x + dx, v.y + dy) : { x: v.x + dx, y: v.y + dy, bulge: v.bulge }));
+  return { outline: move(p.outline), holes: p.holes.map(move) };
+};
+
+/**
  * A quarter disc — the plan shape of a former in a radiused end.
  *
  * Occupies the corner at the origin: straight along `y = 0` out to the radius, round to the
@@ -426,6 +478,27 @@ export const isRectangular = (p: Profile2D): boolean => {
       (nearlyEqual(v.x, b.minX) || nearlyEqual(v.x, b.maxX)) &&
       (nearlyEqual(v.y, b.minY) || nearlyEqual(v.y, b.maxY)),
   );
+};
+
+/**
+ * A short string that is the same for two profiles of the same shape and different for two of
+ * different shapes.
+ *
+ * For telling parts apart when they are being grouped — the cutlist collapses identical parts
+ * onto one line, and until §5.12 it decided identical on the **bounding box**. That was true for
+ * everything the engine produced and stopped being true the moment somebody could notch a
+ * corner: a side with a scribe notch in it is exactly the same length and width as the plain one
+ * beside it, so the two would have come out as "2 ×" and one of them would be cut wrong.
+ *
+ * Rounded to a tenth of a millimetre, because two parts derived by different arithmetic to the
+ * same size differ in the last few bits and are the same part at the saw.
+ */
+export const profileSignature = (p: Profile2D): string => {
+  const ring = (poly: Polygon): string =>
+    poly
+      .map((v) => `${v.x.toFixed(1)},${v.y.toFixed(1)}${v.bulge ? `@${v.bulge.toFixed(4)}` : ''}`)
+      .join(' ');
+  return [ring(p.outline), ...p.holes.map(ring)].join('/');
 };
 
 // ---------------------------------------------------------------------------------------

@@ -16,7 +16,7 @@ before running anything. See [G-code](#g-code) below.
 ```bash
 npm install
 npm run dev       # the app
-npm test          # 822 tests
+npm test          # 857 tests
 npm run report    # cutlist, hardware, drilling, nest, G-code and costing for the sample kitchen
 ```
 
@@ -430,7 +430,7 @@ builders, which is the test of whether that's actually true.
 
 ## Verification
 
-822 tests, and the ones that matter are hand-calculated rather than snapshot:
+857 tests, and the ones that matter are hand-calculated rather than snapshot:
 
 - Every part size for the reference 900×720×560 base cabinet, worked out longhand in the test
   file header and asserted individually.

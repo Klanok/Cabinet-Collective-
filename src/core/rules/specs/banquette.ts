@@ -74,7 +74,7 @@ export const BANQUETTE_SPEC: CabinetSpec = {
    * and told the user it was not. A banquette is the run of the kitchen most likely to want a
    * curve on its exposed end, because somebody walks past it and sits down beside it.
    */
-  capabilities: { cornerRadius: true, appliedEnds: true },
+  capabilities: { cornerRadius: true, appliedEnds: true, customFeatures: true },
   defaultOptions: {
     // The top is an opening, closed by the lift-up rather than by a panel or rails.
     topStyle: 'open',

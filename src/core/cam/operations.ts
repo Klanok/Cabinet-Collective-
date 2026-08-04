@@ -28,6 +28,7 @@
 import { type Mm, mm } from '../units.ts';
 import type { Vec2 } from '../geom/vec.ts';
 import { type Vertex2 } from '../geom/arc.ts';
+import { reversePolygon } from '../geom/profile.ts';
 import {
   type MachiningFace,
   type PanelFeature,
@@ -221,18 +222,18 @@ const featureOperations = (
          * perimeter — offsetting a hole outward would cut it oversize by a cutter diameter. The
          * ring is reversed so its inside becomes its outside, offset, and reversed back.
          */
-        const ring = partRingToSheet(f.outline as readonly Vertex2[], lay);
+        const ring = partRingToSheet(f.outline, lay);
         const tool = findToolOrNull(setup.partCutterToolId);
         const radius =
           tool && tool.section.kind === 'straight' ? mm(tool.section.diameter / 2) : mm(0);
-        const inward = offsetRingOutward(reverseRing(ring), radius);
+        const inward = offsetRingOutward(reversePolygon(ring), radius);
         inward.problems.forEach((p) => warnings.push(`"${panel.name}": ${p}`));
         operations.push({
           ...base,
           kind: 'contour',
           id: opId(panel.id, f.id),
           purpose: f.purpose,
-          path: reverseRing(inward.path),
+          path: reversePolygon(inward.path),
           closed: true,
           depth: mm(thickness + setup.throughOvercut),
           toolId: setup.partCutterToolId,
@@ -249,19 +250,6 @@ const featureOperations = (
   }
 
   return { operations, unreachable };
-};
-
-/** Reverse a ring, carrying each bulge back one place so every arc keeps its own edge. */
-const reverseRing = (ring: readonly Vertex2[]): Vertex2[] => {
-  const n = ring.length;
-  const out: Vertex2[] = [];
-  for (let i = n - 1; i >= 0; i--) {
-    const bulge = ring[(i - 1 + n) % n]!.bulge;
-    const { x, y } = ring[i]!;
-    // Travelling an arc backwards negates its sweep, and so its bulge.
-    out.push(bulge === undefined || bulge === 0 ? { x, y } : { x, y, bulge: -bulge });
-  }
-  return out;
 };
 
 /**

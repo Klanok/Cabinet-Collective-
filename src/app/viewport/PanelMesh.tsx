@@ -16,7 +16,7 @@ import {
   type Matrix4,
 } from 'three';
 import { useLoader, type ThreeEvent } from '@react-three/fiber';
-import type { Panel } from '../../core/model/panel.ts';
+import { type Panel, panelDrawingProfile } from '../../core/model/panel.ts';
 import type { SheetMaterial } from '../../core/model/material.ts';
 import { type Mm, mm } from '../../core/units.ts';
 import { extrudeProfile } from '../../core/geom/extrude.ts';
@@ -119,13 +119,23 @@ export function PanelMesh({ panel, thickness, colour: boardColour, texture, text
    */
   const bodyThickness = mm((recess ? thickness - recess.depth : thickness) - DRAW_INSET);
 
+  /*
+   * A part that has a hole right through it is drawn with the hole in it.
+   *
+   * `panel.profile` is the shape that gets *cut*, and a cutout is machining rather than shape —
+   * so it stays a feature and the drawing profile is derived here, at the point of drawing, the
+   * same way `forming` is applied here rather than in the model. A waste cutout you cannot see
+   * through is one a cabinetmaker cannot check.
+   */
+  const drawingProfile = useMemo(() => panelDrawingProfile(panel), [panel]);
+
   const geometry = useMemo(() => {
     // A formed part is stored flat, because flat is what gets cut. Bending it is the one
     // thing the viewport is allowed to do with `forming`, and it happens here rather than in
     // the model so that the shape being drawn can never become the shape being cut.
     const mesh = panel.forming
       ? formedMesh(panel.profile, bodyThickness, panel.forming)
-      : extrudeProfile(panel.profile, bodyThickness);
+      : extrudeProfile(drawingProfile, bodyThickness);
     const g = new BufferGeometry();
     g.setAttribute('position', new BufferAttribute(mesh.positions, 3));
     g.setAttribute('normal', new BufferAttribute(mesh.normals, 3));
@@ -154,7 +164,7 @@ export function PanelMesh({ panel, thickness, colour: boardColour, texture, text
     }
     g.setIndex(new BufferAttribute(mesh.indices, 1));
     return g;
-  }, [panel.profile, panel.grain, bodyThickness, panel.forming, displayTexture, texturePlacement]);
+  }, [drawingProfile, panel.profile, panel.grain, bodyThickness, panel.forming, displayTexture, texturePlacement]);
 
   const matrix: Matrix4 = useMemo(() => panelMatrix(panel.placement), [panel.placement]);
 

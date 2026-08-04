@@ -140,6 +140,7 @@ export const RADIUS_END_SPEC: CabinetSpec = {
       'A radiused end is already one quarter circle — its width and depth are the radius. Set ' +
       'the size to change the curve rather than adding a corner radius on top of it.',
     appliedEnds: true,
+    customFeatures: true,
   },
   defaultOptions: {
     formerSpacing: mm(300),

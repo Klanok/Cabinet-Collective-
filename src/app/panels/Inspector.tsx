@@ -18,6 +18,7 @@ import type { Project } from '../../core/model/project.ts';
 import { wallLength } from '../../core/model/room.ts';
 import { type WallAnchor, wallAnchorOf } from '../../core/project/wallPlacement.ts';
 import { sheetLabel } from './MaterialPicker.tsx';
+import { CutoutEditor } from './CutoutEditor.tsx';
 import type { BuiltCabinet } from '../../core/rules/build.ts';
 import { getSpec } from '../../core/rules/registry.ts';
 import { useAsk } from './ask.tsx';
@@ -1147,6 +1148,8 @@ export function Inspector({
           end panel on this cabinet. They stay one part each on the cutlist.
         </p>
       )}
+
+      <CutoutEditor cabinet={cabinet} built={built} onUpdate={onUpdate} />
 
       <div className="subhead">Parts</div>
       <table className="parts-table">

@@ -13,7 +13,7 @@
 
 import { type Mm, mm } from '../units.ts';
 import type { Vec2 } from '../geom/vec.ts';
-import type { RectEdge } from '../geom/profile.ts';
+import type { Polygon, RectEdge } from '../geom/profile.ts';
 
 /**
  * Which face a feature is machined from. Depths are always measured into the material from
@@ -50,6 +50,15 @@ export type FeaturePurpose =
   | 'adjustable-leg'
   /** Machining that makes a front look like something — a shaker recess, a V-groove. */
   | 'front-style'
+  /**
+   * Put here by hand, on this job, on one named part — see `model/partFeature.ts`.
+   *
+   * Its own purpose rather than borrowing `service-hole` or `other`, because it is the one kind
+   * of machining nothing in the rule engine can re-derive: everything else on a panel follows
+   * from the cabinet, and this followed from somebody deciding. That is what the cutlist has to
+   * print beside the part and what the person at the saw has to be told.
+   */
+  | 'custom'
   | 'other';
 
 /**
@@ -151,10 +160,17 @@ export interface RebateFeature extends FeatureBase {
   readonly depth: Mm;
 }
 
-/** A hole right through the panel, of arbitrary outline — sink cutouts, cable ports. */
+/**
+ * A hole right through the panel, of arbitrary outline — sink cutouts, cable ports.
+ *
+ * The ring is counter-clockwise, like a part outline, and its edges **may be arcs**: a round
+ * hole for a waste pipe is a circle, and a circle has to reach the machine as G2/G3 rather than
+ * as a polyline that has forgotten it was one. `Vertex2 extends Vec2`, so every straight cutout
+ * written before this was widened is still one.
+ */
 export interface CutoutFeature extends FeatureBase {
   readonly kind: 'cutout';
-  readonly outline: readonly Vec2[];
+  readonly outline: Polygon;
   /** Radius to leave at internal corners. Zero means the tool's own radius governs. */
   readonly cornerRadius: Mm;
 }

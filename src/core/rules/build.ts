@@ -21,6 +21,7 @@ import {
 import { STYLED_FRONT_ROLES, type StyledFront, isStyledFrontRole, styleFront } from './frontStyle.ts';
 import { boreCabinet } from './boring.ts';
 import { type ResolvedHardware, hardwareProblems } from './hardware.ts';
+import { applyCustomFeatures } from './customFeatures.ts';
 import { appliedEndProblems, cornerRadiusProblems } from './parts.ts';
 import type { CornerRadius } from './radius.ts';
 import { getSpec } from './registry.ts';
@@ -55,6 +56,25 @@ export interface BuiltCabinet {
    * whose radius the bendy ply could not turn — built square, with a warning saying so.
    */
   readonly radius: CornerRadius | null;
+  /**
+   * Which part rule produced each panel — index-aligned with `panels`.
+   *
+   * Carried out so the Inspector can offer "the left hand end" as `side-left` and store that,
+   * rather than storing a position in the part list. The key is the stable name (§5.12): adding
+   * a shelf does not move `side-left`, where it would move part number 7.
+   */
+  readonly partKeys: readonly PartKey[];
+}
+
+/** A part rule's name for one produced panel. */
+export interface PartKey {
+  /** The rule key — `side-left`, `bottom`, `fronts`. */
+  readonly key: string;
+  /** Which one, where the rule made several. */
+  readonly index: number;
+  readonly panelId: string;
+  /** What the part is called on the cutlist, so a picker can show it. */
+  readonly name: string;
 }
 
 const resolveMaterials = (cabinet: Cabinet, project: Project): ResolvedMaterials => ({
@@ -240,6 +260,7 @@ export const buildCabinet = (cabinet: Cabinet, project: Project): BuiltCabinet =
       doorStyle,
       hardware: ctx.hardware,
       radius: ctx.radius,
+      partKeys: [],
     };
   }
 
@@ -253,12 +274,24 @@ export const buildCabinet = (cabinet: Cabinet, project: Project): BuiltCabinet =
    * rather than inside the builders because fronts and sides each come out of several places, and
    * one resolution point cannot forget a caller.
    */
-  const produced: { instance: PartInstance; id: string }[] = [];
+  const produced: { instance: PartInstance; id: string; key: string; index: number }[] = [];
   for (const rule of spec.parts) {
     rule.produce(ctx).forEach((instance, i) => {
-      produced.push({ instance, id: `${cabinet.id}:${rule.key}:${i}` });
+      produced.push({ instance, id: `${cabinet.id}:${rule.key}:${i}`, key: rule.key, index: i });
     });
   }
+
+  /*
+   * Custom features go on before either of those passes, and the order decides real numbers. A
+   * notch changes the part's shape and can change its size, so anything measured off the
+   * finished part — a runner fixing set back from the front edge of a side, a shaker border
+   * sized to the front it is routed into — has to see the notched part rather than the one
+   * before it. A feature that will not fit is reported here and the part comes out unchanged.
+   */
+  const custom = applyCustomFeatures(ctx, spec, produced);
+  custom.instances.forEach((instance, i) => {
+    produced[i]!.instance = instance;
+  });
 
   const boring = boreCabinet(ctx, produced.map((p) => p.instance));
 
@@ -284,10 +317,16 @@ export const buildCabinet = (cabinet: Cabinet, project: Project): BuiltCabinet =
   return {
     cabinet: merged,
     panels,
-    warnings: [...warnings, ...styleWarnings, ...boring.warnings],
+    warnings: [...warnings, ...custom.warnings, ...styleWarnings, ...boring.warnings],
     doorStyle,
     hardware: ctx.hardware,
     radius: ctx.radius,
+    partKeys: produced.map((p) => ({
+      key: p.key,
+      index: p.index,
+      panelId: p.id,
+      name: p.instance.name,
+    })),
   };
 };
 
