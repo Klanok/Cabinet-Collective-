@@ -65,8 +65,8 @@ currently come in" — and rebuilt.** It had no front, the wrong kind of access,
 default that the plain unit and the corner unit did not even agree on. It now has a solid fixed
 front in door decor that takes no hinges but is still routed by a door style, a hinged lift-up
 inset flush into the top, and a divider only above a 1200mm clear span. **Read §5.4** — it records
-what was wrong as well as what replaced it, because the shape of the mistake is the lesson. Two
-one thing there is still open: the **lid stay is not modelled** (no such part in the Blum library,
+what was wrong as well as what replaced it, because the shape of the mistake is the lesson. One
+thing there is still open: the **lid stay is not modelled** (no such part in the Blum library,
 and inventing one is the failure the unchecked list exists to prevent). The cushions used to be the
 other one; they are costed now — see §4.19.
 
@@ -111,6 +111,18 @@ quote. They are **bought in as whole units from the upholsterer** — the shop s
 particleboard substrate — so they are the same class of thing as a stone benchtop and produce no
 parts at all. The rate is the shop's own: **$350 a lineal metre, charged per cushion**, so a metre
 with a base and a back is $700 rather than $350.
+
+**Then the machine files were turned into a machine** (§4.20). `MachineProfile` grew **two heads**,
+because a real nesting machine has two of everything that matters — two work offsets, two rapid
+heights, two through depths — and had one of each. **`WOODTRON_NESTING_ROUTER` is the first profile
+in this codebase that was read rather than guessed.** The drill bank's spindle map is solved and the
+bank is still switched off, held there by a missing type field rather than by a comment. Not one
+move of already-written KDT output changed.
+
+**And a standalone panel learned to stand edge out** (§4.21) — two bench reports that turned out to
+be one fix, because a panel sitting like an applied end beside a cabinet is, by construction,
+perpendicular to the wall that cabinet backs onto. A special case disappeared, which is usually the
+sign a model is right.
 
 Section 4 records how each works and why; section 5 is what is actually left to do.
 
@@ -2297,29 +2309,47 @@ asked the same access question. The **cushions are costed now** — §4.19, boug
 upholsterer at $350 a lineal metre per cushion — and a cushion nobody can price now says so instead
 of quoting at zero.
 
-**If asked which to do next, there are now two answers and they are for different people.**
+**If asked which to do next, there is one clear answer that needs nothing from anybody, and two
+that are waiting on the shop.**
 
-**For the machine: get one `.nc` file off the KDT and pin the dialect.** It is not a phase, it is
-ten minutes, and until it is done every program this tool writes is a draft that has to be
-simulated. `library/machines.ts` says at the top exactly what to compare and in what order. A real
-KDT program has since arrived and **contradicts the shipped profile** — see §4.9. Nothing about the
-G-code is safe until that is reconciled.
+**The one to start on: write the Woodtron's second pass.** §4.20 built a profile off twenty-one
+real programs and it is the honest one in this repo, but it writes files whose **parts never come
+free**. The machine cuts every contour on the sheet to a 1.0mm skin and only then takes them all
+through in a second sheet-wide pass — that is what holds each part on the vacuum while its
+neighbours are cut — and `writeSheetProgram` finishes each part before starting the next. It is a
+change to how the writer *walks the operation list*, not a new number, and it is the difference
+between a good draft and a file that can be run. **Nothing blocks it.**
 
-**For the app: the two items that were named here have both shipped** — the out-of-step indicator
-is §4.18 and getting a job out of the browser is §4.17, and §5.12's custom part features shipped
-before them as §4.16. **§5.11 is what is left of the August list**, and what is on it now is either
-not yet reproduced or is the UI as a whole. The cushions were on this list and have shipped as
-§4.19. What has the clearest shape now:
+**Two are waiting on the shop, and both were asked and are unanswered:**
+
+- **One Woodtron part whose true hole positions are known** — a shelf-pin row measured off a known
+  edge. That settles whether a programmed coordinate is the reference spindle or the head origin
+  (§4.20), which is the only thing keeping the drill bank off. The map is solved; the bank is one
+  field away. **128mm** is the cost of guessing, and no amount of re-reading the files answers it.
+- **The banquette corner's shape**, §5.13 item 1 — the screenshot or a sentence. Two readings of
+  "square less a quarter disc" give visibly different seats.
+
+**The KDT is a separate and still-open question.** Every one of the twenty-one files is a Woodtron
+and **nothing has been carried across** — the only KDT fact anybody has is the Z datum, from the
+shop directly. One program off it would do for the KDT what those did for the Woodtron, and
+`library/machines.ts` says at the top exactly what to compare and in what order, with the Woodtron
+doc as the worked example.
+
+**For the app: everything named here has shipped** — the out-of-step indicator is §4.18, getting a
+job out of the browser is §4.17, §5.12's custom part features are §4.16, the cushions are §4.19, and
+the standalone panel standing edge out is §4.21. **§5.11 and §5.13 are what is left of the two
+August lists.** What has the clearest shape now:
 
 - **The particleboard substrate under a bought-in cushion**, which §4.19 deliberately did not build.
   The shop supplies *"templates or particleboard substrates"* and only the first costs nothing; a
   substrate is a real part on a real sheet, so adding one changes the parts of every existing
   banquette and wants asking for rather than assuming. It is the obvious next question.
+- **Sheet sizes off Polytec's and Laminex's published ranges**, §5.13 item 7. The machine files
+  proved the principle and gave two real numbers — 2410 × 1205 × 16.3 and 3115 × 1205 × 18.0 — so
+  *"2400 × 1200 is the usable area"* is confirmed rather than asserted. This re-prices every job and
+  wants the same treatment §4.8 got: say so out loud, assert both halves.
 - **A pass over the whole UI.** The user's own words are *"any other user may struggle"*. Bigger and
   vaguer than anything else here, and worth agreeing a definition of done for before starting.
-
-The `.nc` work is still worth more than any *machine* item; it is not what the shop is blocked on at
-the bench.
 
 **A note that was here has been removed, and it is worth saying why rather than leaving a gap.**
 Both this document and `docs/architecture.md` carried a suggestion that Phase 3's CSVs could be
