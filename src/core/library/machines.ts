@@ -16,9 +16,11 @@
  * runs — ideally one with drilling in it and one that cuts parts out — and compare it line for line
  * against what `post/iso.ts` writes. The five things to look at, in the order they matter:
  *
- *   1. **Z zero.** Does the existing program's cutting Z go negative (zero at the top of the
- *      material) or stay positive (zero at the table)? Set `zDatum` to match. Nothing else on this
- *      list can hurt you as badly.
+ *   1. ~~**Z zero.**~~ **Answered, and it was the one this list was written for.** Both machines
+ *      work from the decking sheet up — Z0 is the top of the spoilboard, the sheet's top face is at
+ *      +thickness, and a through cut finishes at a small *negative* Z inside the sacrificial board.
+ *      Both profiles are `table`. It shipped as `material-top` and was wrong, so every program
+ *      written before that correction cut air on this machine.
  *   2. **Tool change.** Copy the exact lines the machine's own program uses. Some controllers want
  *      `M6 T3`, some `T3 M6`, some need a spindle stop and a Z retract first.
  *   3. **Drilling.** Does it use `G81 … G80`, or explicit plunges? Set `drillStyle`.
@@ -106,10 +108,25 @@ export const KDT_NESTING_ROUTER: MachineProfile = {
   name: 'KDT nesting router',
   fileExtension: '.nc',
 
-  // Zero at the top of the material is the more common convention on a nesting machine, and it is
-  // the safer one to be wrong about: a program written for material-top and run on a table-zero
-  // machine cuts *air*, where the other way round drives the full thickness into the bed.
-  zDatum: 'material-top',
+  /*
+   * **Zero at the table, confirmed from the shop — and this replaces a guess that was wrong.**
+   *
+   * > "With both the KDT and the Woodtron the gcode works from the decking sheet up, that is to say
+   * > a Z value of -0.2mm would be cutting 0.2mm into the sacrificial board."
+   *
+   * That is `table` exactly: Z0 is the top of the spoilboard, the sheet's own top face sits at
+   * +thickness, and a through cut finishes at **negative** Z by the overcut. It shipped as
+   * `material-top` on the reasoning that it was the safer way to be wrong — a material-top program
+   * run on a table-zero machine cuts air, where the reverse drives the full thickness into the bed.
+   *
+   * **The reasoning was sound and the answer was still wrong, which is the point of asking.** Every
+   * program written before this cut air on this machine: at 16mm the contour went to Z-16.5 where
+   * the material does not start until Z+16.
+   *
+   * This is the first figure to come off the unchecked list, and it is the one the list was written
+   * for — see the header. The rest of the dialect is still unverified.
+   */
+  zDatum: 'table',
   clearanceHeight: mm(20),
   plungeClearance: mm(3),
   throughOvercut: mm(0.5),
@@ -137,7 +154,7 @@ export const KDT_NESTING_ROUTER: MachineProfile = {
 
   unconfirmed: [
     'Which controller is in this machine (Syntec, LNC, Weihong all differ) — the whole dialect follows from it.',
-    'Z zero: assumed the top of the material, cuts negative. Check against a program the machine runs.',
+    'Everything except the Z datum. That one is confirmed from the shop; nothing else here has been.',
     'Tool change: assumed "M6 Tn". Copy the exact lines from an existing program.',
     'Drilling: assumed a G81/G80 canned cycle rather than explicit plunges.',
     'Feeds, speeds and depth of cut are conservative guesses, not this machine\'s numbers.',

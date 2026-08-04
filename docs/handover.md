@@ -2809,6 +2809,70 @@ three one-click ways to destroy a job without being asked, and a non-job file th
 to crash the app into the reload loop. All fixed, and **the shop standards can now be saved out
 too**, which genuinely could not be done before. §4.17 is the record.
 
+### 5.13 Reported from the bench, August 2026 — the second list
+
+Seven items, with a screenshot for the first. **One is already closed** and it is the most
+important one in this whole document, so it leads.
+
+#### ~~5. Z zero is the decking sheet, not the top of the material~~ — **fixed**
+
+> "With both the KDT and the Woodtron the gcode works from the decking sheet up, that is to say a Z
+> value of -0.2mm would be cutting 0.2mm into the sacrificial board."
+
+**This is the first figure to come off the machine's unchecked list, and it was wrong.**
+`library/machines.ts` shipped `zDatum: 'material-top'` with a comment arguing it was the *safer* way
+to be wrong — a material-top program run on a table-zero machine cuts air, where the reverse drives
+the full thickness into the bed. The reasoning was sound and the answer was still wrong, which is
+exactly why the list exists rather than the reasoning.
+
+Both profiles are now `table`. The abstraction was already right — `zAtDepth` and `zClearance` have
+always handled both — so the fix was one field, and **every program written before it cut air on
+this machine**: at 16mm the contour went to Z−16.5 where the material does not start until Z+16.
+
+Two things came out of it worth keeping. The program header line never needed changing, because it
+reads `zDatum` and always said whichever was set — it was a *test* pinning the guess in place. And
+**nothing in the suite asserted a single Z value**, on the number this file calls the most expensive
+one there is. `tests/cam.test.ts` now reads every Z back out of a real program and asserts none goes
+below the overcut.
+
+#### The rest, not yet done
+
+1. **The internal banquette corner is an external radius, and the cushion is turned the wrong way.**
+   Screenshotted. `banquetteCorner.ts` and `BanquetteCornerCushions` both build a quarter *disc* —
+   convex, bulging into the room — where an internal corner joining two runs wants the square
+   **less** a quarter disc, so the seat's front edge is concave between the two runs' front edges.
+   The shop's words: *"a complete mess."* Note this also moves §4.19's corner-seat arc charge, which
+   is measured along that front edge — the reading survives, the shape it measures does not.
+
+2. **A standalone panel should stand perpendicular to the wall, not flat against it**, and then turn
+   in 90° increments from there. Today it snaps flat, which is the wrong default for the thing it is
+   usually used as.
+
+3. **The custom cabinet is not custom enough.** Wanted: add and delete *any* part — left end, back,
+   bottom, each individually — and choose the material **per part**. This is the largest item on the
+   list and it is a rethink of what `customCabinet.ts` is, not a field: today a spec declares a
+   fixed set of part rules and §4.15 made each spec declare what it supports. A cabinet whose part
+   list is itself data is a different shape of object.
+
+4. **Woodtron `.nc` files are coming.** With them, the rest of the dialect can be pinned the way the
+   Z datum just was — tool change, drilling style, feeds, tool numbers. Until they arrive everything
+   in `machines.ts` except the datum is still a guess. **There is no Woodtron profile yet**, and
+   inventing one before the files land would be the failure the unchecked list exists to prevent.
+
+6. **A part too big for its sheet is silently not nested.** Wanted: an option to **split** it.
+   Design questions before code: where the split may fall, whether the halves get a joining detail
+   or are simply two parts, and what the cutlist calls them. A split part is two parts and a join,
+   which makes it closer to a benchtop's `joins` than to a nesting tweak.
+
+7. **Sheet sizes are wrong — 2400 × 1200 is the usable area, not the sheet.** To be taken from
+   **Laminex and Polytec's own published sizes** rather than assumed. This moves every nest and
+   every sheet count in the quote, so it re-prices jobs the way §4.8 did and needs the same
+   treatment: say so out loud, and assert both halves.
+
+**Asked for and declined, recorded so nobody picks it back up as an oversight:** the particleboard
+substrate under a bought-in cushion (§4.19). Put to the shop directly and answered *"no don't worry
+about the substrate for now."*
+
 ### 5.12 Custom features on an individual part — **shipped, see 4.16**
 
 What follows is the plan as it was written. It survived contact with the work, including the
