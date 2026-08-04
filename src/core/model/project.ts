@@ -37,7 +37,7 @@ import {
 } from '../library/blum.ts';
 import { AU_BENCHTOP_MATERIALS, AU_MATERIAL_LIBRARY, AU_SHEET_MATERIALS } from '../library/materials.au.ts';
 
-export const CURRENT_SCHEMA_VERSION = 27 as const;
+export const CURRENT_SCHEMA_VERSION = 28 as const;
 
 /**
  * The bendy ply an older job is given when it is migrated forward. It has no curved parts in
@@ -751,6 +751,43 @@ const migrateV26toV27 = (raw: Record<string, unknown>): Record<string, unknown> 
 };
 
 /**
+ * v27 → v28: a standalone panel stands edge out, so its two footprint fields swap.
+ *
+ * Reported from the bench: *"it faces edge out, it has to sit next to the cabinet like an applied
+ * panel"* — and the earlier half of the same report, *"a standalone panel should stand
+ * perpendicular to the wall, not flat against it"*. A panel used to be built lying flat along the
+ * run like a splashback. It is now built with its face running into the room, which is what an
+ * applied end looks like.
+ *
+ * **No part changes.** This is the important half of the rule and it is fully kept: a panel comes
+ * out of this migration the same rectangle, the same size, in the same material, banded on the same
+ * four edges, one identical line on the cutlist, nested into the same blank. Only the way it
+ * *stands in the room* changes. Nothing on the saw is affected and nothing re-prices.
+ *
+ * What moves is the footprint, and it has to: a panel's `width` was its face width and its `depth`
+ * a nominal 16mm thickness, and standing edge out those are the wrong way round. So they swap. A
+ * 600 × 2400 panel that was 600 along the run and 16 into the room is now 16 along the run and 600
+ * into the room — which is why the next cabinet along now butts against a board thickness instead
+ * of leaving a 600mm hole, and why the panel no longer lies across the front of the run.
+ *
+ * **A panel that was already turned by hand to work around this keeps its yaw**, so it ends up
+ * turned 90° from where its owner left it. That is the one visible cost, it is unavoidable without
+ * guessing which panels were workarounds and which were deliberate, and turning it back is one
+ * field in the Inspector. Guessing would be the worse failure: a rule that silently un-turned a
+ * panel somebody meant to turn is not something you would notice until the job was built.
+ */
+const migrateV27toV28 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const cabinets = (raw.cabinets as Record<string, unknown>[] | undefined) ?? [];
+  return {
+    ...raw,
+    schemaVersion: 28,
+    cabinets: cabinets.map((c) =>
+      c.typeId === 'panel' ? { ...c, width: c.depth, depth: c.width } : c,
+    ),
+  };
+};
+
+/**
  * v11 → v12. **The screen colours, backfilled onto jobs that never had them.**
  *
  * Reported from the bench as "changing the door to Notaio Walnut has done nothing", and the
@@ -1027,6 +1064,7 @@ export const migrateProject = (raw: unknown): Project => {
   if (data.schemaVersion === 24) data = migrateV24toV25(data);
   if (data.schemaVersion === 25) data = migrateV25toV26(data);
   if (data.schemaVersion === 26) data = migrateV26toV27(data);
+  if (data.schemaVersion === 27) data = migrateV27toV28(data);
 
   if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`migrateProject: could not migrate schema version ${String(version)}`);

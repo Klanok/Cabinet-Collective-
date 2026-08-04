@@ -279,19 +279,18 @@ function Scene({
        * do that a wall snap would undo. The wall is the fallback, which is also the order you
        * would do it by hand — set one cabinet, then push the rest up to it.
        */
+      /*
+       * A standalone panel needs no special case here any more, and its absence is the sign the
+       * model is right. There used to be an `effectiveDepth` that substituted the board's real
+       * thickness for `cabinet.depth` when snapping a panel, because a panel was built lying flat
+       * along the run and its stored depth was a nominal 16 that had nothing to do with the board.
+       * Now that a panel stands edge out, its depth *is* how far it reaches into the room — so the
+       * general path is the correct one. See `createCabinet` and `specs/standalonePanel.ts`.
+       */
       const appliedEndThickness = (candidate: typeof cabinet): Mm => {
         const materialId = candidate.materials.door ?? project.defaults.doorMaterialId;
         return actualThicknessOf(findSheet(project.materials, materialId));
       };
-      const effectiveDepth =
-        cabinet.typeId === 'panel'
-          ? actualThicknessOf(
-              findSheet(
-                project.materials,
-                cabinet.materials.carcass ?? project.defaults.carcassMaterialId,
-              ),
-            )
-          : cabinet.depth;
       const neighbour = snapToNeighbour(
         project.cabinets,
         cabinet,
@@ -302,7 +301,7 @@ function Scene({
       );
       const placement =
         neighbour?.placement ??
-        snapToWall(project.room, cabinet, x, z, WALL_SNAP_GAP, effectiveDepth)?.placement;
+        snapToWall(project.room, cabinet, x, z, WALL_SNAP_GAP)?.placement;
 
       if (placement) {
         onMoveCabinet(cabinetId, placement.anchor.x, placement.anchor.z, placement.yawDeg);

@@ -78,6 +78,17 @@ export const naturalAnchorY = (
   return options.hasKick === false ? mm(0) : construction.kickHeight;
 };
 
+/**
+ * How thick a standalone panel's footprint is taken to be, along the run.
+ *
+ * A **nominal placeholder, not a manufacturing figure.** The panel's real thickness comes from the
+ * board it is made of and nothing else (§2: the board decides how thick a board is), so this only
+ * ever decides how wide its box is drawn on the plan and how far the next cabinet butts along. It
+ * is the same nominal 16 the panel's `depth` carried before panels stood edge out — the axis
+ * changed, the placeholder did not.
+ */
+export const PANEL_FOOTPRINT_THICKNESS: Mm = mm(16);
+
 export const createCabinet = (
   args: NewCabinetArgs,
   defaults = AU_PROJECT_DEFAULTS,
@@ -113,21 +124,36 @@ export const createCabinet = (
       ? defaults.wallCabinetDepth
       : args.typeId === 'tall'
         ? defaults.tallCabinetDepth
-        : args.typeId === 'panel'
-          ? mm(16)
         : args.typeId === 'banquette' || args.typeId === 'banquette-corner'
           ? mm(500)
           : defaults.baseCabinetDepth;
 
   const height = args.height ?? naturalHeight;
-  const depth = args.depth ?? naturalDepth;
+
+  /*
+   * **A standalone panel's two footprint fields come out swapped, and this is the one place it
+   * happens.**
+   *
+   * A panel stands **edge out** — see `specs/standalonePanel.ts`. It sits beside a cabinet the way
+   * an applied end does, so what runs *along the run* is the board's thickness and what runs *into
+   * the room* is the panel's own width. That is the opposite way round to every other cabinet,
+   * where the width runs along the run.
+   *
+   * Doing the swap here rather than at each call site means every caller still says `width` and
+   * still means the panel's face width, which is the thing a person types. And it means the
+   * placement code needs no panel special case at all: `snapToNeighbour` butts the next cabinet
+   * along by `neighbour.width`, and for a panel that is now a board thickness rather than 600mm,
+   * which is exactly what butting an applied end does.
+   */
+  const isPanel = args.typeId === 'panel';
+  const depth = isPanel ? (args.depth ?? args.width) : (args.depth ?? naturalDepth);
 
   return {
     id: nextId(args.typeId),
     typeId: args.typeId,
     name: args.name,
     constructionId,
-    width: args.width,
+    width: isPanel ? PANEL_FOOTPRINT_THICKNESS : args.width,
     height,
     depth,
     placement: {

@@ -117,7 +117,7 @@ Section 4 records how each works and why; section 5 is what is actually left to 
 ```
 npm install
 npm run dev       # the app
-npm test          # 948 tests
+npm test          # 957 tests
 npm run build
 npm run report    # cutlist, hardware BOM, drilling, nest, G-code and costing for the sample kitchen
 npm run report -- shaker-57    # the same kitchen with routed fronts
@@ -152,6 +152,7 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | Saved cabinet types | Working |
 | Viewport — R3F, orbit + WASD/QE, drag to move, walls | Working |
 | Wireframe view — a third mode beside 3D and Plan | Working, see 5.8 |
+| A standalone panel — stands edge out, like an applied end | **Working, see 4.21.** Both halves of one bench report |
 | Grain direction — a cabinet's fronts, and a standalone panel | Working, see 5.4 — stated as the room sees it, translated per part |
 | Decor textures on parts, at true scale, turned by grain | **Working, see 5.8.** Bundled images, mapped through the nest |
 | Banquette seating — solid front, hinged lift-up, cushions | Rejected at the bench, **rebuilt to the shop's own answers — see 5.4.** Lid stay still unmodelled |
@@ -224,7 +225,7 @@ materials.
 
 **Migrations must never quietly change anyone's parts.** Every migration carries old values
 forward so a saved job cuts exactly as it did; adopting a new default is then a deliberate
-edit. Schema is at **v27**; migrations run in sequence in `model/project.ts`. Shop standards are
+edit. Schema is at **v28**; migrations run in sequence in `model/project.ts`. Shop standards are
 versioned separately and are at **v20** — and they get a *real* migration rather than a
 rejection, because refusing to load them silently replaces a shop's accumulated kick heights,
 reveals, door styles and saved cabinet types with the shipped Australian defaults.
@@ -2186,6 +2187,85 @@ work offset to after the retract fails one.
 `post/iso.ts` for where the head is read off the tool. `tests/machineHeads.test.ts` is the contract
 and carries the whole §6 spindle table and every `B` code longhand in its header.
 
+### 4.21 A standalone panel stands edge out
+
+Two bench reports, and **they turned out to be one fix**:
+
+> "a standalone panel should stand perpendicular to the wall, not flat against it"
+
+> "it faces edge out, it has to sit next to the cabinet like an applied panel"
+
+The second is the one that decided the shape. A panel is used as a decorative end beside a run, so
+what you see standing in front of it is its **banded edge**, and its face runs front to back. It was
+built the other way round — lying flat along the run like a splashback.
+
+**The two reports are the same change because a panel that sits like an applied end against a
+cabinet is, by construction, perpendicular to the wall that cabinet backs onto.** So there is no
+snapping change, no yaw special case, and nothing in `project/wallPlacement.ts` was touched. What
+changed is which plane the board is built in.
+
+#### The whole of it, in two places
+
+**`specs/standalonePanel.ts`** builds the board in the ZY plane instead of the XY one —
+`placement(v3(0,0,0), '+Y', '+Z')` where it was `placement(v3(W,0,0), '+Y', '-X')`. `w = u × v` is
+derived rather than chosen, so `(+Y) × (+Z) = +X` puts the thickness along the run on its own. That
+one line is the entire difference between a splashback and an applied end.
+
+**`createCabinet`** swaps the two footprint fields for a panel: `width` becomes a nominal board
+thickness and `depth` becomes the face width. Doing it there rather than at each call site means
+every caller still says `width` and still means the panel's face width — which is what a person
+types — and the Inspector's box is still labelled **Width** for the same reason. The label follows
+the panel, not the axis.
+
+**A special case disappeared, which is the sign the model is right.** `Viewport3D` used to
+substitute the board's real thickness for `cabinet.depth` when snapping a panel, because the stored
+depth was a nominal 16 with nothing to do with the board. Now a panel's depth *is* how far it
+reaches into the room, so the general path is the correct one and the override is gone.
+
+The other consequence is the reported symptom stated as a number: `snapToNeighbour` butts the next
+cabinet along by `neighbour.width`, so a panel used to leave a **600mm hole** in a run where an
+applied end leaves 16.
+
+#### The migration, and the half of the rule that holds
+
+**Project v28, and no part changes.** A panel comes forward the same rectangle, the same size, in
+the same material, banded on the same four edges, one identical line on the cutlist, nested into the
+same blank. Nothing on the saw is affected and nothing re-prices. What moves is the footprint, and
+it has to: the two fields swap.
+
+**One visible cost, taken deliberately.** A panel somebody had already turned by hand to work around
+the old build keeps its yaw, so it ends up 90° from where they left it — one field in the Inspector
+to put back. Un-turning it automatically would mean guessing which panels were workarounds and which
+were meant, and a rule that silently straightened a panel somebody meant to turn is not something
+you would notice until the job was built.
+
+The **Turned** step is 90° for a panel, which is the rest of the first report. It rarely needs
+turning at all now — beside a cabinet it takes the cabinet's own angle — so the step is for the case
+where it stands alone. The box still takes a typed number, so an angled wall is not shut out.
+
+#### Verified
+
+957 tests, up from 948. The new ones assert **occupancy rather than size**, which is the §4.4
+standard and is the whole point here: a panel turned the wrong way is exactly the same rectangle in
+exactly the same material and passes any assertion that counts millimetres of board. Two deliberate
+mutations were run to check they bite — restoring the old placement fails two, removing the
+`createCabinet` swap fails one.
+
+Checked in the running app per §7, reading the model back rather than looking at the picture: adding
+a panel gives `width 16, depth 600, height 2400` at schema 28, and the Inspector still asks for one
+dimension called Width and still shows 600.
+
+**One test had to be corrected rather than added**, and it is the interesting one. The existing
+"uses a selected sheet without an independent manufacturing thickness" test set `depth: 99` with a
+comment saying the compatibility footprint must not size the part. After this change `depth` *does*
+size the part and `width` is the spare field — so the test still passed while its comment said the
+opposite of the truth. That is §5.13's lesson again: a test can pin an old build in place while
+staying green.
+
+**Where to look:** `rules/specs/standalonePanel.ts` for the plane and why; `project/factory.ts` for
+the swap and `PANEL_FOOTPRINT_THICKNESS`; `migrateV27toV28` in `model/project.ts`.
+`tests/standalonePanel.test.ts` carries the before/after table longhand in its header.
+
 ---
 
 ## 5. Open items, in the order I'd do them
@@ -3003,29 +3083,8 @@ below the overcut.
    Whatever the answer, the cushion has to turn with it — `BanquetteCornerCushions` builds its
    quarter from the same description and would otherwise sit convex on a concave seat.
 
-2. **A standalone panel should stand perpendicular to the wall, not flat against it**, and then turn
-   in 90° increments from there. Today it snaps flat, which is the wrong default for the thing it is
-   usually used as.
-
-   **Scoped but not built**, and the map is worth having because the change is smaller than it
-   looks and lands in three specific places. `snapToWall` in `project/wallPlacement.ts` parks a
-   dragged cabinet flush and square via `placeAgainstWall`, which sets `yawDeg` to
-   `yawAgainstWall(wall)` — flat, by construction. `wallAnchorOf` then only recognises a cabinet as
-   *against* a wall when its yaw matches that same figure, so a perpendicular panel stops being
-   "against the sink wall" and the Inspector falls through to its free-standing controls — where
-   **Turned** already exists on a 15° step and would want 90 for a panel. That fall-through is
-   probably the right behaviour rather than a problem to fix: a panel standing out into the room is
-   not on a wall in the sense §4.2's readout means.
-
-   Two things need answering before the code, and neither is guessable:
-   - **Which of the two perpendicular orientations is the default** — a panel off the north wall can
-     face east or west, and they are not the same panel. This is the handedness trap `radiusCorner`
-     and `bowedFrontProfile` both have scar tissue for: either choice passes any test that checks a
-     size, and only one of them is the end of the run.
-   - **What the snap measures.** `snapToWall` computes `along` from `cabinet.width`, assuming the
-     width runs along the wall. Turned 90° it is the panel's *thickness* that runs along the wall
-     and its width that runs into the room, so the flush-and-square arithmetic is against a
-     different edge — and `effectiveDepth` is doing the other half of the same job.
+2. ~~**A standalone panel should stand perpendicular to the wall, not flat against it**~~ —
+   **done, see §4.21.**
 
 3. **The custom cabinet is not custom enough.** Wanted: add and delete *any* part — left end, back,
    bottom, each individually — and choose the material **per part**. This is the largest item on the

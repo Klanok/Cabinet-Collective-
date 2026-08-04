@@ -277,12 +277,19 @@ function PlacementEditor({
             step={10}
             onChange={(n) => moveTo(cabinet.placement.anchor.x, n)}
           />
+          {/*
+            A panel turns in 90° steps, which is the other half of the bench report that put it
+            edge out. It rarely needs turning at all now — standing beside a cabinet it takes the
+            cabinet's own angle — so the step is for the case where it stands alone, and quarter
+            turns are what that wants. The box still takes a typed number, so an angled wall is
+            not shut out.
+          */}
           <NumberField
             label="Turned"
             value={cabinet.placement.yawDeg}
             min={0}
             max={359}
-            step={15}
+            step={cabinet.typeId === 'panel' ? 90 : 15}
             suffix="°"
             onChange={(n) =>
               onUpdate(cabinet.id, { placement: { ...cabinet.placement, yawDeg: n } })
@@ -614,13 +621,20 @@ export function Inspector({
           />
         ) : (
           <>
+            {/*
+              A standalone panel stands edge out, so the width you type is the dimension that runs
+              *into* the room and is stored as its depth — see `createCabinet`. The label follows
+              the panel rather than the axis, because "width" is what a person calls the wide way
+              across a board however it happens to be standing. Its along-run field is a board
+              thickness and is not typed at all, which is why the Depth box stays hidden.
+            */}
             <NumberField
               label="Width"
-              value={cabinet.width}
+              value={isPanel ? cabinet.depth : cabinet.width}
               min={100}
               max={1800}
               step={50}
-              onChange={(n) => onUpdate(cabinet.id, { width: mm(n) })}
+              onChange={(n) => onUpdate(cabinet.id, isPanel ? { depth: mm(n) } : { width: mm(n) })}
             />
             {!isPanel && (
               <NumberField
