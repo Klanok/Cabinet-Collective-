@@ -1,4 +1,4 @@
-import { useCallback, useMemo, type ReactNode } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, type ReactNode } from 'react';
 import { RoundedBox } from '@react-three/drei';
 import { useLoader } from '@react-three/fiber';
 import {
@@ -20,42 +20,7 @@ import type { UpholsteryMaterial } from '../../core/model/material.ts';
 import type { CornerRadius } from '../../core/rules/radius.ts';
 import { mm } from '../../core/units.ts';
 import { bundledAssetUrl } from './assetUrl.ts';
-
-/**
- * Put a cushion's UVs into real fabric repeats.
- *
- * Every mesh here is an `ExtrudeGeometry` — including the seat, because drei's `RoundedBox` is
- * an extrude with a bevelled shape. Three's default UV generator for that geometry emits
- * **shape coordinates**, which in this model are millimetres, on the top faces and the side
- * walls alike. They are not normalised and never were.
- *
- * That is the whole of the bug this function fixes. The old code left those UVs alone and set
- * `map.repeat` to `cabinet.width / 250`, so a 1190mm seat asked for roughly **5,800 repeats
- * across one cushion**. Every screen pixel then averaged the entire swatch, and the fabric
- * rendered as flat off-white — indistinguishable from a texture that had failed to load, which
- * is exactly how it was reported.
- *
- * Dividing millimetres by the fabric's real repeat is therefore not a correction factor, it is
- * the unit conversion the generator's output was always one step away from. It also puts the
- * cushions under the same rule §5.8 sets for board decors — scaled in millimetres, not in UV
- * units — so a seat and the doors behind it show a weave at one consistent scale.
- *
- * Done to the geometry rather than to the texture on purpose. `useLoader` caches by URL and
- * hands the **same** `Texture` to every mesh using that fabric, so writing `repeat` on it made
- * two banquettes in one colour fight over the weave scale, last one rendered winning. `PanelMesh`
- * already bakes its UVs for this reason and never writes to the texture; this now matches.
- */
-const applyFabricScale = (geometry: BufferGeometry, repeatMm: number): void => {
-  const uv = geometry.attributes.uv;
-  if (!uv || repeatMm <= 0) return;
-  // Guard against a re-run on the same geometry — a ref callback can fire more than once, and
-  // scaling twice would shrink the weave by the square.
-  if (geometry.userData.fabricScaled === repeatMm) return;
-  const a = uv.array as Float32Array;
-  for (let i = 0; i < a.length; i++) a[i]! /= repeatMm;
-  uv.needsUpdate = true;
-  geometry.userData.fabricScaled = repeatMm;
-};
+import { applyFabricScale } from './fabricScale.ts';
 
 /**
  * The fabric image, resolved wherever this build is hosted.
@@ -85,11 +50,34 @@ const useFabric = (upholstery: UpholsteryMaterial) => {
   return map;
 };
 
-/** A ref callback that puts whatever geometry it is handed into this fabric's real repeats. */
+/**
+ * A ref callback that puts whatever geometry it is handed into this fabric's real repeats.
+ *
+ * **It takes the geometry, not the mesh, and that is the whole of the second cushion bug.**
+ *
+ * It used to sit on the `<mesh>`. A ref on a mesh fires when the *mesh* is created, and the mesh
+ * outlives its geometry: `<extrudeGeometry args={…}>` is a child, and changing any of those args —
+ * the back cushion's height, thickness or lean, or the cabinet's width — makes R3F build a **new**
+ * geometry and attach it to the same mesh. The ref never fires again, so the replacement kept its
+ * raw UVs.
+ *
+ * Three's extrude UV generator emits **shape coordinates**, which in this model are millimetres, so
+ * an unscaled cushion asks for something like 5,800 repeats of the weave across itself. Every screen
+ * pixel then averages the whole swatch and the fabric renders as flat colour — indistinguishable
+ * from a texture that failed to load, which is exactly how it was reported, twice.
+ *
+ * It is also why deleting the cabinet and re-adding it "fixed" it: that remounts the mesh, so the
+ * ref fires against the geometry that is actually there. Attaching to the geometry makes the two
+ * cases the same one.
+ *
+ * The reported symptom named the **back** cushion because that is the one whose geometry is rebuilt
+ * by the controls anybody actually touches. The seat had the identical fault and simply took a
+ * different edit to show it.
+ */
 const useFabricScale = (upholstery: UpholsteryMaterial) =>
   useCallback(
-    (mesh: Mesh | null) => {
-      if (mesh?.geometry) applyFabricScale(mesh.geometry, upholstery.textureRepeat);
+    (geometry: BufferGeometry | null) => {
+      if (geometry) applyFabricScale(geometry, upholstery.textureRepeat);
     },
     [upholstery.textureRepeat],
   );
@@ -132,7 +120,7 @@ function WedgeBack({ width, height, thickness, angle, radius, x, y, scaleFabric,
   radius: number;
   x: number;
   y: number;
-  scaleFabric: (mesh: Mesh | null) => void;
+  scaleFabric: (geometry: BufferGeometry | null) => void;
   children: ReactNode;
 }) {
   const shape = useMemo(() => {
@@ -146,8 +134,8 @@ function WedgeBack({ width, height, thickness, angle, radius, x, y, scaleFabric,
     return result;
   }, [angle, height, thickness]);
   const bevel = Math.max(0.5, Math.min(radius, thickness / 4, width / 4));
-  return <mesh ref={scaleFabric} position={[x + width, y, 0]} rotation={[0, -Math.PI / 2, 0]} castShadow receiveShadow>
-    <extrudeGeometry args={[shape, {
+  return <mesh position={[x + width, y, 0]} rotation={[0, -Math.PI / 2, 0]} castShadow receiveShadow>
+    <extrudeGeometry ref={scaleFabric} args={[shape, {
       depth: width,
       bevelEnabled: true,
       bevelSize: bevel,
@@ -173,7 +161,7 @@ function SeatCushion({ plan, thickness, bevel, y, scaleFabric, children }: {
   thickness: number;
   bevel: number;
   y: number;
-  scaleFabric: (mesh: Mesh | null) => void;
+  scaleFabric: (geometry: BufferGeometry | null) => void;
   children: ReactNode;
 }) {
   const round = plan.round;
@@ -228,8 +216,8 @@ function SeatCushion({ plan, thickness, bevel, y, scaleFabric, children }: {
    * which is why the two branches read differently.
    */
   const b = Math.max(0.5, Math.min(bevel, thickness / 2 - 1));
-  return <mesh ref={scaleFabric} position={[plan.x0, y + b, plan.z1]} rotation={[-Math.PI / 2, 0, 0]} castShadow receiveShadow>
-    <extrudeGeometry args={[shape, {
+  return <mesh position={[plan.x0, y + b, plan.z1]} rotation={[-Math.PI / 2, 0, 0]} castShadow receiveShadow>
+    <extrudeGeometry ref={scaleFabric} args={[shape, {
       depth: Math.max(1, thickness - 2 * b),
       bevelEnabled: true,
       bevelSize: b,
@@ -258,6 +246,22 @@ export function BanquetteCushions({ cabinet, radius, upholstery, selected, wiref
   const map = useFabric(upholstery);
   const scaleFabric = useFabricScale(upholstery);
 
+  /*
+   * The square seat is drei's `RoundedBox`, which builds its geometry internally — there is no
+   * `<…Geometry>` element to hang a ref on, so this is the one cushion that cannot use the same
+   * mechanism as the other four.
+   *
+   * A layout effect with **no dependency array** is the honest answer here. It runs after every
+   * render, which is exactly the condition "the geometry may have been swapped underneath us", and
+   * `applyFabricScale` early-returns on a geometry already at this repeat — so the cost is one
+   * property comparison and the correctness does not depend on guessing which prop drei rebuilds
+   * on. Listing deps here would be re-deriving drei's own memo and would go stale with it.
+   */
+  const seatRef = useRef<Mesh>(null);
+  useLayoutEffect(() => {
+    if (seatRef.current) applyFabricScale(seatRef.current.geometry, upholstery.textureRepeat);
+  });
+
   const seatT = cabinet.options.seatCushionThickness ?? 80;
   const inset = cabinet.options.seatCushionInset ?? 5;
   const plan = seatCushionPlan({
@@ -277,7 +281,7 @@ export function BanquetteCushions({ cabinet, radius, upholstery, selected, wiref
       ? <SeatCushion plan={plan} thickness={seatT} bevel={Math.max(0.5, softEdge)} y={cabinet.height} scaleFabric={scaleFabric}>
           {fabricMaterial()}
         </SeatCushion>
-      : <RoundedBox ref={scaleFabric} args={[seatWidth, seatT, seatDepth]} radius={softEdge} smoothness={4}
+      : <RoundedBox ref={seatRef} args={[seatWidth, seatT, seatDepth]} radius={softEdge} smoothness={4}
           position={[cabinet.width / 2, cabinet.height + seatT / 2, cabinet.depth / 2]} castShadow receiveShadow>
           {fabricMaterial()}
         </RoundedBox>}
@@ -349,8 +353,8 @@ export function BanquetteCornerCushions({ cabinet, upholstery, selected, wirefra
   const backY = cabinet.height + seatT;
 
   return <>
-    <mesh ref={scaleFabric} position={[0, cabinet.height, r]} rotation={[-Math.PI / 2, 0, 0]} castShadow receiveShadow>
-      <extrudeGeometry args={[seatShape, { depth: seatT, bevelEnabled: true, bevelSize: 3, bevelThickness: 3, bevelSegments: 3 }]} />
+    <mesh position={[0, cabinet.height, r]} rotation={[-Math.PI / 2, 0, 0]} castShadow receiveShadow>
+      <extrudeGeometry ref={scaleFabric} args={[seatShape, { depth: seatT, bevelEnabled: true, bevelSize: 3, bevelThickness: 3, bevelSegments: 3 }]} />
       {material()}
     </mesh>
     {cabinet.options.hasBackCushion !== false && <>

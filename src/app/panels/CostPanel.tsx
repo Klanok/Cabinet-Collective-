@@ -16,6 +16,22 @@ const Row = ({ label, value, strong }: { label: string; value: string; strong?: 
   </div>
 );
 
+/**
+ * Should this line be shown at all?
+ *
+ * **`n > 0` is not the right question, and getting it wrong is what hid the `$NaN` bug for a
+ * session.** `NaN > 0` is `false`, so every optional row driven by a broken figure quietly removed
+ * itself — and the one line that was broken was the only line you could not see. The panel showed
+ * Sheet goods, Cushions, Manufacturing and Install all reading correctly, then `$NaN` from Total
+ * cost down, with nothing on screen connecting the two.
+ *
+ * So a figure that is not a real number is **always shown**. A row that cannot compute is exactly
+ * the row somebody needs to look at, and this codebase already has the general form of that lesson
+ * twice: §4.19's cushion charge, where a missing line quoting at zero looked like a finished quote,
+ * and §4.14's NaN, where the cause was nowhere near the symptom.
+ */
+const shows = (n: number): boolean => !Number.isFinite(n) || n > 0;
+
 export function CostPanel({ cost, settings, onUpdateSettings }: Props) {
   return (
     <section className="panel">
@@ -98,7 +114,7 @@ export function CostPanel({ cost, settings, onUpdateSettings }: Props) {
       <div className="subhead">Breakdown</div>
       <div className="cost-rows">
         <Row label="Sheet goods" value={formatAud(cost.sheetCost)} />
-        {cost.laminatedCurves > 0 && (
+        {shows(cost.laminatedCurves) && (
           <Row
             label={`Curve laminate (${cost.laminateSheets} × ${cost.laminateSheetLabel}, ${cost.laminatedM2.toFixed(2)}m² used)`}
             value={formatAud(cost.laminateCost)}
@@ -111,7 +127,7 @@ export function CostPanel({ cost, settings, onUpdateSettings }: Props) {
           from the quote entirely until §4.19, which is the sort of thing a visible line prevents
           happening twice.
         */}
-        {cost.cushionCost > 0 && (
+        {shows(cost.cushionCost) && (
           <Row label="Cushions (bought in)" value={formatAud(cost.cushionCost)} />
         )}
         <Row label="Material" value={formatAud(cost.materialCost)} />
@@ -119,13 +135,13 @@ export function CostPanel({ cost, settings, onUpdateSettings }: Props) {
           label={`Manufacturing (${(cost.labourMinutes / 60).toFixed(1)} h)`}
           value={formatAud(cost.labourCost)}
         />
-        {cost.laminateMinutes > 0 && (
+        {shows(cost.laminateMinutes) && (
           <Row
             label={`Laminating ${cost.laminatedCurves} curve${cost.laminatedCurves === 1 ? '' : 's'} (${(cost.laminateMinutes / 60).toFixed(1)} h)`}
             value={formatAud(cost.laminateLabourCost)}
           />
         )}
-        {cost.machiningMinutes > 0 && (
+        {shows(cost.machiningMinutes) && (
           <Row
             label={`Routing ${cost.machinedFrontCount} fronts (${(cost.machiningMinutes / 60).toFixed(1)} h)`}
             value={formatAud(cost.machiningCost)}
@@ -138,7 +154,7 @@ export function CostPanel({ cost, settings, onUpdateSettings }: Props) {
         <Row label="Total cost" value={formatAud(cost.totalCost)} strong />
         <Row label={`Margin @ ${settings.marginPercent}%`} value={formatAud(cost.marginAmount)} />
         <Row label="Subtotal (ex GST)" value={formatAud(cost.subtotalExGst)} />
-        {cost.deliveryFee > 0 && <Row label="Delivery" value={formatAud(cost.deliveryFee)} />}
+        {shows(cost.deliveryFee) && <Row label="Delivery" value={formatAud(cost.deliveryFee)} />}
         <Row label="Sell (ex GST)" value={formatAud(cost.sellExGst)} />
         <Row label="GST" value={formatAud(cost.gst)} />
         <Row label="Total" value={formatAud(cost.totalIncGst)} strong />

@@ -37,7 +37,7 @@ import {
 } from '../library/blum.ts';
 import { AU_BENCHTOP_MATERIALS, AU_MATERIAL_LIBRARY, AU_SHEET_MATERIALS } from '../library/materials.au.ts';
 
-export const CURRENT_SCHEMA_VERSION = 28 as const;
+export const CURRENT_SCHEMA_VERSION = 29 as const;
 
 /**
  * The bendy ply an older job is given when it is migrated forward. It has no curved parts in
@@ -665,21 +665,34 @@ const migrateV23toV24 = (raw: Record<string, unknown>): Record<string, unknown> 
  * The generic backfill below is deliberately written over the whole record rather than naming the
  * two fields, so the next rate added cannot repeat this.
  */
-const migrateV24toV25 = (raw: Record<string, unknown>): Record<string, unknown> => {
-  const settings = (raw.settings as Record<string, unknown> | undefined) ?? {};
+const migrateV24toV25 = (raw: Record<string, unknown>): Record<string, unknown> => ({
+  ...raw,
+  schemaVersion: 25,
+  settings: withBackfilledLabourRates(raw.settings),
+});
+
+/**
+ * Fill every absent `LabourRates` field from the shipped defaults, and touch nothing else.
+ *
+ * **Exported because two separate version chains need the identical repair**, and the whole reason
+ * this fault came back is that only one of them had it. The project chain runs it at v24 → v25 and
+ * again at v28 → v29; the shop-standards chain runs it at v20 → v21. One description, three call
+ * sites — a second implementation would be free to drift, and drift is what let a job be repaired
+ * while the standards it was copied from stayed broken.
+ *
+ * **Absent only.** A rate somebody typed is theirs, including a deliberate zero, which is why this
+ * tests for the key rather than for falsiness. Nothing that was set moves, so nothing re-prices;
+ * what changes is that a quote which was printing NaN prints a number.
+ */
+export const withBackfilledLabourRates = (rawSettings: unknown): Record<string, unknown> => {
+  const settings = (rawSettings as Record<string, unknown> | undefined) ?? {};
   const labour = (settings.labour as Record<string, unknown> | undefined) ?? {};
   const shipped = DEFAULT_LABOUR_RATES as unknown as Record<string, unknown>;
-  // Absent only. A rate somebody typed is theirs, including a deliberate zero — which is why this
-  // tests for the key rather than for falsiness.
   const filled: Record<string, unknown> = { ...labour };
   for (const [key, value] of Object.entries(shipped)) {
     if (!(key in filled) || filled[key] === undefined) filled[key] = value;
   }
-  return {
-    ...raw,
-    schemaVersion: 25,
-    settings: { ...settings, labour: filled },
-  };
+  return { ...settings, labour: filled };
 };
 
 /**
@@ -786,6 +799,42 @@ const migrateV27toV28 = (raw: Record<string, unknown>): Record<string, unknown> 
     ),
   };
 };
+
+/**
+ * v28 → v29: **the NaN quote again, arriving through the door v25 left open.**
+ *
+ * Reported from the bench a second time, on a job with no curve anywhere in it: every figure in the
+ * Cost panel correct down to Install, and `$NaN` from Total cost onward.
+ *
+ * **v25 was not wrong; it was in the wrong place to be enough.** It repairs a *job* on the way in,
+ * and the two laminate rates it repairs also live in the **shop standards**, which are versioned
+ * separately and whose chain never touched `settings.labour` at all. So a shop whose standards
+ * predate those rates keeps the holes through all twenty standards migrations, and then
+ * `createEmptyProject` copies them into every new job — stamped at the current schema, so the
+ * project chain that would have repaired it never runs. The repair existed and the job never
+ * reached it.
+ *
+ * The standards half is `migrateStandardsV20toV21`, and that is the fix that stops this recurring.
+ * This one is the sweep-up: a job **already created** from broken standards is sitting at v28 with
+ * the holes in it and no reason to be migrated again. Re-running the backfill is what repairs the
+ * job on screen rather than only the next one.
+ *
+ * **Nothing is cut and nothing re-prices** — in the strong sense, not the careful one. No part
+ * moves, no part changes size, no rate that holds a value is touched. A figure that was `undefined`
+ * becomes the shipped default, and arithmetic that was producing `NaN` produces money. A quote that
+ * printed `$NaN` was not a price anybody could have sent, so there is no old number to protect.
+ *
+ * **The lesson, which is v25's own lesson unlearned.** v25's comment says a migration that adds a
+ * field has to ask *every* place that field is read, and names the generic backfill as the guard
+ * against a repeat. It guarded the field list and not the *chains*: two version histories read
+ * `LabourRates` and only one of them was taught to repair it. `withBackfilledLabourRates` is now
+ * shared by both, so the next rate added cannot repair one and miss the other.
+ */
+const migrateV28toV29 = (raw: Record<string, unknown>): Record<string, unknown> => ({
+  ...raw,
+  schemaVersion: 29,
+  settings: withBackfilledLabourRates(raw.settings),
+});
 
 /**
  * v11 → v12. **The screen colours, backfilled onto jobs that never had them.**
@@ -1065,6 +1114,7 @@ export const migrateProject = (raw: unknown): Project => {
   if (data.schemaVersion === 25) data = migrateV25toV26(data);
   if (data.schemaVersion === 26) data = migrateV26toV27(data);
   if (data.schemaVersion === 27) data = migrateV27toV28(data);
+  if (data.schemaVersion === 28) data = migrateV28toV29(data);
 
   if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`migrateProject: could not migrate schema version ${String(version)}`);

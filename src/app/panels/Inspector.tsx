@@ -277,25 +277,43 @@ function PlacementEditor({
             step={10}
             onChange={(n) => moveTo(cabinet.placement.anchor.x, n)}
           />
-          {/*
-            A panel turns in 90° steps, which is the other half of the bench report that put it
-            edge out. It rarely needs turning at all now — standing beside a cabinet it takes the
-            cabinet's own angle — so the step is for the case where it stands alone, and quarter
-            turns are what that wants. The box still takes a typed number, so an angled wall is
-            not shut out.
-          */}
-          <NumberField
-            label="Turned"
-            value={cabinet.placement.yawDeg}
-            min={0}
-            max={359}
-            step={cabinet.typeId === 'panel' ? 90 : 15}
-            suffix="°"
-            onChange={(n) =>
-              onUpdate(cabinet.id, { placement: { ...cabinet.placement, yawDeg: n } })
-            }
-          />
         </>
+      )}
+
+      {/*
+        **Turned is offered whether or not the cabinet is against a wall, and that is the fix.**
+
+        It used to live inside the free-standing branch above, beside "Across the room" and "Back
+        into the room" — so the moment anything was placed against a wall the control disappeared
+        altogether. Reported from the bench as a standalone panel having no rotation input at all,
+        and the report was right even though §4.21 had genuinely shipped the 90° step: a panel
+        standing edge out beside a run is against a wall *by construction* (§4.21's own argument for
+        why the two bench reports were one fix), so the one type that most needs turning was the one
+        type that could never reach the box.
+
+        Placing on a wall sets the yaw square to that wall, which is the sensible default and stays.
+        Turning it off square is then a deliberate act, and the panel stops reading as "against" that
+        wall — `wallAnchorOf` only claims a wall when the yaw matches it within tolerance, so the two
+        position fields above swap back to "Across the room" on their own. That is the model behaving
+        correctly rather than a wrinkle: a panel turned 90° out of a run is not 600mm along that
+        wall any more, it is somewhere in the room.
+
+        A panel turns in 90° steps; everything else in 15° ones. The box still takes a typed number
+        either way, so an odd angle or an out-of-square scribe is not shut out.
+      */}
+      <NumberField
+        label="Turned"
+        value={cabinet.placement.yawDeg}
+        min={0}
+        max={359}
+        step={cabinet.typeId === 'panel' ? 90 : 15}
+        suffix="°"
+        onChange={(n) => onUpdate(cabinet.id, { placement: { ...cabinet.placement, yawDeg: n } })}
+      />
+      {anchor && wall && (
+        <p className="note subtle">
+          Square to {wall.name}. Turning it off square makes it free standing.
+        </p>
       )}
 
       <NumberField

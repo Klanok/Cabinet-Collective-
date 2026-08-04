@@ -21,7 +21,7 @@ import {
   findSheet,
 } from '../model/material.ts';
 import { type Panel, bandedEdgeCount, bandedLength, panelArea, panelExtent, panelFootprint } from '../model/panel.ts';
-import type { GstMode, Project } from '../model/project.ts';
+import { DEFAULT_LABOUR_RATES, type GstMode, type Project } from '../model/project.ts';
 import { buildProject } from '../rules/build.ts';
 
 /** The decor laminate a curve is finished with. One id, so the order and the cost agree. */
@@ -276,6 +276,38 @@ export const costProject = (project: Project): CostBreakdown => {
 
   const { settings, materials: library } = project;
   const mode = settings.gstMode;
+
+  /*
+   * **A labour rate that is missing is a sentence, never silence.**
+   *
+   * This is §4.19's rule about the cushion rate, applied to the figure that has now taken the whole
+   * quote down twice. A rate that is `undefined` does not read as zero — it reads as `NaN`, because
+   * `0 * undefined` is `NaN`, and one `NaN` anywhere in the sum takes `totalCost` and everything
+   * derived from it. So the job quotes at `$NaN` from Total cost downward while every line above it
+   * shows real money, which is the most confusing shape a broken quote can have.
+   *
+   * The migrations either side of this (project v29, standards v21) are what stop a rate going
+   * missing in the first place. This names it if one ever does again, because the alternative —
+   * found twice now — is arithmetic that fails silently in a number somebody is about to quote from.
+   * Substituting a default here instead would be the failure `cushionProblems` exists to prevent:
+   * a plausible figure nobody chose, on a quote that looks finished.
+   */
+  /*
+   * Driven off the **shipped record's** keys rather than the job's own, and that is the whole
+   * point: the fault being caught is a key that is *absent*, and iterating what is there cannot
+   * see what is not. `typeof undefined` is `'undefined'`, so a check written over the job's own
+   * entries would have passed cleanly on the very job that reported this.
+   */
+  for (const [key, shipped] of Object.entries(DEFAULT_LABOUR_RATES)) {
+    if (typeof shipped !== 'number') continue;
+    const value = (settings.labour as unknown as Record<string, unknown>)[key];
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      warnings.push(
+        `The labour rate "${key}" is missing from this job, so every figure computed from it ` +
+          `comes out as NaN and the total cannot be trusted. Open Settings → Costing and set it.`,
+      );
+    }
+  }
 
   /*
    * The nest, and it is the only thing that decides how much board this job buys.

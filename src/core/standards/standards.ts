@@ -28,6 +28,7 @@ import {
   type Project,
   type ProjectDefaults,
   type ProjectSettings,
+  withBackfilledLabourRates,
 } from '../model/project.ts';
 import type { SavedCabinetType } from './savedTypes.ts';
 import { type DoorStyle, DEFAULT_DOOR_STYLES, PLAIN_SLAB_STYLE } from './doorStyles.ts';
@@ -55,7 +56,7 @@ import {
   DEFAULT_RUNNER_SYSTEM_ID,
 } from '../library/blum.ts';
 
-export const CURRENT_STANDARDS_VERSION = 20 as const;
+export const CURRENT_STANDARDS_VERSION = 21 as const;
 
 export interface ShopStandards {
   readonly version: typeof CURRENT_STANDARDS_VERSION;
@@ -376,6 +377,7 @@ export const migrateStandards = (raw: unknown): ShopStandards => {
   if (data.version === 17) data = migrateStandardsV17toV18(data);
   if (data.version === 18) data = migrateStandardsV18toV19(data);
   if (data.version === 19) data = migrateStandardsV19toV20(data);
+  if (data.version === 20) data = migrateStandardsV20toV21(data);
 
   if (data.version !== CURRENT_STANDARDS_VERSION) {
     throw new Error(`migrateStandards: could not migrate version ${String(version)}`);
@@ -686,6 +688,35 @@ const migrateStandardsV19toV20 = (raw: Record<string, unknown>): Record<string, 
     },
   };
 };
+
+/**
+ * v20 → v21: **the labour rates this chain has never once repaired.**
+ *
+ * This is the migration that should have shipped beside project v23, and its absence is why the
+ * `$NaN` quote came back months after §4.14 fixed it.
+ *
+ * **What actually happened.** §5.0's curve laminate added two rates to `LabourRates`. Project v25
+ * backfills them into a saved *job*. Nothing ever backfilled them into the **standards** — read all
+ * twenty migrations above and not one of them touches `settings.labour`; v18 → v19, the laminate's
+ * own standards migration, fills in `constructions` and stops there. So a shop's stored standards
+ * keep the holes forever, `createEmptyProject` copies them into every new job, and that job is
+ * stamped at the current schema — so the project chain that knows how to repair it never runs on
+ * it. Then `laminatedCurves * laminateSetupMinutesPerCurve` is `0 * undefined`, which is `NaN`, and
+ * it takes the whole quote from Total cost down **on a job with no curve in it at all**.
+ *
+ * **Standards are what new jobs are built from, so repairing them here is the fix that lasts.**
+ * The project side gets the same treatment at v28 → v29 for jobs already made from broken
+ * standards; this is the one that stops it happening to the next job.
+ *
+ * **Nothing a shop has typed is touched**, including a deliberate zero — the shared backfill tests
+ * for the key, not for falsiness. This is the same class of change as v15 → v16: a repair to
+ * something that was silently incomplete, not a change of anybody's mind.
+ */
+const migrateStandardsV20toV21 = (raw: Record<string, unknown>): Record<string, unknown> => ({
+  ...raw,
+  version: 21,
+  settings: withBackfilledLabourRates(raw.settings),
+});
 
 /** Add the complete shipped MERIVOBOX height range to current shop standards. */
 const migrateStandardsV17toV18 = (raw: Record<string, unknown>): Record<string, unknown> => {
