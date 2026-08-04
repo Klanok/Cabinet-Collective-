@@ -2883,9 +2883,15 @@ below the overcut.
    **16.3mm carcass board**, exactly the figure §4.1 records from the shop, arriving independently
    off the machine months later.
 
-   Still missing: the machine's **spindle map** for the drill bank — the mechanism is now clear and
-   the numbers are not, so the bank stays off. And every file is a **Woodtron**; only the Z datum is
-   confirmed for the KDT, by the shop directly.
+   **The spindle map is now solved too**, from the later sheets: the drill spindles are on a **32mm
+   pitch**, spindle *n* at `(n − 1) × 32`, in two rows — X for the small bits, Y for the Ø10 and the
+   Ø35. It is System 32, which is the whole point of the head: five Ø5 spindles firing at once put a
+   shelf-pin row down in one plunge instead of twenty-one router pecks. **One thing still blocks
+   switching it on** — whether the programmed coordinate is the reference spindle's position or the
+   head origin. Both readings give the same holes for a symmetric pattern and differ by 128mm for an
+   asymmetric one, so it wants settling against a part whose true hole positions are known.
+
+   Every file is a **Woodtron**; only the Z datum is confirmed for the KDT, by the shop directly.
 
 6. **A part too big for its sheet is silently not nested.** Wanted: an option to **split** it.
    Design questions before code: where the split may fall, whether the halves get a joining detail

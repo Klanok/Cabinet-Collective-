@@ -1,9 +1,11 @@
 # The Woodtron dialect, read off real programs
 
-**Source:** ten `.nc` files from one job — `JN10_TallStore_339_B1..B5` (white carcass, 16.3mm) and
+**Source:** twenty-one `.nc` files from one job — `JN10_TallStore_339_B1..B15` (white carcass, 16.3mm) and
 `JN10_TallStore_687_E1..E4,E8` (MDF doors, 18mm), with the job drawing
-`JN10_Tall_Cupboards__Pelmets_B.pdf`. Supplied by the shop, August 2026. All ten were read; the
-drawing is summarised in §9.
+`JN10_Tall_Cupboards__Pelmets_B.pdf`. Supplied by the shop, August 2026. All were read; the
+drawing is summarised in §9. **`B6`–`B15` are what solved the drill bank's spindle map** — the first
+five sheets held one part each and one spindle group, and were ambiguous about both. Every group and
+offset seen across all twenty-one files fits the map in §6 with nothing left over.
 
 **This is the document §4.9 has been asking for since it was written.** Every figure below is read
 off a program the machine actually runs, not inferred. Where two files disagree it is noted; they
@@ -96,7 +98,8 @@ Depths are `thickness − Z`:
 |---|---|---|---|
 | `Z0.0` | 16.3 | 16.3 | through |
 | `Z13.3` | 16.3 | **3.0** | shallow, Ø5 |
-| `Z4.3` | 16.3 | **12.0** | Ø5 — system/shelf-pin depth |
+| `Z4.3` | 16.3 | **12.0** | Ø5 — system/shelf-pin depth, five at a time |
+| `Z3.3` | 16.3 | **13.0** | Ø5 in pairs (`B3`) — dowels |
 | `Z5.0` | 18.0 | **13.0** | **Ø35 hinge cup** |
 | `Z5.0` | 18.0 | **13.0** | Ø10 — dowel / EXPANDO |
 
@@ -171,41 +174,60 @@ cut. `MachineProfile` has no concept of this today.
 The Ø35 is six times slower than the small drills. Feed is **per tool**, which `MachineTool` already
 models — but the shipped numbers are far more conservative than these.
 
-## 6. The multidrill bank — how it actually works
+## 6. The multidrill bank — and its spindle map, solved
 
-This is the feature `machines.ts` deliberately switched off, and the files show why it was right to
-wait, and exactly how to turn it on.
+This is the feature `machines.ts` deliberately switched off. `B6`–`B9` carry enough variety to solve
+it, which the first five files did not.
 
 ```
 M46                       (MULTIDRILL HEAD ON)
 M38                       (MULTIDRILL HEAD DOWN)
 G54                       (MULTIDRILL ORIGIN)
 
-(TOOL: D3 7)
-B64                       (BINARY TOOL - mm to Origin: X192. Y0. )
-G0 X2031. Y894.85
-...
+(TOOL: D5 12345)
+B31                       (BINARY TOOL - mm to Origin: X0.  Y0. )
+(TOOL: D5 21345)
+B31                       (BINARY TOOL - mm to Origin: X32. Y0. )
 (TOOL: D5 51234)
 B31                       (BINARY TOOL - mm to Origin: X128. Y0. )
 ```
 
-- **`B<n>` is a bitmask selecting which spindles fire.** `B31` = 11111 = five spindles at once;
-  `B64` = one spindle, bit 7; `B1` = bit 1; `B32768` = bit 16; `B65536` = bit 17.
-- **The comment gives that selection's offset from the head origin**, and the programmed X/Y is the
-  *head* position, not the hole position. A hole at true X11.15 is programmed as `X-180.85` with a
-  `B64` whose offset is X192: −180.85 + 192 = 11.15. **This is why programmed coordinates go
-  negative and outside the sheet** — they are head positions, not hole positions.
-- The tool comment names the spindles in the group: `D3 7` is a Ø3 in position 7; `D5 51234` is Ø5
-  spindles 5,1,2,3,4; `D35 17` is the Ø35 in position 17.
-- Spindle offsets seen: X0/X128/X192 in the X row, Y160/Y192 for the Ø10 and Ø35 — so the head has
-  **at least two rows**, one offset in X and one in Y.
-- The same `B31` appears with offset `X128` in the carcass files and `X0` in others, with the tool
-  named `51234` vs `12345`. So the offset is *of the reference spindle in that group*, and the
-  group can be referenced from either end.
+**Three groups, same bitmask, three different offsets — and that is what gives the map away.**
 
-**Nothing should be built from this without the machine's own spindle map.** What the files prove
-is the *mechanism*; the actual spindle table — which position carries which diameter, at what
-pitch — has to come from the machine.
+- **`B<n>` is a bitmask of which spindles fire.** `B1` = spindle 1. `B3` = spindles 1+2. `B31` =
+  1,2,3,4,5. `B64` = spindle 7. `B32768` = spindle 16. `B65536` = spindle 17.
+- **The digits after the diameter list the spindles, reference first.** `D5 12345` and `D5 51234`
+  and `D5 21345` are the *same five spindles* in a different order; only the first digit changes,
+  and it changes with the offset.
+- **So the offsets read straight off:** reference spindle 1 → X0, spindle 2 → X32, spindle 5 → X128.
+
+**The spindles are on a 32mm pitch, and spindle _n_ sits at (n − 1) × 32.** Every observation fits:
+
+| Tool | Spindle | Offset | (n−1) × 32 |
+|---|---|---|---|
+| `D5 1` | 1 | X0 | 0 ✓ |
+| `D5 12` | 1 | X0 | 0 ✓ |
+| `D5 21` | 2 | X32 | 32 ✓ |
+| `D5 21345` | 2 | X32 | 32 ✓ |
+| `D5 51234` | 5 | X128 | 128 ✓ |
+| `D3 7` | 7 | X192 | 192 ✓ |
+| `D10 16` | 16 | **Y**160 | — |
+| `D35 17` | 17 | **Y**192 | — |
+
+**It is System 32, which is the whole point of the head.** A `B31` firing five Ø5 spindles at once
+puts down five shelf-pin holes at 32mm centres in a single plunge — exactly the row that currently
+costs twenty-one separate router plunges.
+
+**Two rows.** Spindles 1–15ish run along **X**; 16 and 17 are offset in **Y** (160 and 192, also
+32 apart) and carry the big bits — Ø10 and Ø35. So the hinge borer is on its own axis, which is why
+a door program moves in Y between the cup and its dowels.
+
+**One thing still needs checking against a known part: the sign.** "mm to Origin: X128" could mean
+the head is positioned so the *reference* spindle lands on the programmed coordinate, or that the
+programmed coordinate is the head origin and the spindle lands 128 further on. Both readings produce
+the same holes for a symmetric pattern and differ by 128mm for an asymmetric one. **Do not build the
+bank until that is settled against a part whose true hole positions are known** — it is the
+difference between a shelf-pin row in the right place and one 128mm along.
 
 ## 7. Contours — lead-in, passes, arcs
 
@@ -226,18 +248,66 @@ G0 Z36.3
 - **A 20mm linear ramp in**, at a slower feed, then full feed for the cut.
 - **A lead-out that retracts while still moving**, so the tool never dwells in the cut.
 - **Arcs are `R` form.** `iso.ts` should be checked for which it writes.
+- **Every arc is `G3`. There is not a single `G2` in twenty-one files.** So the direction round a
+  part is consistent, which for an outside profile is what fixes climb versus conventional milling.
+  A post that emitted whichever direction the ring happened to be wound in would cut half the parts
+  the wrong way round, and the parts would still be the right size.
 - **Corner radius R5.0 = the 10mm cutter's own radius**, because the path is the tool centre.
 
-**Two passes on the 16.3 carcass, one on the 18mm door:**
+### The two passes are per **sheet**, not per part
+
+`B7`, `B8` and `B9` each hold **two** parts, and that is what makes the structure readable — the
+first five files had one part each and were ambiguous about it:
+
+```
+(first block)     part A round at Z1.0 ... then part B round at Z1.0
+(NEXT OPERATION)  part A round at Z-0.2 ... then part B round at Z-0.2
+```
+
+**Every contour on the sheet is cut to the onion skin first, and only then does a second pass take
+them all through.** Not two passes per part. That matters: it is what keeps every part held down on
+the vacuum while its neighbours are being cut, and a post that finished each part before starting
+the next would drop the first one loose under the cutter.
 
 | | Pass 1 | Pass 2 |
 |---|---|---|
 | Carcass 16.3 | `Z1.0` — leaves 1.0mm | `Z-0.2` — through |
 | Door 18.0 | — | `Z-0.2` — through, single pass |
 
-The carcass leaves a **1.0mm onion skin** on the first pass and takes it out on the second. The
-shipped profile guesses 0.2mm. The doors are cut in one pass with no skin at all — big parts on
-vacuum hold themselves.
+### Each tool gets its own routering block
+
+`B7`–`B9` change tool mid-program, and the block structure is explicit:
+
+```
+(FINISH ROUTERING)
+M29                       brush up
+G49                       CANCEL TOOL LENGTH COMP
+G0 G53 Z0.
+
+(START ROUTERING)
+B0 M47 / M05 M32 / M29    everything safe first
+(TOOL: 12COMP3W)
+G666 T8
+...
+```
+
+**`G49` between tools** — the length offset is cancelled before the next `G43 H<n>` sets it again.
+
+### A rip is not a contour
+
+The 12mm tool's only job in these files is a full-width separation cut:
+
+```
+G0 X2410. Y857.3
+Z36.3 / Z26.3
+G1 Z-0.2 F4000            straight plunge — no ramp
+X0. F21000                one cut, edge to edge across the whole sheet
+G0 Z36.3
+```
+
+No lead-in ramp: that is for a closed outline, where the tool has to enter the material somewhere it
+will later cut away. A rip that runs off both edges has nothing to lead into. **The two cases are
+genuinely different and the post needs both.**
 
 ## 8. The end
 
