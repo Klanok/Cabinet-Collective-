@@ -4,6 +4,8 @@
 work. It replaces the need to read the original session transcript.
 
 Read alongside:
+- `docs/woodtron-dialect.md` — the machine's real dialect, read off ten programs it runs. **Read
+  this before touching `post/` or `library/machines.ts`.**
 - `docs/coordinate-convention.md` — the three coordinate spaces. Fixed. Do not change casually.
 - `docs/architecture.md` — module boundaries and where later phases attach.
 - `README.md` — what the tool does and how to run it.
@@ -2854,10 +2856,36 @@ below the overcut.
    fixed set of part rules and §4.15 made each spec declare what it supports. A cabinet whose part
    list is itself data is a different shape of object.
 
-4. **Woodtron `.nc` files are coming.** With them, the rest of the dialect can be pinned the way the
-   Z datum just was — tool change, drilling style, feeds, tool numbers. Until they arrive everything
-   in `machines.ts` except the datum is still a guess. **There is no Woodtron profile yet**, and
-   inventing one before the files land would be the failure the unchecked list exists to prevent.
+4. ~~**Woodtron `.nc` files are coming.**~~ **They arrived — ten of them, and they are read up in
+   `docs/woodtron-dialect.md`.** Five carcass programs at 16.3mm and five MDF door programs at 18mm,
+   from one job. **Read that document before touching `post/` or `machines.ts`**; what follows is
+   only the headline.
+
+   It answers far more than the datum. The corrected figures: `plungeClearance` is **10**, not 3;
+   `throughOvercut` is **0.2**, not 0.5; `drillStyle` is **explicit**, not `canned-g81`; the tool
+   change is **`G666 T1`**, not `M6`; the onion skin is **1.0mm** on carcass and **none** on doors.
+   Arcs are in **R form**. Feeds are per tool and much faster than the shipped guesses — F21000
+   cutting, F3000 drilling, **F500 for the Ø35 borer**.
+
+   **Three findings are structural rather than numeric**, and each is something `MachineProfile`
+   cannot express today:
+
+   - **Two work offsets, one per head** — `G54` is the multidrill origin and `G55` the router
+     origin. The heads are physically apart and the machine keeps a separate zero for each. A post
+     that writes one origin for both puts every hole wrong relative to every cut.
+   - **The drill head and the router rapid at different heights** — +30 and +20.
+   - **The multidrill's programmed coordinate is the *head* position, not the hole position.**
+     `B<n>` is a bitmask selecting spindles, and the coordinate is offset by that group's distance
+     from the head origin — which is why real programs have negative X well outside the sheet.
+
+   **Two things are confirmed that this codebase already believed**, which is worth as much as the
+   corrections: the **Ø35 hinge cup at 13mm deep**, exactly as §3 has it off Blum's own pattern; and
+   **16.3mm carcass board**, exactly the figure §4.1 records from the shop, arriving independently
+   off the machine months later.
+
+   Still missing: the machine's **spindle map** for the drill bank — the mechanism is now clear and
+   the numbers are not, so the bank stays off. And every file is a **Woodtron**; only the Z datum is
+   confirmed for the KDT, by the shop directly.
 
 6. **A part too big for its sheet is silently not nested.** Wanted: an option to **split** it.
    Design questions before code: where the split may fall, whether the halves get a joining detail
@@ -2868,6 +2896,12 @@ below the overcut.
    **Laminex and Polytec's own published sizes** rather than assumed. This moves every nest and
    every sheet count in the quote, so it re-prices jobs the way §4.8 did and needs the same
    treatment: say so out loud, and assert both halves.
+
+   **The `.nc` files settle the principle and give two real numbers**: the white carcass board is
+   **2410.0 × 1205.0 × 16.3** and the MDF door board is **3115.0 × 1205.0 × 18.0**, straight off the
+   machine's own sheet declaration. So the shop's rule is exactly right — 10mm over on the length,
+   5mm over on the width. The published sizes are still wanted for the rest of the range, and
+   whether 3115 is a stock size or a cut-down wants checking.
 
 **Asked for and declined, recorded so nobody picks it back up as an oversight:** the particleboard
 substrate under a bought-in cushion (§4.19). Put to the shop directly and answered *"no don't worry
