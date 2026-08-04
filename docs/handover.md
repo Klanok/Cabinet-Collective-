@@ -2994,10 +2994,10 @@ below the overcut.
    fixed set of part rules and §4.15 made each spec declare what it supports. A cabinet whose part
    list is itself data is a different shape of object.
 
-4. ~~**Woodtron `.nc` files are coming.**~~ **They arrived — ten of them, and they are read up in
-   `docs/woodtron-dialect.md`.** Five carcass programs at 16.3mm and five MDF door programs at 18mm,
-   from one job. **Read that document before touching `post/` or `machines.ts`**; what follows is
-   only the headline.
+4. ~~**Woodtron `.nc` files are coming.**~~ **They arrived — twenty-one of them, read up in
+   `docs/woodtron-dialect.md`, and the model has since been grown to hold them: see §4.20.**
+   Carcass programs at 16.3mm and MDF door programs at 18mm, from one job. **Read that document
+   before touching `post/` or `machines.ts`**; what follows is only the headline.
 
    It answers far more than the datum. The corrected figures: `plungeClearance` is **10**, not 3;
    `throughOvercut` is **0.2**, not 0.5; `drillStyle` is **explicit**, not `canned-g81`; the tool
@@ -3012,9 +3012,16 @@ below the overcut.
      origin. The heads are physically apart and the machine keeps a separate zero for each. A post
      that writes one origin for both puts every hole wrong relative to every cut.
    - **The drill head and the router rapid at different heights** — +30 and +20.
-   - **The multidrill's programmed coordinate is the *head* position, not the hole position.**
-     `B<n>` is a bitmask selecting spindles, and the coordinate is offset by that group's distance
-     from the head origin — which is why real programs have negative X well outside the sheet.
+   - **`B<n>` is a bitmask selecting which spindles fire**, and the programmed coordinate is offset
+     from the holes by the firing group's distance from the head origin — which is why real programs
+     have negative X well outside the sheet. **Whether that coordinate is the head origin or the
+     reference spindle's own position is the one thing still open**; an earlier draft of this bullet
+     stated the first as settled and it was not, which is the §5.11 lesson about a stale *open item*
+     repeating itself inside one. See the paragraph below, and §4.20.
+
+   **The first two are built — §4.20.** `MachineProfile` now carries a `HeadProfile` per head, so
+   the two origins and the two rapid heights are expressible, and a `WOODTRON_NESTING_ROUTER`
+   profile exists with every figure read off these files.
 
    **Two things are confirmed that this codebase already believed**, which is worth as much as the
    corrections: the **Ø35 hinge cup at 13mm deep**, exactly as §3 has it off Blum's own pattern; and
