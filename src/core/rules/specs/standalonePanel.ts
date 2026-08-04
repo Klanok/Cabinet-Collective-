@@ -1,9 +1,26 @@
 /**
  * A single rectangular sheet part placed independently in the room.
  *
- * Width and height are its finished face dimensions. Thickness comes only from the selected
- * carcass sheet material; the cabinet depth field is retained for placement compatibility but
- * is not a manufacturing input. It bands all four edges, which is the safe shop default for a
+ * **It stands edge out**, and that is the whole shape of this file. Asked for from the bench:
+ *
+ * > "it faces edge out, it has to sit next to the cabinet like an applied panel"
+ *
+ * So its face runs **into the room**, front to back, and what you see standing in front of a run is
+ * its banded edge — exactly what an applied end looks like. What runs *along* the run is the
+ * board's thickness. It used to be built the other way round, lying flat along the run like a
+ * splashback, which is the wrong default for the thing it is actually used as.
+ *
+ * The same change answers the other half of that bench report — *"a standalone panel should stand
+ * perpendicular to the wall, not flat against it"* — because a panel that sits like an applied end
+ * against a cabinet is, by construction, perpendicular to the wall the cabinet backs onto. **Both
+ * reports are one fix**, and it is a fix to how the board is built rather than to how anything
+ * snaps: there is no panel special case anywhere in the placement code.
+ *
+ * Height and **depth** are its finished face dimensions — depth, because that is the axis its face
+ * now runs along. `createCabinet` is the one place that swap happens, so a caller still says
+ * `width` and still means the panel's face width. Its `width` field is a nominal thickness
+ * placeholder for the footprint; the real thickness comes only from the selected carcass sheet
+ * material. It bands all four edges, which is the safe shop default for a
  * loose visible part and can later become an explicit per-edge choice.
  *
  * **Its grain is chooseable.** A loose panel is nothing but a show part, so `panel` is one of
@@ -40,7 +57,8 @@ export const STANDALONE_PANEL_SPEC: CabinetSpec = {
   carcassLift: () => 0,
   validate: (ctx) => {
     const problems: string[] = [];
-    if (ctx.W <= 0 || ctx.H <= 0) problems.push('A standalone panel needs a width and height.');
+    // `D` rather than `W`: the panel's face width runs into the room now. See the header.
+    if (ctx.D <= 0 || ctx.H <= 0) problems.push('A standalone panel needs a width and height.');
     return problems;
   },
   parts: [
@@ -50,9 +68,16 @@ export const STANDALONE_PANEL_SPEC: CabinetSpec = {
         {
           name: 'Panel',
           role: 'panel',
-          profile: rectProfile(ctx.H, ctx.W),
-          // Face spans x=0..W and y=0..H; its material thickness projects toward the room (+Z).
-          placement: placement(v3(ctx.W, 0, 0), '+Y', '-X'),
+          profile: rectProfile(ctx.H, ctx.D),
+          /*
+           * Face spans z=0..D and y=0..H, with the material thickness projecting along +X — so the
+           * board fills its own footprint, which `createCabinet` made a board thickness wide.
+           *
+           * `w = u × v` is derived, not chosen: (+Y) × (+Z) = +X. The old build was
+           * (+Y) × (−X) = +Z, a face lying across the run with its thickness poking into the room.
+           * That one line is the whole difference between a splashback and an applied end.
+           */
+          placement: placement(v3(0, 0, 0), '+Y', '+Z'),
           material: 'carcass',
           bandedDirections: BAND_ALL,
           // Vertical by default — its length runs up the part. `options.grainDirection` overrides

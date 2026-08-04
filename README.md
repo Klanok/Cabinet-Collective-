@@ -16,7 +16,7 @@ before running anything. See [G-code](#g-code) below.
 ```bash
 npm install
 npm run dev       # the app
-npm test          # 948 tests
+npm test          # 957 tests
 npm run report    # cutlist, hardware, drilling, nest, G-code and costing for the sample kitchen
 ```
 
