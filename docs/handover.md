@@ -105,6 +105,14 @@ written down. §4.18 is the **out-of-step indicator**: the benchtop radius that 
 works, and always did, and the app now says when an owned unit no longer matches the cabinets under
 it — which is the bill for the owned-not-derived bargain, finally paid.
 
+**And three bench bugs were fixed, two of which this document already claimed were fixed** (§4.22).
+The `$NaN` quote came back — not because §4.14's repair was wrong, but because it lived in the
+*project* migration chain and the **shop standards** chain has never once repaired a labour rate, so
+a new job is copied from broken standards and born at the current schema with nothing left to fix
+it. The Cost panel then hid the one row that was broken, because `NaN > 0` is `false`. A standalone
+panel's rotation box shipped into the one branch it could never be seen in. And the cushion texture
+turned out to be a **ref on the mesh** where the geometry is what gets replaced.
+
 **And the cushions are costed at last** (§4.19). They were drawn and free, and *nothing said so* —
 which is the serious half: a missing line that quotes at **zero** looks exactly like a finished
 quote. They are **bought in as whole units from the upholsterer** — the shop supplies templates or a
@@ -129,7 +137,7 @@ Section 4 records how each works and why; section 5 is what is actually left to 
 ```
 npm install
 npm run dev       # the app
-npm test          # 957 tests
+npm test          # 971 tests
 npm run build
 npm run report    # cutlist, hardware BOM, drilling, nest, G-code and costing for the sample kitchen
 npm run report -- shaker-57    # the same kitchen with routed fronts
@@ -170,7 +178,7 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | Banquette seating — solid front, hinged lift-up, cushions | Rejected at the bench, **rebuilt to the shop's own answers — see 5.4.** Lid stay still unmodelled |
 | A rounded corner on a banquette, carried by lid, front and cushion | **Working, see 4.15.** Applied ends build on one too |
 | What each cabinet type supports, declared by its own spec | **Working, see 4.15 and 4.16.** `CabinetSpec.capabilities` — refusing costs a sentence |
-| Inside banquette corner — a quarter-circle connector | Working, on the same formers-and-bendy-ply rules as 4.5. Its own access question unasked, see 5.4 |
+| Inside banquette corner — a quarter-circle connector | **Wrong shape and now answered — see 5.13 item 1.** It is an L with a small concave fillet, not a quarter disc. Ready to build |
 | Upholstery as its own material type | Working — Warwick Caulfield, nine colours, `library/upholstery.au.ts` |
 | Banquette cushions on the quote | **Working, see 4.19.** Bought in whole, $350/lin m **per cushion**, no parts produced |
 | Room — any shape, drawn in a 2D plan with typed lengths | Working |
@@ -195,6 +203,9 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | Choosing which sheet size a material is cut from | Working, see 4.8 and 5.9 — per material, on the Nest tab |
 | CAM — panels + nest → machine-independent operations | **Working, see 4.9** |
 | G-code — a post-processor per machine, `.nc` per sheet | **Working, see 4.9. Still not run on a machine — simulate first** |
+| A labour rate missing from the shop standards | **Repaired on load, see 4.22.** Both version chains share one backfill; costing names a rate it cannot use |
+| A cost line that cannot compute | **Shown, not hidden, see 4.22.** `NaN > 0` is false, so the broken row used to remove itself |
+| Turning a cabinet that stands against a wall | **Working, see 4.22.** The box was in the branch for free-standing units only |
 | The Woodtron dialect, off 21 real programs | **Read and written down — `docs/woodtron-dialect.md`** |
 | A machine profile with two heads — origins, rapid heights, depths | **Working, see 4.20.** All four figures differ per head |
 | A Woodtron profile, every figure read rather than guessed | **Working, see 4.20** — and it names four things wrong with itself |
@@ -237,8 +248,8 @@ materials.
 
 **Migrations must never quietly change anyone's parts.** Every migration carries old values
 forward so a saved job cuts exactly as it did; adopting a new default is then a deliberate
-edit. Schema is at **v28**; migrations run in sequence in `model/project.ts`. Shop standards are
-versioned separately and are at **v20** — and they get a *real* migration rather than a
+edit. Schema is at **v29**; migrations run in sequence in `model/project.ts`. Shop standards are
+versioned separately and are at **v21** — and they get a *real* migration rather than a
 rejection, because refusing to load them silently replaces a shop's accumulated kick heights,
 reveals, door styles and saved cabinet types with the shipped Australian defaults.
 
@@ -2278,6 +2289,121 @@ staying green.
 the swap and `PANEL_FOOTPRINT_THICKNESS`; `migrateV27toV28` in `model/project.ts`.
 `tests/standalonePanel.test.ts` carries the before/after table longhand in its header.
 
+### 4.22 Three bench bugs, and the one that had already been fixed once
+
+Reported together, with a screenshot of a quote reading `$NaN`. All three were real; **two of the
+three had a "this was fixed" claim attached to them in this document**, and both claims were true
+and both fixes were incomplete in the same shape — right change, wrong coverage.
+
+#### The NaN quote, back through the door §4.14 left open
+
+**§4.14's fix was not wrong; it was in the wrong place to be enough.** It repairs a *job* at project
+v24 → v25. The two laminate rates it repairs also live in the **shop standards**, which are
+versioned separately — and **not one of the twenty standards migrations had ever touched
+`settings.labour`**. v18 → v19 is the laminate's own standards migration and it fills in
+`constructions` and stops.
+
+So the route nobody was watching:
+
+1. A shop's stored standards keep the holes through the whole standards chain.
+2. `createEmptyProject` copies them into a new job **verbatim** — §2's copy-never-reference rule
+   working exactly as designed, and carrying the fault with it.
+3. That job is stamped at the **current** schema, so the project chain that knows the repair never
+   runs on it.
+
+The job is born broken, at the newest version, and `0 * undefined` is `NaN` — so it hit a job with
+**no curve in it at all**, which is what made the cause look nothing like the symptom for the second
+time.
+
+**Why the existing test suite was green throughout.** `tests/labourRateBackfill.test.ts` was
+thorough and every case in it started at schema 22 or 24 — *below* the version that repairs it — so
+the repair always ran. A test written from the job end cannot see a fault that arrives from the
+standards end. The new cases are written from the standards end for exactly that reason.
+
+Three changes, and the third is the one that matters beyond this bug:
+
+- **`migrateStandardsV20toV21`** backfills the rates into the standards. This is the one that stops
+  it recurring, because standards are what new jobs are built from.
+- **`migrateV28toV29`** re-runs the backfill on jobs already made from broken standards — the sweep-up
+  for the job that was on screen. **Nothing re-prices**, in the strong sense: a quote printing `$NaN`
+  was never a number anybody could send, so there is no old figure to protect, and an intact job
+  comes through to the cent.
+- **`withBackfilledLabourRates` is shared by all three call sites.** v25's own comment said the
+  generic backfill was the guard against a repeat — it guarded the *field list* and not the *chains*.
+  Two version histories read `LabourRates` and only one was taught to repair it.
+
+**And costing now names a rate it cannot use**, rather than producing `NaN` in silence — §4.19's
+*"a missing rate is a sentence, never a zero"*, applied to the figure that has taken the whole quote
+down twice. The check is driven off `DEFAULT_LABOUR_RATES`'s keys rather than the job's own, because
+the fault is a key that is **absent** and iterating what is there cannot see what is not.
+
+#### The Cost panel hid the one line that was broken
+
+**`n > 0` is the wrong question and it cost a session.** `NaN > 0` is `false`, so every optional row
+driven by a broken figure quietly removed itself. The screen showed Sheet goods, Cushions,
+Manufacturing and Install all reading correctly, then `$NaN` from Total cost down, with nothing on
+screen connecting the two — the Laminating row that would have pointed straight at it was the row
+that hid. `shows()` in `CostPanel.tsx` is the fix: a figure that is not a real number is **always**
+displayed, because a row that cannot compute is exactly the row somebody needs to look at.
+
+#### A standalone panel had no rotation control — and §4.21 had genuinely shipped one
+
+Both true at once. The **Turned** field existed and its 90° step for a panel was right; it sat inside
+the `else` of `anchor && wall`, so **any** cabinet placed against a wall lost it entirely. §4.21's own
+argument is that a panel standing edge out beside a run is perpendicular to the wall that run backs
+onto — so the one type that most needs turning was the one type that could never reach the box. It is
+now offered in both branches. Turning a wall-placed cabinet off square makes it free standing of its
+own accord, because `wallAnchorOf` only claims a wall when the yaw matches within tolerance.
+
+#### The cushion texture, and why the wiring beat the arithmetic
+
+§5.4(b) — the shared cached `Texture` having its `repeat` overwritten — **was** genuinely fixed: UVs
+are baked into the geometry and nothing writes to the texture. The live fault was one layer down.
+
+`applyFabricScale` ran from a ref on the `<mesh>`. **A mesh ref fires when the mesh is created, and
+the mesh outlives its geometry**: `<extrudeGeometry args={…}>` is a child, so changing the back
+cushion's height, thickness or lean — or the cabinet's width — makes R3F build a new geometry and
+attach it to the same mesh. The ref never fires again and the replacement keeps raw millimetre UVs.
+Which is why *"draws in flat colour until the cabinet is removed and re-added"* was the exact
+symptom: remounting is the only thing that re-fires a mesh ref.
+
+The scaling now hangs off the **geometry**, which is the thing it has to follow. The square seat
+cannot do that — drei's `RoundedBox` builds its geometry internally, so there is no element to
+attach to — and uses a layout effect with **no dependency array** instead. That is deliberate rather
+than lazy: listing dependencies there would be re-deriving drei's own memo and would go stale with
+it. It makes `applyFabricScale`'s idempotence guard **load-bearing** — without it the UVs would be
+divided again every frame and the weave would collapse to nothing — so the arithmetic moved into
+`viewport/fabricScale.ts` where `tests/fabricScale.test.ts` can pin exactly that.
+
+**One verification lesson worth keeping, because it nearly produced a false pass.** The first attempt
+to reproduce the old behaviour put the ref back on the mesh *as an inline arrow function* — and it
+worked correctly, which looked like evidence the bug was imaginary. An inline callback ref has a new
+identity on every render, so React re-fires it; the original was a stable `useCallback`, which does
+not. **A mutation test has to reproduce the original mechanism, not merely the original shape.**
+
+#### Verified
+
+971 tests, up from 957. Checked in the running app per §7, reading values back rather than looking:
+
+- Seeded a browser with shop standards broken exactly as the bench's are — the two rates deleted,
+  version 20 — and read the Cost panel out of the DOM: twelve rows, **no NaN**, no page errors.
+- Placed a panel against the south wall and read the Inspector back: **"Along the wall", "Gap behind"
+  and "Turned" all present together**, which the old code made impossible. Typing 90 turns it, read
+  back off the model at schema 29.
+- Walked the live three.js scene and read the cushions' UV ranges. After changing the back cushion's
+  height its geometry is rebuilt and still scaled (max U 1.393 → 1.793, marked). **Reverted to the
+  original wiring it comes back at max U 538 — raw millimetres, unmarked** — which is the reported
+  bug reproduced as a number rather than an impression.
+
+Three deliberate mutations were run to check the assertions bite: removing the standards migration
+fails two, removing the project sweep-up fails one, removing the idempotence guard fails one.
+
+**Where to look:** `withBackfilledLabourRates` in `model/project.ts` and its three call sites;
+`migrateStandardsV20toV21` in `standards/standards.ts`; `shows()` in `panels/CostPanel.tsx`;
+`viewport/fabricScale.ts` for the arithmetic and why the guard matters.
+`tests/labourRateBackfill.test.ts` carries the route through the standards chain written out, and
+its second half says plainly which half of the cushion fix a test can reach and which needs the app.
+
 ---
 
 ## 5. Open items, in the order I'd do them
@@ -2320,14 +2446,21 @@ neighbours are cut — and `writeSheetProgram` finishes each part before startin
 change to how the writer *walks the operation list*, not a new number, and it is the difference
 between a good draft and a file that can be run. **Nothing blocks it.**
 
-**Two are waiting on the shop, and both were asked and are unanswered:**
+**One is still waiting on the shop, asked and unanswered:**
 
 - **One Woodtron part whose true hole positions are known** — a shelf-pin row measured off a known
   edge. That settles whether a programmed coordinate is the reference spindle or the head origin
   (§4.20), which is the only thing keeping the drill bank off. The map is solved; the bank is one
   field away. **128mm** is the cost of guessing, and no amount of re-reading the files answers it.
-- **The banquette corner's shape**, §5.13 item 1 — the screenshot or a sentence. Two readings of
-  "square less a quarter disc" give visibly different seats.
+
+**And one has been answered and is now ready to build: the banquette corner**, §5.13 item 1. The
+shop's answer arrived in the session that fixed §4.22's bench bugs and was deliberately not built in
+it, because that session was scoped to those bugs. **It is not the shape anybody had assumed.** The
+seat is an **L** — a span along each wall, a run's depth off each, ~900 and 500 in the shop's own
+example — with a small **concave fillet**, ~150mm, where the two seat fronts meet. So `validate`'s
+`W = D = insideCornerRadius` has to go: those are three separate numbers, seat depth becomes a real
+input, and the lid, the backs and the cushion all follow the new outline. Read §5.13 item 1 before
+starting; it has the shop's words and what falls out of them.
 
 **The KDT is a separate and still-open question.** Every one of the twenty-one files is a Woodtron
 and **nothing has been carried across** — the only KDT fact anybody has is the Z datum, from the
@@ -2674,10 +2807,11 @@ speculatively.
   quantity to work out and no foam to order, and the charge is $350 a lineal metre **per cushion**.
   The half that mattered was the warning: a cushion nobody can price now says so by name rather than
   quoting at zero. What is still open there is the **particleboard substrate**, which is a real part
-  and was deliberately not built. **(b)** The cushion renderer mutates `repeat` on the
-  texture `useLoader` hands back, and that object is **shared and cached** — two banquettes in one
-  fabric fight over the weave scale, last one rendered wins. `PanelMesh` avoids this by baking UVs
-  into the geometry and never writing to the texture; the cushion path should do the same or clone.
+  and was deliberately not built. ~~**(b)** The cushion renderer mutates `repeat` on the
+  texture `useLoader` hands back, and that object is **shared and cached**.~~ **Done** — UVs are baked
+  into the geometry and nothing writes to the texture. A *second* fault behind it was fixed later
+  (§4.22): the baking was attached to the mesh rather than to the geometry, so a rebuilt cushion
+  silently kept raw millimetre UVs.
   **(c)** Cushion textures are scaled in UV units off the cabinet's bounding box (`width / 250`),
   not in millimetres off the cushion — which is the rule §5.8 sets for board decors and the board
   path keeps. Foam grades and seam or piping styles remain unstarted and are still not worth
@@ -3017,8 +3151,12 @@ it — not a duplicate to tidy away.
 
 #### The rest of the list
 
-- ~~**Costing returns NaN.**~~ **Fixed — see 4.14.** It was one absent labour rate, and it hit
-  every job rather than only curved ones.
+- ~~**Costing returns NaN.**~~ **Fixed twice — see 4.14, then 4.22.** It was one absent labour
+  rate, and it hit every job rather than only curved ones. It came back, because 4.14 repaired the
+  *job* chain and the **shop standards** chain had never repaired a labour rate at all — so a new
+  job was copied from broken standards and born at the current schema with no migration left to run
+  on it. **The lesson is about the fix, not the bug:** a repair has to cover every chain that reads
+  the field, not every field in one chain.
 - ~~**The benchtop radius "does not work".**~~ **Fixed — see 4.18.** It worked; it is *owned* data
   (§4.13), so it follows the cabinets only when the top is **regenerated**, and the app gave no
   signal. It does now, on the unit card, in the issue bar and in the terminal report. The general
@@ -3028,9 +3166,11 @@ it — not a duplicate to tidy away.
 - ~~**Applied ends do nothing on a banquette.**~~ **Fixed — see 4.15**, along with the stale guard
   that caused it.
 - **Texture and laminate on a bendy-ply radius.** Reported, not yet reproduced.
-- **A banquette's back cushion draws in flat colour** until the cabinet is removed and re-added.
-  Consistent with §5.4(b) — the cushion renderer mutates `repeat` on the shared cached texture
-  rather than baking UVs the way `PanelMesh` does.
+- ~~**A banquette's back cushion draws in flat colour** until the cabinet is removed and
+  re-added.~~ **Fixed — see §4.22**, and the diagnosis in this entry was out of date. §5.4(b)'s
+  shared-texture fault had already been fixed; what was left was a ref on the **mesh** where the
+  **geometry** is the thing R3F replaces, so a rebuilt cushion kept raw millimetre UVs. Removing and
+  re-adding the cabinet "fixed" it because remounting is the only thing that re-fires a mesh ref.
 - **Changing a drawer front's height can change the cabinet's height**, and the input for the
   bottom front is partly off-screen. Not yet reproduced; the useful detail when it is reported
   again is whether the height moves *as you type* or *on save*, because those are two different
@@ -3089,29 +3229,47 @@ below the overcut.
 
 1. **The internal banquette corner is an external radius, and the cushion is turned the wrong way.**
    Screenshotted. `banquetteCorner.ts` and `BanquetteCornerCushions` both build a quarter *disc* —
-   convex, bulging into the room — where an internal corner joining two runs wants the square
-   **less** a quarter disc, so the seat's front edge is concave between the two runs' front edges.
-   The shop's words: *"a complete mess."* Note this also moves §4.19's corner-seat arc charge, which
-   is measured along that front edge — the reading survives, the shape it measures does not.
+   convex, bulging into the room. The shop's words: *"a complete mess."*
 
-   **Picked up and deliberately put back down**, because "square less a quarter disc" has more than
-   one reading and they give visibly different seats. `quarterRing` in `banquetteCorner.ts` is the
-   one line to change; what is not decided is *what to change it to*. Three questions, and the
-   third is the one that decides the other two:
-   - **Is the removed disc's radius still the unit's own size?** Today `validate` insists
-     `W = D = insideCornerRadius`, the same rule the quarter-round end has. Keep it and inverting the
-     shape leaves a sliver of `r² − πr²/4` ≈ **0.21 r²** — for a 500 corner, a piece reaching only
-     207mm out along its own diagonal. That may well be right for a filler between two rounded runs,
-     and it is a surprising enough shape that it should be confirmed rather than deduced.
-   - **Or is the fillet radius a separate figure**, smaller than the unit, with the disc centred on
-     the unit's front corner? That keeps a full square seat with a rounded notch and is the reading
-     that makes the arc *tangent* to both runs' front edges.
-   - **Which of those two the shop means** is what the screenshot would settle in a second and no
-     amount of reasoning from here will. §4.5's four corner decisions carry the standing note that a
-     fresh session re-deriving a shop decision gets a different answer; this is the same class.
+   **The shop has now answered this, and the answer is neither of the two readings that were put to
+   them.** Both of those assumed the unit was a square with a disc taken out of it, which is what
+   `validate`'s `W = D = insideCornerRadius` rule made it look like. It is not.
 
-   Whatever the answer, the cushion has to turn with it — `BanquetteCornerCushions` builds its
-   quarter from the same description and would otherwise sit convex on a concave seat.
+   > *"essentially it wont be 500 x 500 — it could be 900 x 900 along the back wall with 500mm depth
+   > to both. In this scenario you could have an internal radius of 150mm or so."*
+
+   **The seat is an L, and the radius is a small separate fillet on its inside corner.** Two walls
+   meeting at a corner; the unit spans some length along each wall — 900 was the example — and the
+   seat is a run's depth off each wall, 500. So the plan is the union of two rectangles: 900 × 500
+   down one wall and 500 × 900 down the other, sharing the 500 × 500 square in the back corner. The
+   far corner of the 900 × 900 footprint is 900 from both walls, which is bed depth rather than seat
+   depth, and is not seat at all.
+
+   That leaves exactly one corner where the two seat fronts meet, pointing into the room, and it is
+   **concave** — the seat wraps around it. The ~150mm is the fillet rounding it off, tangent to both
+   fronts. Hence *"internal radius"*, and hence a figure with nothing to do with the unit's size.
+
+   **Three things follow, and the first is why this is not the one-line change this item used to
+   promise:**
+   - **The unit is wrong in kind, not in detail.** `quarterRing` builds a convex quarter disc; this
+     wants a concave fillet on an L. Different outline, and the backs, the lid and the cushion all
+     follow the outline.
+   - **`validate` is wrong.** It insists width = depth = `insideCornerRadius`. On this description
+     they are **three separate numbers** — 900, 900 and 150 — and the constraint has to go. The field
+     name was right the whole time; the geometry built from it was not.
+   - **Seat depth becomes a real input**, 500 off each wall, and it need not equal the span. There is
+     no field for it today.
+
+   **Deliberately not built in the session that got this answer**, which was scoped to three bench
+   bugs. Written down instead, because §4.5's four corner decisions carry the standing note that a
+   fresh session re-deriving a shop decision gets a different answer — and this item has now been
+   mis-derived twice from the same sentence.
+
+   Note it also moves §4.19's corner-seat arc charge, which is measured along that front edge. The
+   reading survives; the shape it measures does not, and an L has two straight fronts plus a small
+   fillet where the old shape had one long arc. And the cushion has to turn with it —
+   `BanquetteCornerCushions` builds its quarter from the same description and would otherwise sit
+   convex on a concave seat.
 
 2. ~~**A standalone panel should stand perpendicular to the wall, not flat against it**~~ —
    **done, see §4.21.**
