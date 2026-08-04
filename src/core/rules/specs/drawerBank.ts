@@ -50,6 +50,7 @@ export const DRAWER_BANK_SPEC: CabinetSpec = {
       'A rounded corner is not built on a drawer bank yet — the corner would come out cut away ' +
       'with nothing wrapped round it. Use a base cabinet at the end of the run.',
     appliedEnds: true,
+    customFeatures: true,
   },
   defaultOptions: {
     drawerCount: 4,

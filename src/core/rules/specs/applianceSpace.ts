@@ -38,6 +38,9 @@ export const APPLIANCE_SPACE_SPEC: CabinetSpec = {
     appliedEnds:
       'An appliance space is a gap in the run rather than a cabinet, so there is no side to ' +
       'apply a panel to. Put the end on the cabinet beside it instead.',
+    customFeatures:
+      'An appliance space cuts no parts, so there is nothing to put a cutout in. Put it on the ' +
+      'cabinet beside the space — a hole for a waste or a power point usually goes in a side.',
   },
   isCarcass: false,
   defaultOptions: {

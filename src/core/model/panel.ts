@@ -15,9 +15,10 @@ import {
   profileEdgeLengths,
   profileExtent,
   isRectangular,
+  reversePolygon,
 } from '../geom/profile.ts';
 import type { PanelPlacement } from '../geom/placement.ts';
-import type { PanelFeature } from './feature.ts';
+import type { CutoutFeature, PanelFeature } from './feature.ts';
 import type { Forming } from './forming.ts';
 import type { EdgeBanding } from './material.ts';
 
@@ -124,6 +125,33 @@ export interface Panel {
 
 /** Bounding-box size — what a saw list and a nester care about. */
 export const panelExtent = (p: Panel): { length: Mm; width: Mm } => profileExtent(p.profile);
+
+/**
+ * The part's shape **for drawing**, with anything that goes right through it opened up.
+ *
+ * A cutout is a `PanelFeature` and stays one: it is machining intent, it is what CAM reads, and
+ * baking it into the profile would be a second place claiming to know where the hole is. But a
+ * hole you cannot see through is not a hole on screen — a cabinetmaker checking a waste cutout
+ * is checking whether he can see the wall behind it — so the renderer asks for a profile with
+ * the through features cut in, and gets one built on the spot.
+ *
+ * Named and separate for the same reason `flattenPolygonSegments` is: this is a derived,
+ * drawing-only view of a part, and nothing dimensional may call it. The cutlist size, the blank
+ * the nester reserves and the perimeter the router follows all read `profile`, which is
+ * unchanged — a hole in the middle of a panel does not make the board it is cut from smaller.
+ */
+export const panelDrawingProfile = (p: Panel): Profile2D => {
+  const through = p.features.filter(
+    (f): f is CutoutFeature => f.kind === 'cutout' && f.outline.length >= 3,
+  );
+  if (through.length === 0) return p.profile;
+  return {
+    outline: p.profile.outline,
+    // Wound the opposite way to the outline, which is what `Profile2D` means by a hole and what
+    // lets the extruder bridge it into the cap.
+    holes: [...p.profile.holes, ...through.map((f) => reversePolygon(f.outline))],
+  };
+};
 
 /** True material area, holes removed. */
 export const panelArea = (p: Panel): Mm2 => profileArea(p.profile);

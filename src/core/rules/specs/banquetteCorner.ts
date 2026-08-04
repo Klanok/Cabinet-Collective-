@@ -64,6 +64,7 @@ export const BANQUETTE_CORNER_SPEC: CabinetSpec = {
     appliedEnds:
       'An inside banquette corner is a connector: both of its ends butt into the banquettes it ' +
       'joins, so neither is exposed. Put the end on the banquette at the end of the run.',
+    customFeatures: true,
   },
   defaultOptions: {
     formerSpacing: mm(250), skinLayers: 2, hasKick: false, hasBack: true,

@@ -9,9 +9,9 @@
 import type { Mm } from '../units.ts';
 import type { CabinetOptions, CabinetTypeId } from '../model/cabinet.ts';
 import type { GrainConstraint, PanelRole } from '../model/panel.ts';
-import type { PanelFeature } from '../model/feature.ts';
+import type { MachiningFace, PanelFeature } from '../model/feature.ts';
 import type { Forming } from '../model/forming.ts';
-import type { PanelPlacement } from '../geom/placement.ts';
+import { type PanelPlacement, placementNormal } from '../geom/placement.ts';
 import type { Profile2D } from '../geom/profile.ts';
 import { type SignedAxis, negateAxis } from '../geom/vec.ts';
 import type { RectEdge } from '../geom/profile.ts';
@@ -95,6 +95,15 @@ export interface SpecCapabilities {
   readonly cornerRadius: Capability;
   /** `appliedEnds`: the spec emits the board laid over an exposed carcass side. */
   readonly appliedEnds: Capability;
+  /**
+   * `Cabinet.customFeatures`: a hole, a notch or a groove put on one named part by hand.
+   *
+   * True for anything that cuts parts, because a custom feature lands on a **part** and the
+   * question is only whether there is one to land on. A type that produces no parts has nothing
+   * to machine and says so in its own words — otherwise a feature added to it would be reported
+   * as missing its part every time the job was opened, with nothing on screen to explain why.
+   */
+  readonly customFeatures: Capability;
 }
 
 /** The reason a capability is off, or `null` when it is on. */
@@ -139,6 +148,23 @@ export const edgeFacing = (p: PanelPlacement, direction: SignedAxis): RectEdge |
   if (direction === negateAxis(p.v)) return 'L1';
   if (direction === p.u) return 'W2';
   if (direction === negateAxis(p.u)) return 'W1';
+  return null;
+};
+
+/**
+ * Which face of a panel looks toward the given cabinet-space direction, or null for the four
+ * directions that are edges rather than faces.
+ *
+ * The mirror image of `edgeFacing`, and it exists for the same reason: "cut a groove in the face
+ * that looks into the cabinet" is the actual instruction, and whether that is the A face or the
+ * B face depends on the placement — `w = u × v` is derived, so a left side and a right side get
+ * opposite answers from the same sentence. Asking the placement is what makes a handed pair come
+ * out as a handed pair. See `model/partFeature.ts`.
+ */
+export const faceFacing = (p: PanelPlacement, direction: SignedAxis): MachiningFace | null => {
+  const w = placementNormal(p);
+  if (direction === w) return 'A';
+  if (direction === negateAxis(w)) return 'B';
   return null;
 };
 

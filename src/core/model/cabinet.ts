@@ -8,6 +8,7 @@
 
 import type { Mm } from '../units.ts';
 import type { CabinetPlacement } from '../geom/placement.ts';
+import type { CustomFeature } from './partFeature.ts';
 
 /** Identifies which declarative spec builds this cabinet. */
 export type CabinetTypeId =
@@ -295,6 +296,17 @@ export interface Cabinet {
   readonly placement: CabinetPlacement;
   readonly options: CabinetOptions;
   readonly materials: CabinetMaterials;
+  /**
+   * Holes, notches and grooves added by hand to named parts of this cabinet — see
+   * `model/partFeature.ts`.
+   *
+   * Here rather than in `options` because it is a *list keyed by part*, not one more dimension
+   * every spec might read, and here rather than on the panels because **panels are derived and
+   * never stored**. That rule does not bend for this: the features live on the cabinet and are
+   * attached to the parts as they are produced, so resizing the cabinet re-cuts every part with
+   * the cutouts still on them.
+   */
+  readonly customFeatures?: readonly CustomFeature[];
 }
 
 export const CABINET_TYPE_LABELS: Record<CabinetTypeId, string> = {

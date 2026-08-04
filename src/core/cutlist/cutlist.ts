@@ -12,7 +12,7 @@ import { type Panel, panelExtent, bandedLength } from '../model/panel.ts';
 import type { Project } from '../model/project.ts';
 import { buildProject } from '../rules/build.ts';
 import { buildRunUnits } from '../rules/runUnits.ts';
-import { RECT_EDGES } from '../geom/profile.ts';
+import { RECT_EDGES, profileSignature } from '../geom/profile.ts';
 
 export interface CutlistLine {
   /** Stable key for the grouping — identical parts collapse onto one line. */
@@ -39,6 +39,21 @@ export interface CutlistLine {
   readonly note?: string;
 }
 
+/**
+ * The machining somebody added by hand, as a key.
+ *
+ * Only the custom features (§5.12). Everything else on a panel is derived from the cabinet, so
+ * two parts that match on everything above already carry the same hinge cups and the same
+ * system holes — but a hole put in one side and not the other is exactly the difference this
+ * has to see, and it does not change the part's size or its shape.
+ */
+const customMachining = (panel: Panel): string =>
+  panel.features
+    .filter((f) => f.purpose === 'custom')
+    .map((f) => f.id)
+    .sort()
+    .join(',');
+
 const bandingNotation = (panel: Panel): string =>
   RECT_EDGES.filter((e) => panel.edgeBanding[e]).join(' ') || '—';
 
@@ -56,8 +71,20 @@ const grainNotation = (panel: Panel): string => {
 /**
  * Group identical parts into cutlist lines.
  *
- * Parts collapse only when material, size, banding and grain all match — the four things
- * that have to agree for two parts to actually be interchangeable at the saw.
+ * Parts collapse only when material, size, banding, grain, **shape and machining** all match —
+ * the things that have to agree for two parts to actually be interchangeable at the saw.
+ *
+ * The last two arrived with §5.12 and neither is a nicety. Size used to be the whole of "same
+ * shape", which was true of everything the engine produced and stopped being true the moment
+ * somebody could notch a corner or bore a waste hole by hand: a side with a scribe notch in it
+ * is exactly the same length and width as the plain one beside it, and without the shape in the
+ * key the two collapse into "2 × Side L" and one of them is cut wrong.
+ *
+ * The **note** deliberately stays out of the key, and it is worth saying why, because putting it
+ * in looks like the same fix. A note is advice about where a part goes — "End rib" — and an end
+ * rib and a middle rib are the *same part*, cut off the same list line. Keying on free text
+ * would split a line for a hint. Keying on the shape and the machining splits it for a
+ * difference the saw can see.
  */
 export const buildCutlist = (project: Project): readonly CutlistLine[] => {
   const library: MaterialLibrary = project.materials;
@@ -88,6 +115,8 @@ export const buildCutlist = (project: Project): readonly CutlistLine[] => {
         banding,
         grain,
         panel.name,
+        profileSignature(panel.profile),
+        customMachining(panel),
       ].join('|');
 
       const existing = lines.get(key);

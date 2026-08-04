@@ -22,6 +22,8 @@ src/core/                        pure model layer
   model/
     feature.ts                   parametric machining intent (the Phase 4 interface);
                                  also the tool profile — a cutter's cross-section
+    partFeature.ts               what a *user* adds to one named part: a hole, a notch, a
+                                 groove — stated from named edges, never as coordinates
     hardware.ts                  runner and hinge systems as data; box and boring arithmetic
     runUnit.ts                   what a benchtop and a ladder base share: how they are *owned*
     benchtop.ts                  a benchtop: supply, overhangs, ends, corners, joins, cutouts
@@ -43,6 +45,7 @@ src/core/                        pure model layer
     hardware.ts                  a cabinet's runner and hinge, resolved once into the context
     drawerBox.ts                 the two parts a Blum box contributes to the cutlist
     boring.ts                     the drilling — hinge, runner and System 32, in cabinet space
+    customFeatures.ts            a user's cutouts, resolved onto the parts they were placed on
     runUnits.ts                  benchtop and ladder base → Panel[], in the unit's own space
     build.ts                     cabinet + project → Panel[]
   standards/
@@ -125,8 +128,8 @@ engine, the viewport or costing. Base, wall and drawer-bank already share their 
 builders, which is the test of whether the abstraction is real.
 
 A spec also **declares what it builds**, in `capabilities`, and every field is required: a corner
-radius and applied end panels are options some specs cut parts for and others do not, so each one
-says `true` or gives the reason it does not. Both the warnings and the Inspector's controls read
+radius, applied end panels and a custom cutout are options some specs cut parts for and others do
+not, so each one says `true` or gives the reason it does not. Both the warnings and the Inspector's controls read
 that declaration. They used to read a list of type ids kept elsewhere, and it went stale the day
 the banquette started cutting a rounded corner — see §4.15 of the handover.
 
@@ -171,6 +174,27 @@ and not the other. No amount of cleverness in the run finder can tell them apart
 `rules/specs/applianceSpace.ts` is a placed unit that produces zero parts and carries the answer —
 and it carries the two answers separately, because "does the top run over it" and "does the plinth
 run under it" are different questions with different answers for the same appliance.
+
+**A custom cutout is stated from named edges, and resolved through the panel's own placement.**
+Same rule as banding and as hardware, and the trap is the same one a fourth time: a side panel's
+part axes run opposite ways on the two hands, so "100 in from the front" stored as `x = 100` lands
+100 from the front on one side and 100 from the **back** on the other — right size, right diameter,
+right count. So `model/partFeature.ts` holds only what a shop would say, `rules/customFeatures.ts`
+resolves it through `edgeFacing` and `faceFacing`, and the same sentence comes out as a mirror image
+on the two hands. It also means a cutout survives the cabinet being resized: it is measured from an
+edge that still exists rather than from an origin that moved.
+
+Two consequences worth knowing:
+
+- **A notch is the part's shape; a hole and a groove are machining.** A notch is cut into
+  `Profile2D`, so the cutlist, the banding, the blank the nester reserves and the router's perimeter
+  all see it. The other two are `PanelFeature`s and take nothing off the rectangle the part is cut
+  from. That split is what answers "does this change the blank?" once rather than per feature. A
+  corner notch is the honest edge case: it changes the shape and not the box, because a saw still
+  cuts the whole rectangle.
+- **The features live on the cabinet, keyed by part rule** — `side-left`, `fronts` — and are
+  attached as the parts are produced. Panels stay derived and never stored; a position in the part
+  list would move somebody's cutout the day a shelf was added.
 
 **Edge banding is expressed directionally.** A spec says "band the edge facing the front of
 the cabinet", not "band edge L2". Which named edge that resolves to depends on the panel's

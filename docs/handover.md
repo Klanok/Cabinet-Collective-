@@ -73,15 +73,23 @@ kitchen with no curve in it went down too. **Three more are closed by §4.15**, 
 of work three of those reports were all pointing at: every spec now **declares what it builds**,
 instead of the answer being whether somebody remembered to call a function. That closed applied
 ends doing nothing on a banquette and the half-built banquette corner in the same stroke. **§5.11
-is what is left of the list**, and **§5.12** is the feature asked for alongside it: custom grooves,
-holes and notches on an individual part.
+is what is left of the list.**
+
+**And then the feature asked for alongside that list shipped: custom cutouts on one named part**
+(§4.16). A hole through, a notch off an edge or a corner, and a groove or rebate in a face — each
+stated the way a shop says it, *"250 up from the bottom, 100 in from the front"*, so the same
+sentence comes out as a mirror image on the two hands and stays put when the cabinet is resized.
+Two things in it are worth knowing before touching this area: **a notch is the part's shape and a
+hole is machining**, which is what decides whether the nester's blank changes; and the cutlist used
+to group parts on their bounding box, which a corner notch does not change — so it would have
+printed one line of two where one of the two was notched.
 
 Section 4 records how each works and why; section 5 is what is actually left to do.
 
 ```
 npm install
 npm run dev       # the app
-npm test          # 822 tests
+npm test          # 857 tests
 npm run build
 npm run report    # cutlist, hardware BOM, drilling, nest, G-code and costing for the sample kitchen
 npm run report -- shaker-57    # the same kitchen with routed fronts
@@ -105,7 +113,7 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | Coordinate convention (world / cabinet / part, A-face) | Fixed and documented |
 | Geometry engine — profile + extrude, ear-clipping | Straight edges **and circular arcs** |
 | Rule engine — specs as data over a construction method | base, wall, tall, drawer-bank, custom, radius-end, banquette, banquette-corner, panel, appliance — all ten in `rules/registry.ts`, each declaring what it builds (4.15) |
-| Panel features (the Phase 4 CAM interface) | Types defined; door styles populate pocket and profiled-cut, **hardware rules populate the drilling** |
+| Panel features (the Phase 4 CAM interface) | Types defined; door styles populate pocket and profiled-cut, **hardware rules populate the drilling**, and a user can add their own — see 4.16 |
 | Door styles — shaker, V-groove, routed MDF | **Model half done — toolpaths are Phase 4, see 5.3** |
 | Tool profiles — a cutter's cross-section | Defined; a short shipped list, no editor |
 | Costing — GST both contexts, install, delivery | Working, on placeholder pricing |
@@ -120,7 +128,7 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | Decor textures on parts, at true scale, turned by grain | **Working, see 5.8.** Bundled images, mapped through the nest |
 | Banquette seating — solid front, hinged lift-up, cushions | Rejected at the bench, **rebuilt to the shop's own answers — see 5.4.** Lid stay still unmodelled |
 | A rounded corner on a banquette, carried by lid, front and cushion | **Working, see 4.15.** Applied ends build on one too |
-| What each cabinet type supports, declared by its own spec | **Working, see 4.15.** `CabinetSpec.capabilities` — refusing costs a sentence |
+| What each cabinet type supports, declared by its own spec | **Working, see 4.15 and 4.16.** `CabinetSpec.capabilities` — refusing costs a sentence |
 | Inside banquette corner — a quarter-circle connector | Working, on the same formers-and-bendy-ply rules as 4.5. Its own access question unasked, see 5.4 |
 | Upholstery as its own material type | Working — Warwick Caulfield, nine colours, `library/upholstery.au.ts` |
 | Room — any shape, drawn in a 2D plan with typed lengths | Working |
@@ -136,7 +144,7 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | Curved / radiused parts — arcs, bowed shelves, radiused ends | Working, see 4.4 |
 | A corner radius on a base, wall or tall cabinet | Working — bendy ply and formers, see 4.5 |
 | A benchtop following the curve under it | **Working, see 4.13.** Owned, seeded from the run, refreshed on regenerate — **no on-screen sign when it is out of step, see 5.11** |
-| Custom grooves, holes and notches on one part | Not started — see 5.12. The vocabulary and the stable part keys already exist |
+| Custom grooves, holes and notches on one part | **Working, see 4.16.** Stated from named edges, on a named part rule |
 | The same corner routed from door board instead | **Not started — see 5.7, now unblocked** |
 | Guillotine nesting — sheets, cut sequence, offcuts | **Working, see 4.8.** Nest tab, two CSVs |
 | Choosing which sheet size a material is cut from | Working, see 4.8 and 5.9 — per material, on the Nest tab |
@@ -181,7 +189,7 @@ materials.
 
 **Migrations must never quietly change anyone's parts.** Every migration carries old values
 forward so a saved job cuts exactly as it did; adopting a new default is then a deliberate
-edit. Schema is at **v25**; migrations run in sequence in `model/project.ts`. Shop standards are
+edit. Schema is at **v26**; migrations run in sequence in `model/project.ts`. Shop standards are
 versioned separately and are at **v19** — and they get a *real* migration rather than a
 rejection, because refusing to load them silently replaces a shop's accumulated kick heights,
 reveals, door styles and saved cabinet types with the shipped Australian defaults.
@@ -1690,6 +1698,122 @@ storage and read back from a screenshot looking down on the seat.
 - **The lid stay is still not modelled**, and the cushions are still not costed. Both are §5.4 and
   neither moved here.
 
+### 4.16 Custom features on an individual part
+
+**Built and merged.** §5.12 was the plan; this is the record of what it came out as, and of the
+two things in it that were not obvious until they were written.
+
+> *"I need to be able edit individual parts to add custom grooves and cut outs to them — so say I
+> add a drawer bank and want to do a cut out in the left hand end"*
+
+All three kinds are there: a **hole** right through, a **notch** off an edge or a corner, and a
+**groove or rebate** in a face. Inspector → **Cutouts**, per cabinet.
+
+#### Stated from named edges, and that is the whole design
+
+A custom feature says *"a Ø50 hole on `side-left`, 250 up from the bottom, 100 in from the front"*.
+It never stores a part-space x and y, and §5.12 was right that this is the one thing that must not
+be got wrong. On the reference drawer bank the two sides carry opposite part axes:
+
+```
+  Side L   u = +Y  v = +Z    part +y runs toward the FRONT
+  Side R   u = +Y  v = −Z    part +y runs toward the BACK
+```
+
+so that one sentence resolves to `y = 444` on the left side and `y = 100` on the right — the same
+hole in the same place in the room. Written as a coordinate it would be 100 from the front on one
+side and 100 from the **back** on the other, at the right diameter, in the right count, on a part
+of exactly the right size. That is §4.6's mounting plate, §4.4's former axis and §4.9's mirrored arc
+for the fourth time, and it is asserted rather than assumed —
+`tests/customFeatures.test.ts` puts the same feature on both hands and checks the two answers sum
+to the part's own width.
+
+The mechanism is the one that already existed: `edgeFacing` resolves a cabinet direction to a named
+edge of *this* panel, exactly as it does for banding. `faceFacing` is its mirror image and is new —
+*"a groove in the face toward the right"* is the A face of a left side and the B face of a right
+one, because `w = u × v` is derived. Six words name both, and which of the two a word means depends
+on the part: on a side panel the front is an edge and the left is a face. A word that names a face
+where an edge was wanted is **reported**, never guessed at.
+
+The second thing it buys is stated in the definition of done and falls straight out: the position
+**survives a resize**, because it is measured from an edge that still exists rather than from an
+origin that moved. Make the cabinet 100 deeper and the hole is still 100 in from the front.
+
+#### The split that decides what the nester reserves
+
+**A notch is the part's shape; a hole and a groove are machining.** Made once, in
+`rules/customFeatures.ts`, rather than bolted on the first time somebody cut a notch:
+
+- a notch is cut into `Profile2D`, so the cutlist size, the banding length, the blank the nester
+  reserves and the perimeter the router follows all see it;
+- a hole and a groove are `PanelFeature`s and take nothing off the rectangle the part is cut from.
+
+One honest edge case travels with that, because it looks like a gap otherwise: **a corner notch
+changes the shape but not the blank.** A panel saw still cuts the whole rectangle and the bite comes
+out afterwards — §4.8's *a nest is of blanks, not of shapes*, arriving at a part somebody notched
+rather than one the engine curved. A notch off a **whole** edge does shrink the blank, and the test
+asserts both.
+
+A notch off the low edge of a part also has to slide the profile back onto its own origin **and
+slide the placement the same distance in the cabinet**, because part space starts at the bounding
+box. Do one and not the other and the board is the right size in the wrong place. `occupies` catches
+it: 20 off the back of a side takes it from z ∈ [16, 560] to z ∈ [36, 560].
+
+#### Two things that were wrong until they were checked in the running app
+
+**A `map` reference passed a flattening tolerance of zero.** `profile.holes.map(flattenPolygonPoints)`
+hands the callback the array *index* as its second argument, which `flattenPolygonPoints` reads as
+its tolerance — so the first hole was flattened at a tolerance of 0 and asked for a circle in
+**6.28 million segments**. The app did not crash; it hung. Worth carrying forward as a shape rather
+than as a fact about this one line: a point-free `map` over a function with optional parameters is a
+silent argument injection.
+
+**The cutlist grouped on the bounding box, and a corner notch does not change one.** A side with a
+scribe notch and a plain side of the same size collapsed onto one line as "2 ×", and one of the two
+would have been cut wrong. The key now carries `profileSignature` and the custom features. The
+**note deliberately stays out of it**, which is the distinction worth keeping: a note is advice about
+where a part goes — "End rib" — and an end rib and a middle rib are the same part off the same line.
+Keying on free text splits a line for a hint; keying on shape splits it for something the saw can
+see. (Putting the note in the key was the first attempt, and it split the sample kitchen's plinth
+ribs 8 → 4 + 4, which is how the difference got noticed.)
+
+#### What else it touched
+
+- **`extrudeProfile` cuts interior holes now**, both faces and the wall through the board, by
+  bridging each hole into the outline. It said in its own docstring that it did not, and a hole you
+  cannot see through is one a cabinetmaker cannot check. `panelDrawingProfile` is what feeds it: the
+  cutout stays a **feature** and the drawing profile is derived at the point of drawing, the same way
+  `forming` is. Verified by measuring the mesh, not by looking at it — the triangles of one face have
+  to add up to the board less πr².
+- **A groove is drawn struck on the face it is cut into**, which is the same preview convention
+  `FrontRelief` already shipped for a V-groove and is marked as one. What it gets right is the two
+  things somebody checks on screen: which face, and where it runs.
+- **`CabinetSpec.capabilities.customFeatures`** — §4.15's declaration, and §5.12 was right that this
+  is the same question in a different coat. Every spec that cuts parts says `true`; an appliance
+  space refuses in its own words, because it cuts none.
+- **CAM needed nothing.** A hole comes out as a closed contour offset *inward* by the cutter radius
+  (a Ø50 hole with a Ø6 bit is a 22mm toolpath — offset outward it would cut Ø62), and a groove as an
+  open one. The circle is **four quarter arcs** rather than two semicircles, purely so
+  `offsetRingOutward` will touch it: it refuses a ring with fewer than three corners, and a hole cut
+  on its own centreline is a waste pipe that rattles.
+- **Schema v26**, and it adds nothing. A job saved before this has no custom features, which is what
+  a cabinet with none means, so no part moves. The bump exists so an **older build refuses the file**
+  rather than opening it and quietly cutting the parts without the cutouts — the v4 argument again.
+
+#### What is left
+
+- **A notch on a shaped part is refused**, in its own sentence. Cutting a rectangular bite out of an
+  arbitrary outline is a boolean operation this geometry engine does not have, and the parts people
+  notch are rectangles. A hole and a groove work on any part.
+- **A groove's run is a straight line.** Two points, one width. An L-shaped groove would be a path,
+  and nothing has asked for one.
+- **Nothing places a feature by pointing at the 3D view.** `worldToPart` exists and has always been
+  meant for exactly that (see `geom/placement.ts`), so the transform is not the missing piece — the
+  interaction is.
+- **A saved cabinet type does not carry its cutouts.** `savedTypeFromCabinet` copies options and
+  materials, and a recipe with a waste hole in it is arguably right and arguably a trap. Nobody has
+  asked; left deliberately.
+
 ---
 
 ## 5. Open items, in the order I'd do them
@@ -2412,7 +2536,12 @@ crash it first**. That is the wrong way round. An ordinary Save-a-copy and an Op
 using the export that already exists, is a small piece of work and protects the thing that took
 somebody a day to measure. Nobody has asked for it, which is exactly why it is written down here.
 
-### 5.12 Custom features on an individual part
+### 5.12 Custom features on an individual part — **shipped, see 4.16**
+
+What follows is the plan as it was written. It survived contact with the work, including the
+warning in bold, so it is kept as the reasoning rather than rewritten; **§4.16 is the record of
+what was built and what is left.**
+
 
 **Asked for directly:** *"I need to be able edit individual parts to add custom grooves and cut
 outs to them — so say I add a drawer bank and want to do a cut out in the left hand end"*. All
