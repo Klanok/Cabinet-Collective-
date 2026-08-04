@@ -84,7 +84,16 @@ hole is machining**, which is what decides whether the nester's blank changes; a
 to group parts on their bounding box, which a corner notch does not change — so it would have
 printed one line of two where one of the two was notched.
 
-Section 4 records how each works and why; section 5 is what is actually left to do.
+**Then the shop said the quiet part out loud, and section 5 grew a running order because of it.**
+Custom cutouts were *"a nice to have on the road map"*, built ahead of things that were not, and
+the request that followed was for **a priority list ordered by least work ascending**, because
+sessions keep hitting their limits and small wins are what fit inside one. That list is at the head
+of section 5. Compiling it meant reading the code rather than this document, and **three of the
+answers changed**: two open items were already fixed, and the one recommended above everything else
+had stopped being a ten-minute errand a fortnight earlier. Each is corrected where it stood.
+
+Section 4 records how each works and why; section 5 is what is actually left to do — **and the
+first thing in it is now the order to do it in**.
 
 ```
 npm install
@@ -140,11 +149,12 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | Hinge, runner and System 32 drilling | Working, see 4.6 |
 | Hardware BOM, priced onto the quote | Working, indicative Blum pricing |
 | Cutlist / hardware / drilling CSV export | Working. **PDF not done — print from the browser** |
+| A job saved to and opened from a file | **Working** — Job ▾, and the import migrates an old file forward |
 | Hettich, the second hardware brand | Not started — one more record in `library/`, see 5.2 |
 | Curved / radiused parts — arcs, bowed shelves, radiused ends | Working, see 4.4 |
 | A corner radius on a base, wall or tall cabinet | Working — bendy ply and formers, see 4.5 |
 | A benchtop following the curve under it | **Working, see 4.13.** Owned, seeded from the run, refreshed on regenerate — **no on-screen sign when it is out of step, see 5.11** |
-| Custom grooves, holes and notches on one part | **Working, see 4.16.** Stated from named edges, on a named part rule |
+| Custom grooves, holes and notches on one part | **Working, see 4.16.** Stated from named edges, on a named part rule — and buried at the bottom of the Inspector, see the running order |
 | The same corner routed from door board instead | **Not started — see 5.7, now unblocked** |
 | Guillotine nesting — sheets, cut sequence, offcuts | **Working, see 4.8.** Nest tab, two CSVs |
 | Choosing which sheet size a material is cut from | Working, see 4.8 and 5.9 — per material, on the Nest tab |
@@ -1818,6 +1828,82 @@ ribs 8 → 4 + 4, which is how the difference got noticed.)
 
 ## 5. Open items, in the order I'd do them
 
+### The running order, August 2026 — shortest job first
+
+**Asked for directly:** *"i want priority list in order of least work ascending — I keep hitting
+session limits so i want to grind out as many small wins as possible"*. So this is ordered by
+**effort**, not by value, and each item says what it is blocked on. Value ordering is the block
+after it, which is a different list and disagrees in places.
+
+**It was compiled by reading the code, not this document, and that changed three of the answers.**
+Two items below were already done and two were mis-sized. That is section 5's own failure mode
+rather than an accident — the same one §4.15 was written about — so the rule holds for this block
+too: **check the file before you plan the work.**
+
+| # | Job | Size | Blocked on |
+|---|---|---|---|
+| 1 | Cutouts panel up the Inspector, with a count badge | ~30 lines, no model change | nothing |
+| 2 | "Out of step" badge on an owned benchtop or plinth | small — one pure function, tests, a badge | nothing |
+| 3 | Cushions costed — fabric, foam, upholstery labour | one session | a real fabric price and a foam rate |
+| 4 | A pass over the UI clutter | one session, no model change | nothing |
+| 5 | Hettich as the second hardware brand | one session, mostly catalogue entry | the catalogue figures |
+| — | Drawer-front height moving the cabinet height | unknown until reproduced | one detail, below |
+| 6 | Reconcile the post-processor with the Mozaik evidence | **the big one** | nothing but time |
+
+**1 — the Cutouts panel is where nobody looks.** §4.16 put it at the bottom of the Inspector,
+below every material picker, about 650px down on a 1200px screen. It was reported the day it
+shipped, in the plainest terms available: *"That was a lot of work and nothing noticeable
+happened?"* Move it up and put a count on the cabinet in the list. **The lesson is worth more than
+the fix**: a feature with no sign of itself anywhere a person naturally looks has not shipped, it
+has landed.
+
+**2 — the out-of-step badge closes a bench report that is not a bug.** "The benchtop radius does
+not work" (§5.11) is the model being right and the app saying nothing: a run unit is *owned* data
+(§4.13), so it follows the cabinets only when regenerated. The work is small because
+`regenerateBenchtop(project, top)` **already computes what the top would be** — so "is this one
+stale?" is that fresh unit compared against the stored one on the fields that matter, which is a
+pure function, testable in Node, plus a badge and a nudge toward the Regenerate button that already
+exists. Every owned field needs it; this is the cost of the owned-not-derived bargain and nobody
+has paid it yet.
+
+**3 — every job with seating is quoted with the cushions free.** `model/cushion.ts` already gives
+the finished plan shape, and `library/upholstery.au.ts` says in its own header that nothing is
+priced or ordered from it. So the work is a `cushionCost` module beside `costing/benchtopCost.ts`,
+a price on the fabric record, a foam rate, an upholstery labour rate, and a line on the quote. Same
+class of hole as §4.14's NaN — a number that is quietly wrong on every job of a kind.
+
+**4 and 5 are a session each and neither is subtle.** The UI is *"navigable but cluttered"*, in the
+user's words, and panels have grown per feature with no pass over the whole. Hettich is one more
+record in `library/` — `library/blum.ts` is 279 lines and the model is already data-driven, so the
+code is the easy half and the **figures are the risk**: a guessed deduction re-cuts every drawer in
+a job, which is why §3 says correcting one is a deliberate code edit.
+
+**The drawer-front report needs one detail before it is worth touching.** Nothing in
+`Inspector.tsx` writes `cabinet.height` from `drawerFrontHeights`, so the reported behaviour is not
+where it would obviously live. The useful thing to capture next time it happens is whether the
+height moves **as you type** or **on save** — those are two different bugs and knowing which one
+turns an afternoon into ten minutes.
+
+**6 is the one that matters most and is nobody's small win.** See below — it is in this table only
+so the size is not a surprise.
+
+### If asked which to do next, there are still two answers, and they are for different people
+
+**For the machine: reconcile `post/iso.ts` with the Mozaik evidence.** This used to read *"get one
+`.nc` file off the KDT — it is ten minutes"*, and **that is done**: twelve production programs
+arrived on 1 August 2026 and are written up in `docs/kdt-mozaik-reference.md`. What is left is not
+an errand, it is the work — the shipped KDT profile **contradicts** several confirmed facts (Z is
+table-referenced, the boring head uses `G600 T…` selections rather than `G81`, drilling and routing
+sit in separate `G54`/`G59` offsets, sheet Y runs negative), and until the writer can express them,
+generated output is compared line by line, and it is simulated, nothing goes near a spindle. It is
+still the highest-value item in this document and it is now a substantial one. Do not let the size
+push it behind five small wins forever.
+
+**For the app: the running order above.** Items 1 to 3 are the ones a person at the bench would
+notice this month.
+
+---
+
 **5.2 has shipped — see 4.6.** What is left of it is Hettich and a handful of gaps, listed below.
 
 **5.5 and 5.6 have shipped together — see 4.7.** They wanted the same answer to "what owns a thing
@@ -1844,20 +1930,21 @@ supports. What is still open there: the **lid stay is not modelled**, the corner
 asked the same access question, and the **cushions are not costed** — nothing on the quote carries
 fabric, foam or upholstery labour, and nothing warns they are missing.
 
-**If asked which to do next, there are now two answers and they are for different people.**
+**Which to do next is answered at the head of this section** — the running order by size, and the
+value ordering beside it. What was here before is kept below in shortened form because one half of
+it was wrong for months and the shape of that is worth carrying.
 
-**For the machine: get one `.nc` file off the KDT and pin the dialect.** It is not a phase, it is
-ten minutes, and until it is done every program this tool writes is a draft that has to be
-simulated. `library/machines.ts` says at the top exactly what to compare and in what order. A real
-KDT program has since arrived and **contradicts the shipped profile** — see §4.9. Nothing about the
-G-code is safe until that is reconciled.
+**It said: "get one `.nc` file off the KDT — it is ten minutes."** That was true when written,
+stopped being true on 1 August 2026 when twelve programs arrived, and went on being read as the top
+recommendation afterwards — including once by a session that repeated it back to the user as a
+ten-minute job. §5.10's first bullet now carries what is actually left, which is a substantial
+piece of work in `post/`.
 
-**For the app: §5.12's custom part features, once §5.11's remaining bench items are judged.**
-Declared capabilities and the banquette's corner shipped as §4.15, which closed three of the seven
-August bench reports; **§5.11 is what is left of that list**, and the two worth doing before a new
-feature are the out-of-step indicator on an owned run unit and getting a job out of the browser
-without crashing the app first. §5.12 wanted §4.15 underneath it and now has it. The `.nc` work is
-still worth more than any *machine* item; it is not what the shop is blocked on at the bench.
+**And: "§5.12's custom part features, once §5.11's remaining bench items are judged."** §5.12
+shipped as §4.16 without those items being judged first, and it was the wrong call — reported back
+as *"a nice to have on the road map"* against bench items that were not. Nothing was harmed and
+nothing is wasted; the ordering was simply nobody's decision at the time. **Ask which, rather than
+taking the next numbered heading.**
 
 **A note that was here has been removed, and it is worth saying why rather than leaving a gap.**
 Both this document and `docs/architecture.md` carried a suggestion that Phase 3's CSVs could be
@@ -2427,12 +2514,21 @@ one for showing a client, one for checking the build — and because both live i
 
 **Built and merged; see 4.9.** In rough order of what it is worth doing:
 
-- **Pin the dialect against a real `.nc` file.** The one item that matters, and it is not
-  development work. Take one program the KDT already runs — ideally one with drilling and one that
-  cuts parts out — and compare it line for line against what `post/iso.ts` writes. The five things
-  to check, in order, are listed at the top of `library/machines.ts`: **Z datum**, tool change,
-  drilling style, the drill bank, then feeds. Until that is done, `unconfirmed` stays populated and
-  every program says so in its own header.
+- **Pin the dialect against the real `.nc` files — the evidence is in, the writer is not.** This
+  bullet used to say *"it is not development work"* and asked somebody to fetch a program off the
+  machine. **That happened on 1 August 2026**: twelve production Mozaik programs, written up in
+  `docs/kdt-mozaik-reference.md`, and §4.9 records what they establish. So the errand is finished
+  and what is left is the work — the shipped KDT profile **contradicts** several confirmed facts,
+  and each is a change in `post/`, not a note:
+  **Z is table-referenced** (material top `Z16`, clearance `Z21`, router safe `Z36`), the boring
+  head is selected with `G600 T…` and explicit moves rather than `G81`, drilling runs in `G54`
+  while routing restates `G90 G59`, sheet **Y runs negative**, and routing is two passes leaving
+  0.8mm before finishing at `Z-0.2`. Still the highest-value item in this document; no longer a
+  ten-minute one. `unconfirmed` stays populated until the writer expresses these, generated output
+  is compared line by line, and it is simulated.
+  **One thing the evidence does not give**, and it is worth knowing before starting: the physical
+  X/Y offsets of each boring-head spindle. That wants the machine's tool table or a controlled
+  pattern test, so the drill-bank item below is still blocked behind it.
 - **Turn the drill bank on**, once its codes are known. Biggest time saving available: a System 32
   row in one hit instead of twenty-one plunges, on every side panel in every job. `DrillBank` is the
   field and `post/iso.ts` is where the grouping would go — bores on the same line, at the bank's
@@ -2516,9 +2612,12 @@ it — not a duplicate to tidy away.
 - ~~**Applied ends do nothing on a banquette.**~~ **Fixed — see 4.15**, along with the stale guard
   that caused it.
 - **Texture and laminate on a bendy-ply radius.** Reported, not yet reproduced.
-- **A banquette's back cushion draws in flat colour** until the cabinet is removed and re-added.
-  Consistent with §5.4(b) — the cushion renderer mutates `repeat` on the shared cached texture
-  rather than baking UVs the way `PanelMesh` does.
+- ~~**A banquette's back cushion draws in flat colour**~~ — **fixed, and this entry was stale.**
+  `applyFabricScale` in `viewport/BanquetteCushions.tsx` now divides the extruded UVs by the
+  fabric's real repeat rather than writing `repeat` on the shared cached texture, and its docstring
+  names this exact symptom: 5,800 repeats across one cushion, every pixel averaging the whole
+  swatch, *"indistinguishable from a texture that had failed to load, which is exactly how it was
+  reported"*. Verify on screen if it is ever seen again; the cause described here is gone.
 - **Changing a drawer front's height can change the cabinet's height**, and the input for the
   bottom front is partly off-screen. Not yet reproduced; the useful detail when it is reported
   again is whether the height moves *as you type* or *on save*, because those are two different
@@ -2526,15 +2625,23 @@ it — not a duplicate to tidy away.
 - **The UI is navigable but cluttered**, in the user's own words *"any other user may struggle"*.
   Panels have grown per feature with no pass over the whole.
 
-#### Not reported, and a bigger risk than anything above
+#### ~~Not reported, and a bigger risk than anything above~~ — done, and the entry outlived it
 
-**A job lives only in the browser's storage for `localhost`.** Clearing browser data wipes it with
-no warning, it does not travel between machines, and the shop runs this from a downloaded ZIP — so
-"the same browser" is doing more work than anyone has asked it to. There *is* a save-to-file path,
-and it is in `app/ErrorScreen.tsx`, which means **the only way to get a job out of this app is to
-crash it first**. That is the wrong way round. An ordinary Save-a-copy and an Open-a-file button,
-using the export that already exists, is a small piece of work and protects the thing that took
-somebody a day to measure. Nobody has asked for it, which is exactly why it is written down here.
+**A job used to live only in the browser's storage for `localhost`**, with the only way out being
+to crash the app first, because the save-to-file path was in `app/ErrorScreen.tsx`. **That is
+fixed**: **Job ▾ → Save to file… / Open from file…** are in the top bar, wired to
+`exportProjectFile` and `importProjectFile` in `store/persistence.ts` — and the import goes through
+`migrateProject`, so an old file opens forward rather than being rejected.
+
+This entry is left in rather than deleted because of how long it stood after it stopped being true.
+It was written as *"a bigger risk than anything above"*, it read exactly as urgently on the day it
+was fixed as on the day it was written, and it was still being recommended as a next job in August.
+**Nothing in a document expires by itself.** The habit that catches it is the one this file already
+prescribes for `git log` and now prescribes for itself: open the file before you plan the work.
+
+What is genuinely left here is smaller and is a *habit* problem rather than a missing feature: the
+browser is still where a job lives **by default**, and nothing prompts anybody to save a copy or
+shows when one was last taken. A "last saved to file" line beside the Job menu would close it.
 
 ### 5.12 Custom features on an individual part — **shipped, see 4.16**
 
