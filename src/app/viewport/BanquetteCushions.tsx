@@ -10,7 +10,12 @@ import {
   TextureLoader,
 } from 'three';
 import type { Cabinet } from '../../core/model/cabinet.ts';
-import { type SeatCushionPlan, seatCushionPlan } from '../../core/model/cushion.ts';
+import {
+  type SeatCushionPlan,
+  cornerSeatRadius,
+  returnRun,
+  seatCushionPlan,
+} from '../../core/model/cushion.ts';
 import type { UpholsteryMaterial } from '../../core/model/material.ts';
 import type { CornerRadius } from '../../core/rules/radius.ts';
 import { mm } from '../../core/units.ts';
@@ -291,8 +296,10 @@ export function BanquetteCushions({ cabinet, radius, upholstery, selected, wiref
        * bolster's thickness short of the front, which is the left-hand one back to front. Both
        * now run the same span, so a banquette with both ends cushioned is symmetrical.
        */
-      const endDepth = (end: 'left' | 'right') =>
-        Math.max(50, Math.min(seatDepth, plan.endRun[end]) - thickness);
+      // `returnRun` rather than the arithmetic inline: this length is now a **price** as well as a
+      // drawing, so the mesh and the upholsterer's charge read the one function. See
+      // `core/model/cushion.ts`.
+      const endDepth = (end: 'left' | 'right') => returnRun(plan, end, mm(thickness));
       return <>
         <WedgeBack scaleFabric={scaleFabric} width={seatWidth} height={height} thickness={thickness} angle={angle}
           radius={backRadius} x={inset} y={cabinet.height + seatT}>
@@ -323,7 +330,8 @@ export function BanquetteCornerCushions({ cabinet, upholstery, selected, wirefra
 
   const seatT = cabinet.options.seatCushionThickness ?? 80;
   const inset = Math.max(0, cabinet.options.seatCushionInset ?? 5);
-  const r = Math.max(50, Math.min(cabinet.width, cabinet.depth) - inset);
+  // Shared with costing, for the same reason `returnRun` is — see `core/model/cushion.ts`.
+  const r = cornerSeatRadius(cabinet.width, cabinet.depth, mm(inset));
   const seatShape = useMemo(() => {
     const shape = new Shape();
     shape.moveTo(0, 0);

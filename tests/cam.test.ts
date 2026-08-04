@@ -70,6 +70,7 @@ import {
 import { type CamSetup, perimeterDepth, projectPrograms } from '../src/core/cam/operations.ts';
 import { orderOperations } from '../src/core/cam/operation.ts';
 import { depthPasses } from '../src/core/post/iso.ts';
+import { zAtDepth, zClearance } from '../src/core/post/machine.ts';
 import { checkNestedForRouter } from '../src/core/post/check.ts';
 import { postProject, postedTotals, setupFor } from '../src/core/post/post.ts';
 import { GENERIC_ISO_ROUTER, KDT_NESTING_ROUTER } from '../src/core/library/machines.ts';
@@ -452,14 +453,21 @@ describe('the sample kitchen, posted', () => {
     const text = job.sheets[0]!.output!.text;
     expect(text).toContain('UNVERIFIED');
     expect(text).toContain('Simulate or air-cut');
-    // And what specifically is a guess, not just that something is.
-    expect(text).toContain('Z zero');
+    // And what specifically is a guess, not just that something is. "Z zero" is deliberately no
+    // longer on that list — it is the one figure the shop has confirmed.
     expect(text).toContain('Tool change');
+    expect(text).toContain('controller');
   });
 
-  it('states the Z datum in the file, because it is the most expensive thing to assume', () => {
+  it('states the Z datum in the file, because it is the most expensive thing to get wrong', () => {
+    /*
+     * This used to assert "the TOP of the material", which is what the profile shipped as and what
+     * the shop has since corrected — both machines work from the decking sheet up. The header line
+     * itself never needed changing: it reads `zDatum` and always said whichever was set. It was
+     * this assertion that was pinning the guess in place.
+     */
     const job = postProject(sample, KDT_NESTING_ROUTER);
-    expect(job.sheets[0]!.output!.text).toContain('Z zero is the TOP of the material');
+    expect(job.sheets[0]!.output!.text).toContain('Z zero is the TABLE');
   });
 
   it('writes the same text twice for the same job', () => {
@@ -538,6 +546,69 @@ describe('a curved part', () => {
           expect(v.y).toBeLessThanOrEqual(at.y + at.width + 3 + 1e-6);
         }
       }
+    }
+  });
+});
+
+/*
+ * ── Where Z zero is ───────────────────────────────────────────────────────────────────────────
+ *
+ * **The single most expensive number in the post-processor, and nothing asserted it until now.**
+ *
+ * It shipped as `material-top` — a guess, flagged as one, chosen on the reasoning that it was the
+ * safer way to be wrong. The shop has since confirmed the opposite for both machines:
+ *
+ * > "With both the KDT and the Woodtron the gcode works from the decking sheet up, that is to say a
+ * > Z value of -0.2mm would be cutting 0.2mm into the sacrificial board."
+ *
+ * So Z0 is the top of the spoilboard. For a 16mm sheet on a machine with a 0.5mm through overcut:
+ *
+ *     top of the material          0 + 16                         = +16.0
+ *     rapid plane                  16 + 20 clearance              = +36.0
+ *     a 13mm hinge cup             16 − 13                        =  +3.0
+ *     a through contour            16 − (16 + 0.5)                =  −0.5   ← into the spoilboard
+ *
+ * Every one of those was negative-by-thickness before, which on this machine is a program that cuts
+ * air: the contour went to Z−16.5 where the material does not start until Z+16.
+ */
+
+describe('Z zero, confirmed from the shop', () => {
+  it('is the table on every machine profile the shop cuts on', () => {
+    expect(KDT_NESTING_ROUTER.zDatum).toBe('table');
+    expect(GENERIC_ISO_ROUTER.zDatum).toBe('table');
+  });
+
+  it('puts the rapid plane above the sheet, not above the table', () => {
+    // 16 + 20 = 36. On a material-top datum this would be a bare 20 and would rapid *through* it.
+    expect(zClearance(KDT_NESTING_ROUTER, mm(16))).toBe(36);
+  });
+
+  it('finishes a through cut just inside the spoilboard, at a small negative Z', () => {
+    // 16 − (16 + 0.5) = −0.5, which is the shop's own description of what a negative Z means.
+    const through = mm(16 + KDT_NESTING_ROUTER.throughOvercut);
+    expect(zAtDepth(KDT_NESTING_ROUTER, through, mm(16))).toBeCloseTo(-0.5, 6);
+  });
+
+  it('leaves a hinge cup inside the board, well above zero', () => {
+    // A 13mm cup in a 16mm door: 16 − 13 = 3mm of board left under it.
+    expect(zAtDepth(KDT_NESTING_ROUTER, mm(13), mm(16))).toBe(3);
+  });
+
+  it('writes a real program whose cutting Z never goes below the overcut', () => {
+    /*
+     * The catch-all, and the one that would have caught the original error. Every Z in a real
+     * program is read back out of the text: on a table datum nothing may go more than the overcut
+     * below zero, because anything that does is cutting the bed rather than the part.
+     */
+    const programs = postProject(sample, KDT_NESTING_ROUTER).sheets
+      .map((s) => s.output)
+      .filter((o) => o !== null);
+    expect(programs.length).toBeGreaterThan(0);
+    const floor = -KDT_NESTING_ROUTER.throughOvercut;
+    for (const program of programs) {
+      const zs = [...program!.text.matchAll(/Z(-?\d+(?:\.\d+)?)/g)].map((m) => Number(m[1]));
+      expect(zs.length).toBeGreaterThan(0);
+      for (const z of zs) expect(z).toBeGreaterThanOrEqual(floor - 1e-6);
     }
   });
 });

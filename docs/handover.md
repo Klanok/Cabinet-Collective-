@@ -4,6 +4,8 @@
 work. It replaces the need to read the original session transcript.
 
 Read alongside:
+- `docs/woodtron-dialect.md` — the machine's real dialect, read off ten programs it runs. **Read
+  this before touching `post/` or `library/machines.ts`.**
 - `docs/coordinate-convention.md` — the three coordinate spaces. Fixed. Do not change casually.
 - `docs/architecture.md` — module boundaries and where later phases attach.
 - `README.md` — what the tool does and how to run it.
@@ -56,10 +58,9 @@ default that the plain unit and the corner unit did not even agree on. It now ha
 front in door decor that takes no hinges but is still routed by a door style, a hinged lift-up
 inset flush into the top, and a divider only above a 1200mm clear span. **Read §5.4** — it records
 what was wrong as well as what replaced it, because the shape of the mistake is the lesson. Two
-things there are still open: the **lid stay is not modelled** (no such part in the Blum library,
-and inventing one is the failure the unchecked list exists to prevent), and the cushions are
-**drawn but not costed** — no fabric, no foam, no upholstery labour on the quote, and nothing on
-the report says so yet.
+one thing there is still open: the **lid stay is not modelled** (no such part in the Blum library,
+and inventing one is the failure the unchecked list exists to prevent). The cushions used to be the
+other one; they are costed now — see §4.19.
 
 **Then a benchtop learned to follow the curve under it** (§4.13) — a kitchen with a radiused end
 had a square top over a round cabinet, and the top now takes the cabinet's own radius as owned data
@@ -84,12 +85,31 @@ hole is machining**, which is what decides whether the nester's blank changes; a
 to group parts on their bounding box, which a corner notch does not change — so it would have
 printed one line of two where one of the two was notched.
 
+**And then two of the August bench items were closed, and one of them turned out to be half built
+already.** §4.17 is **getting a job out of the browser** — and the first thing that work found is
+that this document was wrong: Save and Open had been in the Job menu since the very first commit,
+and §5.11's *"the only way to get a job out of this app is to crash it first"* had been stale for
+months. What was actually wrong was sharper. Opening a file that was not a job called `alert`,
+which a sandboxed frame **silently ignores** — so picking the wrong file did nothing whatsoever,
+on the one control handling the only copy of a measured room. That is the exact failure
+`panels/ask.tsx` exists to prevent, still sitting there four sections after the decision was
+written down. §4.18 is the **out-of-step indicator**: the benchtop radius that "does not work"
+works, and always did, and the app now says when an owned unit no longer matches the cabinets under
+it — which is the bill for the owned-not-derived bargain, finally paid.
+
+**And the cushions are costed at last** (§4.19). They were drawn and free, and *nothing said so* —
+which is the serious half: a missing line that quotes at **zero** looks exactly like a finished
+quote. They are **bought in as whole units from the upholsterer** — the shop supplies templates or a
+particleboard substrate — so they are the same class of thing as a stone benchtop and produce no
+parts at all. The rate is the shop's own: **$350 a lineal metre, charged per cushion**, so a metre
+with a base and a back is $700 rather than $350.
+
 Section 4 records how each works and why; section 5 is what is actually left to do.
 
 ```
 npm install
 npm run dev       # the app
-npm test          # 857 tests
+npm test          # 905 tests
 npm run build
 npm run report    # cutlist, hardware BOM, drilling, nest, G-code and costing for the sample kitchen
 npm run report -- shaker-57    # the same kitchen with routed fronts
@@ -131,6 +151,7 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | What each cabinet type supports, declared by its own spec | **Working, see 4.15 and 4.16.** `CabinetSpec.capabilities` — refusing costs a sentence |
 | Inside banquette corner — a quarter-circle connector | Working, on the same formers-and-bendy-ply rules as 4.5. Its own access question unasked, see 5.4 |
 | Upholstery as its own material type | Working — Warwick Caulfield, nine colours, `library/upholstery.au.ts` |
+| Banquette cushions on the quote | **Working, see 4.19.** Bought in whole, $350/lin m **per cushion**, no parts produced |
 | Room — any shape, drawn in a 2D plan with typed lengths | Working |
 | Cabinets placed against a named wall, at any angle | Working |
 | CI — typecheck, tests, build, cutlist smoke run on every PR | Working, `.github/workflows/ci.yml` |
@@ -143,7 +164,10 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | Hettich, the second hardware brand | Not started — one more record in `library/`, see 5.2 |
 | Curved / radiused parts — arcs, bowed shelves, radiused ends | Working, see 4.4 |
 | A corner radius on a base, wall or tall cabinet | Working — bendy ply and formers, see 4.5 |
-| A benchtop following the curve under it | **Working, see 4.13.** Owned, seeded from the run, refreshed on regenerate — **no on-screen sign when it is out of step, see 5.11** |
+| A benchtop following the curve under it | **Working, see 4.13.** Owned, seeded from the run, refreshed on regenerate |
+| A sign that an owned run unit is out of step with its cabinets | **Working, see 4.18.** Unit card, issue bar and terminal report, off the same sentences |
+| Saving a job to a file, and opening one | **Working, see 4.17.** Was already there and this file said otherwise; what was broken was the failure path |
+| Saving the shop standards to a file | **Working, see 4.17.** New — they were unsavable and wiped by the same click |
 | Custom grooves, holes and notches on one part | **Working, see 4.16.** Stated from named edges, on a named part rule |
 | The same corner routed from door board instead | **Not started — see 5.7, now unblocked** |
 | Guillotine nesting — sheets, cut sequence, offcuts | **Working, see 4.8.** Nest tab, two CSVs |
@@ -189,8 +213,8 @@ materials.
 
 **Migrations must never quietly change anyone's parts.** Every migration carries old values
 forward so a saved job cuts exactly as it did; adopting a new default is then a deliberate
-edit. Schema is at **v26**; migrations run in sequence in `model/project.ts`. Shop standards are
-versioned separately and are at **v19** — and they get a *real* migration rather than a
+edit. Schema is at **v27**; migrations run in sequence in `model/project.ts`. Shop standards are
+versioned separately and are at **v20** — and they get a *real* migration rather than a
 rejection, because refusing to load them silently replaces a shop's accumulated kick heights,
 reveals, door styles and saved cabinet types with the shipped Australian defaults.
 
@@ -198,8 +222,8 @@ reveals, door styles and saved cabinet types with the shipped Australian default
 comment directly above it, and *that* is the record — a version number in prose goes stale, a
 comment sitting on the function cannot. What follows is a map, not a substitute.
 
-Only four migrations have changed a job that already existed rather than adding to it. **v9 and
-v11** both re-price, and are argued below. **v13** is the 2mm front standoff, and it moves the
+Only five migrations have changed a job that already existed rather than adding to it. **v9, v11 and
+v27** all re-price, and are argued below. **v13** is the 2mm front standoff, and it moves the
 finished face of every front in every saved job. **v15 and v16** move holes — shelf-pin rows and
 runner fixings respectively — and neither moves or resizes a single part; a side panel comes out
 the same rectangle in the same place with a different set of Ø5 holes in it. Each of the four says
@@ -212,11 +236,13 @@ new choice appears in the picker; nothing already selected moves. v20 exists onl
 keeps `localhost` storage across separately extracted source folders, so a snapshot could be
 stamped current while missing the texture fields v18 was meant to add — a repair, not a change.
 
-**v9 and v11 are the two exceptions on price, and both say so out loud.** They are the same argument twice:
-no part that already existed moves, and the job gets dearer because it was being quoted for less
-than it takes to build. v9 added the hardware a kitchen always had; v11 charges the board a
-kitchen always took. Both halves of each are asserted separately — `tests/hardware.test.ts` and
-`tests/nesting.test.ts` — so nobody has to wonder whether a re-price was an accident.
+**v9, v11 and v27 are the three exceptions on price, and all of them say so out loud.** They are the
+same argument three times: no part that already existed moves, and the job gets dearer because it
+was being quoted for less than it takes to build. v9 added the hardware a kitchen always had; v11
+charges the board a kitchen always took; **v27 charges the cushions a banquette always had** (§4.19),
+and that one does not even move a part, because a bought-in cushion is not one. Both halves of each
+are asserted separately — `tests/hardware.test.ts`, `tests/nesting.test.ts` and
+`tests/cushionCost.test.ts` — so nobody has to wonder whether a re-price was an accident.
 
 **v9, in detail.** No part that already existed moves — that
 half of the rule is kept, and it is the half that protects a job on the saw. But a migrated job
@@ -1695,8 +1721,8 @@ storage and read back from a screenshot looking down on the seat.
   a fixing strip's width further in than that. It bites only when a shelf lands at the same height
   as a former, which is why it has not been seen — a lift-up is guaranteed to clash and a shelf is
   not. Deliberately left, and written down so it is a known gap rather than a surprise.
-- **The lid stay is still not modelled**, and the cushions are still not costed. Both are §5.4 and
-  neither moved here.
+- **The lid stay is still not modelled.** §5.4, and it did not move here. The cushions were the
+  other half of that sentence and have since been costed — §4.19.
 
 ### 4.16 Custom features on an individual part
 
@@ -1814,6 +1840,228 @@ ribs 8 → 4 + 4, which is how the difference got noticed.)
   materials, and a recipe with a waste hole in it is arguably right and arguably a trap. Nobody has
   asked; left deliberately.
 
+### 4.17 Getting a job out of the browser
+
+**The first thing this found is that this document was wrong**, and that is worth more than the
+feature. §5.11 said *"the only way to get a job out of this app is to crash it first"*. It was not
+true and had not been for a long time: `Save to file…` and `Open from file…` have been in the
+**Job ▾** menu since the commit that introduced formed parts. A session that had trusted the
+paragraph would have built a second copy of a feature that already existed.
+
+**Check the code, not this file.** Every other section says so about *shipped* work going stale;
+this one says it about an *open item* going stale, which is the direction nobody watches.
+
+**What was actually broken was worse than what was claimed.** Four things, and the first is the one
+that matters:
+
+- **Opening a file that was not a job called `alert`.** §2 spends a paragraph on why
+  `window.confirm` and `window.prompt` are banned — a sandboxed frame without `allow-modals`
+  ignores them silently, so the call returns as though the user had cancelled — and `alert` is the
+  same call in the same family, still sitting on the one control that handles a room somebody spent
+  a day measuring. Pick the wrong file and **nothing happened at all**. The decision was recorded,
+  the replacement was written, and one call site was never converted. `ask.tell` is that
+  replacement: one button, because there is nothing to decide.
+- **Three separate one-click ways to destroy the job on screen**, none of which asked: New empty
+  job, Load sample kitchen, and Open from file. Local storage is overwritten in the same instant,
+  so there was nothing behind any of them. Each now asks, and **the question names what is at
+  stake** rather than saying "are you sure" — how many cabinets, and whether the job has ever been
+  out of this browser.
+- **Nothing said whether the job existed anywhere but this browser.** It does now, in the Job menu
+  and as a mark on the menu button itself.
+- **A JSON file that was not a job loaded anyway.** `migrateProject` catches a missing
+  `schemaVersion` and a version from a newer build, and cannot catch anything else, because the last
+  line of a migration chain is a cast. A file with a plausible version number and no cabinets in it
+  went straight through, was written to local storage on the way in, and took the app down on the
+  first render — which is the **reload loop `ErrorScreen` exists to escape**, arriving through the
+  front door.
+
+**And the shop standards could not be saved out at all.** They are wiped by the same click that
+takes the job, and `ErrorScreen`'s own note has always admitted it. A room can be re-measured; a
+shop's kick heights, reveals, door styles and saved cabinet types cannot — they can only be
+re-typed. Settings → Shop standards now saves and opens them, and the footer no longer says "saved
+automatically" when what it means is "saved to this browser".
+
+**Decisions worth not undoing:**
+
+- **`projectFileProblem` is deliberately not inside `migrateProject`**, and is called only on the
+  file path. A job in local storage has been loading successfully, possibly for months; a check
+  stricter than some old migration's output would take a shop's working job and replace it with a
+  blank one at startup — and **v20 exists precisely because a snapshot once came out stamped current
+  and missing fields**. A file somebody has just chosen is the opposite case: refusing it costs one
+  click and tells them they picked the wrong file. Same asymmetry §2 draws about refusing to load
+  somebody's standards.
+- **It checks containers, not contents.** "Did you hand me a job?" is the question. A deep validator
+  would be a second description of the model, free to disagree with the first — which is the fault
+  this codebase is organised around not having.
+- **`savedToFileAt` lives in the store, not on the project.** It is a fact about this browser
+  session, not about the job: writing it into the job would mean saving a file whose contents record
+  the moment it was saved, which is both circular and a schema migration for something the cutlist
+  has no interest in. It starts `null` on every load, including for a job restored from storage —
+  that job has provably survived a reload and just as provably has never been anywhere else, and
+  the only place a "yes it was saved" flag could live is the storage being hedged against.
+- **A job opened from a file starts in step with it**, and is not `touchProject`ed on the way in.
+  Re-stamping it would mark it changed the instant it opened.
+- **Nothing claims the file reached the disk.** A sandboxed frame without `allow-downloads` blocks
+  the click as silently as it blocks `confirm`, and there is no way to detect it from here. The app
+  reports what it *did*, which is all it honestly knows.
+
+**Not done, and worth knowing:** there is still no autosave to anywhere but this browser, no recent
+files list, and no warning on closing the tab. The last of those is a `beforeunload` handler and was
+left alone deliberately — it fires on every reload during development and is the kind of thing that
+gets switched off in annoyance and then is not there when it matters.
+
+**Where to look:** `store/persistence.ts` for both round trips; `model/project.ts` for
+`projectFileProblem` and why it sits outside the migration chain; `panels/ask.tsx` for `tell`;
+`App.tsx` for the question the three destructive actions ask. `tests/projectFile.test.ts` is the
+contract, and its header says why the wrong file — not a corrupt one — is the case being guarded.
+
+### 4.18 An owned run unit that is out of step
+
+> "The benchtop radius does not work."
+
+**It works, and it always did.** The top was generated before the cabinet under it was given a
+radius, and it stayed exactly where its owner put it, which is §4.7's whole design. What was missing
+is that **the app said nothing**: no sign the top was out of step, and no hint that Regenerate is
+the answer. §5.11 named this correctly — *"every owned field needs that indicator — this is the
+cost of the owned-not-derived bargain and nobody had paid it"* — and this is the payment.
+
+**A model that is right and silent looks, from the bench, exactly like a model that is wrong.** That
+is the general lesson and it is why this got done before a new feature: the same shape will appear
+for every future field that is generated once and then owned.
+
+**The design is one sentence: it compares against exactly what the Regenerate button would produce.**
+`benchtopOutOfStep` calls the same `regenerateBenchtop` the button calls and diffs the result. It
+does not re-derive what a top *ought* to be, and that is not tidiness — a second derivation would be
+free to disagree with the first, and the failure mode is an app reporting a problem that pressing
+the button does not fix, which sends somebody hunting a fault that is not there. It is strictly
+worse than saying nothing.
+
+**Decisions worth not undoing:**
+
+- **A unit with no run left is its own kind, and its button is disabled.** Both regenerate functions
+  return the unit unchanged when nothing shares a cabinet with it — deleting every cabinet under a
+  top and keeping the top is a normal state to be in the middle of. Reporting that as "no problem"
+  hides it; reporting it as ordinary drift points at a button that cannot help. `regenerateFixesIt`
+  is the field the UI reads, so a kind added later has to answer the question rather than inherit an
+  assumption. A live button that does nothing is `panels/ask.tsx`'s failure wearing a different hat.
+- **`runUnder` is one exported function**, used by both regenerators and by this. "Will the button do
+  anything?" is asked in two places and must not have two answers.
+- **Reading `fromCabinetIds` here does not break the ownership rule.** `model/runUnit.ts` warns that
+  the moment something else reads that field, moving a cabinet starts moving a benchtop again — and
+  that warning is about **geometry**. This returns sentences and moves nothing; the top stays where
+  its owner put it until a person presses the button. `uncoveredRuns` already read it on the same
+  terms.
+- **An owner's own edits are silent.** A 40mm overhang, a sink, a join, a renamed end — `regenerated`
+  carries every one across, so none of them is a difference the button would close and none may be
+  reported. Half the value of an indicator is that it is off; one that lights up on a job nobody has
+  touched is one the shop learns to ignore.
+- **`height` on a plinth is reported and `depth` is not**, mirroring `regenerateKickBase` exactly.
+  The height of a frame is not a choice — it is the gap between the floor and the underside of the
+  carcasses — while the depth is, and may well have been pulled back to clear a skirting.
+- **The threshold is 0.05mm**, deliberately far below the smallest real change: switching a board
+  from 16 to a measured 16.3 moves a carcass 0.6mm, and that is a genuine re-cut this has to catch.
+- **The same sentences reach all three places** — the unit card, the issue bar and `npm run report`.
+  The report matters because a printed cutlist can be for a top that no longer fits the run, and
+  that is the sheet somebody takes to the saw.
+
+**The issue bar is where it earns its keep**, not the Tops tab. The Tops tab is exactly where
+somebody is *not* looking when this happens: you move a cabinet in the 3D view, and the top that no
+longer fits it is two tabs away.
+
+**One thing found by driving the running app** rather than by the suite: making one cabinet deeper
+puts the **benchtop and the plinth** out of step together, because one cabinet getting deeper
+changes the run for everything that spans it. Each is its own owned object with its own button. That
+is the design rather than a shortcoming, but it means "regenerate" is per unit and a job with a top
+and two plinths over one run takes three presses.
+
+**Where to look:** `project/outOfStep.ts` — the two rules it holds to are at the top of the file.
+`tests/outOfStep.test.ts` is the contract and its header carries the reference run worked longhand.
+
+### 4.19 Costing the banquette cushions
+
+§5.11 recorded that the cushions were *"drawn but not costed — no fabric, no foam, no upholstery
+labour on the quote, and nothing on the report says so"*. **The second half is the serious half.** A
+missing line that announces itself is a job to finish; a missing line that quotes silently at
+**zero** is a banquette sold for hundreds less than it costs, and nothing on the page tells you
+which you are looking at. Same shape as §4.14's NaN quote: a number that looks finished and is not.
+
+#### The two answers that decided everything, both from the shop
+
+> "Generally bought in as a whole unit from the upholsterer — we'd only supply templates or
+> particleboard substrates."
+
+> "I generally allow $350 per lineal metre — that applies to the base and separately to the back or
+> any returns, so 1 lineal metre of banquette with base and back would be $700."
+
+The first puts a cushion in **exactly the class §4.7 built for a stone benchtop**: a purchase order,
+not a part. Nothing here produces a `Panel`, nothing reaches the cutlist or the nest, and that zero
+is the point rather than an omission — inventing a part so the cutlist looked complete would put
+foam on a sheet order.
+
+The second is the whole of the arithmetic, and **the clause that matters is "separately"**. The rate
+is per *cushion*, not per run, which is the only reason a metre with a base and a back comes to $700.
+Read it as per-run and every banquette in every quote is out by half. That reference figure is the
+first assertion in `tests/cushionCost.test.ts`.
+
+#### Decisions worth not undoing
+
+- **The lineal lengths live in `model/cushion.ts` and the viewport reads them.** They used to be
+  worked out inline in `BanquetteCushions.tsx` to decide how wide to draw a bolster. The moment a
+  length became a *price*, two descriptions meant **a cushion you can see and a cushion you are
+  charged for could be different lengths, with nothing on screen looking wrong.** `returnRun` and
+  `cornerSeatRadius` are now shared, and `findUpholstery` is shared for the same reason — a cushion
+  drawn in one fabric and charged at another's rate is the same fault in money.
+- **A missing rate is a sentence, never a zero.** `cushionProblems` names the cabinet on the quote's
+  own warnings. This is the actual bug being fixed, so a later change that "helpfully" falls back to
+  a default rate would reintroduce it.
+- **The seat is charged at the cushion's width, not the cabinet's** — 1190 on a 1200 banquette at the
+  shipped 5mm inset. The upholsterer makes and measures the cushion.
+- **A rounded front corner does not lengthen the seat.** The cushion spans the same distance along
+  the run; one corner of it changes shape. Charging the longer front edge would be reading "lineal
+  metre" as "perimeter", which is not how a run of seating is measured.
+- **A return is charged only when there is a back**, because a return *is* the back turning the
+  corner. Switching the back off takes the returns with it.
+- **No minimum charge, deliberately.** A stone fabricator's minimum is on `FabricationCharges`
+  because it was stated; nobody has said whether this upholsterer has one, and inventing a plausible
+  figure is the failure the unchecked list exists to prevent.
+- **`$350/m` is flagged `indicativePricing` even though it is the shop's own number**, because it is
+  an *allowance* — what he prices at before the upholsterer has quoted — rather than an invoice.
+
+#### The one figure that is a reading
+
+**The corner unit's seat is charged along its arc**, so a 500mm corner is 785mm rather than 500.
+The reasoning: a lineal metre of seating is measured along the front of the run, and the front of a
+quarter-circle connector *is* the curve. The alternatives are one leg — which charges a corner less
+than the straight metre either side of it, for more work — or both legs, which charges the same seat
+twice. **Nobody has put a corner unit to the upholsterer**, so it belongs with `ladderFaceScribeEnd`
+on §3's unchecked list rather than being presented as a fact.
+
+#### It re-prices saved jobs, and says so
+
+**Project v27 and standards v20. This is the third migration in this file to make a saved job
+dearer**, after v9 and v11, and it is their argument for the third time: no part that already
+existed moves — nothing here produces a part at all — and the job gets dearer because it was being
+quoted for less than it takes to build. A 3m run with a back is about $2,100 of upholstery no quote
+mentioned. Both halves are asserted separately in `tests/cushionCost.test.ts`: a job with no
+banquette in it comes through at the identical total **to the cent**, and one with a banquette goes
+up by the cushions it always had. A rate a shop has typed itself is never overwritten.
+
+#### What is left
+
+- **The particleboard substrate is not modelled.** The shop supplies *"templates or particleboard
+  substrates"*, and only the first costs nothing. A substrate is a real part on a real sheet, and
+  adding one would change the parts of every existing banquette — so it wants asking for rather than
+  assuming. It is the obvious next question here.
+- **Nothing asks the upholsterer's minimum**, per above.
+- **The corner seat's arc reading** is unchecked.
+- Foam density, fabric metres and a fabric roll width are all still in the model and still unused,
+  because a bought-in cushion needs none of them. They earn their keep only if the shop ever makes
+  cushions itself.
+
+**Where to look:** `costing/cushionCost.ts` for the charge and the argument;
+`model/cushion.ts` for the lengths both the picture and the price read; `library/upholstery.au.ts`
+for the rate. `tests/cushionCost.test.ts` is the contract and carries every figure longhand.
+
 ---
 
 ## 5. Open items, in the order I'd do them
@@ -1841,8 +2089,9 @@ below a 1200mm clear span, nothing overhanging anything. **Its rounded corner no
 the front and the cushion, and applied ends build on one — see 4.15**, which is also where the
 stale "only built on base, wall and tall" warning went and why each spec now declares what it
 supports. What is still open there: the **lid stay is not modelled**, the corner unit has never been
-asked the same access question, and the **cushions are not costed** — nothing on the quote carries
-fabric, foam or upholstery labour, and nothing warns they are missing.
+asked the same access question. The **cushions are costed now** — §4.19, bought in whole from the
+upholsterer at $350 a lineal metre per cushion — and a cushion nobody can price now says so instead
+of quoting at zero.
 
 **If asked which to do next, there are now two answers and they are for different people.**
 
@@ -1852,12 +2101,21 @@ simulated. `library/machines.ts` says at the top exactly what to compare and in 
 KDT program has since arrived and **contradicts the shipped profile** — see §4.9. Nothing about the
 G-code is safe until that is reconciled.
 
-**For the app: §5.12's custom part features, once §5.11's remaining bench items are judged.**
-Declared capabilities and the banquette's corner shipped as §4.15, which closed three of the seven
-August bench reports; **§5.11 is what is left of that list**, and the two worth doing before a new
-feature are the out-of-step indicator on an owned run unit and getting a job out of the browser
-without crashing the app first. §5.12 wanted §4.15 underneath it and now has it. The `.nc` work is
-still worth more than any *machine* item; it is not what the shop is blocked on at the bench.
+**For the app: the two items that were named here have both shipped** — the out-of-step indicator
+is §4.18 and getting a job out of the browser is §4.17, and §5.12's custom part features shipped
+before them as §4.16. **§5.11 is what is left of the August list**, and what is on it now is either
+not yet reproduced or is the UI as a whole. The cushions were on this list and have shipped as
+§4.19. What has the clearest shape now:
+
+- **The particleboard substrate under a bought-in cushion**, which §4.19 deliberately did not build.
+  The shop supplies *"templates or particleboard substrates"* and only the first costs nothing; a
+  substrate is a real part on a real sheet, so adding one changes the parts of every existing
+  banquette and wants asking for rather than assuming. It is the obvious next question.
+- **A pass over the whole UI.** The user's own words are *"any other user may struggle"*. Bigger and
+  vaguer than anything else here, and worth agreeing a definition of done for before starting.
+
+The `.nc` work is still worth more than any *machine* item; it is not what the shop is blocked on at
+the bench.
 
 **A note that was here has been removed, and it is worth saying why rather than leaving a gap.**
 Both this document and `docs/architecture.md` carried a suggestion that Phase 3's CSVs could be
@@ -2176,12 +2434,13 @@ speculatively.
   back height, back thickness, back angle and corner radius are all recorded separately from the
   boards, and end cushions are per-side flags.
   **Three things are deliberately still open, and the first is the one that matters:**
-  **(a)** cushions are **viewport-only** — no fabric quantity, no foam, no upholstery labour reaches
-  the quote, which was the right call for a first version but means a banquette currently quotes as
-  though the seating were free, and unlike the hardware figures nothing on the report says so. A
-  warning line is the cheap half of the fix. *(Their plan **shape** has since moved into
-  `core/model/cushion.ts` so a test can read it — §4.15 — but that is geometry, not money, and
-  nothing about the quote changed.)* **(b)** The cushion renderer mutates `repeat` on the
+  ~~**(a)** cushions are **viewport-only** — a banquette quotes as though the seating were free, and
+  nothing on the report says so.~~ **Costed — see §4.19.** The answer turned out to make the fabric
+  and foam questions moot: cushions are **bought in as finished units**, so there is no fabric
+  quantity to work out and no foam to order, and the charge is $350 a lineal metre **per cushion**.
+  The half that mattered was the warning: a cushion nobody can price now says so by name rather than
+  quoting at zero. What is still open there is the **particleboard substrate**, which is a real part
+  and was deliberately not built. **(b)** The cushion renderer mutates `repeat` on the
   texture `useLoader` hands back, and that object is **shared and cached** — two banquettes in one
   fabric fight over the weave scale, last one rendered wins. `PanelMesh` avoids this by baking UVs
   into the geometry and never writing to the texture; the cushion path should do the same or clone.
@@ -2450,10 +2709,14 @@ one for showing a client, one for checking the build — and because both live i
 
 ### 5.11 Reported from the bench, August 2026 — what is left of that list
 
-A session's worth of use produced seven reports at once. **Three are now closed** — the NaN quote
-(§4.14), applied ends doing nothing on a banquette, and the half-built banquette corner (both
-§4.15). What follows is the remainder, plus the diagnosis of each, because two of them are known
-causes waiting on a decision rather than mysteries.
+A session's worth of use produced seven reports at once. **Four are now closed** — the NaN quote
+(§4.14), applied ends doing nothing on a banquette and the half-built banquette corner (both
+§4.15), and the benchtop radius that "does not work" (§4.18). The unreported risk at the bottom of
+this list is closed too, and **that entry turned out to be wrong about the app** — see §4.17, and
+read the correction, because it is the only case so far of an *open item* going stale rather than a
+claim about shipped work.
+
+What follows is the remainder, plus the diagnosis of each.
 
 **Read the closed ones anyway if you are new here**, because the *shape* of them is the lesson: a
 feature wired into some specs and not others, and a guard list kept in a second file that a spec
@@ -2508,11 +2771,12 @@ it — not a duplicate to tidy away.
 
 - ~~**Costing returns NaN.**~~ **Fixed — see 4.14.** It was one absent labour rate, and it hit
   every job rather than only curved ones.
-- **The benchtop radius "does not work".** It works; it is *owned* data (§4.13), so it follows the
-  cabinets only when the top is **regenerated**. The model is right and the app gives no signal:
-  there is no indication that a top is out of step with the cabinets under it, and no hint that
-  Regenerate is the answer. **Every owned field needs that indicator** — this is the cost of the
-  owned-not-derived bargain and nobody had paid it.
+- ~~**The benchtop radius "does not work".**~~ **Fixed — see 4.18.** It worked; it is *owned* data
+  (§4.13), so it follows the cabinets only when the top is **regenerated**, and the app gave no
+  signal. It does now, on the unit card, in the issue bar and in the terminal report. The general
+  lesson is the one this item was always really about: **a model that is right and silent looks,
+  from the bench, exactly like a model that is wrong**, so every future field that is generated once
+  and then owned needs the same answer to "is this still true?".
 - ~~**Applied ends do nothing on a banquette.**~~ **Fixed — see 4.15**, along with the stale guard
   that caused it.
 - **Texture and laminate on a bendy-ply radius.** Reported, not yet reproduced.
@@ -2526,15 +2790,128 @@ it — not a duplicate to tidy away.
 - **The UI is navigable but cluttered**, in the user's own words *"any other user may struggle"*.
   Panels have grown per feature with no pass over the whole.
 
-#### Not reported, and a bigger risk than anything above
+#### ~~Not reported, and a bigger risk than anything above~~ — done, see 4.17, and **this entry was wrong**
 
-**A job lives only in the browser's storage for `localhost`.** Clearing browser data wipes it with
-no warning, it does not travel between machines, and the shop runs this from a downloaded ZIP — so
-"the same browser" is doing more work than anyone has asked it to. There *is* a save-to-file path,
-and it is in `app/ErrorScreen.tsx`, which means **the only way to get a job out of this app is to
-crash it first**. That is the wrong way round. An ordinary Save-a-copy and an Open-a-file button,
-using the export that already exists, is a small piece of work and protects the thing that took
-somebody a day to measure. Nobody has asked for it, which is exactly why it is written down here.
+**A job lives only in the browser's storage for `localhost`**, and that part was and is true.
+Clearing browser data wipes it with no warning, it does not travel between machines, and the shop
+runs this from a downloaded ZIP.
+
+**What was written here next was false, and the falsehood is the lesson.** This entry claimed *"the
+only way to get a job out of this app is to crash it first"*. `Save to file…` and `Open from file…`
+had been in the **Job ▾** menu since the commit that introduced formed parts. The sentence about
+`ErrorScreen` was true when somebody wrote it, or was never checked, and it then sat here as an open
+item long enough that a session acting on it would have built a second copy of a shipped feature.
+
+Every other part of this document warns that a claim about *shipped* work goes stale. This is the
+first time an **open item** went stale, and it is the direction nobody watches: the list of things
+left to do is trusted precisely because nobody wants to re-verify it. Check the code.
+
+The real faults were on the failure paths — an `alert` that a sandboxed frame ignores silently,
+three one-click ways to destroy a job without being asked, and a non-job file that loaded far enough
+to crash the app into the reload loop. All fixed, and **the shop standards can now be saved out
+too**, which genuinely could not be done before. §4.17 is the record.
+
+### 5.13 Reported from the bench, August 2026 — the second list
+
+Seven items, with a screenshot for the first. **One is already closed** and it is the most
+important one in this whole document, so it leads.
+
+#### ~~5. Z zero is the decking sheet, not the top of the material~~ — **fixed**
+
+> "With both the KDT and the Woodtron the gcode works from the decking sheet up, that is to say a Z
+> value of -0.2mm would be cutting 0.2mm into the sacrificial board."
+
+**This is the first figure to come off the machine's unchecked list, and it was wrong.**
+`library/machines.ts` shipped `zDatum: 'material-top'` with a comment arguing it was the *safer* way
+to be wrong — a material-top program run on a table-zero machine cuts air, where the reverse drives
+the full thickness into the bed. The reasoning was sound and the answer was still wrong, which is
+exactly why the list exists rather than the reasoning.
+
+Both profiles are now `table`. The abstraction was already right — `zAtDepth` and `zClearance` have
+always handled both — so the fix was one field, and **every program written before it cut air on
+this machine**: at 16mm the contour went to Z−16.5 where the material does not start until Z+16.
+
+Two things came out of it worth keeping. The program header line never needed changing, because it
+reads `zDatum` and always said whichever was set — it was a *test* pinning the guess in place. And
+**nothing in the suite asserted a single Z value**, on the number this file calls the most expensive
+one there is. `tests/cam.test.ts` now reads every Z back out of a real program and asserts none goes
+below the overcut.
+
+#### The rest, not yet done
+
+1. **The internal banquette corner is an external radius, and the cushion is turned the wrong way.**
+   Screenshotted. `banquetteCorner.ts` and `BanquetteCornerCushions` both build a quarter *disc* —
+   convex, bulging into the room — where an internal corner joining two runs wants the square
+   **less** a quarter disc, so the seat's front edge is concave between the two runs' front edges.
+   The shop's words: *"a complete mess."* Note this also moves §4.19's corner-seat arc charge, which
+   is measured along that front edge — the reading survives, the shape it measures does not.
+
+2. **A standalone panel should stand perpendicular to the wall, not flat against it**, and then turn
+   in 90° increments from there. Today it snaps flat, which is the wrong default for the thing it is
+   usually used as.
+
+3. **The custom cabinet is not custom enough.** Wanted: add and delete *any* part — left end, back,
+   bottom, each individually — and choose the material **per part**. This is the largest item on the
+   list and it is a rethink of what `customCabinet.ts` is, not a field: today a spec declares a
+   fixed set of part rules and §4.15 made each spec declare what it supports. A cabinet whose part
+   list is itself data is a different shape of object.
+
+4. ~~**Woodtron `.nc` files are coming.**~~ **They arrived — ten of them, and they are read up in
+   `docs/woodtron-dialect.md`.** Five carcass programs at 16.3mm and five MDF door programs at 18mm,
+   from one job. **Read that document before touching `post/` or `machines.ts`**; what follows is
+   only the headline.
+
+   It answers far more than the datum. The corrected figures: `plungeClearance` is **10**, not 3;
+   `throughOvercut` is **0.2**, not 0.5; `drillStyle` is **explicit**, not `canned-g81`; the tool
+   change is **`G666 T1`**, not `M6`; the onion skin is **1.0mm** on carcass and **none** on doors.
+   Arcs are in **R form**. Feeds are per tool and much faster than the shipped guesses — F21000
+   cutting, F3000 drilling, **F500 for the Ø35 borer**.
+
+   **Three findings are structural rather than numeric**, and each is something `MachineProfile`
+   cannot express today:
+
+   - **Two work offsets, one per head** — `G54` is the multidrill origin and `G55` the router
+     origin. The heads are physically apart and the machine keeps a separate zero for each. A post
+     that writes one origin for both puts every hole wrong relative to every cut.
+   - **The drill head and the router rapid at different heights** — +30 and +20.
+   - **The multidrill's programmed coordinate is the *head* position, not the hole position.**
+     `B<n>` is a bitmask selecting spindles, and the coordinate is offset by that group's distance
+     from the head origin — which is why real programs have negative X well outside the sheet.
+
+   **Two things are confirmed that this codebase already believed**, which is worth as much as the
+   corrections: the **Ø35 hinge cup at 13mm deep**, exactly as §3 has it off Blum's own pattern; and
+   **16.3mm carcass board**, exactly the figure §4.1 records from the shop, arriving independently
+   off the machine months later.
+
+   **The spindle map is now solved too**, from the later sheets: the drill spindles are on a **32mm
+   pitch**, spindle *n* at `(n − 1) × 32`, in two rows — X for the small bits, Y for the Ø10 and the
+   Ø35. It is System 32, which is the whole point of the head: five Ø5 spindles firing at once put a
+   shelf-pin row down in one plunge instead of twenty-one router pecks. **One thing still blocks
+   switching it on** — whether the programmed coordinate is the reference spindle's position or the
+   head origin. Both readings give the same holes for a symmetric pattern and differ by 128mm for an
+   asymmetric one, so it wants settling against a part whose true hole positions are known.
+
+   Every file is a **Woodtron**; only the Z datum is confirmed for the KDT, by the shop directly.
+
+6. **A part too big for its sheet is silently not nested.** Wanted: an option to **split** it.
+   Design questions before code: where the split may fall, whether the halves get a joining detail
+   or are simply two parts, and what the cutlist calls them. A split part is two parts and a join,
+   which makes it closer to a benchtop's `joins` than to a nesting tweak.
+
+7. **Sheet sizes are wrong — 2400 × 1200 is the usable area, not the sheet.** To be taken from
+   **Laminex and Polytec's own published sizes** rather than assumed. This moves every nest and
+   every sheet count in the quote, so it re-prices jobs the way §4.8 did and needs the same
+   treatment: say so out loud, and assert both halves.
+
+   **The `.nc` files settle the principle and give two real numbers**: the white carcass board is
+   **2410.0 × 1205.0 × 16.3** and the MDF door board is **3115.0 × 1205.0 × 18.0**, straight off the
+   machine's own sheet declaration. So the shop's rule is exactly right — 10mm over on the length,
+   5mm over on the width. The published sizes are still wanted for the rest of the range, and
+   whether 3115 is a stock size or a cut-down wants checking.
+
+**Asked for and declined, recorded so nobody picks it back up as an oversight:** the particleboard
+substrate under a bought-in cushion (§4.19). Put to the shop directly and answered *"no don't worry
+about the substrate for now."*
 
 ### 5.12 Custom features on an individual part — **shipped, see 4.16**
 

@@ -12,6 +12,7 @@ import { buildProject } from '../core/rules/build.ts';
 import { costProject } from '../core/costing/costing.ts';
 import { buildCutlist } from '../core/cutlist/cutlist.ts';
 import { checkLayout } from '../core/project/layout.ts';
+import { projectOutOfStep } from '../core/project/outOfStep.ts';
 import { formatAud } from '../core/units.ts';
 import { Viewport3D } from './viewport/Viewport3D.tsx';
 import { CabinetList } from './panels/CabinetList.tsx';
@@ -24,6 +25,7 @@ import { BenchtopPanel } from './panels/BenchtopPanel.tsx';
 import { SettingsModal } from './panels/SettingsModal.tsx';
 import { PlanView } from './plan/PlanView.tsx';
 import { exportProjectFile, importProjectFile } from './store/persistence.ts';
+import { useAsk } from './panels/ask.tsx';
 
 type Tab = 'cutlist' | 'nest' | 'hardware' | 'tops' | 'cost';
 type View = '3d' | 'wireframe' | 'plan';
@@ -72,6 +74,7 @@ export default function App() {
   const updateStandards = useProjectStore((s) => s.updateStandards);
   const saveAsStandards = useProjectStore((s) => s.saveAsStandards);
   const resetToStandards = useProjectStore((s) => s.resetToStandards);
+  const replaceStandards = useProjectStore((s) => s.replaceStandards);
   const replaceProject = useProjectStore((s) => s.replaceProject);
   const updateRoom = useProjectStore((s) => s.updateRoom);
   const moveCabinet = useProjectStore((s) => s.moveCabinet);
@@ -79,8 +82,65 @@ export default function App() {
   const addFromSavedType = useProjectStore((s) => s.addFromSavedType);
   const deleteSavedType = useProjectStore((s) => s.deleteSavedType);
   const newProject = useProjectStore((s) => s.newProject);
+  const savedToFileAt = useProjectStore((s) => s.savedToFileAt);
+  const markSavedToFile = useProjectStore((s) => s.markSavedToFile);
 
   const placeCabinetOnWall = useProjectStore((s) => s.placeCabinetOnWall);
+  const ask = useAsk();
+
+  /*
+   * Work that exists only in this browser.
+   *
+   * A job is saved to local storage on every keystroke, so it survives a reload — and that is
+   * exactly what makes it feel safer than it is. Local storage is one browser on one machine, it
+   * does not travel, and clearing browsing data takes it with no warning. This is the difference
+   * between "saved" and "saved somewhere you could lose the laptop and still have it".
+   */
+  const onlyInThisBrowser = project.updatedAt !== savedToFileAt;
+
+  const saveToFile = () => {
+    exportProjectFile(project);
+    markSavedToFile();
+  };
+
+  /**
+   * Ask before replacing what is on screen.
+   *
+   * Every one of the three ways into a different job — new, sample, open — throws away the current
+   * one, and local storage is overwritten the same instant, so there is nothing behind it. That is
+   * a fine thing to do on purpose and a terrible one to do by clicking the wrong menu item, which
+   * is the whole distinction a question draws.
+   *
+   * The question names what is at stake rather than asking "are you sure": how many cabinets, and
+   * whether the job has ever been out of this browser. A job that has just been saved to a file
+   * still asks — the file is a copy, and the copy is not on screen — but it can say so, and that
+   * turns the answer from a guess into a decision.
+   */
+  const discardCurrentJob = async (what: string, confirmLabel: string): Promise<boolean> =>
+    ask.confirm(
+      `${what} closes "${project.name}" — ${project.cabinets.length} ${
+        project.cabinets.length === 1 ? 'cabinet' : 'cabinets'
+      }.\n\n${
+        onlyInThisBrowser
+          ? 'It has not been saved to a file, so it exists only in this browser and there is no copy to go back to.'
+          : 'It was saved to a file, so that copy is safe — anything changed since is not.'
+      }`,
+      // The button says what it does, per `ConfirmOptions` — never "OK".
+      { confirmLabel, danger: onlyInThisBrowser },
+    );
+
+  const openFromFile = async (file: File) => {
+    let opened;
+    try {
+      opened = await importProjectFile(file);
+    } catch (err) {
+      // Never `alert` — silently ignored in a sandboxed frame, which is how this failed before.
+      await ask.tell(err instanceof Error ? err.message : String(err));
+      return;
+    }
+    if (!(await discardCurrentJob('Opening a file', 'Open it'))) return;
+    replaceProject(opened);
+  };
 
   const [tab, setTab] = useState<Tab>('cutlist');
   const [view, setView] = useState<View>('3d');
@@ -91,6 +151,15 @@ export default function App() {
   const cost = useMemo(() => costProject(project), [project]);
   const cutlist = useMemo(() => buildCutlist(project), [project]);
   const layoutIssues = useMemo(() => checkLayout(project), [project]);
+  /*
+   * Benchtops and plinths that no longer match the cabinets under them.
+   *
+   * Up here rather than only on the Tops tab because the Tops tab is exactly where somebody is
+   * *not* looking when it happens: you move a cabinet in the 3D view, and the top that no longer
+   * fits it is two tabs away. This is the cost of a run unit being owned rather than derived, and
+   * it went unpaid until the shop reported the symptom — see `core/project/outOfStep.ts`.
+   */
+  const outOfStep = useMemo(() => projectOutOfStep(project), [project]);
 
   const selected = built.find((b) => b.cabinet.id === selectedCabinetId) ?? null;
 
@@ -118,11 +187,25 @@ export default function App() {
             Settings
           </button>
           <div className="menu">
-            <button className="btn">Job ▾</button>
+            <button className="btn">
+              Job ▾{onlyInThisBrowser && <span className="warn-dot"> !</span>}
+            </button>
             <div className="menu-items">
-              <button onClick={() => newProject('New job')}>New empty job</button>
-              <button onClick={loadSampleKitchen}>Load sample kitchen</button>
-              <button onClick={() => exportProjectFile(project)}>Save to file…</button>
+              <button
+                onClick={async () => {
+                  if (await discardCurrentJob('Starting a new job', 'Start a new job')) newProject('New job');
+                }}
+              >
+                New empty job
+              </button>
+              <button
+                onClick={async () => {
+                  if (await discardCurrentJob('Loading the sample kitchen', 'Load the sample')) loadSampleKitchen();
+                }}
+              >
+                Load sample kitchen
+              </button>
+              <button onClick={saveToFile}>Save to file…</button>
               <label>
                 Open from file…
                 <input
@@ -130,16 +213,18 @@ export default function App() {
                   accept="application/json"
                   onChange={async (e) => {
                     const file = e.target.files?.[0];
-                    if (!file) return;
-                    try {
-                      replaceProject(await importProjectFile(file));
-                    } catch (err) {
-                      alert(`Could not open that file: ${err instanceof Error ? err.message : err}`);
-                    }
+                    // Cleared before the await, so picking the same file twice fires again — which
+                    // is what somebody does after being told the first one was the wrong file.
                     e.target.value = '';
+                    if (file) await openFromFile(file);
                   }}
                 />
               </label>
+              <p className="note subtle menu-note">
+                {onlyInThisBrowser
+                  ? 'This job has not been saved to a file. It lives only in this browser — clearing your browsing data would take it.'
+                  : 'Saved to a file. Anything you change from here is only in this browser until you save again.'}
+              </p>
             </div>
           </div>
         </div>
@@ -151,7 +236,7 @@ export default function App() {
         </div>
       )}
 
-      {layoutIssues.length > 0 && (
+      {(layoutIssues.length > 0 || outOfStep.length > 0) && (
         <div className="issue-bar">
           {layoutIssues.map((issue) => (
             <button
@@ -160,6 +245,14 @@ export default function App() {
               onClick={() => select(issue.cabinetIds[0] ?? null)}
             >
               {issue.message}
+            </button>
+          ))}
+          {/* Clicking one opens the tab with the Regenerate button on it, which is the answer. */}
+          {outOfStep.map((row) => (
+            // Keyed on the message, not on kind: one top can have both its corners out of step,
+            // which is two `corners` rows for the same unit.
+            <button key={row.unitId + row.message} className="issue" onClick={() => setTab('tops')}>
+              {row.message}
             </button>
           ))}
         </div>
@@ -329,6 +422,7 @@ export default function App() {
           onUpdateStandards={updateStandards}
           onSaveAsStandards={saveAsStandards}
           onResetToStandards={resetToStandards}
+          onReplaceStandards={replaceStandards}
           onUpdateRoom={updateRoom}
         />
       )}

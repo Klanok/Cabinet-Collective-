@@ -10,6 +10,11 @@
  * So the app asks its own questions. Same shape as the native calls — await an answer, get
  * `null` or `false` on cancel — so call sites read the way they did, but the dialog is ours and
  * works wherever the app runs.
+ *
+ * **`alert` is in the same family and was still in use.** It sat on the one control that opens a
+ * job file: pick the wrong file in a sandboxed frame and the app said nothing whatsoever, because
+ * the only thing it had to say with was the call the browser was throwing away. `tell` is the
+ * replacement — one button, no question, and it appears wherever the app runs.
  */
 
 import {
@@ -38,6 +43,13 @@ export interface PromptOptions {
 export interface Ask {
   confirm: (message: string, options?: ConfirmOptions) => Promise<boolean>;
   prompt: (message: string, defaultValue?: string, options?: PromptOptions) => Promise<string | null>;
+  /**
+   * Say something and wait for it to be read. The replacement for `alert`.
+   *
+   * One button, because there is nothing to decide — offering Cancel on a sentence that has already
+   * happened invites somebody to look for the undo that isn't there.
+   */
+  tell: (message: string) => Promise<void>;
 }
 
 type Request =
@@ -47,6 +59,12 @@ type Request =
       readonly confirmLabel: string;
       readonly danger: boolean;
       readonly resolve: (answer: boolean) => void;
+    }
+  | {
+      readonly kind: 'tell';
+      readonly message: string;
+      readonly confirmLabel: string;
+      readonly resolve: () => void;
     }
   | {
       readonly kind: 'prompt';
@@ -89,15 +107,24 @@ function AskDialog({ request, onClose }: { request: Request; onClose: (answer: u
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose(request.kind === 'prompt' ? null : false);
+      if (e.key !== 'Escape') return;
+      onClose(request.kind === 'prompt' ? null : request.kind === 'tell' ? undefined : false);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose, request.kind]);
 
-  const cancel = () => onClose(request.kind === 'prompt' ? null : false);
+  /*
+   * What dismissing means, per kind.
+   *
+   * A `tell` has nothing to cancel — it has already happened — so clicking away resolves it the
+   * same as OK does. Anything else would leave a caller awaiting a promise that never settles.
+   */
+  const cancel = () =>
+    onClose(request.kind === 'prompt' ? null : request.kind === 'tell' ? undefined : false);
   const submit = () => {
     if (request.kind === 'prompt') onClose(value.trim() ? value : null);
+    else if (request.kind === 'tell') onClose(undefined);
     else onClose(true);
   };
 
@@ -142,9 +169,11 @@ function AskDialog({ request, onClose }: { request: Request; onClose: (answer: u
 
         <footer className="modal-foot">
           <div className="modal-actions">
-            <button type="button" className="btn" onClick={cancel}>
-              Cancel
-            </button>
+            {request.kind !== 'tell' && (
+              <button type="button" className="btn" onClick={cancel}>
+                Cancel
+              </button>
+            )}
             <button
               type="button"
               ref={confirmRef}
@@ -186,6 +215,10 @@ export function AskProvider({ children }: { children: ReactNode }) {
             initial: defaultValue ?? '',
             resolve,
           }),
+        ),
+      tell: (message) =>
+        new Promise<void>((resolve) =>
+          setRequest({ kind: 'tell', message, confirmLabel: 'OK', resolve }),
         ),
     }),
     [],

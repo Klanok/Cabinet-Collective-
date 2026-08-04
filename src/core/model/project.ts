@@ -37,7 +37,7 @@ import {
 } from '../library/blum.ts';
 import { AU_BENCHTOP_MATERIALS, AU_MATERIAL_LIBRARY, AU_SHEET_MATERIALS } from '../library/materials.au.ts';
 
-export const CURRENT_SCHEMA_VERSION = 26 as const;
+export const CURRENT_SCHEMA_VERSION = 27 as const;
 
 /**
  * The bendy ply an older job is given when it is migrated forward. It has no curved parts in
@@ -700,6 +700,57 @@ const migrateV25toV26 = (raw: Record<string, unknown>): Record<string, unknown> 
 });
 
 /**
+ * v26 → v27: the upholsterer's rate reaches a job's own copy of the fabric list (§4.19).
+ *
+ * **This one makes a saved job with a banquette in it dearer, and there is no version of it that
+ * does not.** It is the third migration in this file to re-price rather than merely to add, after
+ * v9 and v11, and it is the same argument they make for the third time: no part that already
+ * existed moves — nothing here produces a part at all — and the job gets dearer because it was
+ * being quoted for less than it takes to build.
+ *
+ * A banquette's cushions have always been drawn and have never been charged. A 3m run with a back
+ * is about $2,100 of upholstery that no quote mentioned. Leaving that under-quote in place to
+ * protect a number somebody has already sent would be the worse outcome by a wide margin, and it is
+ * the same call §2 records for v9's hardware: *"a kitchen with ten hinges and three drawer sets in
+ * it was being quoted as though the hardware were free."*
+ *
+ * **Both halves are asserted separately** in `tests/cushionCost.test.ts` — that a job without a
+ * banquette in it comes through at exactly the same total to the cent, and that one with a
+ * banquette goes up by the cushions it always had.
+ *
+ * Matched by **id** against the shipped library and written only where absent, so a rate a shop has
+ * deliberately set is never overwritten. A fabric the shop added itself gets no rate and is
+ * reported by `cushionProblems` rather than silently charged at nothing — which is the failure this
+ * whole change exists to end, and it must not be reintroduced by a migration being helpful.
+ */
+const migrateV26toV27 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const materials = (raw.materials as Record<string, unknown> | undefined) ?? {};
+  const upholstery = materials.upholstery as Record<string, unknown>[] | undefined;
+  // A job saved before upholstery existed has no list at all. Give it the shipped one: it has no
+  // banquettes either, so nothing is priced from it until somebody adds one.
+  const shipped = (AU_MATERIAL_LIBRARY.upholstery ?? []) as unknown as Record<string, unknown>[];
+  if (!upholstery) {
+    return {
+      ...raw,
+      schemaVersion: 27,
+      materials: { ...materials, upholstery: shipped },
+    };
+  }
+  return {
+    ...raw,
+    schemaVersion: 27,
+    materials: {
+      ...materials,
+      upholstery: upholstery.map((item) => {
+        if (item.charges !== undefined) return item;
+        const match = shipped.find((s) => s.id === item.id);
+        return match ? { ...item, charges: match.charges, indicativePricing: match.indicativePricing } : item;
+      }),
+    },
+  };
+};
+
+/**
  * v11 → v12. **The screen colours, backfilled onto jobs that never had them.**
  *
  * Reported from the bench as "changing the door to Notaio Walnut has done nothing", and the
@@ -975,6 +1026,7 @@ export const migrateProject = (raw: unknown): Project => {
   if (data.schemaVersion === 23) data = migrateV23toV24(data);
   if (data.schemaVersion === 24) data = migrateV24toV25(data);
   if (data.schemaVersion === 25) data = migrateV25toV26(data);
+  if (data.schemaVersion === 26) data = migrateV26toV27(data);
 
   if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`migrateProject: could not migrate schema version ${String(version)}`);
@@ -983,3 +1035,44 @@ export const migrateProject = (raw: unknown): Project => {
 };
 
 export const touchProject = (p: Project): Project => ({ ...p, updatedAt: new Date().toISOString() });
+
+/**
+ * Whether a file the user picked is actually a job — returns the reason it is not, or `null`.
+ *
+ * `migrateProject` catches the two dishonest files it can catch cheaply: no `schemaVersion` at all,
+ * and one from a build newer than this. What it cannot catch is a file that carries a plausible
+ * version number and nothing else, because the last line of a migration chain is a cast. That file
+ * loads, and then the first thing that reads `project.cabinets` throws — which is not merely a bad
+ * error message, it is the **reload loop** `app/ErrorScreen.tsx` exists to get out of, since the
+ * broken job is saved to local storage on its way in.
+ *
+ * ## Why this is not inside `migrateProject`
+ *
+ * Deliberately separate, and called only on the **file** path.
+ *
+ * A saved job in the browser has already been loading successfully, possibly for months. If a check
+ * here were stricter than some old migration's output — and v20 exists precisely because a snapshot
+ * once came out stamped current and missing fields — then adding it to `migrateProject` would take
+ * a shop's working job and replace it with a blank one at startup. That is the same failure as
+ * refusing to load somebody's accumulated standards, which §2 says not to do. A file somebody has
+ * just chosen is the opposite case: refusing it costs them one click and tells them they picked the
+ * wrong file.
+ *
+ * Only the containers the app dereferences immediately are checked. This is a "did you hand me a
+ * job?" question, not a schema validator — a deep one would be a second description of the model,
+ * free to disagree with the first.
+ */
+export const projectFileProblem = (raw: unknown): string | null => {
+  if (typeof raw !== 'object' || raw === null) return 'That file does not contain a job.';
+  const data = raw as Record<string, unknown>;
+  const arrays = ['cabinets', 'benchtops', 'kickBases', 'constructions'] as const;
+  const objects = ['room', 'materials', 'defaults', 'settings'] as const;
+  const missing = [
+    ...arrays.filter((key) => !Array.isArray(data[key])),
+    ...objects.filter((key) => typeof data[key] !== 'object' || data[key] === null),
+  ];
+  if (missing.length > 0) {
+    return `That file is missing the ${missing.join(', ')} a job has to have. It may be a cutlist or a set of shop standards rather than a job.`;
+  }
+  return null;
+};

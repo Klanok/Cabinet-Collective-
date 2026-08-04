@@ -522,6 +522,33 @@ tbody td {
   display: none;
 }
 
+/* Whether this job exists anywhere but this browser. Sits under the Job menu's own actions. */
+.menu-note {
+  margin: 4px 4px 2px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+  max-width: 240px;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+/*
+ * A file input dressed as a button.
+ *
+ * `<input type="file">` cannot be triggered from script without a real click, so the label *is* the
+ * control and the input is hidden inside it. Same trick as the Job menu's, restated because this
+ * one sits in a modal footer beside ordinary buttons and has to match them.
+ */
+.file-btn {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.file-btn input[type='file'] {
+  display: none;
+}
+
 /* ── Settings modal ──────────────────────────────────────────────────────── */
 
 .modal-backdrop {

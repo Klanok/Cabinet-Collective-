@@ -31,6 +31,7 @@ import { type HardwareBomLine, hardwareForCabinet } from '../hardware/bom.ts';
 import { buildRunUnits } from '../rules/runUnits.ts';
 import { type ProjectNest, nestProject } from '../nest/nest.ts';
 import { benchtopChargeTotal, benchtopCharges, benchtopProblems } from './benchtopCost.ts';
+import { cushionChargeTotal, cushionCharges, cushionProblems } from './cushionCost.ts';
 import { effectiveCost, gstOnSale } from './gst.ts';
 
 export interface PanelCost {
@@ -106,6 +107,19 @@ export interface CostBreakdown {
    * everything else, which is the whole point of `supply` being a property of the top.
    */
   readonly benchtopCost: Cents;
+  /**
+   * Banquette cushions, bought in as finished units from an upholsterer.
+   *
+   * Its own line for the same reason `benchtopCost` has one: it is somebody else's invoice rather
+   * than stock this shop cuts, charged on their own basis — per lineal metre of each cushion. The
+   * shop supplies templates or a substrate and takes delivery of the cushions, so **nothing here is
+   * a part** and none of it appears on the cutlist or in the nest.
+   *
+   * It was missing entirely until §4.19, which meant a banquette's seat and back were quoted at
+   * nothing. On a 3m run with a back that is over two thousand dollars of upholstery the quote did
+   * not mention.
+   */
+  readonly cushionCost: Cents;
   readonly materialCost: Cents;
 
   readonly labourMinutes: number;
@@ -255,6 +269,9 @@ export const costProject = (project: Project): CostBreakdown => {
     ...built.flatMap((b) => b.warnings),
     ...units.flatMap((u) => u.warnings),
     ...benchtopProblems(project),
+    // A cushion nobody can price is drawn on screen and quoted at nothing, which is the fault
+    // §5.11 reported rather than a caveat about it.
+    ...cushionProblems(project),
   ];
 
   const { settings, materials: library } = project;
@@ -331,7 +348,13 @@ export const costProject = (project: Project): CostBreakdown => {
   const charges = benchtopCharges(project);
   const benchtopCost: Cents = benchtopChargeTotal(charges);
 
-  const materialCost = sheetCost + edgeBandCost + hardwareCost + benchtopCost;
+  /*
+   * Bought-in cushions, on exactly the same footing as a bought-in top: an upholsterer's invoice,
+   * on their own basis, for something this shop does not make. See `costing/cushionCost.ts`.
+   */
+  const cushionCost: Cents = cushionChargeTotal(cushionCharges(project));
+
+  const materialCost = sheetCost + edgeBandCost + hardwareCost + benchtopCost + cushionCost;
 
   const bandedEdges = panels.reduce((s, p) => s + bandedEdgeCount(p), 0);
   /*
@@ -492,6 +515,7 @@ export const costProject = (project: Project): CostBreakdown => {
     edgeBandCost,
     hardwareCost,
     benchtopCost,
+    cushionCost,
     materialCost,
     labourMinutes,
     labourCost,

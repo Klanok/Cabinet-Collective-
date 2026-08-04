@@ -55,7 +55,7 @@ import {
   DEFAULT_RUNNER_SYSTEM_ID,
 } from '../library/blum.ts';
 
-export const CURRENT_STANDARDS_VERSION = 19 as const;
+export const CURRENT_STANDARDS_VERSION = 20 as const;
 
 export interface ShopStandards {
   readonly version: typeof CURRENT_STANDARDS_VERSION;
@@ -375,6 +375,7 @@ export const migrateStandards = (raw: unknown): ShopStandards => {
   if (data.version === 16) data = migrateStandardsV16toV17(data);
   if (data.version === 17) data = migrateStandardsV17toV18(data);
   if (data.version === 18) data = migrateStandardsV18toV19(data);
+  if (data.version === 19) data = migrateStandardsV19toV20(data);
 
   if (data.version !== CURRENT_STANDARDS_VERSION) {
     throw new Error(`migrateStandards: could not migrate version ${String(version)}`);
@@ -657,6 +658,31 @@ const migrateStandardsV16toV17 = (raw: Record<string, unknown>): Record<string, 
       ...materials,
       sheets: [...sheets, ...AU_SHEET_MATERIALS.filter((item) => !sheetIds.has(item.id))],
       upholstery: [...upholstery, ...(AU_MATERIAL_LIBRARY.upholstery ?? []).filter((item) => !upholsteryIds.has(item.id))],
+    },
+  };
+};
+
+/**
+ * v19 → v20: the upholsterer's rate onto the shop's own fabric list (§4.19).
+ *
+ * The standards half of the project's v27, and it is the *additive* half: standards are what new
+ * jobs start from, so nothing already quoted changes because of this. Written only where a rate is
+ * absent, matched by id, so a shop that has typed its own is left alone.
+ */
+const migrateStandardsV19toV20 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const materials = (raw.materials as Record<string, unknown> | undefined) ?? {};
+  const upholstery = (materials.upholstery as Record<string, unknown>[] | undefined) ?? [];
+  const shipped = (AU_MATERIAL_LIBRARY.upholstery ?? []) as unknown as Record<string, unknown>[];
+  return {
+    ...raw,
+    version: 20,
+    materials: {
+      ...materials,
+      upholstery: upholstery.map((item) => {
+        if (item.charges !== undefined) return item;
+        const match = shipped.find((s) => s.id === item.id);
+        return match ? { ...item, charges: match.charges, indicativePricing: match.indicativePricing } : item;
+      }),
     },
   };
 };

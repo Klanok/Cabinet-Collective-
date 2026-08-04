@@ -36,6 +36,8 @@ import {
   unconfirmedHardwareFigures,
 } from '../../core/model/hardware.ts';
 import { EdgeBandPicker, SheetPicker } from './MaterialPicker.tsx';
+import { useAsk } from './ask.tsx';
+import { exportStandardsFile, importStandardsFile } from '../store/persistence.ts';
 import { DoorStyleEditor } from './DoorStyleEditor.tsx';
 import { NumberRow } from './fields.tsx';
 import type { DoorStyle } from '../../core/standards/doorStyles.ts';
@@ -80,6 +82,8 @@ interface Props {
   onUpdateStandards: (patch: Partial<ShopStandards>) => void;
   onSaveAsStandards: (name: string) => void;
   onResetToStandards: () => void;
+  /** Take a whole set of standards in from a file, replacing the shop's current one. */
+  onReplaceStandards: (standards: ShopStandards) => void;
   onUpdateRoom: (room: Room) => void;
 }
 
@@ -979,6 +983,7 @@ export function SettingsModal({
   onUpdateStandards,
   onSaveAsStandards,
   onResetToStandards,
+  onReplaceStandards,
   onUpdateRoom,
 }: Props) {
   const [scope, setScope] = useState<Scope>('job');
@@ -986,6 +991,7 @@ export function SettingsModal({
     'construction' | 'materials' | 'doors' | 'hardware' | 'sizes' | 'room' | 'costing'
   >('construction');
   const [standardsName, setStandardsName] = useState(standards.name);
+  const ask = useAsk();
 
   const inSync = matchesStandards(project, standards);
   const differences = differencesFromStandards(project, standards);
@@ -1224,8 +1230,43 @@ export function SettingsModal({
                   />
                 </label>
               </div>
+              {/*
+                "Saved automatically" used to be the whole of what this said, and it was true and
+                misleading in the same breath: saved to *this browser*, which is the one place that
+                cannot survive somebody clearing their browsing data. Kick heights, reveals, door
+                styles and saved cabinet types are not re-measurable the way a room is — they are
+                years of a shop's own answers — and until now there was no way to get them out at
+                all. Same shape as the Job menu, deliberately.
+              */}
               <div className="modal-actions">
-                <span className="muted">Saved automatically.</span>
+                <span className="muted">Saved to this browser.</span>
+                <button className="btn" onClick={() => exportStandardsFile(standards)}>
+                  Save to file…
+                </button>
+                <label className="btn file-btn">
+                  Open from file…
+                  <input
+                    type="file"
+                    accept="application/json"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = '';
+                      if (!file) return;
+                      let opened;
+                      try {
+                        opened = await importStandardsFile(file);
+                      } catch (err) {
+                        await ask.tell(err instanceof Error ? err.message : String(err));
+                        return;
+                      }
+                      const yes = await ask.confirm(
+                        `Replace "${standards.name}" with "${opened.name}"?\n\nThis changes the standards new jobs start from. Jobs already saved keep their own copy and are not touched.`,
+                        { confirmLabel: 'Replace my standards', danger: true },
+                      );
+                      if (yes) onReplaceStandards(opened);
+                    }}
+                  />
+                </label>
               </div>
             </>
           )}
