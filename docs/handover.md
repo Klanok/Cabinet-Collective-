@@ -2984,9 +2984,48 @@ below the overcut.
    The shop's words: *"a complete mess."* Note this also moves §4.19's corner-seat arc charge, which
    is measured along that front edge — the reading survives, the shape it measures does not.
 
+   **Picked up and deliberately put back down**, because "square less a quarter disc" has more than
+   one reading and they give visibly different seats. `quarterRing` in `banquetteCorner.ts` is the
+   one line to change; what is not decided is *what to change it to*. Three questions, and the
+   third is the one that decides the other two:
+   - **Is the removed disc's radius still the unit's own size?** Today `validate` insists
+     `W = D = insideCornerRadius`, the same rule the quarter-round end has. Keep it and inverting the
+     shape leaves a sliver of `r² − πr²/4` ≈ **0.21 r²** — for a 500 corner, a piece reaching only
+     207mm out along its own diagonal. That may well be right for a filler between two rounded runs,
+     and it is a surprising enough shape that it should be confirmed rather than deduced.
+   - **Or is the fillet radius a separate figure**, smaller than the unit, with the disc centred on
+     the unit's front corner? That keeps a full square seat with a rounded notch and is the reading
+     that makes the arc *tangent* to both runs' front edges.
+   - **Which of those two the shop means** is what the screenshot would settle in a second and no
+     amount of reasoning from here will. §4.5's four corner decisions carry the standing note that a
+     fresh session re-deriving a shop decision gets a different answer; this is the same class.
+
+   Whatever the answer, the cushion has to turn with it — `BanquetteCornerCushions` builds its
+   quarter from the same description and would otherwise sit convex on a concave seat.
+
 2. **A standalone panel should stand perpendicular to the wall, not flat against it**, and then turn
    in 90° increments from there. Today it snaps flat, which is the wrong default for the thing it is
    usually used as.
+
+   **Scoped but not built**, and the map is worth having because the change is smaller than it
+   looks and lands in three specific places. `snapToWall` in `project/wallPlacement.ts` parks a
+   dragged cabinet flush and square via `placeAgainstWall`, which sets `yawDeg` to
+   `yawAgainstWall(wall)` — flat, by construction. `wallAnchorOf` then only recognises a cabinet as
+   *against* a wall when its yaw matches that same figure, so a perpendicular panel stops being
+   "against the sink wall" and the Inspector falls through to its free-standing controls — where
+   **Turned** already exists on a 15° step and would want 90 for a panel. That fall-through is
+   probably the right behaviour rather than a problem to fix: a panel standing out into the room is
+   not on a wall in the sense §4.2's readout means.
+
+   Two things need answering before the code, and neither is guessable:
+   - **Which of the two perpendicular orientations is the default** — a panel off the north wall can
+     face east or west, and they are not the same panel. This is the handedness trap `radiusCorner`
+     and `bowedFrontProfile` both have scar tissue for: either choice passes any test that checks a
+     size, and only one of them is the end of the run.
+   - **What the snap measures.** `snapToWall` computes `along` from `cabinet.width`, assuming the
+     width runs along the wall. Turned 90° it is the panel's *thickness* that runs along the wall
+     and its width that runs into the room, so the flush-and-square arithmetic is against a
+     different edge — and `effectiveDepth` is doing the other half of the same job.
 
 3. **The custom cabinet is not custom enough.** Wanted: add and delete *any* part — left end, back,
    bottom, each individually — and choose the material **per part**. This is the largest item on the
