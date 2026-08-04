@@ -526,8 +526,25 @@ export function Inspector({
   const setEnd = (end: CabinetEnd, on: boolean): CabinetEnd[] =>
     ends.map((e) => e.end).filter((e) => (e === end ? on : hasAppliedEnd(cabinet.options, e)));
 
-  /** Ordinary carcasses and banquettes can take a constructed rounded front corner. */
-  const canRound = cabinet.typeId === 'base' || isWall || isTall || isBanquette;
+  /*
+   * Which controls this type actually has, asked of its spec.
+   *
+   * Both of these used to be a list of type ids written out here, a second copy of the list the
+   * rule engine kept — and the two had already drifted: the radius control was offered on a
+   * banquette while the engine warned that a banquette could not have one. The spec is the only
+   * thing that knows what it builds, so it is the only thing asked.
+   */
+  const canRound = spec.capabilities.cornerRadius === true;
+  const canApplyEnds = spec.capabilities.appliedEnds === true;
+
+  /*
+   * A control a type refuses is hidden — unless the cabinet is already carrying the option, in
+   * which case it stays so it can be cleared. Hiding it outright would leave a job that has been
+   * retyped from a base cabinet to a custom one warning about a radius with nothing on screen to
+   * turn off, which is the unfixable-job failure `ErrorScreen` exists because of.
+   */
+  const showRound = canRound || isRadiused(cabinet.options);
+  const showEnds = canApplyEnds || (cabinet.options.appliedEnds?.length ?? 0) > 0;
   const corner = cabinet.options.radiusCorner;
   const carcassRadius = cabinet.options.carcassRadius ?? 0;
 
@@ -841,7 +858,7 @@ export function Inspector({
           rounds into the wall where nobody sees it. So only the two front corners are offered,
           named as you stand and look at the cabinet.
         */}
-        {canRound && (
+        {showRound && (
           <>
             <label className="field">
               <span>Rounded corner</span>
@@ -930,10 +947,12 @@ export function Inspector({
           "outside end" or guessing from the position would be guessing, and a panel on the wrong
           side is the right part in the wrong place: right size, right banding, and a remake.
 
-          Both are offered on every carcass, because both happen: an island is finished at both
-          ends, and a peninsula returning to a wall is finished at one.
+          Both are offered on every carcass that builds them, because both happen: an island is
+          finished at both ends, and a peninsula returning to a wall is finished at one. On a type
+          that does not build them the boxes are gone rather than ticking to nothing — the rule
+          engine still says why if a saved job arrives carrying one.
         */}
-        {ends.map(({ end, label }) => (
+        {showEnds && ends.map(({ end, label }) => (
           <label className="field field-check" key={end}>
             <input
               type="checkbox"
@@ -943,7 +962,7 @@ export function Inspector({
             <span>{label}</span>
           </label>
         ))}
-        {(cabinet.options.appliedEnds?.length ?? 0) > 0 && (
+        {showEnds && (cabinet.options.appliedEnds?.length ?? 0) > 0 && (
           <label className="field">
             <span>Applied end height</span>
             <div className="field-input">

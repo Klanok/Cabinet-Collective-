@@ -104,7 +104,7 @@ function CabinetGroup({
         const upholstery = (project.materials.upholstery ?? AU_UPHOLSTERY_MATERIALS).find(
           (item) => item.id === built.cabinet.materials.upholstery,
         ) ?? (project.materials.upholstery ?? AU_UPHOLSTERY_MATERIALS)[0];
-        return upholstery ? <BanquetteCushions cabinet={built.cabinet} upholstery={upholstery} selected={selected} wireframe={wireframe} /> : null;
+        return upholstery ? <BanquetteCushions cabinet={built.cabinet} radius={built.radius} upholstery={upholstery} selected={selected} wireframe={wireframe} /> : null;
       })()}
       {built.cabinet.typeId === 'banquette-corner' && (() => {
         const upholstery = (project.materials.upholstery ?? AU_UPHOLSTERY_MATERIALS).find(
