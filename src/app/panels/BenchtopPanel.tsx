@@ -10,6 +10,17 @@
  * and appears on the cutlist; a bought-in one has none and appears as a fabricator's charge, broken
  * down so it can be held next to a real quote. That difference comes off the chosen material, so
  * changing the material is the whole of switching between them.
+ *
+ * ## The out-of-step notice
+ *
+ * Being owned has a cost, and this is where it is paid. A top generated before the cabinet under it
+ * was given a radius stays square, correctly and silently — which from the bench looks exactly like
+ * a model that is broken, and was reported as one. Every unit card now says whether it still
+ * matches the cabinets under it, and the Regenerate button sits directly under that sentence.
+ *
+ * Where the run has gone entirely the button is **disabled**, with the reason beside it. Regenerate
+ * cannot put a top back over cabinets that are not there, and a live button that does nothing is
+ * the failure `panels/ask.tsx` exists to prevent, wearing a different hat.
  */
 
 import {
@@ -27,6 +38,11 @@ import {
 import type { KickBase } from '../../core/model/kickBase.ts';
 import type { Project } from '../../core/model/project.ts';
 import { uncoveredRuns } from '../../core/project/generate.ts';
+import {
+  type OutOfStep,
+  benchtopOutOfStep,
+  kickBaseOutOfStep,
+} from '../../core/project/outOfStep.ts';
 import { buildRunUnits } from '../../core/rules/runUnits.ts';
 import { benchtopCharges } from '../../core/costing/benchtopCost.ts';
 import { formatAud } from '../../core/units.ts';
@@ -79,6 +95,24 @@ function Num({
   );
 }
 
+/**
+ * What a unit says about itself when it no longer matches the cabinets.
+ *
+ * Every sentence comes from `core/project/outOfStep.ts` rather than being written here, so the
+ * panel, the issue bar and the terminal report all say the same thing — and none of them can be
+ * updated without the others following.
+ */
+function OutOfStepNotice({ rows }: { rows: readonly OutOfStep[] }) {
+  if (rows.length === 0) return null;
+  return (
+    <div className="note warning">
+      {rows.map((row) => (
+        <p key={row.kind + row.message}>{row.message}</p>
+      ))}
+    </div>
+  );
+}
+
 export function BenchtopPanel({
   project,
   onGenerateBenchtops,
@@ -120,11 +154,20 @@ export function BenchtopPanel({
         const charge = charges.find((c) => c.benchtopId === top.id);
         const sections = benchtopSections(top);
         const parts = units.find((u) => u.id === top.id)?.panels.length ?? 0;
+        const stale = benchtopOutOfStep(project, top);
+        const canRegenerate = stale.every((row) => row.regenerateFixesIt);
         return (
           <div key={top.id} className="unit-card">
             <div className="subhead">
+              {stale.length > 0 && (
+                <span className="warn-dot" title={stale.map((r) => r.message).join('\n')}>
+                  !{' '}
+                </span>
+              )}
               {top.name} — {Math.round(benchtopLength(top))} × {Math.round(benchtopDepth(top))}
             </div>
+
+            <OutOfStepNotice rows={stale} />
 
             <select
               value={top.materialId}
@@ -371,7 +414,11 @@ export function BenchtopPanel({
             )}
 
             <div className="row-grid">
-              <button className="btn small" onClick={() => onRegenerateBenchtop(top.id)}>
+              <button
+                className={`btn small${stale.length > 0 && canRegenerate ? ' primary' : ''}`}
+                disabled={!canRegenerate}
+                onClick={() => onRegenerateBenchtop(top.id)}
+              >
                 Regenerate over its run
               </button>
               <button className="btn small" onClick={() => onDeleteBenchtop(top.id)}>
@@ -399,12 +446,21 @@ export function BenchtopPanel({
 
       {project.kickBases.map((base) => {
         const parts = units.find((u) => u.id === base.id)?.panels.length ?? 0;
+        const stale = kickBaseOutOfStep(project, base);
+        const canRegenerate = stale.every((row) => row.regenerateFixesIt);
         return (
           <div key={base.id} className="unit-card">
             <div className="subhead">
+              {stale.length > 0 && (
+                <span className="warn-dot" title={stale.map((r) => r.message).join('\n')}>
+                  !{' '}
+                </span>
+              )}
               {base.name} — {Math.round(base.length)} × {Math.round(base.depth)} ×{' '}
               {Math.round(base.height)} high
             </div>
+
+            <OutOfStepNotice rows={stale} />
             <div className="row-grid">
               <label>
                 Depth
@@ -441,7 +497,11 @@ export function BenchtopPanel({
               the rails are cut short so they hang clear.
             </p>
             <div className="row-grid">
-              <button className="btn small" onClick={() => onRegenerateKickBase(base.id)}>
+              <button
+                className={`btn small${stale.length > 0 && canRegenerate ? ' primary' : ''}`}
+                disabled={!canRegenerate}
+                onClick={() => onRegenerateKickBase(base.id)}
+              >
                 Regenerate over its run
               </button>
               <button className="btn small" onClick={() => onDeleteKickBase(base.id)}>

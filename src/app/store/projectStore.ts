@@ -53,6 +53,20 @@ export interface ProjectStore {
   selectedCabinetId: string | null;
   /** Set when a save or load failed, so the UI can say so instead of silently losing work. */
   storageError: string | null;
+  /**
+   * The job's `updatedAt` as it stood the last time it went to or came from a file, or `null` if it
+   * never has.
+   *
+   * Compared against the job's current `updatedAt` to answer "is there work here that exists only
+   * in this browser?" — which is the question local storage cannot answer for itself, and the one
+   * that matters, because clearing browsing data takes the lot with no warning.
+   *
+   * **Kept in the store rather than on the project**, deliberately. It is a fact about this browser
+   * session, not about the job: writing it into the job would mean saving a file whose contents
+   * record the moment it was saved, which is both circular and a schema migration for something the
+   * cutlist has no interest in.
+   */
+  savedToFileAt: string | null;
 
   select: (id: string | null) => void;
   addCabinet: (typeId: CabinetTypeId) => void;
@@ -118,6 +132,10 @@ export interface ProjectStore {
   newProject: (name: string) => void;
   loadSampleKitchen: () => void;
   replaceProject: (project: Project) => void;
+  /** Record that the job on screen has just been written to a file. */
+  markSavedToFile: () => void;
+  /** Replace the shop standards wholesale — what opening a standards file does. */
+  replaceStandards: (standards: ShopStandards) => void;
 }
 
 /** Right-hand end of the existing run of cabinets of the same class. */
@@ -161,6 +179,15 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   standards: initialStandards.standards,
   selectedCabinetId: null,
   storageError: initialProject.error ?? initialStandards.error ?? null,
+  /*
+   * Null on startup, whatever is in local storage.
+   *
+   * A job restored from the browser has provably survived a reload, and just as provably has never
+   * been anywhere else — the whole risk this field exists to surface. Claiming otherwise would need
+   * the file save to have been recorded somewhere that also survives, and the only place that could
+   * live is the very storage being hedged against.
+   */
+  savedToFileAt: null,
 
   select: (id) => set({ selectedCabinetId: id }),
 
@@ -505,16 +532,28 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     set((state) => ({
       ...persist(createEmptyProject(name, undefined, state.standards)),
       selectedCabinetId: null,
+      savedToFileAt: null,
     })),
 
   loadSampleKitchen: () =>
     set((state) => ({
       ...persist(createSampleKitchen(state.standards)),
       selectedCabinetId: null,
+      savedToFileAt: null,
     })),
 
+  /*
+   * A job arriving from a file is in step with that file by definition, so it starts clean and the
+   * app stops nagging about work that is already safe. Note it is not `touchProject`ed on the way
+   * in: re-stamping it would mark it changed the instant it opened.
+   */
   replaceProject: (project) => {
     void get();
-    set({ ...persist(project), selectedCabinetId: null });
+    set({ ...persist(project), selectedCabinetId: null, savedToFileAt: project.updatedAt });
   },
+
+  markSavedToFile: () => set((state) => ({ savedToFileAt: state.project.updatedAt })),
+
+  replaceStandards: (standards) =>
+    set({ standards, storageError: saveStandards(standards) ?? null }),
 }));

@@ -30,6 +30,7 @@ import {
 import { findBenchtopMaterial } from '../src/core/model/material.ts';
 import { unconfirmedLadderFigures } from '../src/core/model/construction.ts';
 import { benchtopCharges } from '../src/core/costing/benchtopCost.ts';
+import { projectOutOfStep } from '../src/core/project/outOfStep.ts';
 import { deepestStage, nestAreaM2, usableOffcuts } from '../src/core/nest/nest.ts';
 import { postProject, postedTotals } from '../src/core/post/post.ts';
 import { KDT_NESTING_ROUTER } from '../src/core/library/machines.ts';
@@ -181,6 +182,21 @@ for (const base of project.kickBases) {
 }
 for (const unit of runUnits) {
   for (const w of unit.warnings) console.log(`      ! ${w}`);
+}
+/*
+ * Units that no longer match the cabinets under them.
+ *
+ * A run unit is owned rather than derived, so it stays where it was put until somebody regenerates
+ * it — which means a printed cutlist can be for a top that no longer fits the run. That is exactly
+ * the sheet somebody takes to the saw, so it is worth saying here and not only on screen.
+ */
+const stale = projectOutOfStep(project);
+if (stale.length > 0) {
+  console.log('');
+  for (const row of stale) console.log(`      ! ${row.message}`);
+  console.log(
+    '      Nothing above is cut from the cabinets — regenerate the unit to put it back over its run.',
+  );
 }
 
 rule('MATERIALS');

@@ -39,6 +39,26 @@ const isCovered = (run: CabinetRun, taken: ReadonlySet<string>): boolean =>
 const takenIds = (units: readonly { fromCabinetIds: readonly string[] }[]): Set<string> =>
   new Set(units.flatMap((u) => u.fromCabinetIds));
 
+/**
+ * The run a unit would be regenerated over, or `undefined` if there isn't one any more.
+ *
+ * One exported function rather than the same `.find()` written out in each regenerator, because
+ * `project/outOfStep.ts` has to ask the identical question — "will the button do anything?" — and
+ * two descriptions of "the run under this top" are free to disagree about it. The answer decides
+ * whether the app points somebody at a button, so it is worth having exactly one.
+ *
+ * Matched on **any** shared cabinet, for the same reason `isCovered` is: a top over three cabinets
+ * is still that top after one of them is deleted.
+ */
+export const runUnder = (
+  project: Project,
+  unit: { readonly fromCabinetIds: readonly string[] },
+  purpose: 'benchtop' | 'kick-base',
+): CabinetRun | undefined => {
+  const runs = purpose === 'benchtop' ? benchtopRuns(project) : kickBaseRuns(project);
+  return runs.find((r) => r.memberIds.some((id) => unit.fromCabinetIds.includes(id)));
+};
+
 /* ── Benchtops ──────────────────────────────────────────────────────────────────────────── */
 
 /**
@@ -137,9 +157,7 @@ export const generateBenchtops = (project: Project, materialId: string): readonl
  * doing, and silently resizing it to nothing would be the unhelpful response.
  */
 export const regenerateBenchtop = (project: Project, top: Benchtop): Benchtop => {
-  const run = benchtopRuns(project).find((r) =>
-    r.memberIds.some((id) => top.fromCabinetIds.includes(id)),
-  );
+  const run = runUnder(project, top, 'benchtop');
   if (!run) return top;
   const fresh = benchtopFromRun(run, top.name, top.materialId, project);
   /*
@@ -228,9 +246,7 @@ export const generateKickBases = (project: Project): GeneratedKickBases => {
  */
 export const regenerateKickBase = (project: Project, base: KickBase): KickBase => {
   const construction = findConstruction(project.constructions, project.defaults.constructionId);
-  const run = kickBaseRuns(project).find((r) =>
-    r.memberIds.some((id) => base.fromCabinetIds.includes(id)),
-  );
+  const run = runUnder(project, base, 'kick-base');
   if (!run) return base;
   const fresh = kickBaseFromRun(run, base.name, construction.kickSetback);
   return { ...regenerated(base, fresh), height: fresh.height };

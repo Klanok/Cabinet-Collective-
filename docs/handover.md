@@ -84,12 +84,24 @@ hole is machining**, which is what decides whether the nester's blank changes; a
 to group parts on their bounding box, which a corner notch does not change — so it would have
 printed one line of two where one of the two was notched.
 
+**And then two of the August bench items were closed, and one of them turned out to be half built
+already.** §4.17 is **getting a job out of the browser** — and the first thing that work found is
+that this document was wrong: Save and Open had been in the Job menu since the very first commit,
+and §5.11's *"the only way to get a job out of this app is to crash it first"* had been stale for
+months. What was actually wrong was sharper. Opening a file that was not a job called `alert`,
+which a sandboxed frame **silently ignores** — so picking the wrong file did nothing whatsoever,
+on the one control handling the only copy of a measured room. That is the exact failure
+`panels/ask.tsx` exists to prevent, still sitting there four sections after the decision was
+written down. §4.18 is the **out-of-step indicator**: the benchtop radius that "does not work"
+works, and always did, and the app now says when an owned unit no longer matches the cabinets under
+it — which is the bill for the owned-not-derived bargain, finally paid.
+
 Section 4 records how each works and why; section 5 is what is actually left to do.
 
 ```
 npm install
 npm run dev       # the app
-npm test          # 857 tests
+npm test          # 884 tests
 npm run build
 npm run report    # cutlist, hardware BOM, drilling, nest, G-code and costing for the sample kitchen
 npm run report -- shaker-57    # the same kitchen with routed fronts
@@ -143,7 +155,10 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | Hettich, the second hardware brand | Not started — one more record in `library/`, see 5.2 |
 | Curved / radiused parts — arcs, bowed shelves, radiused ends | Working, see 4.4 |
 | A corner radius on a base, wall or tall cabinet | Working — bendy ply and formers, see 4.5 |
-| A benchtop following the curve under it | **Working, see 4.13.** Owned, seeded from the run, refreshed on regenerate — **no on-screen sign when it is out of step, see 5.11** |
+| A benchtop following the curve under it | **Working, see 4.13.** Owned, seeded from the run, refreshed on regenerate |
+| A sign that an owned run unit is out of step with its cabinets | **Working, see 4.18.** Unit card, issue bar and terminal report, off the same sentences |
+| Saving a job to a file, and opening one | **Working, see 4.17.** Was already there and this file said otherwise; what was broken was the failure path |
+| Saving the shop standards to a file | **Working, see 4.17.** New — they were unsavable and wiped by the same click |
 | Custom grooves, holes and notches on one part | **Working, see 4.16.** Stated from named edges, on a named part rule |
 | The same corner routed from door board instead | **Not started — see 5.7, now unblocked** |
 | Guillotine nesting — sheets, cut sequence, offcuts | **Working, see 4.8.** Nest tab, two CSVs |
@@ -1814,6 +1829,143 @@ ribs 8 → 4 + 4, which is how the difference got noticed.)
   materials, and a recipe with a waste hole in it is arguably right and arguably a trap. Nobody has
   asked; left deliberately.
 
+### 4.17 Getting a job out of the browser
+
+**The first thing this found is that this document was wrong**, and that is worth more than the
+feature. §5.11 said *"the only way to get a job out of this app is to crash it first"*. It was not
+true and had not been for a long time: `Save to file…` and `Open from file…` have been in the
+**Job ▾** menu since the commit that introduced formed parts. A session that had trusted the
+paragraph would have built a second copy of a feature that already existed.
+
+**Check the code, not this file.** Every other section says so about *shipped* work going stale;
+this one says it about an *open item* going stale, which is the direction nobody watches.
+
+**What was actually broken was worse than what was claimed.** Four things, and the first is the one
+that matters:
+
+- **Opening a file that was not a job called `alert`.** §2 spends a paragraph on why
+  `window.confirm` and `window.prompt` are banned — a sandboxed frame without `allow-modals`
+  ignores them silently, so the call returns as though the user had cancelled — and `alert` is the
+  same call in the same family, still sitting on the one control that handles a room somebody spent
+  a day measuring. Pick the wrong file and **nothing happened at all**. The decision was recorded,
+  the replacement was written, and one call site was never converted. `ask.tell` is that
+  replacement: one button, because there is nothing to decide.
+- **Three separate one-click ways to destroy the job on screen**, none of which asked: New empty
+  job, Load sample kitchen, and Open from file. Local storage is overwritten in the same instant,
+  so there was nothing behind any of them. Each now asks, and **the question names what is at
+  stake** rather than saying "are you sure" — how many cabinets, and whether the job has ever been
+  out of this browser.
+- **Nothing said whether the job existed anywhere but this browser.** It does now, in the Job menu
+  and as a mark on the menu button itself.
+- **A JSON file that was not a job loaded anyway.** `migrateProject` catches a missing
+  `schemaVersion` and a version from a newer build, and cannot catch anything else, because the last
+  line of a migration chain is a cast. A file with a plausible version number and no cabinets in it
+  went straight through, was written to local storage on the way in, and took the app down on the
+  first render — which is the **reload loop `ErrorScreen` exists to escape**, arriving through the
+  front door.
+
+**And the shop standards could not be saved out at all.** They are wiped by the same click that
+takes the job, and `ErrorScreen`'s own note has always admitted it. A room can be re-measured; a
+shop's kick heights, reveals, door styles and saved cabinet types cannot — they can only be
+re-typed. Settings → Shop standards now saves and opens them, and the footer no longer says "saved
+automatically" when what it means is "saved to this browser".
+
+**Decisions worth not undoing:**
+
+- **`projectFileProblem` is deliberately not inside `migrateProject`**, and is called only on the
+  file path. A job in local storage has been loading successfully, possibly for months; a check
+  stricter than some old migration's output would take a shop's working job and replace it with a
+  blank one at startup — and **v20 exists precisely because a snapshot once came out stamped current
+  and missing fields**. A file somebody has just chosen is the opposite case: refusing it costs one
+  click and tells them they picked the wrong file. Same asymmetry §2 draws about refusing to load
+  somebody's standards.
+- **It checks containers, not contents.** "Did you hand me a job?" is the question. A deep validator
+  would be a second description of the model, free to disagree with the first — which is the fault
+  this codebase is organised around not having.
+- **`savedToFileAt` lives in the store, not on the project.** It is a fact about this browser
+  session, not about the job: writing it into the job would mean saving a file whose contents record
+  the moment it was saved, which is both circular and a schema migration for something the cutlist
+  has no interest in. It starts `null` on every load, including for a job restored from storage —
+  that job has provably survived a reload and just as provably has never been anywhere else, and
+  the only place a "yes it was saved" flag could live is the storage being hedged against.
+- **A job opened from a file starts in step with it**, and is not `touchProject`ed on the way in.
+  Re-stamping it would mark it changed the instant it opened.
+- **Nothing claims the file reached the disk.** A sandboxed frame without `allow-downloads` blocks
+  the click as silently as it blocks `confirm`, and there is no way to detect it from here. The app
+  reports what it *did*, which is all it honestly knows.
+
+**Not done, and worth knowing:** there is still no autosave to anywhere but this browser, no recent
+files list, and no warning on closing the tab. The last of those is a `beforeunload` handler and was
+left alone deliberately — it fires on every reload during development and is the kind of thing that
+gets switched off in annoyance and then is not there when it matters.
+
+**Where to look:** `store/persistence.ts` for both round trips; `model/project.ts` for
+`projectFileProblem` and why it sits outside the migration chain; `panels/ask.tsx` for `tell`;
+`App.tsx` for the question the three destructive actions ask. `tests/projectFile.test.ts` is the
+contract, and its header says why the wrong file — not a corrupt one — is the case being guarded.
+
+### 4.18 An owned run unit that is out of step
+
+> "The benchtop radius does not work."
+
+**It works, and it always did.** The top was generated before the cabinet under it was given a
+radius, and it stayed exactly where its owner put it, which is §4.7's whole design. What was missing
+is that **the app said nothing**: no sign the top was out of step, and no hint that Regenerate is
+the answer. §5.11 named this correctly — *"every owned field needs that indicator — this is the
+cost of the owned-not-derived bargain and nobody had paid it"* — and this is the payment.
+
+**A model that is right and silent looks, from the bench, exactly like a model that is wrong.** That
+is the general lesson and it is why this got done before a new feature: the same shape will appear
+for every future field that is generated once and then owned.
+
+**The design is one sentence: it compares against exactly what the Regenerate button would produce.**
+`benchtopOutOfStep` calls the same `regenerateBenchtop` the button calls and diffs the result. It
+does not re-derive what a top *ought* to be, and that is not tidiness — a second derivation would be
+free to disagree with the first, and the failure mode is an app reporting a problem that pressing
+the button does not fix, which sends somebody hunting a fault that is not there. It is strictly
+worse than saying nothing.
+
+**Decisions worth not undoing:**
+
+- **A unit with no run left is its own kind, and its button is disabled.** Both regenerate functions
+  return the unit unchanged when nothing shares a cabinet with it — deleting every cabinet under a
+  top and keeping the top is a normal state to be in the middle of. Reporting that as "no problem"
+  hides it; reporting it as ordinary drift points at a button that cannot help. `regenerateFixesIt`
+  is the field the UI reads, so a kind added later has to answer the question rather than inherit an
+  assumption. A live button that does nothing is `panels/ask.tsx`'s failure wearing a different hat.
+- **`runUnder` is one exported function**, used by both regenerators and by this. "Will the button do
+  anything?" is asked in two places and must not have two answers.
+- **Reading `fromCabinetIds` here does not break the ownership rule.** `model/runUnit.ts` warns that
+  the moment something else reads that field, moving a cabinet starts moving a benchtop again — and
+  that warning is about **geometry**. This returns sentences and moves nothing; the top stays where
+  its owner put it until a person presses the button. `uncoveredRuns` already read it on the same
+  terms.
+- **An owner's own edits are silent.** A 40mm overhang, a sink, a join, a renamed end — `regenerated`
+  carries every one across, so none of them is a difference the button would close and none may be
+  reported. Half the value of an indicator is that it is off; one that lights up on a job nobody has
+  touched is one the shop learns to ignore.
+- **`height` on a plinth is reported and `depth` is not**, mirroring `regenerateKickBase` exactly.
+  The height of a frame is not a choice — it is the gap between the floor and the underside of the
+  carcasses — while the depth is, and may well have been pulled back to clear a skirting.
+- **The threshold is 0.05mm**, deliberately far below the smallest real change: switching a board
+  from 16 to a measured 16.3 moves a carcass 0.6mm, and that is a genuine re-cut this has to catch.
+- **The same sentences reach all three places** — the unit card, the issue bar and `npm run report`.
+  The report matters because a printed cutlist can be for a top that no longer fits the run, and
+  that is the sheet somebody takes to the saw.
+
+**The issue bar is where it earns its keep**, not the Tops tab. The Tops tab is exactly where
+somebody is *not* looking when this happens: you move a cabinet in the 3D view, and the top that no
+longer fits it is two tabs away.
+
+**One thing found by driving the running app** rather than by the suite: making one cabinet deeper
+puts the **benchtop and the plinth** out of step together, because one cabinet getting deeper
+changes the run for everything that spans it. Each is its own owned object with its own button. That
+is the design rather than a shortcoming, but it means "regenerate" is per unit and a job with a top
+and two plinths over one run takes three presses.
+
+**Where to look:** `project/outOfStep.ts` — the two rules it holds to are at the top of the file.
+`tests/outOfStep.test.ts` is the contract and its header carries the reference run worked longhand.
+
 ---
 
 ## 5. Open items, in the order I'd do them
@@ -1852,12 +2004,19 @@ simulated. `library/machines.ts` says at the top exactly what to compare and in 
 KDT program has since arrived and **contradicts the shipped profile** — see §4.9. Nothing about the
 G-code is safe until that is reconciled.
 
-**For the app: §5.12's custom part features, once §5.11's remaining bench items are judged.**
-Declared capabilities and the banquette's corner shipped as §4.15, which closed three of the seven
-August bench reports; **§5.11 is what is left of that list**, and the two worth doing before a new
-feature are the out-of-step indicator on an owned run unit and getting a job out of the browser
-without crashing the app first. §5.12 wanted §4.15 underneath it and now has it. The `.nc` work is
-still worth more than any *machine* item; it is not what the shop is blocked on at the bench.
+**For the app: the two items that were named here have both shipped** — the out-of-step indicator
+is §4.18 and getting a job out of the browser is §4.17, and §5.12's custom part features shipped
+before them as §4.16. **§5.11 is what is left of the August list**, and what is on it now is either
+not yet reproduced or is the UI as a whole. The two candidates with the clearest shape:
+
+- **The banquette cushions are drawn and free.** No fabric, no foam, no upholstery labour on the
+  quote, and nothing warns they are missing — which is the same shape as the NaN quote: a number
+  that looks finished and is not.
+- **A pass over the whole UI.** The user's own words are *"any other user may struggle"*. Bigger and
+  vaguer than anything else here, and worth agreeing a definition of done for before starting.
+
+The `.nc` work is still worth more than any *machine* item; it is not what the shop is blocked on at
+the bench.
 
 **A note that was here has been removed, and it is worth saying why rather than leaving a gap.**
 Both this document and `docs/architecture.md` carried a suggestion that Phase 3's CSVs could be
@@ -2450,10 +2609,14 @@ one for showing a client, one for checking the build — and because both live i
 
 ### 5.11 Reported from the bench, August 2026 — what is left of that list
 
-A session's worth of use produced seven reports at once. **Three are now closed** — the NaN quote
-(§4.14), applied ends doing nothing on a banquette, and the half-built banquette corner (both
-§4.15). What follows is the remainder, plus the diagnosis of each, because two of them are known
-causes waiting on a decision rather than mysteries.
+A session's worth of use produced seven reports at once. **Four are now closed** — the NaN quote
+(§4.14), applied ends doing nothing on a banquette and the half-built banquette corner (both
+§4.15), and the benchtop radius that "does not work" (§4.18). The unreported risk at the bottom of
+this list is closed too, and **that entry turned out to be wrong about the app** — see §4.17, and
+read the correction, because it is the only case so far of an *open item* going stale rather than a
+claim about shipped work.
+
+What follows is the remainder, plus the diagnosis of each.
 
 **Read the closed ones anyway if you are new here**, because the *shape* of them is the lesson: a
 feature wired into some specs and not others, and a guard list kept in a second file that a spec
@@ -2508,11 +2671,12 @@ it — not a duplicate to tidy away.
 
 - ~~**Costing returns NaN.**~~ **Fixed — see 4.14.** It was one absent labour rate, and it hit
   every job rather than only curved ones.
-- **The benchtop radius "does not work".** It works; it is *owned* data (§4.13), so it follows the
-  cabinets only when the top is **regenerated**. The model is right and the app gives no signal:
-  there is no indication that a top is out of step with the cabinets under it, and no hint that
-  Regenerate is the answer. **Every owned field needs that indicator** — this is the cost of the
-  owned-not-derived bargain and nobody had paid it.
+- ~~**The benchtop radius "does not work".**~~ **Fixed — see 4.18.** It worked; it is *owned* data
+  (§4.13), so it follows the cabinets only when the top is **regenerated**, and the app gave no
+  signal. It does now, on the unit card, in the issue bar and in the terminal report. The general
+  lesson is the one this item was always really about: **a model that is right and silent looks,
+  from the bench, exactly like a model that is wrong**, so every future field that is generated once
+  and then owned needs the same answer to "is this still true?".
 - ~~**Applied ends do nothing on a banquette.**~~ **Fixed — see 4.15**, along with the stale guard
   that caused it.
 - **Texture and laminate on a bendy-ply radius.** Reported, not yet reproduced.
@@ -2526,15 +2690,26 @@ it — not a duplicate to tidy away.
 - **The UI is navigable but cluttered**, in the user's own words *"any other user may struggle"*.
   Panels have grown per feature with no pass over the whole.
 
-#### Not reported, and a bigger risk than anything above
+#### ~~Not reported, and a bigger risk than anything above~~ — done, see 4.17, and **this entry was wrong**
 
-**A job lives only in the browser's storage for `localhost`.** Clearing browser data wipes it with
-no warning, it does not travel between machines, and the shop runs this from a downloaded ZIP — so
-"the same browser" is doing more work than anyone has asked it to. There *is* a save-to-file path,
-and it is in `app/ErrorScreen.tsx`, which means **the only way to get a job out of this app is to
-crash it first**. That is the wrong way round. An ordinary Save-a-copy and an Open-a-file button,
-using the export that already exists, is a small piece of work and protects the thing that took
-somebody a day to measure. Nobody has asked for it, which is exactly why it is written down here.
+**A job lives only in the browser's storage for `localhost`**, and that part was and is true.
+Clearing browser data wipes it with no warning, it does not travel between machines, and the shop
+runs this from a downloaded ZIP.
+
+**What was written here next was false, and the falsehood is the lesson.** This entry claimed *"the
+only way to get a job out of this app is to crash it first"*. `Save to file…` and `Open from file…`
+had been in the **Job ▾** menu since the commit that introduced formed parts. The sentence about
+`ErrorScreen` was true when somebody wrote it, or was never checked, and it then sat here as an open
+item long enough that a session acting on it would have built a second copy of a shipped feature.
+
+Every other part of this document warns that a claim about *shipped* work goes stale. This is the
+first time an **open item** went stale, and it is the direction nobody watches: the list of things
+left to do is trusted precisely because nobody wants to re-verify it. Check the code.
+
+The real faults were on the failure paths — an `alert` that a sandboxed frame ignores silently,
+three one-click ways to destroy a job without being asked, and a non-job file that loaded far enough
+to crash the app into the reload loop. All fixed, and **the shop standards can now be saved out
+too**, which genuinely could not be done before. §4.17 is the record.
 
 ### 5.12 Custom features on an individual part — **shipped, see 4.16**
 

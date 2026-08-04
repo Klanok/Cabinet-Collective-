@@ -983,3 +983,44 @@ export const migrateProject = (raw: unknown): Project => {
 };
 
 export const touchProject = (p: Project): Project => ({ ...p, updatedAt: new Date().toISOString() });
+
+/**
+ * Whether a file the user picked is actually a job — returns the reason it is not, or `null`.
+ *
+ * `migrateProject` catches the two dishonest files it can catch cheaply: no `schemaVersion` at all,
+ * and one from a build newer than this. What it cannot catch is a file that carries a plausible
+ * version number and nothing else, because the last line of a migration chain is a cast. That file
+ * loads, and then the first thing that reads `project.cabinets` throws — which is not merely a bad
+ * error message, it is the **reload loop** `app/ErrorScreen.tsx` exists to get out of, since the
+ * broken job is saved to local storage on its way in.
+ *
+ * ## Why this is not inside `migrateProject`
+ *
+ * Deliberately separate, and called only on the **file** path.
+ *
+ * A saved job in the browser has already been loading successfully, possibly for months. If a check
+ * here were stricter than some old migration's output — and v20 exists precisely because a snapshot
+ * once came out stamped current and missing fields — then adding it to `migrateProject` would take
+ * a shop's working job and replace it with a blank one at startup. That is the same failure as
+ * refusing to load somebody's accumulated standards, which §2 says not to do. A file somebody has
+ * just chosen is the opposite case: refusing it costs them one click and tells them they picked the
+ * wrong file.
+ *
+ * Only the containers the app dereferences immediately are checked. This is a "did you hand me a
+ * job?" question, not a schema validator — a deep one would be a second description of the model,
+ * free to disagree with the first.
+ */
+export const projectFileProblem = (raw: unknown): string | null => {
+  if (typeof raw !== 'object' || raw === null) return 'That file does not contain a job.';
+  const data = raw as Record<string, unknown>;
+  const arrays = ['cabinets', 'benchtops', 'kickBases', 'constructions'] as const;
+  const objects = ['room', 'materials', 'defaults', 'settings'] as const;
+  const missing = [
+    ...arrays.filter((key) => !Array.isArray(data[key])),
+    ...objects.filter((key) => typeof data[key] !== 'object' || data[key] === null),
+  ];
+  if (missing.length > 0) {
+    return `That file is missing the ${missing.join(', ')} a job has to have. It may be a cutlist or a set of shop standards rather than a job.`;
+  }
+  return null;
+};
