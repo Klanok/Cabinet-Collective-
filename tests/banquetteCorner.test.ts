@@ -49,8 +49,19 @@ import { describe, expect, it } from 'vitest';
 import { createCabinet, createEmptyProject } from '../src/core/project/factory.ts';
 import { buildCabinet } from '../src/core/rules/build.ts';
 import { mm } from '../src/core/units.ts';
-import { isRectangular, profileArea, profileHasArcs } from '../src/core/geom/profile.ts';
+import { arcGeometry } from '../src/core/geom/arc.ts';
+import {
+  type Polygon,
+  isRectangular,
+  polygonEdges,
+  profileArea,
+  profileBounds,
+  profileHasArcs,
+} from '../src/core/geom/profile.ts';
+import { insideCornerPlan } from '../src/core/model/insideCorner.ts';
 import type { Project } from '../src/core/model/project.ts';
+import type { PlanRing } from '../src/core/rules/radius.ts';
+import { insideCornerSeatMesh, insideCornerSeatOccupancy } from '../src/app/viewport/cushionMesh.ts';
 import { byName, namesOf, occupies, size } from './helpers.ts';
 
 const SPAN = 900;
@@ -218,5 +229,167 @@ describe('what it refuses, and says why', () => {
   it('turns down an applied end, because both of its ends butt something', () => {
     const { built } = corner({ appliedEnds: ['left'] });
     expect(built.warnings.join(' ')).toContain('butt the banquettes');
+  });
+});
+
+/* ── The seat cushion's mesh, which is the part nobody could assert until now ─────────────────── */
+
+/**
+ * Where the corner seat cushion finishes, worked longhand.
+ *
+ * **This is §5.13 item 1's own open item.** The cushion's outline, its inset and its origin were
+ * arithmetic inside a `useMemo`, so nothing in Node could read them: the origin was got wrong twice
+ * and the second one — a cushion 372mm through the wall — was found by measuring the running scene,
+ * because that was the only instrument that could see it. `insideCornerSeatMesh` is that arithmetic
+ * moved somewhere a test can reach, and this is the test.
+ *
+ * The reference unit is the one at the top of this file — 900 along each wall, 500 deep to both,
+ * a 150 fillet, so the finished fronts are at 520 and the fillet's centre is (670, 670) — with the
+ * shipped cushion on it: 80 thick, 10 proud of the fronts, an 18mm soft edge.
+ *
+ * ```
+ *   bevel            min(18, 80/2 − 1)                          =  18
+ *   extrude depth    80 − 2 × 18                                =  44
+ *   outline drawn    a surface (18 − 10) = 8 BEHIND the finished front, so the bevel grows it
+ *                    back out to 10 proud
+ *     fronts         520 − 8                                    = 512   → 530 finished
+ *     fillet         150 + 8                                    = 158   → 140 finished
+ *     centre         unmoved, because every layer is a radius   = (670, 670)
+ *     walls / ends   clamped in by the bevel                    = 18 and 882
+ *   origin           x 0,  y 400 + 18,  z 882
+ *                                        ↑ the outline's LARGEST z — the far end of leg B, not
+ *                                          the front. Writing 530 here is the 372mm fault.
+ *   finished box     x 0 → 900,  y 400 → 480,  z 0 → 900
+ *
+ *   inset plan area  864 × 494 + 494 × 864 − 494²               = 609,596
+ *                    + fillet gain 158² − π × 158²/4            =   5,357.3
+ *                                                               = 614,953.3
+ * ```
+ *
+ * **The fillet adds area here for the same reason it does on the carcass** — it is a reflex corner,
+ * so rounding it cuts the corner off the void. 604,238.7 is the same fillet on the wrong side, and
+ * it is what the rejected quarter disc would give.
+ */
+describe('the seat cushion sits on the L, proud at the fronts and flush everywhere else', () => {
+  const CUSHION = { seatTop: 400, thickness: 80, overhang: 10, radius: 18 };
+  const mesh = (over: Record<string, unknown> = {}, spans: Record<string, number> = {}) => {
+    const { built } = corner(over, spans);
+    expect(built.cabinet.height).toBe(mm(400));
+    return insideCornerSeatMesh({ plan: built.insideCorner!, ...CUSHION })!;
+  };
+
+  /** The plan the extrude traces, as a profile polygon: `x, z` in the room becomes `x, y` on paper. */
+  const asPolygon = (ring: PlanRing): Polygon =>
+    ring.map((v) => (v.bulge === undefined ? { x: v.x, y: v.z } : { x: v.x, y: v.z, bulge: v.bulge }));
+
+  /**
+   * The flattened shape read back into cabinet plan space — the inverse of the mesh's own rotation.
+   *
+   * Stated here rather than exported, because it is the *reading* direction: shape y runs backwards
+   * along cabinet z from the origin, so cabinet z is `position.z − shape y`. If the reflection or
+   * the arc's sense is wrong this polygon stops matching the ring it was built from.
+   */
+  const asDrawn = (m: ReturnType<typeof mesh>): Polygon =>
+    m.shape.map((p) => ({ x: p.x, y: m.position[2] - p.y }));
+
+  it('puts the mesh origin at the outline’s far end, not at the front it is proud of', () => {
+    // The assertion the whole extraction is for. 530 — the finished front — is the number that
+    // reads right and put the cushion 372mm through the wall.
+    expect([...mesh().position]).toEqual([0, 418, 882]);
+    expect(mesh().depth).toBe(44);
+    expect(mesh().bevel).toBe(18);
+  });
+
+  it('finishes wall to wall and exactly on the seat it rests on', () => {
+    /*
+     * Occupancy, not size — §4.23's lesson from the plain banquette, where a cushion of exactly the
+     * right size sat one bevel out of place on every axis and every size assertion passed on it.
+     */
+    expect(insideCornerSeatOccupancy(mesh())).toEqual({
+      x0: 0, x1: 900,
+      y0: 400, y1: 480,
+      z0: 0, z1: 900,
+    });
+  });
+
+  it('stands 10mm proud of both finished fronts, and only of those', () => {
+    /*
+     * The overhang is what separates a cushion from a lid. It moves the two fronts and the fillet
+     * with them — one centre, one radius — and must not push the cushion into a wall or past the
+     * end where the next banquette butts, which is what the clamp above is for.
+     */
+    const m = mesh();
+    // Past the fillet, each leg runs from its wall out to its own front, so the front is the
+    // furthest the outline gets from that wall.
+    const frontA = Math.max(...m.insetPlan.filter((v) => v.x > 700).map((v) => v.z));
+    const frontB = Math.max(...m.insetPlan.filter((v) => v.z > 700).map((v) => v.x));
+    // Drawn a bevel short of the finished face; the extrude's bevel puts it back.
+    expect(frontA).toBe(512);
+    expect(frontB).toBe(512);
+    expect(frontA + m.bevel).toBe(520 + 10);
+    expect(frontB + m.bevel).toBe(520 + 10);
+  });
+
+  it('keeps the fillet concave, about the carcass’s own centre', () => {
+    /*
+     * A fillet of the right radius on the wrong side has the identical radius and arc length, and
+     * it is what this unit was rejected for. Only the centre tells them apart — `insideCorner.test`
+     * makes the same point about the carcass, and the cushion has to agree with it.
+     */
+    const arc = polygonEdges(asPolygon(mesh().insetPlan)).find((e) => e.bulge !== 0)!;
+    const g = arcGeometry(arc.from, arc.to, arc.bulge);
+    expect(g.centre.x).toBeCloseTo(670, 9);
+    expect(g.centre.y).toBeCloseTo(670, 9);
+    expect(g.radius).toBeCloseTo(158, 9);
+  });
+
+  it('measures the L plus the fillet, not minus it', () => {
+    const area = profileArea({ outline: asPolygon(mesh().insetPlan), holes: [] });
+    expect(area).toBeCloseTo(864 * 494 + 494 * 864 - 494 * 494 + (158 * 158 * (4 - Math.PI)) / 4, 6);
+    expect(area).toBeCloseTo(614953.3, 1);
+  });
+
+  it('draws the shape it says it draws — the same ring, reflected', () => {
+    /*
+     * The flattening is where the hand-rolled version went wrong, so the polygon that actually
+     * reaches three.js is read back and compared with the ring it came from. A bulge left
+     * un-negated through the reflection bows the fillet the other way: same points, 14,249mm² of
+     * difference, and nothing on screen to tell you which one you are looking at.
+     */
+    const m = mesh();
+    expect([m.shape[0]!.x, m.shape[0]!.y]).toEqual([18, 864]);
+    /*
+     * **Larger, and by a known amount.** Chords across a *scooped* arc take the sliver between the
+     * chord and the curve as material, so a flattened concave fillet is always a little fuller than
+     * the exact one: 32 segments at the 0.05mm flattening tolerance come to 7.9mm². The bracket is
+     * what makes this an assertion rather than a snapshot — it is three orders of magnitude under
+     * the 14,249mm² a fillet bowed the wrong way would show.
+     */
+    const spare =
+      profileArea({ outline: asDrawn(m), holes: [] }) -
+      profileArea({ outline: asPolygon(m.insetPlan), holes: [] });
+    expect(spare).toBeGreaterThan(0);
+    expect(spare).toBeLessThan(10);
+    expect(profileBounds({ outline: asDrawn(m), holes: [] })).toEqual({
+      minX: 18, minY: 18, maxX: 882, maxY: 882,
+    });
+  });
+
+  it('takes the origin off the longer leg when the two spans differ', () => {
+    // The two legs are independent, so the deepest point is wall B's span and nothing else. A unit
+    // 1500 along wall A is still 882 deep at the origin, and reaches 1500 across.
+    const wide = mesh({}, { width: 1500, depth: 900 });
+    expect(wide.position[2]).toBe(882);
+    expect(insideCornerSeatOccupancy(wide).x1).toBe(1500);
+    const deep = mesh({}, { width: 900, depth: 1500 });
+    expect(deep.position[2]).toBe(1482);
+    expect(insideCornerSeatOccupancy(deep).z1).toBe(1500);
+  });
+
+  it('draws nothing rather than a blob when there is no seat left', () => {
+    // A finished front behind the surface being asked for has no ring at all. Better nothing than
+    // a degenerate shape: the impossible figure is reported in millimetres by `validate`.
+    const flat = insideCornerPlan({ W: mm(900), D: mm(900), seatDepth: mm(0), radius: mm(0) });
+    expect(insideCornerSeatMesh({ plan: flat, ...CUSHION })).toBeNull();
   });
 });
