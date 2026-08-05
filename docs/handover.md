@@ -151,7 +151,7 @@ Section 4 records how each works and why; section 5 is what is actually left to 
 ```
 npm install
 npm run dev       # the app
-npm test          # 1029 tests
+npm test          # 1042 tests
 npm run build
 npm run report    # cutlist, hardware BOM, drilling, nest, G-code and costing for the sample kitchen
 npm run report -- shaker-57    # the same kitchen with routed fronts
@@ -266,8 +266,8 @@ materials.
 
 **Migrations must never quietly change anyone's parts.** Every migration carries old values
 forward so a saved job cuts exactly as it did; adopting a new default is then a deliberate
-edit. Schema is at **v31**; migrations run in sequence in `model/project.ts`. Shop standards are
-versioned separately and are at **v22** — and they get a *real* migration rather than a
+edit. Schema is at **v32**; migrations run in sequence in `model/project.ts`. Shop standards are
+versioned separately and are at **v23** — and they get a *real* migration rather than a
 rejection, because refusing to load them silently replaces a shop's accumulated kick heights,
 reveals, door styles and saved cabinet types with the shipped Australian defaults.
 
@@ -3676,10 +3676,57 @@ below the overcut.
    or are simply two parts, and what the cutlist calls them. A split part is two parts and a join,
    which makes it closer to a benchtop's `joins` than to a nesting tweak.
 
-7. **Sheet sizes are wrong — 2400 × 1200 is the usable area, not the sheet.** To be taken from
-   **Laminex and Polytec's own published sizes** rather than assumed. This moves every nest and
-   every sheet count in the quote, so it re-prices jobs the way §4.8 did and needs the same
-   treatment: say so out loud, and assert both halves.
+7. **Sheet sizes are wrong — 2400 × 1200 is the usable area, not the sheet.** **Half done.**
+
+   **The one size anybody has measured is fixed.** `docs/woodtron-dialect.md` §1 has the machine's
+   own sheet declaration off a real job — the white carcass board is **2410.0 × 1205.0** — which is
+   the shop's rule exactly, 10 over on the length and 5 on the width. `AU_STANDARD` is that figure
+   now, and project **v32** / standards **v23** carry it into saved jobs.
+
+   **It re-prices *downward*, which is a first here.** Every earlier re-price made a job dearer
+   because it was quoted for less than it takes to build; this one is the reverse and the same
+   shape — the job was quoted for board it did not need. No part moves and no cut plan is
+   disturbed, because a nest is derived on every load and never stored.
+
+   **The other half of the migration would have gone silently.** `sheetSizeKey` is the *dimensions*,
+   so moving a size orphans any material a shop has set to be cut from it. `nestMaterial` reports
+   that rather than failing, which is honest, but it is still a setting quietly reverting to
+   automatic — so `withRekeyedSheetChoices` moves the choices with the sizes. **Add to
+   `REAL_SHEET_SIZES` rather than editing a material** when the rest arrive: an entry there repairs
+   saved jobs as well as new ones, where a library edit alone reaches only the new.
+
+   **The shop then corrected the rule itself, and the correction is the important half:**
+
+   > *"laminex and polytecs boards are material dependant. Generally allow 20mm in length and 10mm
+   > in width for MD finish boards."* — and, asked what MD meant: *"MDF"*.
+
+   So `2400 × 1200` is **2410 × 1205** on a carcass board and **2420 × 1210** on an MD finish one.
+   **A single global rule would have put every decorative door board 10mm short on the length and 5
+   on the width** — a part per sheet on a long run. It also broke the migration written an hour
+   earlier, which keyed its map on the **size alone**: no size-keyed table can give two answers for
+   2400 × 1200. That is worth keeping, because the size looked like the obvious key right up until
+   the fact arrived that made it impossible.
+
+   **And "MD finish" turned out to be the wrong half of the phrase.** Asked whether a raw sheet was
+   different, the shop's answer was *"yes raw mdf is the same 20 and 10"* — so the set is **every
+   MDF board, finished or raw**. That is the answer the physics wanted: the margin is a **pressing
+   trim**, a board cut to its nominal after it is pressed, and whether a decor goes on afterwards
+   has nothing to do with it. The narrower reading was the safe place to be wrong while nobody had
+   said, which is the only reason it shipped that way for a commit.
+
+   `MDF_BOARDS` is a **list rather than a rule over substrate strings** — the set is a judgement, a
+   list can be read at a glance and corrected in one line, and a query would have swept in
+   `laminate-1mm`, which carries an MDF substrate and is a 1mm facing sheet rather than a board.
+   Both the library and the migration read it.
+
+   **3115 × 1205 is in**, confirmed twice: the MDF door programs ran on one, and the shop says
+   *"3115 is a typical polytec size."* Stated as measured, so it takes no allowance on top.
+
+   **What is left**, on `unconfirmedSheetSizes`: the large **3600 × 1800 carcass** sheet, the
+   imported **2440 × 1220**, and `AU_LARGE_MD` — the one figure here that is the rule applied rather
+   than a board anybody has measured. All three are left at the conservative figure on the rule that
+   decides every one of these: **a board stated smaller than it is buys the odd extra sheet, and one
+   stated larger cuts a part short.**
 
    **The `.nc` files settle the principle and give two real numbers**: the white carcass board is
    **2410.0 × 1205.0 × 16.3** and the MDF door board is **3115.0 × 1205.0 × 18.0**, straight off the

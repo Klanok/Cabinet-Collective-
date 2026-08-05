@@ -30,6 +30,8 @@ import {
   type ProjectSettings,
   withBackfilledLabourRates,
   withCushionOverhang,
+  withRealSheetSizes,
+  withRekeyedSheetChoices,
 } from '../model/project.ts';
 import type { SavedCabinetType } from './savedTypes.ts';
 import { type DoorStyle, DEFAULT_DOOR_STYLES, PLAIN_SLAB_STYLE } from './doorStyles.ts';
@@ -57,7 +59,7 @@ import {
   DEFAULT_RUNNER_SYSTEM_ID,
 } from '../library/blum.ts';
 
-export const CURRENT_STANDARDS_VERSION = 22 as const;
+export const CURRENT_STANDARDS_VERSION = 23 as const;
 
 export interface ShopStandards {
   readonly version: typeof CURRENT_STANDARDS_VERSION;
@@ -380,6 +382,7 @@ export const migrateStandards = (raw: unknown): ShopStandards => {
   if (data.version === 19) data = migrateStandardsV19toV20(data);
   if (data.version === 20) data = migrateStandardsV20toV21(data);
   if (data.version === 21) data = migrateStandardsV21toV22(data);
+  if (data.version === 22) data = migrateStandardsV22toV23(data);
 
   if (data.version !== CURRENT_STANDARDS_VERSION) {
     throw new Error(`migrateStandards: could not migrate version ${String(version)}`);
@@ -742,6 +745,29 @@ const migrateStandardsV21toV22 = (raw: Record<string, unknown>): Record<string, 
     withCushionOverhang,
   ),
 });
+
+/**
+ * v22 → v23: **the shop's price list gets the real sheet sizes too.**
+ *
+ * The other half of project v31 → v32, and it ships in the same commit for the reason §4.22 exists:
+ * a repair that reaches the job and not the standards it is copied from looks fixed until the next
+ * job is started, which then arrives nesting into the usable area again. `withRealSheetSizes` and
+ * `withRekeyedSheetChoices` are shared with the project chain rather than written twice.
+ */
+const migrateStandardsV22toV23 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const materials = (raw.materials as Record<string, unknown> | undefined) ?? {};
+  const settings = (raw.settings as Record<string, unknown> | undefined) ?? {};
+  const nesting = (settings.nesting as Record<string, unknown> | undefined) ?? {};
+  return {
+    ...raw,
+    version: 23,
+    materials: { ...materials, sheets: withRealSheetSizes(materials.sheets) },
+    settings: {
+      ...settings,
+      nesting: { ...nesting, sheetSizes: withRekeyedSheetChoices(nesting.sheetSizes) },
+    },
+  };
+};
 
 /** Add the complete shipped MERIVOBOX height range to current shop standards. */
 const migrateStandardsV17toV18 = (raw: Record<string, unknown>): Record<string, unknown> => {
