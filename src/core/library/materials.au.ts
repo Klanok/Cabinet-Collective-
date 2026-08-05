@@ -198,6 +198,23 @@ export const MDF_BOARDS: readonly string[] = [
  * map cannot — 2440 × 1220 means one thing on imported ply and would mean another on anything else
  * quoted at that size.
  */
+/**
+ * The finish laminates, newest first, and the legacy record they replaced.
+ *
+ * A list rather than a query for the same reason `MDF_BOARDS` is one: the set is a judgement, it
+ * reads at a glance, and anything clever enough to find these by thickness or substrate would also
+ * find a 1mm decorative board somebody adds next year.
+ *
+ * `laminate-1mm` stays on it because a saved job may still carry one — the migration splits it, but
+ * a job whose price list was hand-edited may have kept it, and a laminate nobody can find is a
+ * curve charged at nothing.
+ */
+export const LAMINATE_MATERIAL_IDS: readonly string[] = [
+  'laminate-polytec-1mm',
+  'laminate-laminex-1mm',
+  'laminate-1mm',
+];
+
 export const PLY_BOARDS: readonly string[] = [
   'ply-birch-18',
   'bendy-ply-3',
@@ -601,8 +618,27 @@ export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
    * Polytec list for laminate; check them against the **decorative** range rather than the
    * compact one, since this is the 1mm face material and not the 13mm structural board.
    */
+  /*
+   * ── The finish laminate, one record per brand ─────────────────────────────────────────────
+   *
+   * **The brand is the job's, not the library's**, and that is the shop's own answer to why there
+   * cannot be a single laminate record:
+   *
+   * > *"the brand being used depends on the project as it's a decor, a choice the client would
+   * > make for the finish"*
+   *
+   * A curve is finished in the **door decor** — `finish: 'door'` in the part rules, drawn through
+   * `Panel.finishMaterialId` — so a job's laminate is whatever brand its doors are, and the two
+   * brands sell the sheet in different sizes. One record carrying both sizes let the cheapest-buy
+   * search charge a Laminex sheet on an all-Polytec job, which is the wrong sheet on the order and
+   * a plausible-looking number on the quote.
+   *
+   * `costing.ts` resolves which of these to charge from the decor's own `brand`. Both are priced at
+   * the same $60/m² the single record was; if the two brands really differ, that is a price edit
+   * rather than a code change.
+   */
   {
-    id: 'laminate-1mm',
+    id: 'laminate-polytec-1mm',
     brand: 'Polytec',
     decor: 'Finish laminate 1mm — matched to the door decor',
     substrate: 'MDF',
@@ -613,24 +649,21 @@ export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
     // real answer — "whatever the door decor is" — is not a hex.
     colour: '#cfc8bd',
     decorFaces: 1,
-    /*
-     * **The two brands' own laminate sheets**, from the shop:
-     *
-     * > *"laminate is generally 3600 × 1350 for polytec. Laminex is generally 3600 × 1500."*
-     *
-     * They replace a 3660 × 1830 and a 2440 × 1220 that nobody had checked and that neither
-     * supplier sells — a facing sheet is not a board and had been given board-ish footprints.
-     *
-     * Both sizes sit on the one material because this record is a **stand-in** for "the laminate
-     * matched to your doors" rather than a product: `LAMINATE_MATERIAL_ID` is a single hardcoded
-     * id that `costing.ts` looks up. Which of the two a job cuts from is the shop's call on the
-     * Nest tab, where every material's sheet size already is. Splitting it into a Polytec record
-     * and a Laminex one is the honest model and it is a design change — see §5.13.
-     *
-     * $60/m², the rate the replaced figures were priced at: 3600 × 1350 = 4.86m² → $291.60;
-     * 3600 × 1500 = 5.40m² → $324.00.
-     */
-    sheets: [sheet(3600, 1350, 29_160), sheet(3600, 1500, 32_400)],
+    // 3600 × 1350 = 4.86m² at $60/m² → $291.60.
+    sheets: [sheet(3600, 1350, 29_160)],
+    indicativePricing: true,
+  },
+  {
+    id: 'laminate-laminex-1mm',
+    brand: 'Laminex',
+    decor: 'Finish laminate 1mm — matched to the door decor',
+    substrate: 'MDF',
+    thickness: mm(1),
+    grain: 'none',
+    colour: '#cfc8bd',
+    decorFaces: 1,
+    // 3600 × 1500 = 5.40m² at $60/m² → $324.00.
+    sheets: [sheet(3600, 1500, 32_400)],
     indicativePricing: true,
   },
   {

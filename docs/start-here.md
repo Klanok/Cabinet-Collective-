@@ -11,7 +11,7 @@ transcript. Then read `docs/woodtron-dialect.md` before touching anything under 
 
 ## Where things stand
 
-`main` is green at **1065 tests**. Schema **v34**, shop standards **v25**. Every session's work
+`main` is green at **1068 tests**. Schema **v35**, shop standards **v26**. Every session's work
 lands on `main` through a pull request, so `git log main` is the honest answer to what has shipped —
 check it rather than trusting this paragraph, which is exactly the kind of sentence that goes stale.
 
@@ -67,6 +67,10 @@ applied to ply cuts a part short. **Do not put a figure on a caution list instea
 shop's rule about a class is the answer for every member of it, and `unconfirmedSheetSizes` turned
 out to be rendered in **zero** places while three sections of the handover said it showed on screen.
 
+**The finish laminate is a decor**, so it is one record per brand and `costing.ts` resolves it from
+the door decor's `brand` — *"the brand being used depends on the project as it's a decor, a choice
+the client would make for the finish."* Still assumed: that the laminate matches the doors.
+
 **~~The cushion meshes.~~ Done, both of them** — `viewport/cushionMesh.ts` (§4.23 and the end of
 §5.13 item 1). **No cushion mesh is built from arithmetic a test cannot read now**, where all three
 faults these cushions have had were invisible to everything except measuring the running app. Eleven
@@ -101,8 +105,16 @@ seat, came from re-deriving one sentence instead of asking about it.
 
 **And when you have been told, that is the answer — apply it and stop asking.** The sheet sizes sat
 open for sessions waiting on a published figure that does not exist, while the shop's rule had been
-given twice; the app applied the rule to the MDF boards and printed a caution against its own output
-in the same breath. *"Why was that advice ignored?"* is a fair question and it cost real time. A rule
-the shop states about a class of thing is the answer for **every** member of that class, and an
+given twice; the rule was applied to the MDF boards and then parked on a caution list as though it
+were doubtful. *"Why was that advice ignored?"* is a fair question and it cost real time. A rule the
+shop states about a class of thing is the answer for **every** member of that class, and an
 `unconfirmed…` list is for figures nobody has an answer for — not for answers you would prefer to
-have from somewhere else.
+have from somewhere else. (That list turned out to be rendered nowhere, so it was never even a
+caution — just a note steering sessions. If a figure genuinely has no answer, wire it to a panel.)
+
+**Test where the right answer and the plausible-wrong one separate.** The laminate is charged
+against the door decor's brand; the first assertion for it ran on a **Polytec** job, where the right
+sheet is also the cheapest — so a costing that ignored the decor entirely and took the cheapest
+laminate passed it. Only the mutation found that. The assertion that bites runs on a **Laminex** job,
+where the right sheet is the *dearer* one. Same shape as the fillet in §5.13: pick the case the two
+answers disagree on.

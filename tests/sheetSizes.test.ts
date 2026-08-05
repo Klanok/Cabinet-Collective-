@@ -102,12 +102,21 @@ describe('the shipped sheet sizes', () => {
     }
   });
 
-  it('cuts the finish laminate from the sheets the two brands actually sell', () => {
-    // Polytec 3600 × 1350 and Laminex 3600 × 1500, replacing two board-ish footprints neither of
-    // them sells a facing sheet in. Priced at the $60/m² the replaced figures were priced at.
-    expect(sizesOf('laminate-1mm')).toEqual([[3600, 1350], [3600, 1500]]);
-    const laminate = AU_SHEET_MATERIALS.find((m) => m.id === 'laminate-1mm')!;
-    expect(laminate.sheets.map((sh) => sh.priceExGst)).toEqual([29_160, 32_400]);
+  it('cuts the finish laminate from the sheet its own brand sells', () => {
+    /*
+     * **One record per brand, because the laminate is a decor**: *"the brand being used depends on
+     * the project as it's a decor, a choice the client would make for the finish."* Both sizes on
+     * one record let the cheapest-buy search charge a Laminex sheet on an all-Polytec job.
+     */
+    expect(sizesOf('laminate-polytec-1mm')).toEqual([[3600, 1350]]);
+    expect(sizesOf('laminate-laminex-1mm')).toEqual([[3600, 1500]]);
+    // $60/m² on both: 4.86m² → $291.60 and 5.40m² → $324.00.
+    const priceOf = (id: string) =>
+      AU_SHEET_MATERIALS.find((m) => m.id === id)!.sheets[0]!.priceExGst;
+    expect(priceOf('laminate-polytec-1mm')).toBe(29_160);
+    expect(priceOf('laminate-laminex-1mm')).toBe(32_400);
+    // And the brand is on the record, because that is what costing resolves against.
+    expect(AU_SHEET_MATERIALS.find((m) => m.id === 'laminate-laminex-1mm')!.brand).toBe('Laminex');
   });
 
   it('does not touch what a sheet costs', () => {
@@ -324,35 +333,51 @@ describe('the MDF allowance', () => {
 /* ── The last two classes, and the migration that carries them ───────────────────────────────── */
 
 describe('a job saved before the ply and laminate figures arrived', () => {
-  /** A v33 job: current in every respect except the two footprints nobody had an answer for. */
-  const asV33 = (job: Project): Record<string, unknown> => {
+  /**
+   * A v33 job: current in every respect except the two footprints nobody had an answer for.
+   *
+   * **The laminate has to be put back deliberately.** A fresh sample kitchen carries the two
+   * branded records, so a fixture that only rewrote a `laminate-1mm` would rewrite nothing and
+   * assert against the shipped library — which is a test that passes on any migration at all.
+   */
+  const asV33 = (job: Project, legacyLaminateSheets?: Record<string, unknown>[]): Record<string, unknown> => {
     const raw = JSON.parse(JSON.stringify(job)) as Record<string, unknown>;
     const materials = raw.materials as Record<string, unknown>;
+    const sheets = (materials.sheets as Record<string, unknown>[])
+      .filter((m) => !String(m.id).startsWith('laminate-'))
+      .map((m) => {
+        if (!PLY_BOARDS.includes(String(m.id))) return m;
+        return {
+          ...m,
+          sheets: (m.sheets as Record<string, unknown>[]).map((sh) =>
+            sh.length === 2410 && sh.width === 1205 ? { ...sh, length: 2440, width: 1220 } : sh,
+          ),
+        };
+      });
     return {
       ...raw,
       schemaVersion: 33,
       materials: {
         ...materials,
-        sheets: (materials.sheets as Record<string, unknown>[]).map((m) => {
-          if (String(m.id) === 'laminate-1mm') {
-            return {
-              ...m,
-              sheets: [
-                { length: 3660, width: 1830, priceExGst: 40_187 },
-                { length: 2440, width: 1220, priceExGst: 17_861 },
-              ],
-            };
-          }
-          if (!PLY_BOARDS.includes(String(m.id))) return m;
-          return {
-            ...m,
-            sheets: (m.sheets as Record<string, unknown>[]).map((sh) =>
-              sh.length === 2410 && sh.width === 1205
-                ? { ...sh, length: 2440, width: 1220 }
-                : sh,
-            ),
-          };
-        }),
+        sheets: [
+          ...sheets,
+          {
+            id: 'laminate-1mm',
+            brand: 'Polytec',
+            decor: 'Finish laminate 1mm',
+            substrate: 'MDF',
+            thickness: 1,
+            grain: 'none',
+            colour: '#cfc8bd',
+            decorFaces: 1,
+            indicativePricing: true,
+            // The footprints v34 replaces, at the $60/m² they shipped at.
+            sheets: legacyLaminateSheets ?? [
+              { length: 3660, width: 1830, priceExGst: 40_187 },
+              { length: 2440, width: 1220, priceExGst: 17_861 },
+            ],
+          },
+        ],
       },
     };
   };
@@ -379,34 +404,30 @@ describe('a job saved before the ply and laminate figures arrived', () => {
      */
     resetIdCounter();
     const migrated = migrateProject(asV33(createSampleKitchen(AU_SHOP_STANDARDS)));
-    const laminate = migrated.materials.sheets.find((m) => m.id === 'laminate-1mm')!;
-    expect(laminate.sheets.map((sh) => [sh.length, sh.width])).toEqual([
-      [3600, 1500],
-      [3600, 1350],
-    ]);
-    // $60/m² either way: 5.40m² → $324.00 and 4.86m² → $291.60.
-    expect(laminate.sheets.map((sh) => sh.priceExGst)).toEqual([32_400, 29_160]);
+    // And the one record has become one per brand — v35, because the laminate is a decor.
+    expect(migrated.materials.sheets.some((m) => m.id === 'laminate-1mm')).toBe(false);
+    const poly = migrated.materials.sheets.find((m) => m.id === 'laminate-polytec-1mm')!;
+    const lam = migrated.materials.sheets.find((m) => m.id === 'laminate-laminex-1mm')!;
+    expect([poly.sheets[0]!.length, poly.sheets[0]!.width]).toEqual([3600, 1350]);
+    expect([lam.sheets[0]!.length, lam.sheets[0]!.width]).toEqual([3600, 1500]);
+    // $60/m² either way: 4.86m² → $291.60 and 5.40m² → $324.00.
+    expect(poly.sheets[0]!.priceExGst).toBe(29_160);
+    expect(lam.sheets[0]!.priceExGst).toBe(32_400);
   });
 
   it('follows a rate the shop has edited, instead of the shipped one', () => {
-    // The reason the rate carries rather than the price: a shop that put its own $75/m² in keeps it.
-    const base = asV33(createSampleKitchen(AU_SHOP_STANDARDS));
-    const materials = base.materials as Record<string, unknown>;
-    const withOwnRate = {
-      ...base,
-      materials: {
-        ...materials,
-        sheets: (materials.sheets as Record<string, unknown>[]).map((m) =>
-          String(m.id) === 'laminate-1mm'
-            ? { ...m, sheets: [{ length: 2440, width: 1220, priceExGst: 22_326 }] } // $75/m²
-            : m,
-        ),
-      },
-    };
+    // The reason the rate carries rather than the price: a shop that put its own $75/m² in keeps it,
+    // through both the footprint correction and the split into brands.
+    resetIdCounter();
+    const withOwnRate = asV33(createSampleKitchen(AU_SHOP_STANDARDS), [
+      { length: 2440, width: 1220, priceExGst: 22_326 }, // $75/m²
+    ]);
     const migrated = migrateProject(withOwnRate);
-    const laminate = migrated.materials.sheets.find((m) => m.id === 'laminate-1mm')!;
-    // 4.86m² at the shop's own $75/m² = $364.50.
-    expect(laminate.sheets[0]!.priceExGst).toBe(36_450);
+    const poly = migrated.materials.sheets.find((m) => m.id === 'laminate-polytec-1mm')!;
+    const lam = migrated.materials.sheets.find((m) => m.id === 'laminate-laminex-1mm')!;
+    // 4.86m² and 5.40m² at the shop's own $75/m² = $364.50 and $405.00.
+    expect(poly.sheets[0]!.priceExGst).toBe(36_450);
+    expect(lam.sheets[0]!.priceExGst).toBe(40_500);
   });
 
   it('repairs the shop standards too', () => {

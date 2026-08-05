@@ -22,10 +22,36 @@ import {
 } from '../model/material.ts';
 import { type Panel, bandedEdgeCount, bandedLength, panelArea, panelExtent, panelFootprint } from '../model/panel.ts';
 import { DEFAULT_LABOUR_RATES, type GstMode, type Project } from '../model/project.ts';
+import { LAMINATE_MATERIAL_IDS } from '../library/materials.au.ts';
 import { buildProject } from '../rules/build.ts';
 
-/** The decor laminate a curve is finished with. One id, so the order and the cost agree. */
-export const LAMINATE_MATERIAL_ID = 'laminate-1mm';
+/**
+ * Which finish laminate a job buys, and it is **the job's decor that decides**.
+ *
+ * > *"the brand being used depends on the project as it's a decor, a choice the client would make
+ * > for the finish"*
+ *
+ * A curve is finished in the door decor (`finish: 'door'` in the part rules), and the two brands
+ * sell the sheet in different sizes — Polytec 3600 × 1350, Laminex 3600 × 1500. So the laminate is
+ * resolved per job from the decor's own `brand` rather than being one hardcoded id. A single record
+ * carrying both sizes let the cheapest-buy search charge a Laminex sheet on an all-Polytec job:
+ * the wrong sheet on the order, and a number on the quote that looks entirely reasonable.
+ *
+ * Falls back to whatever laminate the price list does have, because a curve costed against the
+ * wrong brand's sheet and **said so** beats a curve costed at nothing. `laminateProblems` is what
+ * says so.
+ */
+export const laminateForDecor = (
+  sheets: readonly SheetMaterial[],
+  decorBrand: string | null,
+): { readonly material: SheetMaterial | null; readonly brandMatched: boolean } => {
+  const laminates = sheets.filter((m) => LAMINATE_MATERIAL_IDS.includes(m.id));
+  if (laminates.length === 0) return { material: null, brandMatched: false };
+  const matched = decorBrand === null
+    ? undefined
+    : laminates.find((m) => m.brand.toLowerCase() === decorBrand.toLowerCase());
+  return { material: matched ?? laminates[0]!, brandMatched: matched !== undefined };
+};
 import { machinedFronts } from '../rules/frontStyle.ts';
 import { type HardwareBomLine, hardwareForCabinet } from '../hardware/bom.ts';
 import { buildRunUnits } from '../rules/runUnits.ts';
@@ -452,12 +478,14 @@ export const costProject = (project: Project): CostBreakdown => {
    */
   let laminatedMm2 = 0;
   let laminatedCurves = 0;
+  const laminatedDecorIds = new Set<string>();
   for (const b of built) {
     const skins = b.panels.filter((p) => p.role === 'skin' && p.finishMaterialId !== undefined);
     if (skins.length === 0) continue;
     const outer = skins.reduce((a, p) => (panelArea(p) > panelArea(a) ? p : a));
     laminatedMm2 += panelArea(outer);
     laminatedCurves += 1;
+    laminatedDecorIds.add(outer.finishMaterialId!);
   }
   const laminatedM2 = mm2ToM2(laminatedMm2 as Mm2);
   /*
@@ -465,8 +493,19 @@ export const costProject = (project: Project): CostBreakdown => {
    * priced at nothing. Reaching for `findSheet` here would throw and take the whole quote with
    * it, which is worse than a curve costed short and said so.
    */
-  const laminateMaterial =
-    project.materials.sheets.find((m) => m.id === LAMINATE_MATERIAL_ID) ?? null;
+  /*
+   * The decor being laminated, which is the door decor of the curve itself. Read off the panel
+   * rather than off the job's default door material: a job can have two decors in it, and the
+   * laminate follows the curve it is going on.
+   */
+  const decorBrand =
+    laminatedDecorIds.size === 1
+      ? (project.materials.sheets.find((m) => m.id === [...laminatedDecorIds][0]!)?.brand ?? null)
+      : null;
+  const { material: laminateMaterial, brandMatched } = laminateForDecor(
+    project.materials.sheets,
+    decorBrand,
+  );
 
   /*
    * **The cheapest way to buy the area, not the cheapest rate per square metre.**
@@ -495,7 +534,19 @@ export const costProject = (project: Project): CostBreakdown => {
     warnings.push(
       `This job has ${laminatedCurves} laminated curve${laminatedCurves === 1 ? '' : 's'} in it ` +
         `but no finish laminate on its price list, so the sheet is not costed. Add ` +
-        `"${LAMINATE_MATERIAL_ID}" under Settings → Materials. The labour is still charged.`,
+        `"${LAMINATE_MATERIAL_IDS[0]}" under Settings → Materials. The labour is still charged.`,
+    );
+  }
+  /*
+   * **Charged against a brand the doors are not, and said out loud.** The sheet sizes differ by
+   * brand, so the number is wrong in a way nothing on screen would show — this is the same contract
+   * `indicativePricing` has: a figure that had to be guessed says it guessed.
+   */
+  if (laminatedCurves > 0 && laminateMaterial !== null && !brandMatched) {
+    warnings.push(
+      `The laminated curves are finished in ${decorBrand ?? 'more than one decor'}, and the only ` +
+        `finish laminate on the price list is ${laminateMaterial.brand}. The sheet is charged at ` +
+        `${laminateMaterial.brand}'s size, which is not the sheet this job buys.`,
     );
   }
   // Two components, because the tack-off is a wait and a wait does not scale with the curve.

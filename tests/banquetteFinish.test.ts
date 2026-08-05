@@ -342,6 +342,77 @@ describe('the finish laminate over a curve', () => {
     expect(without.totalCost).toBeLessThan(withIt.totalCost);
   });
 
+  it('buys the laminate the job’s own decor comes in, not the cheapest of the two', () => {
+    /*
+     * **The fault this exists to prevent, stated as a price.** The laminate is a *decor*:
+     *
+     * > *"the brand being used depends on the project as it's a decor, a choice the client would
+     * > make for the finish"*
+     *
+     * The two brands sell the sheet in different sizes — Polytec 3600 × 1350 at $291.60, Laminex
+     * 3600 × 1500 at $324.00 — so one record carrying both let the cheapest-buy search charge a
+     * **Laminex sheet on an all-Polytec job**. The sheet on the order would be wrong, the quote
+     * would be $32.40 out, and nothing on screen would say which sheet it meant.
+     *
+     * The sample banquette's doors are Polytec, so the charge has to be Polytec's sheet.
+     */
+    const { project } = curved();
+    const doorBrand = project.materials.sheets.find(
+      (m) => m.id === project.defaults.doorMaterialId,
+    )!.brand;
+    expect(doorBrand).toBe('Polytec');
+    const cost = costProject(project);
+    expect(cost.laminatedCurves).toBe(1);
+    expect(cost.laminateSheets).toBe(1);
+    // One Polytec sheet: 3600 × 1350 at $60/m².
+    expect(cost.laminateCost).toBe(29_160);
+    expect(cost.warnings.some((w) => w.includes('not the sheet this job buys'))).toBe(false);
+  });
+
+  it('buys the DEARER sheet when that is the one the decor comes in', () => {
+    /*
+     * **The assertion that actually bites, and the first version of it did not.** Polytec's sheet
+     * is both the right answer for a Polytec job *and* the cheaper of the two, so a costing that
+     * ignored the decor entirely and took the cheapest laminate passed the test above. Caught by
+     * running that mutation.
+     *
+     * On a **Laminex** job the two answers separate: the right sheet is 3600 × 1500 at $324.00 and
+     * the cheap one is Polytec's at $291.60. Anything that picks on price now picks wrong.
+     */
+    const { project } = curved();
+    const laminexDoors: Project = {
+      ...project,
+      defaults: { ...project.defaults, doorMaterialId: 'lam-classic-oak-16' },
+    };
+    expect(
+      project.materials.sheets.find((m) => m.id === 'lam-classic-oak-16')!.brand,
+    ).toBe('Laminex');
+    const cost = costProject(laminexDoors);
+    expect(cost.laminatedCurves).toBe(1);
+    // Laminex's own 3600 × 1500 at $60/m² — dearer than Polytec's, and the one this job buys.
+    expect(cost.laminateCost).toBe(32_400);
+    expect(cost.warnings.some((w) => w.includes('not the sheet this job buys'))).toBe(false);
+  });
+
+  it('says so when the only laminate on the price list is the wrong brand', () => {
+    /*
+     * Never silently wrong: a curve charged against a brand the doors are not is a number nothing
+     * on screen would question, so it is charged **and said**. Same contract `indicativePricing`
+     * has for money and §4.19 argued for a cushion nobody can price.
+     */
+    const { project } = curved();
+    const laminexOnly: Project = {
+      ...project,
+      materials: {
+        ...project.materials,
+        sheets: project.materials.sheets.filter((m) => m.id !== 'laminate-polytec-1mm'),
+      },
+    };
+    const cost = costProject(laminexOnly);
+    expect(cost.laminateCost).toBeGreaterThan(0);
+    expect(cost.warnings.some((w) => w.includes('not the sheet this job buys'))).toBe(true);
+  });
+
   it('still cuts the same parts either way — the charge moved, the board did not', () => {
     // Sizes do move by the millimetre the allowance takes off the substrate, which is asserted in
     // tests/cornerRadiusParts.test.ts and is not this file's claim. What must not change is the
