@@ -181,7 +181,7 @@ Section 4 records how each works and why; section 5 is what is actually left to 
 ```
 npm install
 npm run dev       # the app
-npm test          # 1060 tests
+npm test          # 1065 tests
 npm run build
 npm run report    # cutlist, hardware BOM, drilling, nest, G-code and costing for the sample kitchen
 npm run report -- shaker-57    # the same kitchen with routed fronts
@@ -299,8 +299,8 @@ materials.
 
 **Migrations must never quietly change anyone's parts.** Every migration carries old values
 forward so a saved job cuts exactly as it did; adopting a new default is then a deliberate
-edit. Schema is at **v33**; migrations run in sequence in `model/project.ts`. Shop standards are
-versioned separately and are at **v24** — and they get a *real* migration rather than a
+edit. Schema is at **v34**; migrations run in sequence in `model/project.ts`. Shop standards are
+versioned separately and are at **v25** — and they get a *real* migration rather than a
 rejection, because refusing to load them silently replaces a shop's accumulated kick heights,
 reveals, door styles and saved cabinet types with the shipped Australian defaults.
 
@@ -3840,12 +3840,42 @@ below the overcut.
    old large sheet in it and nothing left to repair it — §4.22's fault, one chain along — so the
    repair had to be re-run under a new version rather than added to the old table.
 
-   **What is left is one footprint**: imported **2440 × 1220**, which carries the birch ply and the
-   three bendy plys. It is **plywood, not board**, and both of the shop's allowances are stated for
-   board — so no rule covers it and it stays at the conservative figure, on the rule that decides
-   every one of these: **a board stated smaller than it is buys the odd extra sheet, and one stated
-   larger cuts a part short.** This document had it filed under sheet sizes as though it were board;
-   it is not.
+   #### And then the last two classes were answered too — v34 / v25
+
+   Asked what was left, the shop gave both in one line:
+
+   > *"ply is generally tighter allow 2410 X 1205. laminate is generally 3600 X 1350 for polytec.
+   > Laminex is generally 3600 X 1500."*
+
+   **Plywood is the one class that shrinks**, and it is the trap in the whole set. Every board here
+   grows over the size it is sold by; ply is quoted at the metric-imperial 2440 × 1220 and gives
+   **2410 × 1205**. A rule remembered as *"the real sheet is bigger"* applied to ply cuts a part
+   short. It reaches birch ply and the three bendy plys — which is **every curved part in the
+   model** — and it is why `realSizesFor` routes three classes rather than two.
+
+   **That one re-prices upward**, the first since v30: less usable sheet is more sheets. The
+   argument is v9's and v11's — the job was being quoted for board it does not get.
+
+   **The laminate was a correction rather than an allowance.** 3660 × 1830 and 2440 × 1220 are
+   board-ish footprints neither supplier sells a *facing sheet* in; the real ones are the two
+   brands' own. Its price carries forward as a **rate per m²** rather than as a price, because these
+   are different sheets and not the same sheet measured better — carrying $401.87 onto a 5.40m²
+   sheet would have quietly invented a $74/m² laminate. A shop that edited the rate keeps its own.
+
+   **`unconfirmedSheetSizes` is gone, and the way it went is the lesson.** Every footprint now
+   traces to the shop or to the machine, so it had nothing left to say — but the finding is that it
+   had never said anything anyway. **It was rendered in zero places**, while its own comment claimed
+   it appeared *"in the report and on screen"* and this document repeated that in three sections.
+   The hardware, ladder, applied-end and machine lists are all genuinely rendered, which is exactly
+   what made the claim look plausible. **A list nothing renders is not a safety net.** If a future
+   footprint has no answer, wire it to a panel the way `unconfirmedHardwareFigures` is.
+
+   **One thing is left and it is a modelling question, not a number.** `laminate-1mm` is a single
+   record with `brand: 'Polytec'` on it and both brands' sheet sizes in it, because
+   `LAMINATE_MATERIAL_ID` is one hardcoded id that `costing.ts` looks up. The honest model is a
+   Polytec record and a Laminex one, which makes the construction's finish material a **choice** —
+   a design change rather than a field, and worth asking the shop which brand they actually laminate
+   with before building it.
 
    **The `.nc` files settle the principle and give two real numbers**: the white carcass board is
    **2410.0 × 1205.0 × 16.3** and the MDF door board is **3115.0 × 1205.0 × 18.0**, straight off the

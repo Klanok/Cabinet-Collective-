@@ -2,15 +2,22 @@
  * Australian material library seed.
  *
  * Sheet sizes, thicknesses and substrates here are the real local standards — the 3600×1800 and
- * 2400×1200 everyone quotes, 2440×1220 for imported product, 16/18/25mm, melamine-faced
+ * 2400×1200 everyone quotes, 2440×1220 for imported ply, 16/18/25mm, melamine-faced
  * particleboard as the carcass default and MDF as the door substrate. None of that is a
  * localisation pass over a US default; it is the baseline.
  *
- * **Those quoted figures are the usable area rather than the board**, which is the correction the
- * next comment down is about. Every board here is stated at the shop's own allowance over the
- * quoted size — 10 and 5 on carcass, 20 and 10 on MDF — so 2400 × 1200 ships as 2410 × 1205 or
- * 2420 × 1210 and 3600 × 1800 as 3610 × 1805 or 3620 × 1810. The imported plywood is the one
- * footprint neither rule covers, and it says so on `unconfirmedSheetSizes`.
+ * **The size a board is sold by is not the size it arrives**, which is the correction the next
+ * comment down is about, and the shop states the difference per class:
+ *
+ * ```
+ *   carcass and melamine   +10 / +5     2400 × 1200 → 2410 × 1205    3600 × 1800 → 3610 × 1805
+ *   any MDF board          +20 / +10    2400 × 1200 → 2420 × 1210    3600 × 1800 → 3620 × 1810
+ *   imported plywood       tighter      2440 × 1220 → 2410 × 1205
+ *   finish laminate        its own      3600 × 1350 Polytec, 3600 × 1500 Laminex
+ * ```
+ *
+ * **Plywood is the one that shrinks**, and it is the trap in the set: a rule remembered as "the
+ * real sheet is bigger" cuts a ply part short.
  *
  * Each material also carries a `colour` — roughly what the decor looks like on screen. It is a
  * screen approximation and nothing is cut, priced or ordered from it; the decor *name* is the fact.
@@ -69,17 +76,14 @@ const sheet = (length: number, width: number, priceExGst: number): SheetSize => 
  *
  * > *"Generally allow 20mm in length and 10mm in width for MD finish boards."*
  *
- * These figures used to sit at the usable area on `unconfirmedSheetSizes`, waiting for somebody to
- * read a published range. **That wait was a mistake and it is over.** The published ranges quote
- * the nominal — 3600 × 1800 is what every supplier's catalogue says — so waiting for one meant
- * waiting for a number that does not get published, while the shop had already given the answer.
- * Two suppliers who do describe the oversize put it at *"2420 × 1213mm or 3630 × 1213mm … may
- * change with a change in manufacturer"*, which is the shop's own point about it being material
+ * These figures used to sit at the usable area on an `unconfirmedSheetSizes` list, waiting for
+ * somebody to read a published range. **That wait was a mistake and it is over.** The published
+ * ranges quote the nominal — 3600 × 1800 is what every supplier's catalogue says — so waiting for
+ * one meant waiting for a number that does not get published, while the shop had already given the
+ * answer. Two suppliers who do describe the oversize put it at *"2420 × 1213mm or 3630 × 1213mm …
+ * may change with a change in manufacturer"*, which is the shop's own point about it being material
  * dependent, arriving less precisely. **The shop's rule wins**, and the shop said so: *"the sizes
  * are not to be trusted."*
- *
- * What still has no rule is a footprint no rule of the shop's covers — see `unconfirmedSheetSizes`,
- * which is now one entry rather than three.
  */
 
 /*
@@ -109,11 +113,10 @@ const AU_STANDARD = (price: number) => sheet(2410, 1205, price);
 /*
  * The same two footprints on an **MD finish** board, at the shop's 20 and 10.
  *
- * Both are the shop's own rule for this class of board, and neither is flagged as doubtful. It used
- * to say here that "generally allow" was an allowance rather than a published size — so the app
- * applied the rule and then printed a caution telling the user not to trust it, and kept asking for
- * a figure suppliers do not publish. The shop's answer to that was short: **the advice stands, and
- * the published sizes are not to be trusted.**
+ * Both are the shop's own rule for this class of board. It used to say here that "generally allow"
+ * was an allowance rather than a published size, which kept the large one on a caution list and
+ * kept sessions hunting for a figure suppliers do not publish. The shop's answer to that was short:
+ * **the advice stands, and the published sizes are not to be trusted.**
  */
 const AU_STANDARD_MD = (price: number) => sheet(2420, 1210, price);
 const AU_LARGE_MD = (price: number) => sheet(3620, 1810, price);
@@ -137,14 +140,19 @@ const AU_LARGE_MD = (price: number) => sheet(3620, 1810, price);
 const POLYTEC_LONG = (price: number) => sheet(3115, 1205, price);
 
 /**
- * 2440 × 1220 — imported **plywood**, at the metric-imperial size everyone quotes it by.
+ * 2410 × 1205 — imported **plywood**, and the one class here whose allowance is **negative**.
  *
- * The one footprint here no rule of the shop's covers: it carries the birch ply and the three bendy
- * plys, not board, and both allowances above are stated for board. Left at the quoted figure, which
- * nests conservatively — a sheet stated smaller than it is buys the odd extra board, where one
- * stated larger cuts a part short.
+ * > *"ply is generally tighter — allow 2410 × 1205"*
+ *
+ * Ply is quoted at the metric-imperial 2440 × 1220 and you cannot rely on it: the edges arrive
+ * damaged or out of square, so what a sheet really gives you is 30 less on the length and 15 on the
+ * width. **Every other class here grows over its quoted size and this one shrinks**, which is worth
+ * saying out loud, because a rule remembered as "the real board is bigger" applied to ply cuts a
+ * part short.
+ *
+ * The price is untouched. A sheet costs what it costs; what changed is how much of it you get.
  */
-const IMPORTED = (price: number) => sheet(2440, 1220, price);
+const IMPORTED = (price: number) => sheet(2410, 1205, price);
 
 /**
  * The boards the shop's *"20mm in length and 10mm in width"* applies to.
@@ -182,22 +190,39 @@ export const MDF_BOARDS: readonly string[] = [
 ];
 
 /**
- * Footprints no rule of the shop's covers, still quoted at the size they are sold by.
+ * The sheets the shop's *"ply is generally tighter"* applies to.
  *
- * The same contract `indicativePricing` has for money and `unconfirmedFigures` has for hardware: a
- * figure nobody has checked is a figure that gets trusted. This one nests a little small, which is
- * the safe direction.
- *
- * **It used to have three entries and two of them should never have been here.** The shop states
- * its allowance per class of board — 10 and 5 on carcass, 20 and 10 on MDF — so every board of
- * either class has an answer, and printing a caution against the shop's own rule was the app
- * declining to take the answer it had been given. Twice. What is left is genuinely uncovered:
- * plywood is not board, and neither allowance is stated for it.
+ * A third class beside carcass board and MDF, and the only one whose real sheet is **smaller** than
+ * the size it is sold by. Kept as a list for the same reason `MDF_BOARDS` is: the set is a
+ * judgement, it reads at a glance, and the migration has to answer the same question a size-keyed
+ * map cannot — 2440 × 1220 means one thing on imported ply and would mean another on anything else
+ * quoted at that size.
  */
-export const unconfirmedSheetSizes: readonly string[] = [
-  '2440 × 1220 on imported plywood — the metric-imperial size it is sold by. The shop\'s ' +
-    'allowances are stated for board, so neither covers this one, and nobody has measured a sheet.',
+export const PLY_BOARDS: readonly string[] = [
+  'ply-birch-18',
+  'bendy-ply-3',
+  'bendy-ply-5',
+  'bendy-ply-8',
 ];
+
+/*
+ * ── There is no `unconfirmedSheetSizes` any more, and both halves of that are the point ────────
+ *
+ * **Every footprint in this library now traces to the shop or to the machine.** Carcass and
+ * melamine at +10/+5, any MDF board at +20/+10, plywood at a *tighter* 2410 × 1205, the two
+ * laminate sheets at the two brands' own sizes, and 2410 × 1205 / 3115 × 1205 read off the
+ * machine's own sheet declaration. Nothing is left to caution about.
+ *
+ * **And the caution never reached anybody.** `unconfirmedSheetSizes` was exported, asserted in one
+ * test, and rendered in **zero** places — while its own comment claimed it said so "in the report
+ * and on screen", and three sections of `docs/handover.md` repeated that. The hardware, ladder,
+ * applied-end and machine lists are all genuinely rendered, which is what made the claim look
+ * plausible. A list nothing renders is not a safety net; it is a note to whoever reads the source.
+ *
+ * So if a future footprint has no answer: **wire it to a panel the way `unconfirmedHardwareFigures`
+ * is** — `SettingsModal` and `HardwarePanel` are the pattern — rather than adding a constant here
+ * and trusting a comment about where it shows up.
+ */
 
 export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
   /*
@@ -588,8 +613,24 @@ export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
     // real answer — "whatever the door decor is" — is not a hex.
     colour: '#cfc8bd',
     decorFaces: 1,
-    // $60/m²: 3660 × 1830 = 6.6978m² → $401.87; 2440 × 1220 = 2.9768m² → $178.61.
-    sheets: [sheet(3660, 1830, 40_187), sheet(2440, 1220, 17_861)],
+    /*
+     * **The two brands' own laminate sheets**, from the shop:
+     *
+     * > *"laminate is generally 3600 × 1350 for polytec. Laminex is generally 3600 × 1500."*
+     *
+     * They replace a 3660 × 1830 and a 2440 × 1220 that nobody had checked and that neither
+     * supplier sells — a facing sheet is not a board and had been given board-ish footprints.
+     *
+     * Both sizes sit on the one material because this record is a **stand-in** for "the laminate
+     * matched to your doors" rather than a product: `LAMINATE_MATERIAL_ID` is a single hardcoded
+     * id that `costing.ts` looks up. Which of the two a job cuts from is the shop's call on the
+     * Nest tab, where every material's sheet size already is. Splitting it into a Polytec record
+     * and a Laminex one is the honest model and it is a design change — see §5.13.
+     *
+     * $60/m², the rate the replaced figures were priced at: 3600 × 1350 = 4.86m² → $291.60;
+     * 3600 × 1500 = 5.40m² → $324.00.
+     */
+    sheets: [sheet(3600, 1350, 29_160), sheet(3600, 1500, 32_400)],
     indicativePricing: true,
   },
   {

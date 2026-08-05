@@ -36,8 +36,20 @@
  * > width for all mdf prefinished boards. Why was that advice ignored?"*
  *
  * Suppliers publish the nominal, so the published figure everyone was waiting on was never coming.
- * What is left on `unconfirmedSheetSizes` is imported **plywood**, which is not board and which
- * neither allowance is stated for.
+ *
+ * ## And the last two classes have answers now, neither of them a trim
+ *
+ * > *"ply is generally tighter allow 2410 X 1205. laminate is generally 3600 X 1350 for polytec.
+ * > Laminex is generally 3600 X 1500."*
+ *
+ * **Ply shrinks** — 2440 × 1220 quoted, 2410 × 1205 given — which makes it the only class here
+ * whose real sheet is smaller than its stated one, and the trap in the set: a rule remembered as
+ * "the real sheet is bigger" cuts a ply part short. **The laminate is a correction rather than an
+ * allowance**: 3660 × 1830 and 2440 × 1220 are board-ish footprints neither supplier sells a facing
+ * sheet in.
+ *
+ * So nothing is unconfirmed and the list is gone. It had also never been rendered anywhere, which
+ * is its own lesson — see the note in `materials.au.ts` where it used to live.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -49,7 +61,7 @@ import {
 import {
   AU_SHEET_MATERIALS,
   MDF_BOARDS,
-  unconfirmedSheetSizes,
+  PLY_BOARDS,
 } from '../src/core/library/materials.au.ts';
 import {
   AU_SHOP_STANDARDS,
@@ -78,18 +90,24 @@ describe('the shipped sheet sizes', () => {
     expect(sizesOf('mdf-raw-18')).toContainEqual([3620, 1810]);
   });
 
-  it('flags only the footprint no rule of the shop’s covers', () => {
+  it('gives imported ply less than it is sold by — the one class that shrinks', () => {
     /*
-     * **The list used to name three and two of them were the shop's own rule.** Printing a caution
-     * against advice the shop had given twice is the app declining to take the answer it had — and
-     * it is what sent a session hunting for published sizes that do not exist. What is left is
-     * imported plywood: not board, so neither allowance is stated for it.
+     * **The trap in the whole set.** Every other class grows over its quoted size; ply is quoted at
+     * 2440 × 1220 and gives 2410 × 1205. Stating it at the quoted figure is the direction that cuts
+     * a part short, which is why this is asserted on all four ply products rather than on one.
      */
-    expect(unconfirmedSheetSizes).toHaveLength(1);
-    expect(unconfirmedSheetSizes.join(' ')).toContain('2440');
-    expect(unconfirmedSheetSizes.join(' ')).toContain('plywood');
-    expect(unconfirmedSheetSizes.join(' ')).not.toContain('3600');
-    expect(unconfirmedSheetSizes.join(' ')).not.toContain('3620');
+    for (const id of PLY_BOARDS) {
+      expect(sizesOf(id)).toContainEqual([2410, 1205]);
+      expect(sizesOf(id)).not.toContainEqual([2440, 1220]);
+    }
+  });
+
+  it('cuts the finish laminate from the sheets the two brands actually sell', () => {
+    // Polytec 3600 × 1350 and Laminex 3600 × 1500, replacing two board-ish footprints neither of
+    // them sells a facing sheet in. Priced at the $60/m² the replaced figures were priced at.
+    expect(sizesOf('laminate-1mm')).toEqual([[3600, 1350], [3600, 1500]]);
+    const laminate = AU_SHEET_MATERIALS.find((m) => m.id === 'laminate-1mm')!;
+    expect(laminate.sheets.map((sh) => sh.priceExGst)).toEqual([29_160, 32_400]);
   });
 
   it('does not touch what a sheet costs', () => {
@@ -300,5 +318,102 @@ describe('the MDF allowance', () => {
       migrated.materials.sheets.find((m) => m.id === id)!.sheets.map((s) => [s.length, s.width]);
     expect(sizes('hmr-white-16')).toContainEqual([2410, 1205]);
     expect(sizes('poly-florentine-walnut-16')).toContainEqual([2420, 1210]);
+  });
+});
+
+/* ── The last two classes, and the migration that carries them ───────────────────────────────── */
+
+describe('a job saved before the ply and laminate figures arrived', () => {
+  /** A v33 job: current in every respect except the two footprints nobody had an answer for. */
+  const asV33 = (job: Project): Record<string, unknown> => {
+    const raw = JSON.parse(JSON.stringify(job)) as Record<string, unknown>;
+    const materials = raw.materials as Record<string, unknown>;
+    return {
+      ...raw,
+      schemaVersion: 33,
+      materials: {
+        ...materials,
+        sheets: (materials.sheets as Record<string, unknown>[]).map((m) => {
+          if (String(m.id) === 'laminate-1mm') {
+            return {
+              ...m,
+              sheets: [
+                { length: 3660, width: 1830, priceExGst: 40_187 },
+                { length: 2440, width: 1220, priceExGst: 17_861 },
+              ],
+            };
+          }
+          if (!PLY_BOARDS.includes(String(m.id))) return m;
+          return {
+            ...m,
+            sheets: (m.sheets as Record<string, unknown>[]).map((sh) =>
+              sh.length === 2410 && sh.width === 1205
+                ? { ...sh, length: 2440, width: 1220 }
+                : sh,
+            ),
+          };
+        }),
+      },
+    };
+  };
+
+  it('gives every ply sheet the tighter figure, and none of them the board rule', () => {
+    resetIdCounter();
+    const migrated = migrateProject(asV33(createSampleKitchen(AU_SHOP_STANDARDS)));
+    expect(migrated.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
+    for (const id of PLY_BOARDS) {
+      const ply = migrated.materials.sheets.find((m) => m.id === id);
+      if (!ply) continue;
+      expect(ply.sheets.map((sh) => [sh.length, sh.width])).toContainEqual([2410, 1205]);
+      // 2450 × 1230 would be the carcass rule applied to ply: the wrong direction on the one class
+      // that shrinks, and the reason `realSizesFor` routes three classes rather than two.
+      expect(ply.sheets.map((sh) => [sh.length, sh.width])).not.toContainEqual([2450, 1230]);
+    }
+  });
+
+  it('keeps the laminate’s rate per square metre rather than its price per sheet', () => {
+    /*
+     * **The half that would have invented a price.** These are different sheets, not the same sheet
+     * measured better, so carrying $401.87 onto a 5.40m² sheet would quietly make the laminate
+     * $74/m². The rate is what the shop set; the area is what was wrong.
+     */
+    resetIdCounter();
+    const migrated = migrateProject(asV33(createSampleKitchen(AU_SHOP_STANDARDS)));
+    const laminate = migrated.materials.sheets.find((m) => m.id === 'laminate-1mm')!;
+    expect(laminate.sheets.map((sh) => [sh.length, sh.width])).toEqual([
+      [3600, 1500],
+      [3600, 1350],
+    ]);
+    // $60/m² either way: 5.40m² → $324.00 and 4.86m² → $291.60.
+    expect(laminate.sheets.map((sh) => sh.priceExGst)).toEqual([32_400, 29_160]);
+  });
+
+  it('follows a rate the shop has edited, instead of the shipped one', () => {
+    // The reason the rate carries rather than the price: a shop that put its own $75/m² in keeps it.
+    const base = asV33(createSampleKitchen(AU_SHOP_STANDARDS));
+    const materials = base.materials as Record<string, unknown>;
+    const withOwnRate = {
+      ...base,
+      materials: {
+        ...materials,
+        sheets: (materials.sheets as Record<string, unknown>[]).map((m) =>
+          String(m.id) === 'laminate-1mm'
+            ? { ...m, sheets: [{ length: 2440, width: 1220, priceExGst: 22_326 }] } // $75/m²
+            : m,
+        ),
+      },
+    };
+    const migrated = migrateProject(withOwnRate);
+    const laminate = migrated.materials.sheets.find((m) => m.id === 'laminate-1mm')!;
+    // 4.86m² at the shop's own $75/m² = $364.50.
+    expect(laminate.sheets[0]!.priceExGst).toBe(36_450);
+  });
+
+  it('repairs the shop standards too', () => {
+    const old = { ...(JSON.parse(JSON.stringify(AU_SHOP_STANDARDS)) as object), version: 24 };
+    const migrated = migrateStandards(old);
+    expect(migrated.version).toBe(CURRENT_STANDARDS_VERSION);
+    const bendy = migrated.materials.sheets.find((m) => m.id === 'bendy-ply-8')!;
+    expect(bendy.sheets.map((sh) => [sh.length, sh.width])).toContainEqual([2410, 1205]);
   });
 });

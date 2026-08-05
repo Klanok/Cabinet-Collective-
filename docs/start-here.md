@@ -11,7 +11,7 @@ transcript. Then read `docs/woodtron-dialect.md` before touching anything under 
 
 ## Where things stand
 
-`main` is green at **1060 tests**. Schema **v33**, shop standards **v24**. Every session's work
+`main` is green at **1065 tests**. Schema **v34**, shop standards **v25**. Every session's work
 lands on `main` through a pull request, so `git log main` is the honest answer to what has shipped —
 check it rather than trusting this paragraph, which is exactly the kind of sentence that goes stale.
 
@@ -52,11 +52,20 @@ part whose true hole positions are known**. Until then every hole is reported by
 2. **The custom cabinet whose part list is itself data**, §5.13 item 3. The largest item on the list
    and a rethink rather than a field.
 
-**~~The tail of the sheet sizes.~~ Closed, and read §5.13 item 7 before touching any of this.** The
-wait was for a published range; suppliers publish the **nominal**, so that figure was never coming,
-while the shop's rule had been given twice. The app applied it to the MDF boards and printed a
-caution against its own output at the same time. **Do not do that again**: the shop's rule about a
-class of board is the answer for every board of that class.
+**~~The sheet sizes.~~ Closed in full — read §5.13 item 7 before touching any of this.** The wait was
+for a published range; suppliers publish the **nominal**, so that figure was never coming, while the
+shop had already given the rule. Every footprint now traces to the shop or the machine:
+
+```
+carcass and melamine   +10 / +5     any MDF board   +20 / +10
+imported plywood       TIGHTER — 2440 × 1220 quoted, 2410 × 1205 given
+finish laminate        3600 × 1350 Polytec, 3600 × 1500 Laminex
+```
+
+**Ply is the one that shrinks** and it is the trap: a rule remembered as "the real sheet is bigger"
+applied to ply cuts a part short. **Do not put a figure on a caution list instead of asking** — the
+shop's rule about a class is the answer for every member of it, and `unconfirmedSheetSizes` turned
+out to be rendered in **zero** places while three sections of the handover said it showed on screen.
 
 **~~The cushion meshes.~~ Done, both of them** — `viewport/cushionMesh.ts` (§4.23 and the end of
 §5.13 item 1). **No cushion mesh is built from arithmetic a test cannot read now**, where all three
