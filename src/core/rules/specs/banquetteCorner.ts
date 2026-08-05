@@ -69,7 +69,7 @@ export const BANQUETTE_CORNER_SPEC: CabinetSpec = {
   defaultOptions: {
     formerSpacing: mm(250), skinLayers: 2, hasKick: false, hasBack: true,
     doorCount: 0, drawerCount: 0, shelfCount: 0, insideCornerRadius: mm(500),
-    seatCushionThickness: mm(80), seatCushionInset: mm(5), hasBackCushion: true,
+    seatCushionThickness: mm(80), seatCushionOverhang: mm(10), hasBackCushion: true,
     backCushionHeight: mm(400), backCushionThickness: mm(80), backCushionAngle: 0,
     cushionCornerRadius: mm(18),
   },

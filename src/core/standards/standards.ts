@@ -29,6 +29,7 @@ import {
   type ProjectDefaults,
   type ProjectSettings,
   withBackfilledLabourRates,
+  withCushionOverhang,
 } from '../model/project.ts';
 import type { SavedCabinetType } from './savedTypes.ts';
 import { type DoorStyle, DEFAULT_DOOR_STYLES, PLAIN_SLAB_STYLE } from './doorStyles.ts';
@@ -56,7 +57,7 @@ import {
   DEFAULT_RUNNER_SYSTEM_ID,
 } from '../library/blum.ts';
 
-export const CURRENT_STANDARDS_VERSION = 21 as const;
+export const CURRENT_STANDARDS_VERSION = 22 as const;
 
 export interface ShopStandards {
   readonly version: typeof CURRENT_STANDARDS_VERSION;
@@ -378,6 +379,7 @@ export const migrateStandards = (raw: unknown): ShopStandards => {
   if (data.version === 18) data = migrateStandardsV18toV19(data);
   if (data.version === 19) data = migrateStandardsV19toV20(data);
   if (data.version === 20) data = migrateStandardsV20toV21(data);
+  if (data.version === 21) data = migrateStandardsV21toV22(data);
 
   if (data.version !== CURRENT_STANDARDS_VERSION) {
     throw new Error(`migrateStandards: could not migrate version ${String(version)}`);
@@ -716,6 +718,29 @@ const migrateStandardsV20toV21 = (raw: Record<string, unknown>): Record<string, 
   ...raw,
   version: 21,
   settings: withBackfilledLabourRates(raw.settings),
+});
+
+/**
+ * v21 → v22: **the saved banquette recipe gets the cushion overhang too.**
+ *
+ * The other half of project v29 → v30, and it ships in the same commit on purpose. A shop's saved
+ * cabinet types are recipes — a "Banquette 1800" carries a full `CabinetOptions` of its own — so a
+ * type saved before this holds a `seatCushionInset` the app no longer reads, and every banquette
+ * placed from it would come out with **no overhang at all** while the job it was placed into had
+ * been repaired.
+ *
+ * That is §4.22's fault written out: a repair that reaches the job and not the standards it is
+ * copied from, so the app looks fixed until somebody uses the feature the standards exist for.
+ * `withCushionOverhang` is shared with the project chain rather than reimplemented here, for the
+ * same reason `withBackfilledLabourRates` is — a second copy is free to drift, and drift is how
+ * this happened last time.
+ */
+const migrateStandardsV21toV22 = (raw: Record<string, unknown>): Record<string, unknown> => ({
+  ...raw,
+  version: 22,
+  savedTypes: ((raw.savedTypes as Record<string, unknown>[] | undefined) ?? []).map(
+    withCushionOverhang,
+  ),
 });
 
 /** Add the complete shipped MERIVOBOX height range to current shop standards. */

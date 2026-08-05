@@ -5,6 +5,7 @@
  * and every part that depends on it moves, because there is nowhere for a stale copy to hide.
  */
 
+import type { Mm } from '../units.ts';
 import { type Cabinet, isRadiused } from '../model/cabinet.ts';
 import { findConstruction } from '../model/construction.ts';
 import type { GrainConstraint, Panel, PanelRole } from '../model/panel.ts';
@@ -56,6 +57,17 @@ export interface BuiltCabinet {
    * whose radius the bendy ply could not turn — built square, with a warning saying so.
    */
   readonly radius: CornerRadius | null;
+  /**
+   * Cabinet-space z of the finished front face — the front of a door or a fixed front.
+   *
+   * Carried out for the same reason `radius` is, and it earns it the same way: a banquette's
+   * cushions are not panels, so the only way for the seat to stand a stated 10mm proud of the
+   * **finished** front is to read the plane the engine settled on. Working it out again from the
+   * depth plus a standoff plus a board would be a second opinion about where the front of the
+   * kitchen is — and the cushion is the one thing on a banquette nobody can check against a
+   * cutlist, which is where a second opinion goes unnoticed.
+   */
+  readonly finishedFrontZ: Mm;
   /**
    * Which part rule produced each panel — index-aligned with `panels`.
    *
@@ -200,6 +212,7 @@ const toPanel = (
   role: instance.role,
   name: instance.name,
   materialId: materialFor(instance.material, materials),
+  finishMaterialId: instance.finish ? materialFor(instance.finish, materials) : undefined,
   profile: instance.profile,
   placement: instance.placement,
   features: [...(instance.features ?? []), ...styleFeatures.features, ...boring],
@@ -260,6 +273,7 @@ export const buildCabinet = (cabinet: Cabinet, project: Project): BuiltCabinet =
       doorStyle,
       hardware: ctx.hardware,
       radius: ctx.radius,
+      finishedFrontZ: ctx.finishedFrontZ,
       partKeys: [],
     };
   }
@@ -321,6 +335,7 @@ export const buildCabinet = (cabinet: Cabinet, project: Project): BuiltCabinet =
     doorStyle,
     hardware: ctx.hardware,
     radius: ctx.radius,
+    finishedFrontZ: ctx.finishedFrontZ,
     partKeys: produced.map((p) => ({
       key: p.key,
       index: p.index,

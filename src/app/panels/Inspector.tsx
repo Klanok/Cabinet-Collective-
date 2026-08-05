@@ -803,7 +803,8 @@ export function Inspector({
                 <NumberField label="Lift-up clearance" value={cabinet.options.liftUpClearance ?? 2} min={0} max={10} step={1} onChange={(n) => onUpdateOptions(cabinet.id, { liftUpClearance: mm(n) })} />
               )}
               <NumberField label="Seat cushion" value={cabinet.options.seatCushionThickness ?? 80} min={30} max={200} step={5} onChange={(n) => onUpdateOptions(cabinet.id, { seatCushionThickness: mm(n) })} />
-              <NumberField label="Cushion inset" value={cabinet.options.seatCushionInset ?? 5} min={0} max={100} step={5} onChange={(n) => onUpdateOptions(cabinet.id, { seatCushionInset: mm(n) })} />
+              {/* Proud of the finished front, not held in from the carcass — see cushion.ts. */}
+              <NumberField label="Cushion proud of front" value={cabinet.options.seatCushionOverhang ?? 10} min={0} max={100} step={5} onChange={(n) => onUpdateOptions(cabinet.id, { seatCushionOverhang: mm(n) })} />
               <NumberField label="Cushion radius" value={cabinet.options.cushionCornerRadius ?? 18} min={1} max={150} step={5} onChange={(n) => onUpdateOptions(cabinet.id, { cushionCornerRadius: mm(n) })} />
               <label className="field field-check"><input type="checkbox" checked={cabinet.options.hasBackCushion !== false} onChange={(e) => onUpdateOptions(cabinet.id, { hasBackCushion: e.target.checked })} /><span>Back cushion</span></label>
               {cabinet.options.hasBackCushion !== false && <>
@@ -1015,7 +1016,12 @@ export function Inspector({
 
         {isBanquetteCorner && <>
           <NumberField label="Seat cushion" value={cabinet.options.seatCushionThickness ?? 80} min={30} max={200} step={5} onChange={(n) => onUpdateOptions(cabinet.id, { seatCushionThickness: mm(n) })} />
-          <NumberField label="Cushion inset" value={cabinet.options.seatCushionInset ?? 5} min={0} max={100} step={5} onChange={(n) => onUpdateOptions(cabinet.id, { seatCushionInset: mm(n) })} />
+          {/*
+            No overhang control on the corner unit, and that is not an oversight — `cornerSeatRadius`
+            says why: on a quarter disc the two straight edges are radii of the same circle as the
+            arc, so a cushion pushed 10mm into the room is also a cushion pushed 10mm into the units
+            either side. The overhang arrives with §5.13 item 1's real L-shaped outline.
+          */}
           <label className="field field-check"><input type="checkbox" checked={cabinet.options.hasBackCushion !== false} onChange={(e) => onUpdateOptions(cabinet.id, { hasBackCushion: e.target.checked })} /><span>Back cushions</span></label>
           {cabinet.options.hasBackCushion !== false && <>
             <NumberField label="Back cushion height" value={cabinet.options.backCushionHeight ?? 400} min={100} max={1000} step={10} onChange={(n) => onUpdateOptions(cabinet.id, { backCushionHeight: mm(n) })} />

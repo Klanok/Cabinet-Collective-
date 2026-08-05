@@ -436,11 +436,24 @@ export const costProject = (project: Project): CostBreakdown => {
    * a hand-applied, hand-trimmed sheet has no cut plan. Polytec do sell part sheets in certain
    * sizes, which would come off this figure; that is not modelled and is worth saying rather
    * than quietly assuming the shop always buys full ones.
+   *
+   * **A curve is laminated when its outer skin says it is, and that is the §5.14 repair.** This
+   * used to count every curve in the job — any cabinet with a `skin` on it — and charge a laminate
+   * sheet plus its labour whether the construction method carried a laminate or not. Meanwhile
+   * `substrateRadius` was sizing the formers off the same allowance and getting the other answer.
+   * So a job migrated by v23, whose `finishLaminate` was set to **zero** on purpose, was cut with
+   * no laminate in it and quoted with one: up to a $400 sheet, for material nobody buys. v23's own
+   * comment says *"nothing is re-priced"*, and by the time this code arrived that had stopped being
+   * true — a claim going stale with nothing failing when it did, for the sixth time in this file.
+   *
+   * Reading the panel rather than the method is deliberate. `Panel.finishMaterialId` is set by
+   * `wrapLayers` off `isLaminatedCurve`, so the quote, the former radius and the 3D view are all
+   * downstream of one predicate instead of three readings of one field.
    */
   let laminatedMm2 = 0;
   let laminatedCurves = 0;
   for (const b of built) {
-    const skins = b.panels.filter((p) => p.role === 'skin');
+    const skins = b.panels.filter((p) => p.role === 'skin' && p.finishMaterialId !== undefined);
     if (skins.length === 0) continue;
     const outer = skins.reduce((a, p) => (panelArea(p) > panelArea(a) ? p : a));
     laminatedMm2 += panelArea(outer);

@@ -21,6 +21,7 @@ import type { CornerRadius } from '../../core/rules/radius.ts';
 import { mm } from '../../core/units.ts';
 import { bundledAssetUrl } from './assetUrl.ts';
 import { applyFabricScale } from './fabricScale.ts';
+import { wedgeBackPlacement } from './cushionMesh.ts';
 
 /**
  * The fabric image, resolved wherever this build is hosted.
@@ -111,7 +112,26 @@ function FabricSurface({ map, upholstery, selected, wireframe }: {
   />;
 }
 
-/** A back cushion with a vertical rear face and the requested lean cut into its front face. */
+/**
+ * A back cushion with a vertical rear face and the requested lean cut into its front face.
+ *
+ * ## The bevel has to come off the *placement* as well as the size
+ *
+ * `bevelSize` and `bevelThickness` grow the geometry outward on **all six faces**, so a shape built
+ * `b` smaller finishes at exactly the stated size — that much shipped with §5.14's first pass. What
+ * did not is that the growth is not symmetrical about the mesh's origin: it starts the geometry at
+ * `−b` on each axis and ends it at `length − b`. So a cushion of exactly the right size sat one
+ * bevel out of place on every axis — 18mm on the shipped soft edge, into the wall at the back, off
+ * the end of the seat at one end, and 18mm below the seat it is meant to rest on.
+ *
+ * **Found by measuring the running app after the size was fixed, not by reading the diff** — which
+ * is the second time in two sessions this cushion has taught that lesson. The size assertion the
+ * last pass added passes on the misplaced cushion, because it is the right size. Nothing but
+ * occupancy sees it.
+ *
+ * The arithmetic is `wedgeBackPlacement`, in `cushionMesh.ts`, so it can be asserted rather than
+ * looked at — which is the whole reason this fault survived a session that was fixing its twin.
+ */
 function WedgeBack({ width, height, thickness, angle, radius, x, y, scaleFabric, children }: {
   width: number;
   height: number;
@@ -123,10 +143,12 @@ function WedgeBack({ width, height, thickness, angle, radius, x, y, scaleFabric,
   scaleFabric: (geometry: BufferGeometry | null) => void;
   children: ReactNode;
 }) {
-  const inset = Math.max(0.5, Math.min(radius, thickness / 4, width / 4, height / 4));
+  // One figure, used by the shape, the extrude and the placement. It was written out twice under
+  // two names, identically, which is how the placement came to be corrected in neither.
+  const { position, depth, bevel: b } = wedgeBackPlacement({ x, y, width, height, thickness, radius });
   const shape = useMemo(() => {
-    const t = Math.max(1, thickness - 2 * inset);
-    const h = Math.max(1, height - 2 * inset);
+    const t = Math.max(1, thickness - 2 * b);
+    const h = Math.max(1, height - 2 * b);
     const bottomThickness = t + Math.tan(angle) * h;
     const result = new Shape();
     result.moveTo(0, 0);
@@ -135,21 +157,14 @@ function WedgeBack({ width, height, thickness, angle, radius, x, y, scaleFabric,
     result.lineTo(0, h);
     result.closePath();
     return result;
-  }, [angle, height, thickness, inset]);
-  /*
-   * Same correction as `SeatCushion`, and it was found the same way — by measuring the geometry in
-   * the running app rather than looking at it. A back cushion on a 1200 seat came out **1226** long:
-   * 1190 plus a bevel at each end. `bevelSize` grows the outline in the plan directions *and*
-   * `bevelThickness` grows the extrusion, so all three axes need taking back off.
-   */
-  const bevel = Math.max(0.5, Math.min(radius, thickness / 4, width / 4, height / 4));
-  return <mesh position={[x + width, y, 0]} rotation={[0, -Math.PI / 2, 0]} castShadow receiveShadow>
+  }, [angle, height, thickness, b]);
+  return <mesh position={[...position]} rotation={[0, -Math.PI / 2, 0]} castShadow receiveShadow>
     <extrudeGeometry ref={scaleFabric} args={[shape, {
       // Shortened by two bevels; the mesh is placed so the growth lands back inside `width`.
-      depth: Math.max(1, width - 2 * bevel),
+      depth,
       bevelEnabled: true,
-      bevelSize: bevel,
-      bevelThickness: bevel,
+      bevelSize: b,
+      bevelThickness: b,
       bevelSegments: 3,
       steps: 1,
     }]} />
@@ -260,8 +275,17 @@ function SeatCushion({ plan, thickness, bevel, y, scaleFabric, children }: {
   </mesh>;
 }
 
-export function BanquetteCushions({ cabinet, radius, upholstery, selected, wireframe }: {
+export function BanquetteCushions({ cabinet, radius, finishedFrontZ, upholstery, selected, wireframe }: {
   cabinet: Cabinet;
+  /**
+   * Cabinet-space z of the finished front face, from the rule engine.
+   *
+   * The cushion stands a stated 10mm proud of **that**, not of the carcass — see
+   * `core/model/cushion.ts`. Passed in for the same reason `radius` is: re-deriving it here from
+   * the depth plus a standoff plus a board thickness would be a second opinion about where the
+   * front of the kitchen is, and it is the cushion nobody can check against a cutlist.
+   */
+  finishedFrontZ: number;
   /**
    * The corner the **rule engine** resolved, not the option the cabinet carries.
    *
@@ -294,11 +318,11 @@ export function BanquetteCushions({ cabinet, radius, upholstery, selected, wiref
   });
 
   const seatT = cabinet.options.seatCushionThickness ?? 80;
-  const inset = cabinet.options.seatCushionInset ?? 5;
   const plan = seatCushionPlan({
     W: cabinet.width,
     D: cabinet.depth,
-    inset: mm(inset),
+    finishedFrontZ: mm(finishedFrontZ),
+    overhang: mm(cabinet.options.seatCushionOverhang ?? 10),
     round: radius ? { corner: radius.corner, radius: radius.r } : null,
   });
   const seatWidth = Math.max(50, plan.width);
@@ -312,8 +336,15 @@ export function BanquetteCushions({ cabinet, radius, upholstery, selected, wiref
       ? <SeatCushion plan={plan} thickness={seatT} bevel={Math.max(0.5, softEdge)} y={cabinet.height} scaleFabric={scaleFabric}>
           {fabricMaterial()}
         </SeatCushion>
+      /*
+       * Centred on the **plan**, not on the carcass. It used to sit at `depth / 2`, which was the
+       * same point only while the cushion was a symmetrical inset off both faces. It is not any
+       * more: flush at the back, proud at the front. Placing a box the plan's own size at the
+       * carcass's centre would hang it off the back of the seat by exactly the overhang, and it
+       * would look almost right.
+       */
       : <RoundedBox ref={seatRef} args={[seatWidth, seatT, seatDepth]} radius={softEdge} smoothness={4}
-          position={[cabinet.width / 2, cabinet.height + seatT / 2, cabinet.depth / 2]} castShadow receiveShadow>
+          position={[(plan.x0 + plan.x1) / 2, cabinet.height + seatT / 2, (plan.z0 + plan.z1) / 2]} castShadow receiveShadow>
           {fabricMaterial()}
         </RoundedBox>}
     {cabinet.options.hasBackCushion !== false && (() => {
@@ -337,14 +368,14 @@ export function BanquetteCushions({ cabinet, radius, upholstery, selected, wiref
       const endDepth = (end: 'left' | 'right') => returnRun(plan, end, mm(thickness));
       return <>
         <WedgeBack scaleFabric={scaleFabric} width={seatWidth} height={height} thickness={thickness} angle={angle}
-          radius={backRadius} x={inset} y={cabinet.height + seatT}>
+          radius={backRadius} x={plan.x0} y={cabinet.height + seatT}>
           {fabricMaterial()}
         </WedgeBack>
-        {cabinet.options.leftEndCushion && <group position={[inset, 0, plan.z0 + Math.min(seatDepth, plan.endRun.left)]} rotation={[0, Math.PI / 2, 0]}>
+        {cabinet.options.leftEndCushion && <group position={[plan.x0, 0, plan.z0 + Math.min(seatDepth, plan.endRun.left)]} rotation={[0, Math.PI / 2, 0]}>
           <WedgeBack scaleFabric={scaleFabric} width={endDepth('left')} height={height} thickness={thickness} angle={angle}
             radius={backRadius} x={0} y={cabinet.height + seatT}>{fabricMaterial()}</WedgeBack>
         </group>}
-        {cabinet.options.rightEndCushion && <group position={[cabinet.width - inset, 0, plan.z0 + thickness]} rotation={[0, -Math.PI / 2, 0]}>
+        {cabinet.options.rightEndCushion && <group position={[plan.x1, 0, plan.z0 + thickness]} rotation={[0, -Math.PI / 2, 0]}>
           <WedgeBack scaleFabric={scaleFabric} width={endDepth('right')} height={height} thickness={thickness} angle={angle}
             radius={backRadius} x={0} y={cabinet.height + seatT}>{fabricMaterial()}</WedgeBack>
         </group>}
@@ -364,9 +395,13 @@ export function BanquetteCornerCushions({ cabinet, upholstery, selected, wirefra
   const scaleFabric = useFabricScale(upholstery);
 
   const seatT = cabinet.options.seatCushionThickness ?? 80;
-  const inset = Math.max(0, cabinet.options.seatCushionInset ?? 5);
-  // Shared with costing, for the same reason `returnRun` is — see `core/model/cushion.ts`.
-  const r = cornerSeatRadius(cabinet.width, cabinet.depth, mm(inset));
+  /*
+   * Shared with costing, for the same reason `returnRun` is — see `core/model/cushion.ts`, which
+   * is also where the reason this unit takes **no** overhang is written out. Short version: its
+   * two straight edges are radii of the same circle as its front, so a proud arc is also a pair of
+   * edges pushed into the banquettes either side, and the outline is §5.13 item 1's anyway.
+   */
+  const r = cornerSeatRadius(cabinet.width, cabinet.depth);
   const seatShape = useMemo(() => {
     const shape = new Shape();
     shape.moveTo(0, 0);

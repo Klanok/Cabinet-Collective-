@@ -132,12 +132,26 @@ be one fix, because a panel sitting like an applied end beside a cabinet is, by 
 perpendicular to the wall that cabinet backs onto. A special case disappeared, which is usually the
 sign a model is right.
 
+**And the banquette was finished off** (§4.23) — three faults photographed at the bench, on one
+branch because two of them re-price. The **cushion now stands 10mm proud of the finished front** and
+is adjustable, which is the shop's own answer to a seat that was showing white carcass all round it;
+a **front that never opens is no longer cut short by a door's swing clearance**; and the **finish
+laminate is drawn** in the door decor rather than leaving a walnut kitchen with a cream curve in it.
+
+**Two things that turned up while doing it are worth more than the three fixes.** The laminate was
+not merely undrawn — it was **charged on every curve while the allowance for it was zero**, so a job
+was cut without it and quoted with it, and v23's own comment says *"nothing is re-priced"*. That is
+this document's repeating lesson arriving inside a migration's promise about itself. And §5.14's own
+cushion fix was **half done**: the size was corrected, the placement was not, so both back cushions
+sat exactly the right size and one bevel out of place on every axis — invisible to every assertion
+that pass added, and found only by measuring the running app. **Assert occupancy, not size.**
+
 Section 4 records how each works and why; section 5 is what is actually left to do.
 
 ```
 npm install
 npm run dev       # the app
-npm test          # 971 tests
+npm test          # 996 tests
 npm run build
 npm run report    # cutlist, hardware BOM, drilling, nest, G-code and costing for the sample kitchen
 npm run report -- shaker-57    # the same kitchen with routed fronts
@@ -175,16 +189,16 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | A standalone panel — stands edge out, like an applied end | **Working, see 4.21.** Both halves of one bench report |
 | Grain direction — a cabinet's fronts, and a standalone panel | Working, see 5.4 — stated as the room sees it, translated per part |
 | Decor textures on parts, at true scale, turned by grain | **Working, see 5.8.** Bundled images, mapped through the nest |
-| Banquette seating — solid front, hinged lift-up, cushions | Rejected at the bench, **rebuilt to the shop's own answers — see 5.4.** Lid stay still unmodelled |
+| Banquette seating — solid front, hinged lift-up, cushions | Rejected at the bench, **rebuilt to the shop's own answers — see 5.4**, then finished off in **4.23**. Lid stay still unmodelled |
 | A rounded corner on a banquette, carried by lid, front and cushion | **Working, see 4.15.** Applied ends build on one too |
 | What each cabinet type supports, declared by its own spec | **Working, see 4.15 and 4.16.** `CabinetSpec.capabilities` — refusing costs a sentence |
 | Inside banquette corner — a quarter-circle connector | **Wrong shape and now answered — see 5.13 item 1.** It is an L with a small concave fillet, not a quarter disc. Ready to build |
 | Upholstery as its own material type | Working — Warwick Caulfield, nine colours, `library/upholstery.au.ts` |
-| Cushions cut to the size they claim | **Fixed, see 5.14.** Both were oversize by their own soft edge; the two draw paths disagreed by 36mm |
-| A cushion sitting proud of the front | **Not done — see 5.14.** Wanted at 10mm proud and adjustable; today inset 5mm and showing carcass |
-| A banquette front reaching the carcass top | **Not done — see 5.14.** Cut 3mm short by a reveal that exists for a door to open |
-| The finish laminate, drawn on the curve | **Not done — see 5.14.** Charged in costing, dimensioned in the method, rendered nowhere |
-| Banquette cushions on the quote | **Working, see 4.19.** Bought in whole, $350/lin m **per cushion**, no parts produced |
+| A seat cushion proud of the finished front, adjustable | **Working, see 4.23.** 10mm, the shop's own figure; flush at the ends and the back, and the reason for each |
+| A front that does not open, cut without a door's reveal | **Working, see 4.23.** A reveal is swing clearance; a false front never swings |
+| The finish laminate over a curve, drawn and honestly charged | **Working, see 4.23.** Door decor on the outer skin; a curve with none says so, and is no longer charged for one |
+| Cushions cut to the size they claim, and placed where they claim | **Fixed, see 5.14 and 4.23.** Oversize by their own soft edge, then one bevel out of place on every axis — the second half invisible to the first half's tests |
+| Banquette cushions on the quote | **Working, see 4.19 and 4.23.** Bought in whole, $350/lin m **per cushion**, no parts produced |
 | Room — any shape, drawn in a 2D plan with typed lengths | Working |
 | Cabinets placed against a named wall, at any angle | Working |
 | CI — typecheck, tests, build, cutlist smoke run on every PR | Working, `.github/workflows/ci.yml` |
@@ -252,8 +266,8 @@ materials.
 
 **Migrations must never quietly change anyone's parts.** Every migration carries old values
 forward so a saved job cuts exactly as it did; adopting a new default is then a deliberate
-edit. Schema is at **v29**; migrations run in sequence in `model/project.ts`. Shop standards are
-versioned separately and are at **v21** — and they get a *real* migration rather than a
+edit. Schema is at **v30**; migrations run in sequence in `model/project.ts`. Shop standards are
+versioned separately and are at **v22** — and they get a *real* migration rather than a
 rejection, because refusing to load them silently replaces a shop's accumulated kick heights,
 reveals, door styles and saved cabinet types with the shipped Australian defaults.
 
@@ -261,11 +275,11 @@ reveals, door styles and saved cabinet types with the shipped Australian default
 comment directly above it, and *that* is the record — a version number in prose goes stale, a
 comment sitting on the function cannot. What follows is a map, not a substitute.
 
-Only five migrations have changed a job that already existed rather than adding to it. **v9, v11 and
-v27** all re-price, and are argued below. **v13** is the 2mm front standoff, and it moves the
+Only six migrations have changed a job that already existed rather than adding to it. **v9, v11,
+v27 and v30** all re-price, and are argued below. **v13** is the 2mm front standoff, and it moves the
 finished face of every front in every saved job. **v15 and v16** move holes — shelf-pin rows and
 runner fixings respectively — and neither moves or resizes a single part; a side panel comes out
-the same rectangle in the same place with a different set of Ø5 holes in it. Each of the four says
+the same rectangle in the same place with a different set of Ø5 holes in it. Each of them says
 so in its own comment rather than being quiet about it, which is the standard for this file.
 
 Everything from **v17 on is additive** and is the same shape of change repeated: supplier decors,
@@ -275,13 +289,21 @@ new choice appears in the picker; nothing already selected moves. v20 exists onl
 keeps `localhost` storage across separately extracted source folders, so a snapshot could be
 stamped current while missing the texture fields v18 was meant to add — a repair, not a change.
 
-**v9, v11 and v27 are the three exceptions on price, and all of them say so out loud.** They are the
-same argument three times: no part that already existed moves, and the job gets dearer because it
+**v9, v11, v27 and v30 are the four exceptions on price, and all of them say so out loud.** They are
+the same argument four times: no part that already existed moves, and the job gets dearer because it
 was being quoted for less than it takes to build. v9 added the hardware a kitchen always had; v11
 charges the board a kitchen always took; **v27 charges the cushions a banquette always had** (§4.19),
-and that one does not even move a part, because a bought-in cushion is not one. Both halves of each
-are asserted separately — `tests/hardware.test.ts`, `tests/nesting.test.ts` and
-`tests/cushionCost.test.ts` — so nobody has to wonder whether a re-price was an accident.
+and that one does not even move a part, because a bought-in cushion is not one; **v30 makes those
+cushions the size the shop actually builds them** (§4.23), which is bigger, and charges the
+difference. Both halves of each are asserted separately — `tests/hardware.test.ts`,
+`tests/nesting.test.ts`, `tests/cushionCost.test.ts` and `tests/banquetteFinish.test.ts` — so nobody
+has to wonder whether a re-price was an accident.
+
+**One re-price ran the other way and was a fault rather than a decision**, and it is worth knowing
+because it is the only one: **v23 charged a finish laminate on every curve while setting the
+allowance for it to zero**, so a job was cut without the laminate and quoted with it — up to a $400
+sheet. Its own comment says *"nothing is re-priced"*. §4.23 ties the charge to the allowance, which
+makes those jobs *cheaper* and says so on screen. A migration's comment is evidence, not proof.
 
 **v9, in detail.** No part that already existed moves — that
 half of the rule is kept, and it is the half that protects a job on the saw. But a migrated job
@@ -1890,6 +1912,16 @@ paragraph would have built a second copy of a feature that already existed.
 **Check the code, not this file.** Every other section says so about *shipped* work going stale;
 this one says it about an *open item* going stale, which is the direction nobody watches.
 
+**Six sessions running have now caught one, and the sixth is the one that closes the argument.**
+Four caught stale open items; the fifth caught two stale *fix* claims and an unreproduced bug report
+that was one grep from reproducing; the sixth (§4.23) caught a **migration's own comment about
+itself** — v23 says *"nothing is re-priced"* and it charged a laminate sheet on every curve in every
+job with one. A claim in a doc comment sitting directly on the function is the strongest form this
+document has, and it was still wrong, because nothing fails when a comment goes stale. The general
+form, and it has not changed: **a repair has to cover every chain that reads the field, not every
+field in one chain** — and a claim has to be checked against the code that reads it, not the code it
+sits on.
+
 **What was actually broken was worse than what was claimed.** Four things, and the first is the one
 that matters:
 
@@ -2408,6 +2440,140 @@ fails two, removing the project sweep-up fails one, removing the idempotence gua
 `tests/labourRateBackfill.test.ts` carries the route through the standards chain written out, and
 its second half says plainly which half of the cushion fix a test can reach and which needs the app.
 
+### 4.23 The banquette finishing pass — the three that were left of §5.14
+
+Definition of done was stated as assertions before anything was written, per §6, and all of them
+pass. All three items shipped on one branch, which is what §5.14 asked for, because two of them
+re-price and that argument is better made once. **996 tests, up from 971.**
+
+#### The cushion stands 10mm proud of the finished front
+
+> *"it should be adjustable — but generally should be 10mm proud of the finish panel/door"*
+
+`seatCushionInset` held the cushion **5mm inside every carcass face**, so you looked down onto a
+strip of white carcass all round it — *"standard straight run cushion is exposing the carcass"*.
+`seatCushionOverhang` measures the other way, from the other datum: **proud of the finished front,
+flush at the ends and the back.** On the shipped banquette the seat goes from 1190 × 490 to
+**1200 × 530**.
+
+**Only the front carries the overhang, and each of the other three is a physical answer rather than
+a simplification.** The back goes against a wall, so a cushion proud there is a cushion the wall
+pushes forward. The ends butt the next unit in the run — two cushions each 10mm proud of their own
+end overlap by 20, and a run is the normal case. And a *finished* end does not change that: this
+codebase already said so, in `banquette.ts`, which describes an applied end's top edge as sitting
+*"at seat height with a cushion beside it"*. Beside, not under. That sentence was written for
+another reason and answered this question.
+
+**The rounded corner falls out instead of needing a rule.** Proud at the front and flush at the end
+sounds like two edges that cannot be joined, and they join exactly: the cushion's fillet is the
+**same radius as the carcass arc with its centre moved forward by the overhang**, still tangent to
+both. The overhang then eases from 10mm at the front tangent to nothing at the end tangent, which is
+what a soft corner does. One arc, one radius, and no second number to keep in step — where the old
+code had `r − inset`, a second radius that could disagree.
+
+**The corner unit takes no overhang, deliberately.** On a quarter disc the two straight edges are
+*radii of the same circle* as the arc, so pushing the arc 10mm into the room pushes both edges 10mm
+into the banquettes either side. "10mm proud of the finish panel" has no meaning on that outline —
+and §5.13 item 1 says the outline is wrong in kind anyway. It goes **flush**, which closes the
+reported fault there too, and takes the overhang when it gets its real L-shaped plan.
+
+**Project v30 and standards v22, and it is the fourth migration in this file to make a saved job
+dearer**, after v9, v11 and v27. The old field cannot be carried forward and that is the whole
+reason this is a migration rather than a rename: the two measure **opposite directions from
+different datums**, so no arithmetic turns a 5mm inset into the figure a shop would have typed had
+they been asked about an overhang. A shop that typed 20 wanted the cushion held *further in*. So the
+field is dropped and the shop's own 10mm is adopted. §4.19 charges the cushion's own width, so a
+1200 banquette with a back goes from 2 × 1190 to 2 × 1200 of upholstery — about $7. Small, real, and
+said out loud.
+
+**Both chains, and that is §4.22's lesson applied rather than repeated.** A saved cabinet *type* in
+the shop standards carries a full `CabinetOptions`, so repairing the job and leaving the recipe would
+mean the next banquette placed from it arrived carrying a dead field and no overhang at all.
+`withCushionOverhang` is shared by both chains rather than written twice.
+
+#### A false front takes no reveal
+
+`fixedFrontPanel` cut `H − revealTop − revealBottom` by `zone.width − 2 × revealSides`: 3mm short at
+the top, 1.5mm at each end. **A reveal is clearance for a door to swing** — `revealTop` is 3mm
+specifically so a door can open under a benchtop (§3) — and a false front takes no hinges, never
+opens, and has a cushion above it rather than a benchtop. So the gap was clearance for a movement
+that never happens, and all it did was show the white band along the top of the photograph. The
+front now fills its zone exactly, and in a run two fronts **meet** instead of leaving a 3mm line.
+
+`doorZone` still stops it at the fixing strip on a radiused unit, which is right: a strip is
+structure, not clearance. **This re-cuts every banquette front in every saved job** — a rule change,
+not a migration, so nothing carries the old size forward. It is named in v30's comment because the
+two shipped together and a shop opening a saved job sees both. A base cabinet's door is asserted
+untouched in the same test file, because that is the invariant protecting everything else.
+
+#### The finish laminate is drawn, its absence is said, and it is charged only when it exists
+
+`Panel.finishMaterialId` is new: **what is applied over the A-face after machining, never what the
+part is cut from.** `wrapLayers` sets it to the **door decor** on the outer layer only — which is
+what the laminate is, one sheet over the outside of the finished wrap, and what a shop orders, 1mm
+matched to the doors. `materialId` still says bendy ply, so the cutlist, the nest and the CAM do not
+move; §5.0's *"a dimension, not a part"* stands. What was missing was never a part — it was the fact
+that **the finished face is not the face of the board.**
+
+**There was a third disagreement nobody had found, and it is the sharpest.** `costing.ts` counted
+*every* curve as laminated — any cabinet with a `skin` — and charged a sheet plus its labour whether
+the method carried an allowance or not, while `substrateRadius` sized the formers off the same
+allowance and got the other answer. So a job migrated by **v23, whose own comment says "nothing is
+re-priced"**, was cut with no laminate in it and quoted with one: up to a $400 sheet for material
+nobody buys. **That is the sixth stale claim caught, and the first that was a migration's own
+promise about itself.** Both now read one predicate, `isLaminatedCurve`.
+
+**And the zero is now a sentence.** `finishLaminate` migrates to zero on purpose, so a shop's curve
+may genuinely be bare bendy ply — and drawing it honestly is not enough, because bare ply is also
+what a curve looks like when nobody has noticed. `cornerRadiusProblems` says which, in millimetres,
+on the cabinet. Not an error: a shop that veneers or paints its curves has a perfectly good bare
+wrap, so it says what it will look like rather than what to do about it.
+
+#### The fault the running app found, which the tests could not
+
+**§5.14's own fix was half done and its test could not see the other half.** The last pass corrected
+both cushions' **size** for the extrude bevel. It did not correct their **placement**, and the growth
+is not symmetrical about the mesh origin: it runs from `−b` to `length − b`. So the back cushion and
+both end bolsters were exactly the right size and **one bevel out of place on all three axes** — 18mm
+into the wall at the back, 18mm off the end of the seat, and 18mm below the seat they rest on.
+
+Measured in the live three.js scene: `x [18, 1218], y [462, 862], z [−18, 62]` where the model says
+`[0, 1200] × [480, 880] × [0, 80]`. Confirmed as the bevel rather than an off-by-one by changing the
+soft edge to 4mm and watching the displacement become exactly 4. **Every size assertion the last
+pass added passes on the misplaced cushion**, which is the whole lesson: assert occupancy, not size —
+§7 says it, and this is the second session running that this cushion has been the thing that taught
+it.
+
+The arithmetic came out of the JSX into `viewport/cushionMesh.ts` so it can be asserted rather than
+looked at. Two figures that were written out twice under two names, identically, are now one — which
+is how the placement came to be corrected in neither.
+
+#### Verified in the running app (§7)
+
+Read back out of the live scene rather than judged from a screenshot, on a job with three banquettes
+and walnut doors:
+
+- Seat cushion `x [0, 1200] × y [400, 480] × z [0, 530]` — flush at both ends and the back, 10mm
+  past the 520 door face. Back cushion `[0, 1200] × [480, 880] × [0, 80]`, sitting exactly on it.
+- Both end bolsters flush with the ends at `x [0, 80]` and `[1120, 1200]`, running `z [80, 528]` —
+  starting in front of the back cushion and stopping at the front of the seat, symmetrical.
+- Fronts `1200 × 400` and `950 × 400` on the radiused one, both `y [0, 400]`: full height, no band.
+- **The curve's outer skin draws the `notaio-walnut` texture — the same map as the flat front beside
+  it — over an inner layer still in `#d9bd90` bendy ply.** That is the bench photograph fixed.
+- With `finishLaminate` at zero the same curve draws two layers of bendy ply, and the warning
+  reaches both places a cabinet warning goes: the list's warn-dot and the Inspector.
+
+Seven deliberate mutations were run to check the assertions bite, each reproducing the original
+mechanism rather than its shape: the inset cushion fails 5, the reveal on the front fails 3, costing
+counting every curve fails 1, a finish on every wrap layer fails 1, dropping the standards migration
+fails 1, carrying the old number forward fails 2, and the old mesh placement fails 3.
+
+**Where to look:** `model/cushion.ts` for the plan and why only the front is proud;
+`rules/parts.ts` `fixedFrontPanel`, `wrapLayers` and `isLaminatedCurve`; `model/panel.ts`
+`finishMaterialId`; `viewport/cushionMesh.ts` for the placement; `migrateV29toV30` and
+`migrateStandardsV21toV22`. `tests/banquetteFinish.test.ts` is the contract and carries every figure
+longhand.
+
 ---
 
 ## 5. Open items, in the order I'd do them
@@ -2437,12 +2603,19 @@ stale "only built on base, wall and tall" warning went and why each spec now dec
 supports. What is still open there: the **lid stay is not modelled**, the corner unit has never been
 asked the same access question. The **cushions are costed now** — §4.19, bought in whole from the
 upholsterer at $350 a lineal metre per cushion — and a cushion nobody can price now says so instead
-of quoting at zero.
+of quoting at zero. **And the finishing pass is done** — §4.23: the cushion stands proud of the
+front, the front is cut full height, and the curve carries its laminate.
 
-**If asked which to do next, there is one clear answer that needs nothing from anybody, and two
-that are waiting on the shop.**
+**If asked which to do next, there are two that need nothing from anybody, and one that is waiting
+on the shop.**
 
-**The one to start on: write the Woodtron's second pass.** §4.20 built a profile off twenty-one
+**The one that is visibly wrong on the shop's screen: the inside banquette corner**, §5.13 item 1 —
+answered, specified, and never started. It is the only open item somebody has looked at and called
+*"a complete mess"*, and §4.23 has just made everything around it right, which makes it the odd one
+out in a finished-looking run of seating. Read §5.13 item 1 rather than reasoning from the shape:
+it has been mis-derived twice from one sentence.
+
+**The one with the most value in it: write the Woodtron's second pass.** §4.20 built a profile off twenty-one
 real programs and it is the honest one in this repo, but it writes files whose **parts never come
 free**. The machine cuts every contour on the sheet to a 1.0mm skin and only then takes them all
 through in a second sheet-wide pass — that is what holds each part on the vacuum while its
@@ -2457,7 +2630,7 @@ between a good draft and a file that can be run. **Nothing blocks it.**
   (§4.20), which is the only thing keeping the drill bank off. The map is solved; the bank is one
   field away. **128mm** is the cost of guessing, and no amount of re-reading the files answers it.
 
-**And one has been answered and is now ready to build: the banquette corner**, §5.13 item 1. The
+**The banquette corner, in more detail**, §5.13 item 1. The
 shop's answer arrived in the session that fixed §4.22's bench bugs and was deliberately not built in
 it, because that session was scoped to those bugs. **It is not the shape anybody had assumed.** The
 seat is an **L** — a span along each wall, a run's depth off each, ~900 and 500 in the shop's own
@@ -2466,18 +2639,26 @@ example — with a small **concave fillet**, ~150mm, where the two seat fronts m
 input, and the lid, the backs and the cushion all follow the new outline. Read §5.13 item 1 before
 starting; it has the shop's words and what falls out of them.
 
+**§4.23 left it two things.** The corner unit's cushion is now **flush** rather than 5mm inside the
+carcass, which closes the exposed-carcass half of the report — but it takes **no overhang**, because
+a quarter disc's two straight edges are radii of its own arc and pushing the arc into the room pushes
+them into the units either side. Give it the shop's 10mm when it has an L to be proud of, where the
+two seat fronts are real edges. And §4.19's corner-seat arc charge still measures that quarter
+circle, so it moves with the outline.
+
 **The KDT is a separate and still-open question.** Every one of the twenty-one files is a Woodtron
 and **nothing has been carried across** — the only KDT fact anybody has is the Z datum, from the
 shop directly. One program off it would do for the KDT what those did for the Woodtron, and
 `library/machines.ts` says at the top exactly what to compare and in what order, with the Woodtron
 doc as the worked example.
 
-**And there is a banquette finishing pass with three items left on it — §5.14.** Four faults were
-reported from the bench with photographs; the oversize cushions are fixed and the other three are
-diagnosed to the line and not built. They want **one branch**, because two of them deliberately
-re-price and that argument is better made once. The laminate one has a trap in it worth reading
-before you start: `finishLaminate` migrates to **zero**, so a curve may have no laminate at all
-rather than an unrendered one, and nothing on screen tells those apart.
+**The banquette finishing pass is done — all four of §5.14, see §4.23.** The cushion stands 10mm
+proud of the finished front and is adjustable, a false front takes no reveal, and the finish laminate
+is drawn in the door decor, said out loud when it is absent, and charged only when it exists. It
+re-priced saved jobs (v30 / standards v22) and re-cut every banquette front, both deliberately and
+both said out loud. **The one thing deliberately left there:** the corner unit takes no overhang,
+because a quarter disc's straight edges are radii of its own arc — it gets one with §5.13 item 1's
+real outline.
 
 **For the app: everything named here has shipped** — the out-of-step indicator is §4.18, getting a
 job out of the browser is §4.17, §5.12's custom part features are §4.16, the cushions are §4.19, and
@@ -3213,7 +3394,17 @@ three one-click ways to destroy a job without being asked, and a non-job file th
 to crash the app into the reload loop. All fixed, and **the shop standards can now be saved out
 too**, which genuinely could not be done before. §4.17 is the record.
 
-### 5.14 The banquette finishing pass — reported from the bench with photographs
+### 5.14 The banquette finishing pass — **shipped in full, see 4.23**
+
+**All four are done.** The oversize cushions were fixed in the pass that wrote this section; the
+other three shipped on one branch, as this section asked, and §4.23 is the record of what was built
+and what it cost. What follows is the diagnosis as it was written, kept because it survived contact
+with the work — including the trap in the third item, which was real and turned out to have a third
+half nobody had found.
+
+**One thing here was left open and is worth carrying forward on its own:** the corner unit still
+takes no cushion overhang, deliberately, because a quarter disc's straight edges are radii of its own
+arc. It gets one when §5.13 item 1 gives it a real L-shaped outline.
 
 **Four things, reported together while looking at a real corner banquette on screen. One is fixed;
 the other three are diagnosed to the line and not built.** They belong on **one branch**, because
@@ -3277,6 +3468,15 @@ Two things about *how* that was found are worth more than the fix:
 **Where to look:** `viewport/BanquetteCushions.tsx` for the bevel correction that is done, with both
 reference measurements in its comments; `rules/parts.ts` `fixedFrontPanel` for the reveal;
 `rules/parts.ts` `wrapPart` and `Viewport3D.tsx:94` for the laminate.
+
+**Three things this diagnosis did not know, all found by the work — §4.23 has them in full.** The
+laminate was not only undrawn, it was **charged unconditionally** while the formers were sized off
+an allowance of zero, which makes v23's *"nothing is re-priced"* the sixth stale claim in this file.
+The bevel fix above was itself half done — the size was corrected and the **placement** was not, so
+the back cushion and both bolsters were exactly the right size and one bevel out of place on every
+axis, invisible to every assertion that pass added. And the overhang's awkward-looking corner case
+turned out not to exist: proud at the front and flush at the end is one arc of the carcass's own
+radius with its centre moved forward.
 
 ### 5.13 Reported from the bench, August 2026 — the second list
 

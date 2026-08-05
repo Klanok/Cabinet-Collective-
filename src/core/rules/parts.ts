@@ -20,6 +20,7 @@ import { placement } from '../geom/placement.ts';
 import { type SignedAxis, v3 } from '../geom/vec.ts';
 import { cylindricalForming, developedLength } from '../model/forming.ts';
 import type { PanelRole } from '../model/panel.ts';
+import type { ConstructionMethod } from '../model/construction.ts';
 import type { RuleContext } from './context.ts';
 import {
   type CornerRadius,
@@ -36,6 +37,7 @@ import {
   BAND_FRONT,
   BAND_NONE,
   type CabinetSpec,
+  type MaterialSlot,
   type PartInstance,
   refusalOf,
 } from './spec.ts';
@@ -884,6 +886,8 @@ export interface WrapSpec {
   readonly trail: Mm;
   readonly height: Mm;
   readonly bottomY: Mm;
+  /** What is laid over this layer's show face — see `PartInstance.finish`. Only the outer one. */
+  readonly finish?: MaterialSlot;
   readonly note?: (length: Mm) => string;
 }
 
@@ -924,6 +928,7 @@ export const wrapPart = (ctx: RuleContext, rad: CornerRadius, spec: WrapSpec): P
     profile: rectProfile(length, spec.height),
     placement: placed,
     material: 'skin',
+    finish: spec.finish,
     bandedDirections: BAND_NONE,
     grain: 'any',
     forming,
@@ -932,20 +937,42 @@ export const wrapPart = (ctx: RuleContext, rad: CornerRadius, spec: WrapSpec): P
 };
 
 /**
+ * The finish laminate over a curve, if the method carries one.
+ *
+ * Exported because three things have to agree about whether a given curve is laminated — the
+ * former radius it is cut to, the decor it draws in, and the sheet it is charged for — and they
+ * were reading three different sources: `radius.ts` read the allowance, `Viewport3D` read nothing
+ * at all, and `costing.ts` charged a laminate sheet on **any** curve whether the method carried an
+ * allowance or not. One predicate, so a curve cannot be dimensioned bare, drawn bare and charged
+ * laminated all at once, which is what §5.14 found.
+ */
+export const isLaminatedCurve = (construction: ConstructionMethod): boolean =>
+  (construction.finishLaminate ?? 0) > 0;
+
+/**
  * Every layer of the wrap.
  *
  * Each layer is a **different length**, and this is the whole reason the forming descriptor
  * exists. The inner layer wraps the formers; the next one wraps the inner layer, a board
  * thickness further out, and therefore has further to go. Cutting them all the same makes
  * every layer after the first come up short, and you find out with the glue on.
+ *
+ * **The outer layer is the only one that carries the finish**, which is exactly what the laminate
+ * is: one sheet over the outside of the finished wrap, not something between the plies —
+ * `substrateRadius` already takes it off once rather than once per layer. The inner layers are
+ * glue faces and nobody ever sees them. And it carries the **door** decor, because that is what a
+ * shop orders: 1mm laminate matched to the doors. `laminate-1mm` on the price list is the *sheet*,
+ * with a placeholder colour and its own comment saying nothing is drawn from it.
  */
-export const wrapLayers = (ctx: RuleContext, rad: CornerRadius): PartInstance[] =>
-  Array.from({ length: rad.layers }, (_, i) => {
+export const wrapLayers = (ctx: RuleContext, rad: CornerRadius): PartInstance[] => {
+  const laminated = isLaminatedCurve(ctx.construction);
+  return Array.from({ length: rad.layers }, (_, i) => {
     const inner = mm(rad.rSub + i * ctx.ts);
     // Belt as well as braces. `resolveRadius` will not hand over a corner this tight, and
     // `cylindricalForming` is right to refuse one — but a builder that can throw is a builder
     // that can take the whole app down, so it returns nothing instead.
     if (inner <= 0) return null;
+    const outer = i === rad.layers - 1;
     return wrapPart(ctx, rad, {
       name: rad.layers === 1 ? 'Skin' : `Skin layer ${i + 1}`,
       role: 'skin',
@@ -954,11 +981,16 @@ export const wrapLayers = (ctx: RuleContext, rad: CornerRadius): PartInstance[] 
       trail: rad.tail,
       height: ctx.H,
       bottomY: mm(0),
+      finish: outer && laminated ? 'door' : undefined,
       note: (length) =>
         `Cut flat ${length.toFixed(1)} × ${ctx.H} and bend to ${Math.round(inner)}mm inside radius. ` +
-        'Check the sheet bends this way before cutting — bendy ply is sold barrel or column form.',
+        'Check the sheet bends this way before cutting — bendy ply is sold barrel or column form.' +
+        (outer && laminated
+          ? ` Laminate the outside face in the door decor, ${ctx.construction.finishLaminate}mm.`
+          : ''),
     });
   }).filter((layer): layer is PartInstance => layer !== null);
+};
 
 /**
  * What is wrong with the corner radius on this cabinet, in plain terms.
@@ -1043,6 +1075,30 @@ export const cornerRadiusProblems = (ctx: RuleContext, spec: CabinetSpec): strin
     problems.push(
       'A shelf cannot carry a bowed front and a rounded corner at once — two curves arguing ' +
         'over one edge. Pick one.',
+    );
+  }
+  /*
+   * **A curve with no finish laminate on it, said out loud.**
+   *
+   * `finishLaminate` migrates to **zero** on everything saved before §5.0 (project v23, standards
+   * v19), deliberately, because a curve already quoted was cut without it. So a shop's curve may
+   * genuinely have no laminate at all — and until §5.14 nothing on screen told that apart from a
+   * laminated curve that simply wasn't being drawn, because neither was drawn.
+   *
+   * Now that the laminated one renders in the door decor, the bare one renders in bendy ply, which
+   * is honest and is *also* what a curve looks like when nobody has noticed. **Making the picture
+   * right without saying this would make the bare case invisible instead of wrong** — §4.18's
+   * lesson in new clothes. So it is a sentence, on the cabinet, in millimetres.
+   *
+   * Not an error: a shop that veneers or paints its curves has a perfectly good bare wrap, which is
+   * why it says what it will look like rather than what to do about it.
+   */
+  if (!isLaminatedCurve(ctx.construction)) {
+    problems.push(
+      'This curve has no finish laminate on it, so the bendy ply is the finished face and the ' +
+        'corner will show its substrate beside the doors. Set "Finish laminate over a curve" ' +
+        'under Joinery — 1mm is the shipped figure. Leave it at zero if you are veneering or ' +
+        'painting the curve yourself.',
     );
   }
   return problems;
@@ -1163,22 +1219,43 @@ export const lidPanel = (ctx: RuleContext, overhang: Mm): PartInstance => {
  * banquette front is wide and low, so grain runs horizontally along the run the way a drawer
  * bank is matched. A door is tall and its grain runs up it; copying the door here would stand
  * the grain on end on a 1200 × 380 front, which is not how one is built.
+ *
+ * ## It takes no reveal, and that is the §5.14 correction
+ *
+ * It used to cut `H − revealTop − revealBottom` by `zone.width − 2 × revealSides`, which on the
+ * shipped reveals is 3mm short at the top and 1.5mm short at each end. **A reveal is clearance
+ * for a door to swing** — `revealTop` is 3mm specifically so a door can open under a benchtop
+ * (§3). A false front takes no hinges, never opens, and has no benchtop over it: the cushion sits
+ * on top of the carcass beside it. So the gap was clearance for a movement that never happens,
+ * and all it did was expose a white band of carcass along the top of the front, which is what the
+ * bench photographed.
+ *
+ * The sides are the same argument and have a second half: in a run of seating the fronts should
+ * **meet**, and two fronts each held in 1.5mm leave a 3mm line of daylight between units that are
+ * meant to read as one bench.
+ *
+ * So the front fills its zone exactly — full carcass height, the full clear run of front. On a
+ * radiused unit `doorZone` still stops it at the fixing strip, which is a piece of structure
+ * rather than a reveal and stays.
+ *
+ * **This re-cuts every banquette front in every saved job**, 3mm taller and 3mm wider. It is a
+ * rule change rather than a migration, so nothing carries the old size forward, and it travels
+ * with project v30 on purpose — see §5.14.
  */
 export const fixedFrontPanel = (ctx: RuleContext): PartInstance[] => {
-  const rS = ctx.construction.revealSides;
-  const height = mm(ctx.H - ctx.construction.revealTop - ctx.construction.revealBottom);
   const zone = doorZone(ctx);
-  const width = mm(zone.width - 2 * rS);
+  const height = ctx.H;
+  const width = zone.width;
   if (height <= 0 || width <= 0) return [];
   return [{
     name: 'Front',
     role: 'false-front',
     profile: rectProfile(width, height),
-    placement: placement(v3(mm(zone.x0 + rS), ctx.construction.revealBottom, ctx.frontBackZ), '+X', '+Y'),
+    placement: placement(v3(zone.x0, mm(0), ctx.frontBackZ), '+X', '+Y'),
     material: 'door',
     bandedDirections: BAND_ALL,
     grain: 'length-along-grain',
-    note: 'Fixed — no hinges. Grain horizontal.',
+    note: 'Fixed — no hinges, and no reveal: it does not open. Grain horizontal.',
   }];
 };
 

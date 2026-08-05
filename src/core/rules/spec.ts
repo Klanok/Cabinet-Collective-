@@ -38,6 +38,17 @@ export interface PartInstance {
   readonly profile: Profile2D;
   readonly placement: PanelPlacement;
   readonly material: MaterialSlot;
+  /**
+   * What is applied over this part's A-face after it is machined — the finish laminate on the
+   * outer layer of a bendy-ply wrap, and nothing else so far.
+   *
+   * **It is what the part looks like, never what it is cut from.** `material` stays the board you
+   * order and the board the nest and the cutlist work in; this says the finished face shows
+   * something else. Absent on nearly every part, which means "the board is the finish".
+   *
+   * See `Panel.finishMaterialId` for why this exists rather than a second part.
+   */
+  readonly finish?: MaterialSlot;
   readonly bandedDirections: BandingRule;
   readonly grain: GrainConstraint;
   readonly features?: readonly PanelFeature[];
