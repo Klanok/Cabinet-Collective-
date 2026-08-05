@@ -102,6 +102,10 @@ const AU_STANDARD = (price: number) => sheet(2410, 1205, price);
  */
 const AU_STANDARD_MD = (price: number) => sheet(2420, 1210, price);
 const AU_LARGE_MD = (price: number) => sheet(3620, 1810, price);
+/*
+ * Named `_MD` for the shop's own phrase, and it means **every MDF board** — the trim is a pressing
+ * margin, so a raw sheet takes it exactly as a finished one does. See `MDF_BOARDS`.
+ */
 
 /**
  * 3115 × 1205 — a long Polytec board, confirmed twice over.
@@ -123,25 +127,25 @@ const IMPORTED = (price: number) => sheet(2440, 1220, price);
 /**
  * The boards the shop's *"20mm in length and 10mm in width"* applies to.
  *
- * **MD is MDF** — confirmed by the shop when asked, rather than read off the abbreviation. So these
- * are the branded decorative boards on an MDF substrate, which is what a door or a panel is made
- * from.
+ * **MD is MDF, and it is the board rather than the finish** — both confirmed by the shop when
+ * asked. The first answer named *"MD finish boards"*, which read as though a raw sheet might be
+ * different; the second settled it: *"yes raw mdf is the same 20 and 10."*
+ *
+ * **That is the answer the physics wanted.** The margin is a **pressing trim** — a board is cut to
+ * its nominal after it is pressed, and whether a decor goes on afterwards has nothing to do with
+ * it. So the set is every MDF board, finished or raw, which is both simpler than the reading it
+ * replaces and the one with a reason behind it.
  *
  * **Listed rather than derived from the substrate**, deliberately. A list can be checked at a
  * glance and corrected in one line; a rule over substrate strings quietly captures the next
- * material somebody adds, and this set is a judgement rather than a query.
- *
- * **Two things are off it and one of them is an open question.** The 1mm laminate is not a board at
- * all, which is settled. **Raw MDF is off it because the shop said "MD *finish* boards"** — but the
- * margin exists because a board is trimmed to a nominal after pressing, which has nothing to do
- * with whether it was then finished, so raw MDF may well take the same 20 and 10. It is left at the
- * conservative figure until somebody says, for the reason `unconfirmedSheetSizes` gives: a board
- * stated small buys the odd extra sheet, and one stated large cuts a part short.
+ * material somebody adds — and it would have captured `laminate-1mm`, which carries an MDF
+ * substrate and is a 1mm facing sheet rather than a board at all.
  *
  * Exported because the **migration reads the same list** — a saved job's sheets have to grow by the
  * figure their own material takes, and a size-keyed map cannot express that.
  */
-export const MD_FINISH_BOARDS: readonly string[] = [
+export const MDF_BOARDS: readonly string[] = [
+  // Branded decorative board — doors and panels.
   'poly-florentine-walnut-16',
   'poly-boston-oak-18',
   'poly-prime-oak-16',
@@ -149,6 +153,10 @@ export const MD_FINISH_BOARDS: readonly string[] = [
   'lam-rural-oak-16',
   'lam-classic-oak-16',
   'lam-portsea-absolute-matte-16',
+  // Raw and HMR MDF — same board, same pressing trim, no decor on it.
+  'mdf-raw-18',
+  'mdf-raw-25',
+  'mdf-hmr-18',
 ];
 
 /**
@@ -167,8 +175,6 @@ export const unconfirmedSheetSizes: readonly string[] = [
   '3620 × 1810 on an MD finish board — the shop\'s "generally allow 20 and 10" applied to the ' +
     'large sheet. A stated allowance rather than a published size, and the only figure here that ' +
     'is the rule applied rather than a board somebody has measured.',
-  'Raw MDF takes the carcass allowance, because the shop named "MD FINISH boards". The trim is a ' +
-    'pressing margin and may well be the same 20 and 10 on raw board — ask before cutting one tight.',
 ];
 
 export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
@@ -455,7 +461,7 @@ export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
     grain: 'none',
     colour: '#c8a87d',
     decorFaces: 2,
-    sheets: [AU_LARGE(9_600), AU_STANDARD(4_400)],
+    sheets: [AU_LARGE_MD(9_600), AU_STANDARD_MD(4_400)],
     indicativePricing: true,
   },
   {
@@ -467,7 +473,7 @@ export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
     grain: 'none',
     colour: '#c8a87d',
     decorFaces: 2,
-    sheets: [AU_LARGE(14_500)],
+    sheets: [AU_LARGE_MD(14_500)],
     indicativePricing: true,
   },
   {
@@ -479,7 +485,7 @@ export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
     grain: 'none',
     colour: '#9aad88',
     decorFaces: 2,
-    sheets: [AU_LARGE(13_200)],
+    sheets: [AU_LARGE_MD(13_200)],
     indicativePricing: true,
   },
   {

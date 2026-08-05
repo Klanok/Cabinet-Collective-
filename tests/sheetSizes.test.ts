@@ -37,7 +37,7 @@ import {
 } from '../src/core/model/project.ts';
 import {
   AU_SHEET_MATERIALS,
-  MD_FINISH_BOARDS,
+  MDF_BOARDS,
   unconfirmedSheetSizes,
 } from '../src/core/library/materials.au.ts';
 import {
@@ -148,15 +148,16 @@ describe('a job saved against the usable area', () => {
         ...settings,
         nesting: {
           ...(settings.nesting as Record<string, unknown>),
-          sheetSizes: { 'hmr-white-16': '2400x1200', 'mdf-raw-18': '3600x1800' },
+          // A carcass board whose 3600 × 1800 nobody has measured, so it does not move.
+          sheetSizes: { 'hmr-white-16': '2400x1200', 'hmr-white-18': '3600x1800' },
         },
       },
     };
     const migrated = migrateProject(withChoice);
     expect(migrated.settings.nesting.sheetSizes).toEqual({
       'hmr-white-16': '2410x1205',
-      // Untouched, because that size did not move.
-      'mdf-raw-18': '3600x1800',
+      // Untouched, because that size does not move on a carcass board.
+      'hmr-white-18': '3600x1800',
     });
     // And the key it now points at is a size the material really has.
     const white = migrated.materials.sheets.find((m) => m.id === 'hmr-white-16')!;
@@ -188,7 +189,7 @@ describe('a job saved against the usable area', () => {
  * trade one and the set it names is a judgement, so it is written down where it can be checked at a
  * glance and corrected in one line.
  */
-describe('the MD finish allowance', () => {
+describe('the MDF allowance', () => {
   it('runs 20 and 10 where a carcass board runs 10 and 5', () => {
     const walnut = AU_SHEET_MATERIALS.find((m) => m.id === 'poly-florentine-walnut-16')!;
     expect(walnut.sheets.map((s) => [s.length, s.width])).toContainEqual([2420, 1210]);
@@ -207,10 +208,23 @@ describe('the MD finish allowance', () => {
     expect(door.sheets.map((s) => [s.length, s.width])).toContainEqual([3115, 1205]);
   });
 
-  it('leaves raw MDF and the 1mm laminate off the list', () => {
-    // "MD **finish** board" — raw MDF has no finish, and the laminate is not a board at all.
-    expect(MD_FINISH_BOARDS).not.toContain('mdf-raw-18');
-    expect(MD_FINISH_BOARDS).not.toContain('laminate-1mm');
+  it('takes raw MDF too, because the margin is a pressing trim rather than a finish', () => {
+    /*
+     * The shop's second answer, and it is the one the physics wanted: *"yes raw mdf is the same 20
+     * and 10."* A board is cut to its nominal after pressing, and whether a decor goes on
+     * afterwards has nothing to do with it. The first reading — *"MD **finish** boards"* — had raw
+     * MDF on the conservative figure, which was the safe place to be wrong while nobody had said.
+     */
+    expect(MDF_BOARDS).toContain('mdf-raw-18');
+    const raw = AU_SHEET_MATERIALS.find((m) => m.id === 'mdf-raw-18')!;
+    expect(raw.sheets.map((s) => [s.length, s.width])).toContainEqual([2420, 1210]);
+    expect(raw.sheets.map((s) => [s.length, s.width])).toContainEqual([3620, 1810]);
+  });
+
+  it('still leaves the 1mm laminate off, because it is not a board', () => {
+    // It carries an MDF substrate, so a rule over substrate strings would have swept it in — which
+    // is the whole argument for `MDF_BOARDS` being a list.
+    expect(MDF_BOARDS).not.toContain('laminate-1mm');
   });
 
   it('grows a saved job by the figure its own material takes, not by one figure', () => {

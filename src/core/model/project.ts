@@ -39,7 +39,7 @@ import {
   AU_BENCHTOP_MATERIALS,
   AU_MATERIAL_LIBRARY,
   AU_SHEET_MATERIALS,
-  MD_FINISH_BOARDS,
+  MDF_BOARDS,
 } from '../library/materials.au.ts';
 
 export const CURRENT_SCHEMA_VERSION = 32 as const;
@@ -1044,7 +1044,7 @@ const MD_REAL_SIZES: Record<string, { length: number; width: number }> = {
 };
 
 const realSizesFor = (materialId: string) =>
-  MD_FINISH_BOARDS.includes(materialId) ? MD_REAL_SIZES : CARCASS_REAL_SIZES;
+  MDF_BOARDS.includes(materialId) ? MD_REAL_SIZES : CARCASS_REAL_SIZES;
 
 /**
  * Grow every sheet whose stated size was really its usable area. Prices are untouched.
