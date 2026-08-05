@@ -40,9 +40,10 @@ import {
   AU_MATERIAL_LIBRARY,
   AU_SHEET_MATERIALS,
   MDF_BOARDS,
+  PLY_BOARDS,
 } from '../library/materials.au.ts';
 
-export const CURRENT_SCHEMA_VERSION = 33 as const;
+export const CURRENT_SCHEMA_VERSION = 34 as const;
 
 /**
  * The bendy ply an older job is given when it is migrated forward. It has no curved parts in
@@ -1065,6 +1066,50 @@ const migrateV32toV33 = (raw: Record<string, unknown>): Record<string, unknown> 
 };
 
 /**
+ * v33 → v34: **the last two footprints nobody had an answer for get one, and they are not trims.**
+ *
+ * From the shop, asked what was left:
+ *
+ * > *"ply is generally tighter allow 2410 X 1205. laminate is generally 3600 X 1350 for polytec.
+ * > Laminex is generally 3600 X 1500."*
+ *
+ * **Plywood shrinks.** It is quoted at the metric-imperial 2440 × 1220 and gives 2410 × 1205 —
+ * the only class here whose real sheet is *smaller* than its quoted one, and the reason
+ * `realSizesFor` routes three classes rather than two. It reaches the four ply products: birch ply
+ * and the three bendy plys, which is every curved part in the model.
+ *
+ * **This one re-prices upward**, and it is the first to do so since v30. Less usable sheet is more
+ * sheets, and §4.8 charges whole sheets off the count. The argument is the one v9 and v11 made: the
+ * job was being quoted for board it does not get. No part moves and no cut plan is disturbed.
+ *
+ * **The laminate is a correction rather than an allowance.** 3660 × 1830 and 2440 × 1220 are
+ * board-ish footprints that neither supplier sells a *facing sheet* in; the real ones are the two
+ * brands' own. Its price carries forward as a **rate per m²** rather than as a price — see
+ * `withRealLaminateSheets`, and note that a laminate is charged as sheet goods on every curve that
+ * carries one, so the area is a quote and not just a nest.
+ *
+ * The sheet choices are re-keyed with the sizes, for the reason v32 gave: `sheetSizeKey` is the
+ * dimensions, so a moved size orphans any material set to be cut from it.
+ */
+const migrateV33toV34 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const materials = (raw.materials as Record<string, unknown> | undefined) ?? {};
+  const settings = (raw.settings as Record<string, unknown> | undefined) ?? {};
+  const nesting = (settings.nesting as Record<string, unknown> | undefined) ?? {};
+  return {
+    ...raw,
+    schemaVersion: 34,
+    materials: {
+      ...materials,
+      sheets: withRealLaminateSheets(withRealSheetSizes(materials.sheets)),
+    },
+    settings: {
+      ...settings,
+      nesting: { ...nesting, sheetSizes: withRekeyedSheetChoices(nesting.sheetSizes) },
+    },
+  };
+};
+
+/**
  * The usable-area figures that are really a bigger board — **per class of board, not per size.**
  *
  * The shop's correction, and it is the reason this is two tables rather than one:
@@ -1095,8 +1140,67 @@ const MD_REAL_SIZES: Record<string, { length: number; width: number }> = {
   '3600x1800': { length: 3620, width: 1810 },
 };
 
-const realSizesFor = (materialId: string) =>
-  MDF_BOARDS.includes(materialId) ? MD_REAL_SIZES : CARCASS_REAL_SIZES;
+/**
+ * Imported ply, and the only class whose real sheet is **smaller** than the size it is sold by.
+ *
+ * > *"ply is generally tighter — allow 2410 × 1205"*
+ *
+ * Which is why this cannot be one table keyed by size: 2440 × 1220 is a ply sheet that gives less
+ * than it says, and the same key on anything else would mean something different.
+ */
+const PLY_REAL_SIZES: Record<string, { length: number; width: number }> = {
+  '2440x1220': { length: 2410, width: 1205 },
+};
+
+const realSizesFor = (materialId: string) => {
+  if (MDF_BOARDS.includes(materialId)) return MD_REAL_SIZES;
+  if (PLY_BOARDS.includes(materialId)) return PLY_REAL_SIZES;
+  return CARCASS_REAL_SIZES;
+};
+
+/** The finish laminate's own id, and the two sheets the two brands actually sell it in. */
+const LAMINATE_ID = 'laminate-1mm';
+const LAMINATE_SHEETS: Record<string, { length: number; width: number }> = {
+  // The big one becomes Laminex's, the small one Polytec's, so a job keeps two sizes to pick from.
+  '3660x1830': { length: 3600, width: 1500 },
+  '2440x1220': { length: 3600, width: 1350 },
+};
+
+/**
+ * Put the finish laminate on the sheets it is really sold in, **keeping the shop's own rate**.
+ *
+ * The replaced footprints are not a trim question — 3660 × 1830 and 2440 × 1220 are board-ish sizes
+ * that neither supplier sells a facing sheet in — so there is no allowance to apply, only a
+ * correction. That makes the price the interesting half: a sheet's price is for *that* sheet, and
+ * these are different sheets. Carrying $401.87 onto a 5.40m² sheet would quietly invent a $74/m²
+ * laminate.
+ *
+ * So the **rate per square metre is what carries forward**, not the price. A shop that edited
+ * $60/m² up to $75 keeps $75; what moves is the area it is charged on.
+ */
+export const withRealLaminateSheets = (rawSheets: unknown): unknown => {
+  const sheets = (rawSheets as Record<string, unknown>[] | undefined) ?? [];
+  return sheets.map((material) => {
+    if (String(material.id) !== LAMINATE_ID) return material;
+    const sizes = (material.sheets as Record<string, unknown>[] | undefined) ?? [];
+    return {
+      ...material,
+      sheets: sizes.map((size) => {
+        const key = `${String(size.length)}x${String(size.width)}`;
+        const replacement = LAMINATE_SHEETS[key];
+        if (!replacement) return size;
+        const oldArea = Number(size.length) * Number(size.width);
+        const rate = oldArea > 0 ? Number(size.priceExGst) / oldArea : 0;
+        return {
+          ...size,
+          length: replacement.length,
+          width: replacement.width,
+          priceExGst: Math.round(rate * replacement.length * replacement.width),
+        };
+      }),
+    };
+  });
+};
 
 /**
  * Grow every sheet whose stated size was really its usable area. Prices are untouched.
@@ -1418,6 +1522,7 @@ export const migrateProject = (raw: unknown): Project => {
   if (data.schemaVersion === 30) data = migrateV30toV31(data);
   if (data.schemaVersion === 31) data = migrateV31toV32(data);
   if (data.schemaVersion === 32) data = migrateV32toV33(data);
+  if (data.schemaVersion === 33) data = migrateV33toV34(data);
 
   if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`migrateProject: could not migrate schema version ${String(version)}`);

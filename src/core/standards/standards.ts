@@ -30,6 +30,7 @@ import {
   type ProjectSettings,
   withBackfilledLabourRates,
   withCushionOverhang,
+  withRealLaminateSheets,
   withRealSheetSizes,
   withRekeyedSheetChoices,
 } from '../model/project.ts';
@@ -59,7 +60,7 @@ import {
   DEFAULT_RUNNER_SYSTEM_ID,
 } from '../library/blum.ts';
 
-export const CURRENT_STANDARDS_VERSION = 24 as const;
+export const CURRENT_STANDARDS_VERSION = 25 as const;
 
 export interface ShopStandards {
   readonly version: typeof CURRENT_STANDARDS_VERSION;
@@ -384,6 +385,7 @@ export const migrateStandards = (raw: unknown): ShopStandards => {
   if (data.version === 21) data = migrateStandardsV21toV22(data);
   if (data.version === 22) data = migrateStandardsV22toV23(data);
   if (data.version === 23) data = migrateStandardsV23toV24(data);
+  if (data.version === 24) data = migrateStandardsV24toV25(data);
 
   if (data.version !== CURRENT_STANDARDS_VERSION) {
     throw new Error(`migrateStandards: could not migrate version ${String(version)}`);
@@ -764,6 +766,31 @@ const migrateStandardsV21toV22 = (raw: Record<string, unknown>): Record<string, 
  * codebase before — a job is born from the standards, so standards left unrepaired re-infect every
  * new job at the current schema version, where nothing is left to fix it.
  */
+/**
+ * v24 → v25: **the ply and laminate footprints, on the standards as well as on the job.**
+ *
+ * The other half of project v33 → v34. Same reason as every one of these: a job takes a *copy* of
+ * the standards, so standards left unrepaired quietly re-infect the next job at the current schema
+ * version, where there is no migration left to fix it.
+ */
+const migrateStandardsV24toV25 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const materials = (raw.materials as Record<string, unknown> | undefined) ?? {};
+  const settings = (raw.settings as Record<string, unknown> | undefined) ?? {};
+  const nesting = (settings.nesting as Record<string, unknown> | undefined) ?? {};
+  return {
+    ...raw,
+    version: 25,
+    materials: {
+      ...materials,
+      sheets: withRealLaminateSheets(withRealSheetSizes(materials.sheets)),
+    },
+    settings: {
+      ...settings,
+      nesting: { ...nesting, sheetSizes: withRekeyedSheetChoices(nesting.sheetSizes) },
+    },
+  };
+};
+
 const migrateStandardsV23toV24 = (raw: Record<string, unknown>): Record<string, unknown> => {
   const materials = (raw.materials as Record<string, unknown> | undefined) ?? {};
   const settings = (raw.settings as Record<string, unknown> | undefined) ?? {};
