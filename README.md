@@ -374,7 +374,11 @@ open-from-file, so a job can live outside the browser.
 - **Millimetres only.** There is no imperial fallback and no conversion layer.
 - **Frameless (European 32mm) construction** is the baseline the rule engine is designed
   around. Face-frame would be an additional construction method, not the default.
-- **Sheet sizes**: 3600×1800 and 2400×1200, with 2440×1220 for imported product.
+- **Sheet sizes**: the board you are handed, not the area you can nest into. The 2400×1200
+  everyone quotes ships as **2410×1205** on carcass board and **2420×1210** on MDF — the
+  allowance is the material's, 10 and 5 against 20 and 10 — plus the 3115×1205 Polytec board.
+  The large 3600×1800 and the imported 2440×1220 are still stated at their usable area until
+  somebody reads the published range, and the app names which those are.
 - **Thicknesses**: 16 / 18 / 25mm.
 - **Substrates**: white HMR particleboard as the carcass default. A carcass is specified as a
   *board*, not a finish — nobody orders a carcass in a decor name. Decors are for doors,
