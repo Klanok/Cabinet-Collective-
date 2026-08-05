@@ -1,10 +1,14 @@
 /**
  * Australian material library seed.
  *
- * Sheet sizes, thicknesses and substrates here are the real local standards — 3600×1800 and
- * 2400×1200 stock, 2440×1220 for imported product, 16/18/25mm, melamine-faced particleboard
- * as the carcass default and MDF as the door substrate. None of that is a localisation pass
- * over a US default; it is the baseline.
+ * Sheet sizes, thicknesses and substrates here are the real local standards — the 3600×1800 and
+ * 2400×1200 everyone quotes, 2440×1220 for imported product, 16/18/25mm, melamine-faced
+ * particleboard as the carcass default and MDF as the door substrate. None of that is a
+ * localisation pass over a US default; it is the baseline.
+ *
+ * **Those quoted figures are the usable area rather than the board**, which is the correction the
+ * next comment down is about: 2400 × 1200 ships as 2410 × 1205 on carcass board and 2420 × 1210 on
+ * MDF. The two that are still stated at the usable area say so on `unconfirmedSheetSizes`.
  *
  * Each material also carries a `colour` — roughly what the decor looks like on screen. It is a
  * screen approximation and nothing is cut, priced or ordered from it; the decor *name* is the fact.
@@ -87,7 +91,14 @@ const sheet = (length: number, width: number, priceExGst: number): SheetSize => 
  * if it is read as "one number".
  */
 
-/** The oversize on a carcass or melamine board. Measured, off `docs/woodtron-dialect.md` §1. */
+/**
+ * 3600 × 1800 — still the **usable area**, and the one board here that is deliberately left at it.
+ *
+ * The 10-and-5 rule is measured on `AU_STANDARD` and nothing confirms it holds on this sheet, so
+ * applying it would be a guess in the direction that cuts a part short. See the note above and
+ * `unconfirmedSheetSizes`, which says so on screen and in the report until somebody reads the
+ * published range.
+ */
 const AU_LARGE = (price: number) => sheet(3600, 1800, price);
 /** 2410 × 1205 — the real sheet behind the "2400 × 1200" everyone quotes. Off the machine files. */
 const AU_STANDARD = (price: number) => sheet(2410, 1205, price);
