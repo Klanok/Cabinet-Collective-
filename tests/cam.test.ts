@@ -73,8 +73,13 @@ import { depthPasses } from '../src/core/post/iso.ts';
 import { zAtDepth, zClearance } from '../src/core/post/machine.ts';
 import { checkNestedForRouter } from '../src/core/post/check.ts';
 import { postProject, postedTotals, setupFor } from '../src/core/post/post.ts';
-import { GENERIC_ISO_ROUTER, KDT_NESTING_ROUTER } from '../src/core/library/machines.ts';
+import {
+  GENERIC_ISO_ROUTER,
+  KDT_NESTING_ROUTER,
+  WOODTRON_NESTING_ROUTER,
+} from '../src/core/library/machines.ts';
 import { nestProject } from '../src/core/nest/nest.ts';
+import { AU_SHOP_STANDARDS } from '../src/core/standards/standards.ts';
 import { buildProject } from '../src/core/rules/build.ts';
 import type { Project } from '../src/core/model/project.ts';
 import {
@@ -610,5 +615,104 @@ describe('Z zero, confirmed from the shop', () => {
       expect(zs.length).toBeGreaterThan(0);
       for (const z of zs) expect(z).toBeGreaterThanOrEqual(floor - 1e-6);
     }
+  });
+});
+
+/**
+ * The second pass — every contour on the sheet to the onion skin, then a sweep taking them through.
+ *
+ * `docs/woodtron-dialect.md` §7, read off three files that each hold two parts:
+ *
+ * ```
+ *   (first block)     part A round at Z1.0 ... then part B round at Z1.0
+ *   (NEXT OPERATION)  part A round at Z-0.2 ... then part B round at Z-0.2
+ * ```
+ *
+ * **The two passes are per sheet, not per part**, and that is the whole of it: a post that finished
+ * each part before starting the next would drop the first one loose under a spinning cutter while
+ * its neighbours were still being cut. The Woodtron profile carried `PARTS DO NOT COME FREE` at the
+ * top of every program it wrote until this existed.
+ *
+ * **The fix that is not the fix** — and it is worth an assertion of its own, because it is the
+ * obvious one: setting `leaveUncut` to 0 makes the single pass reach the machine's finished depth,
+ * and does exactly what the two-pass structure exists to prevent.
+ */
+describe('the sheet-wide second pass', () => {
+  const woodtronJob = (): Project => {
+    const base = createSampleKitchen(AU_SHOP_STANDARDS);
+    // The sample kitchen is nested for a saw; the router refuses that and says why. 10mm is the
+    // part cutter, so both figures move together.
+    return {
+      ...base,
+      settings: {
+        ...base.settings,
+        nesting: { ...base.settings.nesting, kerf: mm(10), sheetEdgeTrim: mm(10) },
+      },
+    };
+  };
+
+  const firstProgram = (profile = WOODTRON_NESTING_ROUTER) => {
+    const posted = postProject(woodtronJob(), profile);
+    const sheet = posted.sheets.find((s) => s.output);
+    expect(sheet, 'no sheet was written').toBeDefined();
+    return sheet!.output!.text.split('\r\n');
+  };
+
+  it('cuts every contour to the skin before taking any of them through', () => {
+    const lines = firstProgram();
+    const marker = lines.findIndex((l) => l.includes('NEXT OPERATION'));
+    expect(marker).toBeGreaterThan(0);
+
+    /*
+     * The assertion that says "per sheet" rather than "per part": **no through cut appears before
+     * the marker, and no skin cut after it.** A per-part two-pass writer produces the same two
+     * depths, the same number of times, in the same file — and interleaved. Counting them would
+     * pass on it; ordering is the only thing that does not.
+     */
+    const cuts = (from: number, to: number) =>
+      lines.slice(from, to).filter((l) => /^G1 Z-?\d/.test(l));
+    expect(cuts(0, marker).every((l) => l.startsWith('G1 Z1 '))).toBe(true);
+    expect(cuts(marker, lines.length).every((l) => l.startsWith('G1 Z-0.2 '))).toBe(true);
+  });
+
+  it('takes every skinned perimeter through, and nothing else', () => {
+    const lines = firstProgram();
+    const marker = lines.findIndex((l) => l.includes('NEXT OPERATION'));
+    const second = lines.slice(marker);
+    const throughs = second.filter((l) => l.includes('— through'));
+    // A rebate or a groove is finished at its own depth in the first pass and has no second half.
+    expect(throughs.length).toBeGreaterThan(0);
+    expect(second.filter((l) => /^G1 Z-0\.2 /.test(l))).toHaveLength(throughs.length);
+  });
+
+  it('plunges straight through the skin rather than stepping down through air', () => {
+    // There is only `leaveUncut` of board left here — 1mm — so a stepped descent would write a
+    // stack of passes to reach a millimetre. The machine's own files plunge once and go round.
+    const lines = firstProgram();
+    const marker = lines.findIndex((l) => l.includes('NEXT OPERATION'));
+    const firstThrough = lines.indexOf(
+      lines.slice(marker).find((l) => l.includes('— through'))!,
+    );
+    expect(lines[firstThrough + 1]).toMatch(/^G0 X/);
+    expect(lines[firstThrough + 2]).toMatch(/^G0 Z/);
+    expect(lines[firstThrough + 3]).toMatch(/^G1 Z-0\.2 /);
+  });
+
+  it('no longer says the parts do not come free', () => {
+    // The claim was true and is not any more. A stale `unconfirmed` line is the failure this whole
+    // codebase keeps catching — and this one printed at the top of every program.
+    expect(WOODTRON_NESTING_ROUTER.unconfirmed.join(' ')).not.toContain('DO NOT COME FREE');
+    expect(firstProgram().join(' ')).not.toContain('DO NOT COME FREE');
+  });
+
+  it('writes no second pass at all when nothing carries a skin', () => {
+    /*
+     * The invariant that protects every other profile: a machine that cuts through in one pass has
+     * nothing to come back for, and its programs are byte-identical to what they were.
+     */
+    const noSkin = { ...WOODTRON_NESTING_ROUTER, leaveUncut: mm(0) };
+    const lines = firstProgram(noSkin);
+    expect(lines.some((l) => l.includes('NEXT OPERATION'))).toBe(false);
+    expect(lines.filter((l) => /^G1 Z1 /.test(l))).toHaveLength(0);
   });
 });

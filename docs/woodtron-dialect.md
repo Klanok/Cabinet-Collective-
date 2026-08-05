@@ -396,10 +396,11 @@ a comment. It cannot be fitted to the profile until somebody answers it.
 **Four things in the profile are known to be wrong or missing**, and each is on its `unconfirmed`
 list, printed on screen, in the report and at the top of every program it writes:
 
-- **Parts do not come free.** §7's two passes are *per sheet*, and the post finishes each part
-  before starting the next. So `leaveUncut` ships at the machine's own **1.0mm first-pass figure**
-  and the second pass has to be added by hand. Setting it to 0 to match the finished depth would do
-  the exact thing the two-pass structure exists to prevent — free the first part under the cutter.
+- ~~**Parts do not come free.**~~ **Fixed.** `writeSheetProgram` now walks the operation list
+  twice: every contour to the skin, then a sheet-wide sweep taking each perimeter through at a
+  single plunge, with `(NEXT OPERATION)` between them exactly as §7 has it. `leaveUncut` stays at
+  1.0mm — it is the first-pass figure, not a workaround — and setting it to 0 is still the thing
+  not to do, because that cuts each part clean out in turn and frees the first one under the cutter.
 - **No holes are drilled.** Every drill in these files is on the multidrill head and nothing bores
   with the router, so the tool table has no drill in it and every hole is reported by name and left
   out. Putting one in would be inventing a bit the machine has not been seen to hold.
