@@ -10,18 +10,19 @@ import {
   TextureLoader,
 } from 'three';
 import type { Cabinet } from '../../core/model/cabinet.ts';
-import {
-  type SeatCushionPlan,
-  returnRun,
-  seatCushionPlan,
-} from '../../core/model/cushion.ts';
+import { returnRun, seatCushionPlan } from '../../core/model/cushion.ts';
 import type { InsideCornerPlan } from '../../core/model/insideCorner.ts';
 import type { UpholsteryMaterial } from '../../core/model/material.ts';
 import type { CornerRadius } from '../../core/rules/radius.ts';
 import { mm } from '../../core/units.ts';
 import { bundledAssetUrl } from './assetUrl.ts';
 import { applyFabricScale } from './fabricScale.ts';
-import { insideCornerSeatMesh, wedgeBackPlacement } from './cushionMesh.ts';
+import {
+  type CushionMesh,
+  insideCornerSeatMesh,
+  seatCushionMesh,
+  wedgeBackPlacement,
+} from './cushionMesh.ts';
 
 /**
  * The fabric image, resolved wherever this build is hosted.
@@ -173,101 +174,58 @@ function WedgeBack({ width, height, thickness, angle, radius, x, y, scaleFabric,
 }
 
 /**
- * The seat, as a plan shape extruded upward.
+ * The seat, drawn as whichever of the two shapes it is.
  *
- * A plain seat is drawn by drei's `RoundedBox`, and still is — it is an extrude with a bevelled
- * shape, and it gives the soft pillow edge on all six sides that a cushion wants. A seat on a
- * cabinet with a rounded corner cannot be a box at all, so it is extruded from `seatCushionPlan`'s
- * outline instead, bevelled the same way. The corner uses `absarc` rather than a rounded-box
- * bevel because it is a real quarter circle of a stated radius, not a softened edge.
+ * A square seat is drei's `RoundedBox`, and still is — it is an extrude with a bevelled shape, and
+ * it gives the soft pillow edge on all six sides that a cushion wants. A seat on a cabinet with a
+ * rounded corner cannot be a box at all, so it is extruded from an outline instead. The corner is a
+ * real quarter circle of a stated radius rather than a softened edge, so it is drawn through the
+ * model's own arc code like every other curve here.
+ *
+ * **Which one it is, how big it is and where it goes are all `seatCushionMesh`** — the two branches
+ * disagreeing about the size of the same cushion by two bevels is §5.14's first fault, and them
+ * agreeing is not something a screenshot can show you.
  */
-function SeatCushion({ plan, thickness, bevel, y, scaleFabric, children }: {
-  plan: SeatCushionPlan;
-  thickness: number;
-  bevel: number;
-  y: number;
+function SeatCushion({ mesh, scaleFabric, children }: {
+  mesh: CushionMesh;
   scaleFabric: (geometry: BufferGeometry | null) => void;
   children: ReactNode;
 }) {
-  const round = plan.round;
-  const b = Math.max(0.5, Math.min(bevel, thickness / 2 - 1, plan.width / 4, plan.depth / 4));
+  const seatRef = useRef<Mesh>(null);
   /*
-   * Shape space, and it is worth writing out because getting it back to front is invisible in a
-   * screenshot until you look for it. The mesh is turned `−π/2` about X, which maps a local
-   * point `(x, y, z)` to `(x, z, −y)` in the parent. So:
+   * `RoundedBox` builds its geometry internally — there is no `<…Geometry>` element to hang a ref
+   * on, so this is the one cushion that cannot use the same mechanism as the other four.
    *
-   *   shape x  →  cabinet x, from the origin the mesh is placed at
-   *   shape y  →  cabinet z, **backwards**: y = 0 is the front, y = depth is the back
-   *   extrude  →  cabinet y, straight up
-   *
-   * Which is why the mesh is placed at `z1`, the cushion's **front** edge, and not at `z0`.
-   * `BanquetteCornerCushions` already does exactly this for its quarter seat.
+   * A layout effect with **no dependency array** is the honest answer here. It runs after every
+   * render, which is exactly the condition "the geometry may have been swapped underneath us", and
+   * `applyFabricScale` early-returns on a geometry already at this repeat — so the cost is one
+   * property comparison and the correctness does not depend on guessing which prop drei rebuilds
+   * on. Listing deps here would be re-deriving drei's own memo and would go stale with it.
    */
-  /*
-   * **The shape is built `b` smaller all round, so the bevel grows it back to exactly `plan`.**
-   *
-   * This is the correction that was missing. Everything below is therefore stated on the inset
-   * outline, including the corner radius — a fillet offset inward by `b` has radius `r − b`, which
-   * is what keeps the finished arc concentric with the carcass curve underneath it rather than
-   * `b` fatter than it.
-   */
+  useLayoutEffect(() => {
+    if (seatRef.current) scaleFabric(seatRef.current.geometry);
+  });
+
   const shape = useMemo(() => {
-    const w = Math.max(1, plan.width - 2 * b);
-    const d = Math.max(1, plan.depth - 2 * b);
+    if (mesh.kind !== 'extrude') return null;
     const s = new Shape();
-    if (!round) {
-      s.moveTo(0, 0);
-      s.lineTo(w, 0);
-      s.lineTo(w, d);
-      s.lineTo(0, d);
-      s.closePath();
-      return s;
-    }
-    // Wound counter-clockwise in shape space, with the arc at y = 0 — the front.
-    const r = Math.max(0.5, round.radius - b);
-    if (round.corner === 'front-right') {
-      s.moveTo(0, 0);
-      s.lineTo(w - r, 0);
-      s.absarc(w - r, r, r, -Math.PI / 2, 0, false);
-      s.lineTo(w, d);
-      s.lineTo(0, d);
-    } else {
-      s.moveTo(r, 0);
-      s.lineTo(w, 0);
-      s.lineTo(w, d);
-      s.lineTo(0, d);
-      s.lineTo(0, r);
-      s.absarc(r, r, r, Math.PI, 1.5 * Math.PI, false);
-    }
+    mesh.shape.forEach((p, i) => (i === 0 ? s.moveTo(p.x, p.y) : s.lineTo(p.x, p.y)));
     s.closePath();
     return s;
-  }, [plan.width, plan.depth, round, b]);
+  }, [mesh]);
 
-  /*
-   * The bevel is the pillow edge, and it grows the extrusion in **every** direction — which is
-   * two corrections, not one, and only the first was being made.
-   *
-   * **Thickness.** The extrusion is shortened by two bevels and lifted by one, so the cushion
-   * finishes exactly `thickness` tall sitting on the seat. That was always here and is right.
-   *
-   * **Plan.** `bevelSize` also pushes the *outline* outward by `b` on every edge, and nothing took
-   * it back off — so a radiused cushion came out `2b` wider and `2b` deeper than `plan` says, about
-   * 36mm on the shipped 18mm soft edge, and visibly overhung the curve it was supposed to sit on.
-   * Reported from the bench as the rounded end going *"a bit janky"*.
-   *
-   * **The give-away is that only the curved seat was wrong.** A square seat is drawn by
-   * `RoundedBox`, whose `args` are the finished size and which needs no correction at all — so the
-   * two branches disagreed about how big the same cushion is, on the same cabinet, by 36mm. That is
-   * §5.4's lid bug exactly: two descriptions of one thing, and the one nobody could check against a
-   * cutlist is the one that drifted. `insetShape` below is why the correction now lives with the
-   * shape rather than beside it.
-   */
-  return <mesh position={[plan.x0 + b, y + b, plan.z1 - b]} rotation={[-Math.PI / 2, 0, 0]} castShadow receiveShadow>
-    <extrudeGeometry ref={scaleFabric} args={[shape, {
-      depth: Math.max(1, thickness - 2 * b),
+  if (mesh.kind === 'box') {
+    return <RoundedBox ref={seatRef} args={[...mesh.size]} radius={mesh.bevel} smoothness={4}
+      position={[...mesh.position]} castShadow receiveShadow>
+      {children}
+    </RoundedBox>;
+  }
+  return <mesh position={[...mesh.position]} rotation={[-Math.PI / 2, 0, 0]} castShadow receiveShadow>
+    <extrudeGeometry ref={scaleFabric} args={[shape!, {
+      depth: mesh.depth,
       bevelEnabled: true,
-      bevelSize: b,
-      bevelThickness: b,
+      bevelSize: mesh.bevel,
+      bevelThickness: mesh.bevel,
       bevelSegments: 3,
       steps: 1,
     }]} />
@@ -301,22 +259,6 @@ export function BanquetteCushions({ cabinet, radius, finishedFrontZ, upholstery,
   const map = useFabric(upholstery);
   const scaleFabric = useFabricScale(upholstery);
 
-  /*
-   * The square seat is drei's `RoundedBox`, which builds its geometry internally — there is no
-   * `<…Geometry>` element to hang a ref on, so this is the one cushion that cannot use the same
-   * mechanism as the other four.
-   *
-   * A layout effect with **no dependency array** is the honest answer here. It runs after every
-   * render, which is exactly the condition "the geometry may have been swapped underneath us", and
-   * `applyFabricScale` early-returns on a geometry already at this repeat — so the cost is one
-   * property comparison and the correctness does not depend on guessing which prop drei rebuilds
-   * on. Listing deps here would be re-deriving drei's own memo and would go stale with it.
-   */
-  const seatRef = useRef<Mesh>(null);
-  useLayoutEffect(() => {
-    if (seatRef.current) applyFabricScale(seatRef.current.geometry, upholstery.textureRepeat);
-  });
-
   const seatT = cabinet.options.seatCushionThickness ?? 80;
   const plan = seatCushionPlan({
     W: cabinet.width,
@@ -329,24 +271,13 @@ export function BanquetteCushions({ cabinet, radius, finishedFrontZ, upholstery,
   const seatDepth = Math.max(50, plan.depth);
   const radiusOpt = Math.max(1, cabinet.options.cushionCornerRadius ?? 18);
   const fabricMaterial = () => <FabricSurface map={map} upholstery={upholstery} selected={selected} wireframe={wireframe} />;
-  const softEdge = Math.min(radiusOpt, seatT / 2 - 1, seatDepth / 2 - 1);
+
+  // Both shapes of seat, sized and placed in one function, so a square cushion and a rounded one
+  // cannot come out of the same cabinet at two different sizes. See `cushionMesh.ts`.
+  const seat = seatCushionMesh({ plan, seatTop: cabinet.height, thickness: seatT, radius: radiusOpt });
 
   return <>
-    {plan.round
-      ? <SeatCushion plan={plan} thickness={seatT} bevel={Math.max(0.5, softEdge)} y={cabinet.height} scaleFabric={scaleFabric}>
-          {fabricMaterial()}
-        </SeatCushion>
-      /*
-       * Centred on the **plan**, not on the carcass. It used to sit at `depth / 2`, which was the
-       * same point only while the cushion was a symmetrical inset off both faces. It is not any
-       * more: flush at the back, proud at the front. Placing a box the plan's own size at the
-       * carcass's centre would hang it off the back of the seat by exactly the overhang, and it
-       * would look almost right.
-       */
-      : <RoundedBox ref={seatRef} args={[seatWidth, seatT, seatDepth]} radius={softEdge} smoothness={4}
-          position={[(plan.x0 + plan.x1) / 2, cabinet.height + seatT / 2, (plan.z0 + plan.z1) / 2]} castShadow receiveShadow>
-          {fabricMaterial()}
-        </RoundedBox>}
+    <SeatCushion mesh={seat} scaleFabric={scaleFabric}>{fabricMaterial()}</SeatCushion>
     {cabinet.options.hasBackCushion !== false && (() => {
       const height = cabinet.options.backCushionHeight ?? 400;
       const thickness = cabinet.options.backCushionThickness ?? 80;

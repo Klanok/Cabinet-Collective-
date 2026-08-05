@@ -27,20 +27,20 @@
  *   wants extracting where it can be asserted. Do that before touching it again."* This is that,
  *   and it is why `insideCornerSeatMesh` is here rather than inside a `useMemo`.
  *
- * Nothing in this file may import from `three` or from React. That is the whole point of it: what
- * lives here is readable by a test running in Node, and what stays in the component is not.
+ * - **The plain seat, both of the above.** It was the last cushion still working its own shape and
+ *   placement out inside the component, and the two faults above were both in it. Its rounded
+ *   branch used to draw its corner with three.js's own `absarc`; it is drawn through the model's arc
+ *   code now, like every other outline in this codebase, so the one arc a cushion has cannot
+ *   disagree with the carcass arc underneath it.
  *
- * **One cushion is still outside it**, and saying so is cheaper than letting somebody find out: the
- * *plain* banquette's seat still builds its own shape and placement in `SeatCushion`. Its faults are
- * the two at the top of this comment, both fixed and neither asserted as occupancy. It wants the
- * same treatment, and it is a bigger job than it looks — the round branch draws its corner with
- * three.js's own `absarc`, so moving it here means drawing that corner the way every other outline
- * in this codebase is drawn, through the model's arc code, and that is a change to the picture
- * rather than a move.
+ * Nothing in this file may import from `three` or from React. That is the whole point of it: every
+ * number a cushion mesh is built from is now readable by a test running in Node, and what is left in
+ * the components is three.js objects built from numbers somebody else has already checked.
  */
 
 import { flattenArc } from '../../core/geom/arc.ts';
 import type { Vec2 } from '../../core/geom/vec.ts';
+import type { SeatCushionPlan } from '../../core/model/cushion.ts';
 import { type InsideCornerPlan, insideCornerRingAt } from '../../core/model/insideCorner.ts';
 import type { PlanRing } from '../../core/rules/radius.ts';
 import { mm } from '../../core/units.ts';
@@ -113,12 +113,13 @@ export const wedgeBackPlacement = (input: {
  * end of the second leg, and the difference put the cushion 372mm through the wall. It was found by
  * measuring the live scene, which is the only instrument that could see it while this was JSX.
  */
-export interface InsideCornerSeatMesh {
+export interface ExtrudedCushionMesh {
+  readonly kind: 'extrude';
   /** Mesh origin in cabinet space. The z is the outline's largest, and that is the whole of it. */
   readonly position: readonly [number, number, number];
   /** Extrude depth — the cushion's thickness, less a bevel at each end. */
   readonly depth: number;
-  /** The soft pillow edge, clamped to what the cushion's thickness has room to turn. */
+  /** The soft pillow edge, clamped to what the cushion has room to turn. */
   readonly bevel: number;
   /**
    * The plan the extruded outline traces, in **cabinet** space and exact — the finished cushion
@@ -141,6 +142,26 @@ export interface InsideCornerSeatMesh {
 }
 
 /**
+ * A cushion drawn as a rounded box rather than as an extrusion: the plain rectangular seat.
+ *
+ * drei's `RoundedBox` takes the **finished** size and is placed at the cushion's centre, so none of
+ * the bevel arithmetic an extrusion needs applies to it. That difference is worth keeping in the
+ * type rather than in somebody's head: the two branches disagreeing about how big the same cushion
+ * is, by two bevels, is §5.14's first fault exactly.
+ */
+export interface BoxCushionMesh {
+  readonly kind: 'box';
+  /** The cushion's centre, which is what `RoundedBox` is positioned by. */
+  readonly position: readonly [number, number, number];
+  /** Finished size, width × thickness × depth. */
+  readonly size: readonly [number, number, number];
+  /** The soft pillow edge — `RoundedBox`'s own `radius`. */
+  readonly bevel: number;
+}
+
+export type CushionMesh = ExtrudedCushionMesh | BoxCushionMesh;
+
+/**
  * Keep a plan vertex inside the unit, `inset` in from every side.
  *
  * The upper bound is itself held at `inset`, so a span too narrow to hold two bevels collapses to a
@@ -148,6 +169,35 @@ export interface InsideCornerSeatMesh {
  */
 const clampToUnit = (value: number, inset: number, span: number): number =>
   Math.min(Math.max(value, inset), Math.max(inset, span - inset));
+
+/**
+ * A plan ring turned into the shape an extrusion is built from, arcs flattened.
+ *
+ * **The reflection is the part that has been got wrong.** The mesh is turned `−π/2` about X, which
+ * maps a local `(x, y, z)` to `(x, z, −y)`: shape x is cabinet x, and shape y runs *backwards* along
+ * cabinet z from the origin. So the origin has to sit at the ring's **largest** z — on a rectangle
+ * that is the front and writing `finishedFront` there is right by accident, on an L it is the far
+ * end of the second leg, and the difference put a cushion 372mm through the wall.
+ *
+ * Arcs are flattened through the model's own `flattenArc` rather than rebuilt with three.js's
+ * `absarc`, so a cushion cannot disagree with the seat under it about where its curve goes. The
+ * reflection reverses an arc's sense, so the bulge is negated with it. The last sample of each arc
+ * is dropped because the next vertex is pushed as the start of its own edge.
+ */
+const reflectRing = (ring: PlanRing): { readonly shape: Vec2[]; readonly zMax: number } => {
+  const zMax = Math.max(...ring.map((v) => v.z));
+  const shape: Vec2[] = [];
+  ring.forEach((v, i) => {
+    const next = ring[(i + 1) % ring.length]!;
+    const a = { x: v.x, y: mm(zMax - v.z) };
+    const b = { x: next.x, y: mm(zMax - next.z) };
+    shape.push(a);
+    if (v.bulge !== undefined && Math.abs(v.bulge) > 1e-9) {
+      shape.push(...flattenArc(a, b, -v.bulge).map((f) => f.at).slice(0, -1));
+    }
+  });
+  return { shape, zMax };
+};
 
 /**
  * Everything the corner seat's mesh is built from, in one place.
@@ -172,7 +222,7 @@ export const insideCornerSeatMesh = (input: {
   readonly overhang: number;
   /** The soft pillow edge asked for. */
   readonly radius: number;
-}): InsideCornerSeatMesh | null => {
+}): ExtrudedCushionMesh | null => {
   const { plan } = input;
   const bevel = Math.max(0.5, Math.min(input.radius, input.thickness / 2 - 1));
   const ring = insideCornerRingAt(plan, mm(bevel - input.overhang));
@@ -183,29 +233,10 @@ export const insideCornerSeatMesh = (input: {
     z: mm(clampToUnit(v.z, bevel, plan.D)),
     bulge: v.bulge,
   }));
-
-  // The mesh origin's z, and the reason this function exists. Working it back out of the plan is
-  // where this went wrong: on an L the deepest point is the far end of the second leg, not a front.
-  const zMax = Math.max(...insetPlan.map((v) => v.z));
-
-  /*
-   * Flattened through the model's own `flattenArc` rather than rebuilt with `absarc`, so the
-   * cushion cannot disagree with the seat under it about where the curve goes. The last sample of
-   * each arc is dropped because the next vertex is pushed as the start of its own edge.
-   */
-  const shape: Vec2[] = [];
-  insetPlan.forEach((v, i) => {
-    const next = insetPlan[(i + 1) % insetPlan.length]!;
-    const a = { x: v.x, y: mm(zMax - v.z) };
-    const b = { x: next.x, y: mm(zMax - next.z) };
-    shape.push(a);
-    if (v.bulge !== undefined && Math.abs(v.bulge) > 1e-9) {
-      // The z → y reflection reverses the arc's sense, so the bulge does too.
-      shape.push(...flattenArc(a, b, -v.bulge).map((f) => f.at).slice(0, -1));
-    }
-  });
+  const { shape, zMax } = reflectRing(insetPlan);
 
   return {
+    kind: 'extrude',
     // x is the cabinet's own origin: the outline is already in cabinet x. y lifts the extrusion by
     // one bevel so it starts on the seat rather than a bevel below it.
     position: [0, input.seatTop + bevel, zMax],
@@ -214,6 +245,116 @@ export const insideCornerSeatMesh = (input: {
     insetPlan,
     shape,
   };
+};
+
+/* ── The plain banquette's seat ──────────────────────────────────────────────────────────────── */
+
+/**
+ * The seat cushion of a plain banquette: a rectangle, or a rectangle with one front corner turned.
+ *
+ * ## Why it is here, after the corner unit's was
+ *
+ * This is the cushion **both** of §5.14's faults were in — oversize by its own soft edge, then the
+ * right size and one bevel out of place on every axis — and it was the last one still working its
+ * own shape and placement out inside the component. `core/model/cushion.ts` settles where the
+ * cushion goes; this settles what the mesh has to be so it finishes there.
+ *
+ * ## Two shapes, and keeping them agreeing is the point
+ *
+ * A square seat is drei's `RoundedBox`, whose `args` are the **finished** size and which needs no
+ * bevel correction at all. A rounded one cannot be a box, so it is extruded from the plan and every
+ * figure has to be pulled back by the bevel the extrusion will add. Those two branches disagreeing
+ * by 36mm about the same cushion — one checked against a cutlist, one not — is exactly what
+ * happened, and it is why both come out of one function now.
+ *
+ * ## The corner is the carcass's own radius, moved forward
+ *
+ * Not shrunk by the bevel and not re-derived: `seatCushionPlan` states the finished arc, the ring
+ * here is that arc pulled back by `bevel` about the **same centre**, and the extrusion's bevel
+ * pushes it out again. One centre and one radius, the same rule the inside corner is built on with
+ * the sign the other way round — a convex corner insets to `r − b` where a concave one grows to
+ * `r + b`.
+ */
+export const seatCushionMesh = (input: {
+  readonly plan: SeatCushionPlan;
+  /** Cabinet-space y of the carcass top: what the cushion rests on. */
+  readonly seatTop: number;
+  readonly thickness: number;
+  /** The soft pillow edge asked for. */
+  readonly radius: number;
+}): CushionMesh => {
+  const { plan } = input;
+  /*
+   * One clamp for both branches, where there used to be one in the component and a second inside
+   * the extruded branch — which is how the box and the extrusion came to be sized by different
+   * rules. The thickness gives up `2b + 1` rather than a quarter, because all it has to leave is a
+   * millimetre of extrusion between the two bevelled caps, where a plan edge has a whole face to
+   * soften and a bevel past a quarter of it eats the face.
+   */
+  const bevel = Math.max(
+    0.5,
+    Math.min(input.radius, input.thickness / 2 - 1, plan.width / 4, plan.depth / 4),
+  );
+
+  if (!plan.round) {
+    return {
+      kind: 'box',
+      // Centred on the **plan**, not on the carcass: the cushion is flush at the back and proud at
+      // the front, so those stopped being the same point when the overhang arrived.
+      position: [
+        (plan.x0 + plan.x1) / 2,
+        input.seatTop + input.thickness / 2,
+        (plan.z0 + plan.z1) / 2,
+      ],
+      size: [Math.max(50, plan.width), input.thickness, Math.max(50, plan.depth)],
+      bevel,
+    };
+  }
+
+  const insetPlan = insetSeatRing(plan, bevel);
+  const { shape, zMax } = reflectRing(insetPlan);
+  return {
+    kind: 'extrude',
+    position: [0, input.seatTop + bevel, zMax],
+    depth: Math.max(1, input.thickness - 2 * bevel),
+    bevel,
+    insetPlan,
+    shape,
+  };
+};
+
+/**
+ * The rounded seat's outline, `bevel` inside the finished plan, wound counter-clockwise.
+ *
+ * The arc is **convex** here — material bulging out — so its bulge is positive on a counter-clockwise
+ * ring, which is the opposite sign to the inside corner's fillet and the one thing worth checking by
+ * eye. Its centre is the finished arc's centre, unmoved: insetting a convex corner takes the radius
+ * down to `r − b` about the same point, which is what keeps the cushion's curve concentric with the
+ * carcass curve under it instead of `b` fatter than it.
+ */
+const insetSeatRing = (plan: SeatCushionPlan, bevel: number): PlanRing => {
+  const xa = mm(plan.x0 + bevel);
+  const xb = mm(plan.x1 - bevel);
+  const za = mm(plan.z0 + bevel);
+  const zb = mm(plan.z1 - bevel);
+  const r = mm(Math.max(0.5, (plan.round?.radius ?? 0) - bevel));
+  const bulge = Math.tan(Math.PI / 8);
+  if (plan.round?.corner === 'front-right') {
+    return [
+      { x: xa, z: za },
+      { x: xb, z: za },
+      { x: xb, z: mm(zb - r), bulge },
+      { x: mm(xb - r), z: zb },
+      { x: xa, z: zb },
+    ];
+  }
+  return [
+    { x: xa, z: za },
+    { x: xb, z: za },
+    { x: xb, z: zb },
+    { x: mm(xa + r), z: zb, bulge },
+    { x: xa, z: mm(zb - r) },
+  ];
 };
 
 /** The box a finished cushion occupies in cabinet space: `x0 → x1` by `y0 → y1` by `z0 → z1`. */
@@ -227,24 +368,37 @@ export interface CushionBox {
 }
 
 /**
- * Where the corner seat's mesh actually finishes, read back out of the numbers handed to three.js.
+ * Where a cushion mesh actually finishes, read back out of the numbers handed to three.js.
  *
  * **This is the reading direction, not a second derivation.** It takes the mesh's own `position`,
  * `depth`, `bevel` and `shape` and applies what the renderer will do with them, so it moves when
  * the placement moves — which is what makes it worth asserting. Deriving the box from the plan
  * again would agree with the plan no matter where the mesh went.
  *
- * Two things the renderer does, and both grow the part:
+ * On an extrusion, two things the renderer does, and both grow the part:
  *
  * - `bevelSize` pushes the outline outward by `b` on every edge, and `bevelThickness` extends the
  *   extrusion by `b` at each end — so the geometry spans `−b → depth + b` along the extrude axis.
  *   On an axis-aligned box that is exactly `±b`, which is why this can be stated as a box at all.
  * - the mesh's `−π/2` about X maps a local `(x, y, z)` to `(x, z, −y)`, so the extrude runs **up**
  *   and shape y runs **backwards** along cabinet z from the origin.
+ *
+ * A `RoundedBox` grows in neither direction: its `args` are the finished size and its position is
+ * the centre. **That asymmetry is the reason both go through one function** — it is what the two
+ * branches got wrong about each other, and stating it once means a test can ask the same question
+ * of a square cushion and a rounded one and expect the same answer.
  */
-export const insideCornerSeatOccupancy = (mesh: InsideCornerSeatMesh): CushionBox => {
-  const b = mesh.bevel;
+export const cushionOccupancy = (mesh: CushionMesh): CushionBox => {
   const [px, py, pz] = mesh.position;
+  if (mesh.kind === 'box') {
+    const [w, h, d] = mesh.size;
+    return {
+      x0: px - w / 2, x1: px + w / 2,
+      y0: py - h / 2, y1: py + h / 2,
+      z0: pz - d / 2, z1: pz + d / 2,
+    };
+  }
+  const b = mesh.bevel;
   const xs = mesh.shape.map((p) => p.x);
   const ys = mesh.shape.map((p) => p.y);
   return {

@@ -61,7 +61,7 @@ import {
 import { insideCornerPlan } from '../src/core/model/insideCorner.ts';
 import type { Project } from '../src/core/model/project.ts';
 import type { PlanRing } from '../src/core/rules/radius.ts';
-import { insideCornerSeatMesh, insideCornerSeatOccupancy } from '../src/app/viewport/cushionMesh.ts';
+import { cushionOccupancy, insideCornerSeatMesh } from '../src/app/viewport/cushionMesh.ts';
 import { byName, namesOf, occupies, size } from './helpers.ts';
 
 const SPAN = 900;
@@ -305,7 +305,7 @@ describe('the seat cushion sits on the L, proud at the fronts and flush everywhe
      * Occupancy, not size — §4.23's lesson from the plain banquette, where a cushion of exactly the
      * right size sat one bevel out of place on every axis and every size assertion passed on it.
      */
-    expect(insideCornerSeatOccupancy(mesh())).toEqual({
+    expect(cushionOccupancy(mesh())).toEqual({
       x0: 0, x1: 900,
       y0: 400, y1: 480,
       z0: 0, z1: 900,
@@ -380,10 +380,10 @@ describe('the seat cushion sits on the L, proud at the fronts and flush everywhe
     // 1500 along wall A is still 882 deep at the origin, and reaches 1500 across.
     const wide = mesh({}, { width: 1500, depth: 900 });
     expect(wide.position[2]).toBe(882);
-    expect(insideCornerSeatOccupancy(wide).x1).toBe(1500);
+    expect(cushionOccupancy(wide).x1).toBe(1500);
     const deep = mesh({}, { width: 900, depth: 1500 });
     expect(deep.position[2]).toBe(1482);
-    expect(insideCornerSeatOccupancy(deep).z1).toBe(1500);
+    expect(cushionOccupancy(deep).z1).toBe(1500);
   });
 
   it('draws nothing rather than a blob when there is no seat left', () => {

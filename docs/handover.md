@@ -181,7 +181,7 @@ Section 4 records how each works and why; section 5 is what is actually left to 
 ```
 npm install
 npm run dev       # the app
-npm test          # 1050 tests
+npm test          # 1058 tests
 npm run build
 npm run report    # cutlist, hardware BOM, drilling, nest, G-code and costing for the sample kitchen
 npm run report -- shaker-57    # the same kitchen with routed fronts
@@ -228,7 +228,7 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | A front that does not open, cut without a door's reveal | **Working, see 4.23.** A reveal is swing clearance; a false front never swings |
 | The finish laminate over a curve, drawn and honestly charged | **Working, see 4.23.** Door decor on the outer skin; a curve with none says so, and is no longer charged for one |
 | Cushions cut to the size they claim, and placed where they claim | **Fixed, see 5.14 and 4.23.** Oversize by their own soft edge, then one bevel out of place on every axis — the second half invisible to the first half's tests |
-| Every number a cushion mesh is built from, out of the JSX | **Working, see the end of 5.13 item 1.** `viewport/cushionMesh.ts` — the corner seat's outline, inset and origin included, which is the arithmetic that had to be measured in the live scene twice |
+| Every number a cushion mesh is built from, out of the JSX | **Working, see 4.23 and the end of 5.13 item 1.** `viewport/cushionMesh.ts` — every cushion on both units, including the two branches of the plain seat, which are now asserted to agree about their own size |
 | Banquette cushions on the quote | **Working, see 4.19 and 4.23.** Bought in whole, $350/lin m **per cushion**, no parts produced |
 | Room — any shape, drawn in a 2D plan with typed lengths | Working |
 | Cabinets placed against a named wall, at any angle | Working |
@@ -2588,6 +2588,15 @@ The arithmetic came out of the JSX into `viewport/cushionMesh.ts` so it can be a
 looked at. Two figures that were written out twice under two names, identically, are now one — which
 is how the placement came to be corrected in neither.
 
+**The seat's own mesh followed later, and finished the job**: `seatCushionMesh` decides which of the
+two shapes a seat is, how big it is and where it goes, so **the square branch and the rounded one
+can no longer disagree about the size of one cushion** — which is what the 36mm was. That is now an
+assertion rather than a hope: the same cabinet, drawn either way, has to come out at the identical
+box. Its rounded corner is drawn through the model's own arc code instead of three.js's `absarc`,
+which is the one thing here that changed the picture rather than moving it — the curve went from 12
+segments to about 32, and the shipped 200mm corner measures **200.005mm at its widest in the running
+scene**, five microns of polygon-offset artefact on a soft furnishing.
+
 #### Verified in the running app (§7)
 
 Read back out of the live scene rather than judged from a screenshot, on a job with three banquettes
@@ -3680,12 +3689,13 @@ below the overcut.
      Nothing about the picture changed, and that is the point: this was the arithmetic moving to
      where a test in Node can read it.
 
-     **What it leaves is the plain banquette's own seat cushion**, which still builds its shape and
-     its placement inside `SeatCushion` — the one cushion whose mesh arithmetic is still JSX, and the
-     one both of §5.14's faults were in. It is a bigger job than the corner was rather than a
-     smaller one: its round branch draws the corner with three.js's `absarc`, so moving it means
-     drawing that corner through the model's arc code like every other outline here, which changes
-     the picture rather than moving it. Worth doing, worth scoping first.
+     ~~**What it leaves is the plain banquette's own seat cushion.**~~ **Done too — `seatCushionMesh`,
+     recorded in §4.23.** No cushion mesh anywhere is built from arithmetic a test cannot read now.
+     Six more mutations, all caught, and the one worth keeping is that **a square seat and a rounded
+     one on the same cabinet are asserted to finish at the identical box** — the two branches
+     disagreeing by 36mm is §5.14's first fault, and it was only ever a hope that they matched.
+     The one real change to the picture: that corner is drawn through the model's arc code now
+     rather than three.js's `absarc`, and it measures 200.005mm at its widest in the running scene.
    - **The back cushions run each wall's full span**, which is right for the backs and means they
      meet at the corner rather than mitring. Nobody has been asked what happens where they meet.
    - **The lid stay is still unmodelled**, as on the plain banquette.
