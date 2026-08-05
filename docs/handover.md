@@ -151,7 +151,7 @@ Section 4 records how each works and why; section 5 is what is actually left to 
 ```
 npm install
 npm run dev       # the app
-npm test          # 996 tests
+npm test          # 1010 tests
 npm run build
 npm run report    # cutlist, hardware BOM, drilling, nest, G-code and costing for the sample kitchen
 npm run report -- shaker-57    # the same kitchen with routed fronts
@@ -192,7 +192,7 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | Banquette seating — solid front, hinged lift-up, cushions | Rejected at the bench, **rebuilt to the shop's own answers — see 5.4**, then finished off in **4.23**. Lid stay still unmodelled |
 | A rounded corner on a banquette, carried by lid, front and cushion | **Working, see 4.15.** Applied ends build on one too |
 | What each cabinet type supports, declared by its own spec | **Working, see 4.15 and 4.16.** `CabinetSpec.capabilities` — refusing costs a sentence |
-| Inside banquette corner — a quarter-circle connector | **Wrong shape and now answered — see 5.13 item 1.** It is an L with a small concave fillet, not a quarter disc. Ready to build |
+| Inside banquette corner — a quarter-circle connector | **Still the wrong shape on screen — see 5.13 item 1.** The right one is an L with a concave fillet, and it is now **built and asserted** in `model/insideCorner.ts`; no part reads it yet |
 | Upholstery as its own material type | Working — Warwick Caulfield, nine colours, `library/upholstery.au.ts` |
 | A seat cushion proud of the finished front, adjustable | **Working, see 4.23.** 10mm, the shop's own figure; flush at the ends and the back, and the reason for each |
 | A front that does not open, cut without a door's reveal | **Working, see 4.23.** A reveal is swing clearance; a false front never swings |
@@ -3543,6 +3543,57 @@ below the overcut.
    bugs. Written down instead, because §4.5's four corner decisions carry the standing note that a
    fresh session re-deriving a shop decision gets a different answer — and this item has now been
    mis-derived twice from the same sentence.
+
+   #### The shape is now settled, with assertions — `model/insideCorner.ts`
+
+   **The outline is built and tested; no part reads it yet.** That split is deliberate. This item
+   has been mis-derived twice, so the piece that keeps going wrong was done first, on its own, where
+   it can be checked — and the carcass is built against a proven outline rather than against a third
+   reading of one sentence. `tests/insideCorner.test.ts` carries every figure longhand.
+
+   **One thing in it had to be measured rather than reasoned about, and reasoning got it wrong
+   twice in two different ways.** *Filleting the inside corner makes the seat bigger.* The corner
+   where the two fronts meet is a **reflex** vertex — 270° of seat around a point — so rounding it
+   cuts the corner off the **void**, not off the solid. On the shop's example the plan goes from
+   650,000mm² to **654,828.5mm²**, up by `r² − πr²/4`. The physical version: a sharp 270° corner of
+   bench is what somebody catches their hip on, and rounding it makes the seat fuller there.
+
+   **The bulge is negative**, on a counter-clockwise outline. Positive is the convex quarter disc
+   that was reported as *"a complete mess"*, at a fifteenth of its size — same radius, same arc
+   length, nearly the same bounding box. **The assertions that bite are the fillet's *centre*
+   (650, 650, out in the room) and the area**, not the radius. A radius assertion passes on the
+   rejected shape.
+
+   The geometry engine needed **no extension**: signed bulges were always in `arc.ts`, and a reflex
+   fillet extrudes and triangulates with a cap area matching the exact profile to a thousandth of a
+   percent. That was checked before anything was designed around it.
+
+   #### What is left, and it is the carcass
+
+   The parts, which the shop has since described: *"same as the plain banquette — solid fixed front,
+   hinged lift-up, bottom — the curve made in bendy ply on formers turned inward, and one
+   seat-depth figure for both legs."* So: two backs against the two walls, two sides at the open
+   ends where it butts its neighbours, an L-shaped bottom and lift-up, **two straight fronts** (one
+   per leg, each running from the fillet to its own open end), and formers and skin at the fillet.
+
+   **`resolveCornerRadius` cannot be reused and should not be bent into service.** It is written for
+   a *convex* corner throughout — fixing strip, tail, end panel, door zone, hand mirroring — and the
+   signs invert here. The one that matters: on a convex corner the formers are cut to
+   `r − skin`, and on this one they are cut to **`r + skin`**, because the ply is the finished face
+   and the formers sit *further from the centre* than it does. Getting that backwards puts the curve
+   a skin's thickness out of plane with the two fronts either side of it, which is §5.0's
+   finished-front bug in a new place. `insideCornerPlan` deliberately stops at the finished outline
+   and leaves the build-up to the builder that needs it.
+
+   Also still to do: **`seatDepth` has no field on the cabinet yet** — the plan function takes it,
+   nothing stores it — so it needs adding with a migration, and `validate`'s
+   `W = D = insideCornerRadius` has to go at the same time. Leaving that rule in place while the
+   parts still build a quarter disc is why neither moved in this session: a unit that validates by
+   one shape and draws another is worse than one that is consistently wrong.
+
+   `insideCornerSeatLineal` is written and also unread: it is §4.19's charge restated for two
+   straight fronts plus a short fillet where the old shape had one long arc. Switching costing over
+   **re-prices** every corner unit, so it travels with the parts rather than going in early.
 
    Note it also moves §4.19's corner-seat arc charge, which is measured along that front edge. The
    reading survives; the shape it measures does not, and an L has two straight fronts plus a small
