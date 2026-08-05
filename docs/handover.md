@@ -181,7 +181,7 @@ Section 4 records how each works and why; section 5 is what is actually left to 
 ```
 npm install
 npm run dev       # the app
-npm test          # 1065 tests
+npm test          # 1068 tests
 npm run build
 npm run report    # cutlist, hardware BOM, drilling, nest, G-code and costing for the sample kitchen
 npm run report -- shaker-57    # the same kitchen with routed fronts
@@ -299,8 +299,8 @@ materials.
 
 **Migrations must never quietly change anyone's parts.** Every migration carries old values
 forward so a saved job cuts exactly as it did; adopting a new default is then a deliberate
-edit. Schema is at **v34**; migrations run in sequence in `model/project.ts`. Shop standards are
-versioned separately and are at **v25** — and they get a *real* migration rather than a
+edit. Schema is at **v35**; migrations run in sequence in `model/project.ts`. Shop standards are
+versioned separately and are at **v26** — and they get a *real* migration rather than a
 rejection, because refusing to load them silently replaces a shop's accumulated kick heights,
 reveals, door styles and saved cabinet types with the shipped Australian defaults.
 
@@ -3870,12 +3870,36 @@ below the overcut.
    what made the claim look plausible. **A list nothing renders is not a safety net.** If a future
    footprint has no answer, wire it to a panel the way `unconfirmedHardwareFigures` is.
 
-   **One thing is left and it is a modelling question, not a number.** `laminate-1mm` is a single
-   record with `brand: 'Polytec'` on it and both brands' sheet sizes in it, because
-   `LAMINATE_MATERIAL_ID` is one hardcoded id that `costing.ts` looks up. The honest model is a
-   Polytec record and a Laminex one, which makes the construction's finish material a **choice** —
-   a design change rather than a field, and worth asking the shop which brand they actually laminate
-   with before building it.
+   #### The laminate is a decor, so it is one record per brand — v35 / v26
+
+   That modelling question was put to the shop and answered:
+
+   > *"the brand being used depends on the project as it's a decor, a choice the client would make
+   > for the finish"*
+
+   So there is no single finish laminate. A curve is finished in the **door decor** — `finish:
+   'door'` in the part rules, drawn through `Panel.finishMaterialId` — so a job's laminate is
+   whatever brand its doors are, and `costing.ts` resolves it from that decor's own `brand`.
+   `laminate-polytec-1mm` at 3600 × 1350 and `laminate-laminex-1mm` at 3600 × 1500 replace the one
+   record; `LAMINATE_MATERIAL_ID` is gone and `laminateForDecor` is what answers instead.
+
+   **The fault it prevents is a quote nothing on screen would question.** One record carrying both
+   sizes let the cheapest-buy search charge a **Laminex sheet on an all-Polytec job** — the wrong
+   sheet on the order, $32.40 out on the quote, and no way to tell by looking.
+
+   **And the first assertion written for it did not bite.** Polytec's sheet is both the right answer
+   for a Polytec job *and* the cheaper of the two, so a costing that ignored the decor entirely and
+   took the cheapest laminate passed it. The mutation is what found that. The assertion that bites
+   runs on a **Laminex** job, where the right sheet is the *dearer* one — which is the same lesson
+   as §5.13's fillet: pick the case where the right answer and the plausible-wrong answer separate.
+
+   A decor whose brand has no laminate on the price list is charged against whatever is there **and
+   says so**, because a curve costed against the wrong brand and reported beats one costed at
+   nothing — §4.19's missing line that quotes at zero.
+
+   **What is still assumed:** that the laminate matches the doors. `finish: 'door'` is hardcoded in
+   the part rules, so a client who wants a *contrasting* laminate has nowhere to say it. That is a
+   field on the construction method rather than a derivation, and nobody has asked for it.
 
    **The `.nc` files settle the principle and give two real numbers**: the white carcass board is
    **2410.0 × 1205.0 × 16.3** and the MDF door board is **3115.0 × 1205.0 × 18.0**, straight off the

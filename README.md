@@ -16,7 +16,7 @@ before running anything. See [G-code](#g-code) below.
 ```bash
 npm install
 npm run dev       # the app
-npm test          # 1065 tests
+npm test          # 1068 tests
 npm run report    # cutlist, hardware, drilling, nest, G-code and costing for the sample kitchen
 ```
 
@@ -379,8 +379,8 @@ open-from-file, so a job can live outside the browser.
   finished or raw — so the 2400×1200 everyone quotes ships as **2410×1205** or **2420×1210**,
   and the 3600×1800 as **3610×1805** or **3620×1810**. Plus the 3115×1205 Polytec board,
   measured. **Imported plywood goes the other way** — quoted at 2440×1220, it gives
-  **2410×1205** — and the finish laminate comes in its brands' own sheets, 3600×1350 for
-  Polytec and 3600×1500 for Laminex.
+  **2410×1205** — and the finish laminate is a **decor**, so it comes in its own brand's sheet:
+  3600×1350 for Polytec, 3600×1500 for Laminex, resolved from the door decor of the job.
 - **Thicknesses**: 16 / 18 / 25mm.
 - **Substrates**: white HMR particleboard as the carcass default. A carcass is specified as a
   *board*, not a finish — nobody orders a carcass in a decor name. Decors are for doors,

@@ -31,6 +31,7 @@ import {
   withBackfilledLabourRates,
   withCushionOverhang,
   withRealLaminateSheets,
+  withSplitLaminate,
   withRealSheetSizes,
   withRekeyedSheetChoices,
 } from '../model/project.ts';
@@ -60,7 +61,7 @@ import {
   DEFAULT_RUNNER_SYSTEM_ID,
 } from '../library/blum.ts';
 
-export const CURRENT_STANDARDS_VERSION = 25 as const;
+export const CURRENT_STANDARDS_VERSION = 26 as const;
 
 export interface ShopStandards {
   readonly version: typeof CURRENT_STANDARDS_VERSION;
@@ -386,6 +387,7 @@ export const migrateStandards = (raw: unknown): ShopStandards => {
   if (data.version === 22) data = migrateStandardsV22toV23(data);
   if (data.version === 23) data = migrateStandardsV23toV24(data);
   if (data.version === 24) data = migrateStandardsV24toV25(data);
+  if (data.version === 25) data = migrateStandardsV25toV26(data);
 
   if (data.version !== CURRENT_STANDARDS_VERSION) {
     throw new Error(`migrateStandards: could not migrate version ${String(version)}`);
@@ -773,6 +775,22 @@ const migrateStandardsV21toV22 = (raw: Record<string, unknown>): Record<string, 
  * the standards, so standards left unrepaired quietly re-infect the next job at the current schema
  * version, where there is no migration left to fix it.
  */
+/**
+ * v25 → v26: **a finish laminate per brand on the standards too.**
+ *
+ * The other half of project v34 → v35. A job takes a copy of the standards, so standards left with
+ * one brandless laminate on them hand every new job the same problem at the current version, where
+ * no migration is left to fix it.
+ */
+const migrateStandardsV25toV26 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const materials = (raw.materials as Record<string, unknown> | undefined) ?? {};
+  return {
+    ...raw,
+    version: 26,
+    materials: { ...materials, sheets: withSplitLaminate(materials.sheets) },
+  };
+};
+
 const migrateStandardsV24toV25 = (raw: Record<string, unknown>): Record<string, unknown> => {
   const materials = (raw.materials as Record<string, unknown> | undefined) ?? {};
   const settings = (raw.settings as Record<string, unknown> | undefined) ?? {};

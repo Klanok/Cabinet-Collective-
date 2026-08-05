@@ -43,7 +43,7 @@ import {
   PLY_BOARDS,
 } from '../library/materials.au.ts';
 
-export const CURRENT_SCHEMA_VERSION = 34 as const;
+export const CURRENT_SCHEMA_VERSION = 35 as const;
 
 /**
  * The bendy ply an older job is given when it is migrated forward. It has no curved parts in
@@ -1066,6 +1066,81 @@ const migrateV32toV33 = (raw: Record<string, unknown>): Record<string, unknown> 
 };
 
 /**
+ * The two branded finish laminates a `laminate-1mm` becomes, and the size each brand sells.
+ *
+ * Kept beside the migration rather than imported from the library, because a migration has to keep
+ * saying what it meant when it ran: a library edit next year must not retroactively change what a
+ * job that ran through v35 came out as.
+ */
+const LAMINATE_BRANDS: readonly { id: string; brand: string; length: number; width: number }[] = [
+  { id: 'laminate-polytec-1mm', brand: 'Polytec', length: 3600, width: 1350 },
+  { id: 'laminate-laminex-1mm', brand: 'Laminex', length: 3600, width: 1500 },
+];
+
+/**
+ * Split the one finish laminate into a record per brand, **keeping the shop's own rate**.
+ *
+ * The rate carries and the area follows, exactly as v34 argued: these are different sheets rather
+ * than the same sheet measured better, so a price per sheet means nothing across the change and a
+ * price per square metre means everything. A shop that edited $60/m² to $75 gets two records at $75.
+ *
+ * The legacy record is **replaced**, not kept alongside: leaving it there would let a job go on
+ * buying a laminate that belongs to no brand, which is the thing this split exists to stop.
+ */
+export const withSplitLaminate = (rawSheets: unknown): unknown => {
+  const sheets = (rawSheets as Record<string, unknown>[] | undefined) ?? [];
+  const legacy = sheets.find((m) => String(m.id) === 'laminate-1mm');
+  if (!legacy) return sheets;
+  const sizes = (legacy.sheets as Record<string, unknown>[] | undefined) ?? [];
+  const rates = sizes
+    .map((size) => {
+      const area = Number(size.length) * Number(size.width);
+      return area > 0 ? Number(size.priceExGst) / area : 0;
+    })
+    .filter((r) => r > 0);
+  // The keenest rate the shop had on it, which is the one §4.8's best-value comparison would use.
+  const rate = rates.length > 0 ? Math.min(...rates) : 0;
+  const split = LAMINATE_BRANDS.map((b) => ({
+    ...legacy,
+    id: b.id,
+    brand: b.brand,
+    sheets: [
+      { length: b.length, width: b.width, priceExGst: Math.round(rate * b.length * b.width) },
+    ],
+  }));
+  return sheets.flatMap((m) => (String(m.id) === 'laminate-1mm' ? split : [m]));
+};
+
+/**
+ * v34 → v35: **the finish laminate is a decor, so it is one record per brand.**
+ *
+ * > *"the brand being used depends on the project as it's a decor, a choice the client would make
+ * > for the finish"*
+ *
+ * A curve is finished in the **door decor** — `finish: 'door'` in the part rules — so a job's
+ * laminate is whatever brand its doors are, and the two brands sell the sheet in different sizes.
+ * v34 put both sizes on one record, which let the cheapest-buy search charge a **Laminex sheet on
+ * an all-Polytec job**: the wrong sheet on the order, and a number on the quote with nothing on
+ * screen to say so. `costing.ts` now resolves the laminate from the decor's own `brand`.
+ *
+ * **It can re-price either way, and by a little.** The two sheets are 4.86m² and 5.40m² at one
+ * rate, so a job whose curves used to be charged against whichever came out cheapest is now charged
+ * against the one it actually buys. No part moves; nothing is cut differently.
+ *
+ * A job that has been hand-edited to keep a `laminate-1mm` still costs, because
+ * `LAMINATE_MATERIAL_IDS` still names it — a laminate nobody can find is a curve charged at nothing,
+ * which is §4.19's lesson about a missing line looking exactly like a finished quote.
+ */
+const migrateV34toV35 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const materials = (raw.materials as Record<string, unknown> | undefined) ?? {};
+  return {
+    ...raw,
+    schemaVersion: 35,
+    materials: { ...materials, sheets: withSplitLaminate(materials.sheets) },
+  };
+};
+
+/**
  * v33 → v34: **the last two footprints nobody had an answer for get one, and they are not trims.**
  *
  * From the shop, asked what was left:
@@ -1523,6 +1598,7 @@ export const migrateProject = (raw: unknown): Project => {
   if (data.schemaVersion === 31) data = migrateV31toV32(data);
   if (data.schemaVersion === 32) data = migrateV32toV33(data);
   if (data.schemaVersion === 33) data = migrateV33toV34(data);
+  if (data.schemaVersion === 34) data = migrateV34toV35(data);
 
   if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`migrateProject: could not migrate schema version ${String(version)}`);
