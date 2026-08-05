@@ -43,7 +43,7 @@ import {
   PLY_BOARDS,
 } from '../library/materials.au.ts';
 
-export const CURRENT_SCHEMA_VERSION = 35 as const;
+export const CURRENT_SCHEMA_VERSION = 36 as const;
 
 /**
  * The bendy ply an older job is given when it is migrated forward. It has no curved parts in
@@ -1112,6 +1112,54 @@ export const withSplitLaminate = (rawSheets: unknown): unknown => {
 };
 
 /**
+ * A construction method whose finish laminate is off, turned back on at the shipped 1mm.
+ *
+ * **The reason it was ever zero has expired.** v23 introduced the allowance and deliberately
+ * migrated every existing method to **zero**, on the argument that a shop's curve might have no
+ * laminate at all *and nothing on screen told the two apart* — see §4.23. The laminate is drawn
+ * now: the outer skin of a wrap carries the door decor, texture and all. So the case for defaulting
+ * it off has gone with the thing that made it necessary.
+ *
+ * And the shop's own words on the unit this is most of the point of:
+ *
+ * > *"the entire radius front should be formed bendy ply then laminated — that is the point of this
+ * > cabinet"*
+ *
+ * A shop that veneers or paints its curves still says so in one setting, and the carcass warning
+ * names the field. What it no longer has to do is discover that its curves have quietly been
+ * unlaminated since v23.
+ */
+export const withLaminatedCurves = (raw: unknown): unknown => {
+  const constructions = (raw as Record<string, unknown>[] | undefined) ?? [];
+  return constructions.map((c) =>
+    Number(c.finishLaminate ?? 0) > 0 ? c : { ...c, finishLaminate: 1 },
+  );
+};
+
+/**
+ * v35 → v36: **a curve gets its laminate back.**
+ *
+ * Reported from the bench as *"the laminate decor is not showing on the bendy ply"*, and it was not
+ * the drawing — the outer skin has carried `finishMaterialId` since §4.23 and the viewport reads it.
+ * It was that **v23 zeroed the allowance on every job that already existed**, so the rule engine
+ * had no laminate to put on the skin and drew the bendy ply, correctly, for a job that said there
+ * was none.
+ *
+ * **It re-cuts and it re-prices, both deliberately.** `substrateRadius` takes the allowance off the
+ * finished radius, so the former radii and every skin's developed length move by a millimetre; and
+ * §4.23 ties the charge to the allowance, so a curve now buys the laminate sheet it is built with.
+ * Both halves are asserted in `tests/banquetteFinish.test.ts`.
+ *
+ * **This is the seventh re-price in this file and the argument is v9's**: the job was being quoted
+ * for a curve finished in bendy ply, which is not what the shop builds.
+ */
+const migrateV35toV36 = (raw: Record<string, unknown>): Record<string, unknown> => ({
+  ...raw,
+  schemaVersion: 36,
+  constructions: withLaminatedCurves(raw.constructions),
+});
+
+/**
  * v34 → v35: **the finish laminate is a decor, so it is one record per brand.**
  *
  * > *"the brand being used depends on the project as it's a decor, a choice the client would make
@@ -1599,6 +1647,7 @@ export const migrateProject = (raw: unknown): Project => {
   if (data.schemaVersion === 32) data = migrateV32toV33(data);
   if (data.schemaVersion === 33) data = migrateV33toV34(data);
   if (data.schemaVersion === 34) data = migrateV34toV35(data);
+  if (data.schemaVersion === 35) data = migrateV35toV36(data);
 
   if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`migrateProject: could not migrate schema version ${String(version)}`);

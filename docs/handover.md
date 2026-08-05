@@ -109,6 +109,23 @@ written down. §4.18 is the **out-of-step indicator**: the benchtop radius that 
 works, and always did, and the app now says when an owned unit no longer matches the cabinets under
 it — which is the bill for the owned-not-derived bargain, finally paid.
 
+**And a curve got its laminate back** — reported as *"the laminate decor is not showing on the bendy
+ply. I thought that was already done."* **It was done, and it was invisible anyway**, which is a new
+shape of stale claim worth naming: §4.23 taught the outer skin to carry the door decor *and* migrated
+the allowance to **zero** on every job and every shop standard that already existed. So the rule
+engine had no laminate to put on the skin and drew bendy ply — correctly, for a job that said there
+was none. **A feature that ships switched off for everybody who already had the app has not shipped.**
+
+The reason for the zero had expired: it was *"a shop's curve may have no laminate at all and nothing
+on screen tells the two apart"*, and something on screen tells them apart now. Project **v36** /
+standards **v27** repair a zero to the shipped 1mm — leaving a shop's own figure alone, because the
+rule is carry values forward and change only what was wrong. It re-cuts (the allowance comes off the
+substrate radius) and re-prices (the curve buys the sheet it is built with), both said out loud.
+
+**Two of the mutations survived the first set of assertions** and both were real gaps: a repair
+written as *"set them all to 1"* clobbers a shop that laminates in 2mm, and repairing the job without
+the standards hands every *new* job an unlaminated curve. §4.22's chain, for the fourth time.
+
 **And three bench bugs were fixed, two of which this document already claimed were fixed** (§4.22).
 The `$NaN` quote came back — not because §4.14's repair was wrong, but because it lived in the
 *project* migration chain and the **shop standards** chain has never once repaired a labour rate, so
@@ -181,7 +198,7 @@ Section 4 records how each works and why; section 5 is what is actually left to 
 ```
 npm install
 npm run dev       # the app
-npm test          # 1093 tests
+npm test          # 1099 tests
 npm run build
 npm run report    # cutlist, hardware BOM, drilling, nest, G-code and costing for the sample kitchen
 npm run report -- shaker-57    # the same kitchen with routed fronts
@@ -299,8 +316,8 @@ materials.
 
 **Migrations must never quietly change anyone's parts.** Every migration carries old values
 forward so a saved job cuts exactly as it did; adopting a new default is then a deliberate
-edit. Schema is at **v35**; migrations run in sequence in `model/project.ts`. Shop standards are
-versioned separately and are at **v26** — and they get a *real* migration rather than a
+edit. Schema is at **v36**; migrations run in sequence in `model/project.ts`. Shop standards are
+versioned separately and are at **v27** — and they get a *real* migration rather than a
 rejection, because refusing to load them silently replaces a shop's accumulated kick heights,
 reveals, door styles and saved cabinet types with the shipped Australian defaults.
 

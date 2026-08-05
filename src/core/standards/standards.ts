@@ -30,6 +30,7 @@ import {
   type ProjectSettings,
   withBackfilledLabourRates,
   withCushionOverhang,
+  withLaminatedCurves,
   withRealLaminateSheets,
   withSplitLaminate,
   withRealSheetSizes,
@@ -61,7 +62,7 @@ import {
   DEFAULT_RUNNER_SYSTEM_ID,
 } from '../library/blum.ts';
 
-export const CURRENT_STANDARDS_VERSION = 26 as const;
+export const CURRENT_STANDARDS_VERSION = 27 as const;
 
 export interface ShopStandards {
   readonly version: typeof CURRENT_STANDARDS_VERSION;
@@ -388,6 +389,7 @@ export const migrateStandards = (raw: unknown): ShopStandards => {
   if (data.version === 23) data = migrateStandardsV23toV24(data);
   if (data.version === 24) data = migrateStandardsV24toV25(data);
   if (data.version === 25) data = migrateStandardsV25toV26(data);
+  if (data.version === 26) data = migrateStandardsV26toV27(data);
 
   if (data.version !== CURRENT_STANDARDS_VERSION) {
     throw new Error(`migrateStandards: could not migrate version ${String(version)}`);
@@ -782,6 +784,20 @@ const migrateStandardsV21toV22 = (raw: Record<string, unknown>): Record<string, 
  * one brandless laminate on them hand every new job the same problem at the current version, where
  * no migration is left to fix it.
  */
+/**
+ * v26 → v27: **the shop's own methods get their curves laminated again.**
+ *
+ * The other half of project v35 → v36, and the half that decides whether the fix lasts: a job takes
+ * a copy of the standards, so standards left with the allowance at zero hand every *new* job an
+ * unlaminated curve at the current version, where no migration is left to fix it. §4.22's fault,
+ * and this is the fourth time it has been the standards chain that mattered.
+ */
+const migrateStandardsV26toV27 = (raw: Record<string, unknown>): Record<string, unknown> => ({
+  ...raw,
+  version: 27,
+  constructions: withLaminatedCurves(raw.constructions),
+});
+
 const migrateStandardsV25toV26 = (raw: Record<string, unknown>): Record<string, unknown> => {
   const materials = (raw.materials as Record<string, unknown> | undefined) ?? {};
   return {
