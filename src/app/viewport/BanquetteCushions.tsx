@@ -123,20 +123,30 @@ function WedgeBack({ width, height, thickness, angle, radius, x, y, scaleFabric,
   scaleFabric: (geometry: BufferGeometry | null) => void;
   children: ReactNode;
 }) {
+  const inset = Math.max(0.5, Math.min(radius, thickness / 4, width / 4, height / 4));
   const shape = useMemo(() => {
-    const bottomThickness = thickness + Math.tan(angle) * height;
+    const t = Math.max(1, thickness - 2 * inset);
+    const h = Math.max(1, height - 2 * inset);
+    const bottomThickness = t + Math.tan(angle) * h;
     const result = new Shape();
     result.moveTo(0, 0);
     result.lineTo(bottomThickness, 0);
-    result.lineTo(thickness, height);
-    result.lineTo(0, height);
+    result.lineTo(t, h);
+    result.lineTo(0, h);
     result.closePath();
     return result;
-  }, [angle, height, thickness]);
-  const bevel = Math.max(0.5, Math.min(radius, thickness / 4, width / 4));
+  }, [angle, height, thickness, inset]);
+  /*
+   * Same correction as `SeatCushion`, and it was found the same way — by measuring the geometry in
+   * the running app rather than looking at it. A back cushion on a 1200 seat came out **1226** long:
+   * 1190 plus a bevel at each end. `bevelSize` grows the outline in the plan directions *and*
+   * `bevelThickness` grows the extrusion, so all three axes need taking back off.
+   */
+  const bevel = Math.max(0.5, Math.min(radius, thickness / 4, width / 4, height / 4));
   return <mesh position={[x + width, y, 0]} rotation={[0, -Math.PI / 2, 0]} castShadow receiveShadow>
     <extrudeGeometry ref={scaleFabric} args={[shape, {
-      depth: width,
+      // Shortened by two bevels; the mesh is placed so the growth lands back inside `width`.
+      depth: Math.max(1, width - 2 * bevel),
       bevelEnabled: true,
       bevelSize: bevel,
       bevelThickness: bevel,
@@ -165,6 +175,7 @@ function SeatCushion({ plan, thickness, bevel, y, scaleFabric, children }: {
   children: ReactNode;
 }) {
   const round = plan.round;
+  const b = Math.max(0.5, Math.min(bevel, thickness / 2 - 1, plan.width / 4, plan.depth / 4));
   /*
    * Shape space, and it is worth writing out because getting it back to front is invisible in a
    * screenshot until you look for it. The mesh is turned `−π/2` about X, which maps a local
@@ -177,9 +188,17 @@ function SeatCushion({ plan, thickness, bevel, y, scaleFabric, children }: {
    * Which is why the mesh is placed at `z1`, the cushion's **front** edge, and not at `z0`.
    * `BanquetteCornerCushions` already does exactly this for its quarter seat.
    */
+  /*
+   * **The shape is built `b` smaller all round, so the bevel grows it back to exactly `plan`.**
+   *
+   * This is the correction that was missing. Everything below is therefore stated on the inset
+   * outline, including the corner radius — a fillet offset inward by `b` has radius `r − b`, which
+   * is what keeps the finished arc concentric with the carcass curve underneath it rather than
+   * `b` fatter than it.
+   */
   const shape = useMemo(() => {
-    const w = plan.width;
-    const d = plan.depth;
+    const w = Math.max(1, plan.width - 2 * b);
+    const d = Math.max(1, plan.depth - 2 * b);
     const s = new Shape();
     if (!round) {
       s.moveTo(0, 0);
@@ -190,7 +209,7 @@ function SeatCushion({ plan, thickness, bevel, y, scaleFabric, children }: {
       return s;
     }
     // Wound counter-clockwise in shape space, with the arc at y = 0 — the front.
-    const r = round.radius;
+    const r = Math.max(0.5, round.radius - b);
     if (round.corner === 'front-right') {
       s.moveTo(0, 0);
       s.lineTo(w - r, 0);
@@ -207,16 +226,28 @@ function SeatCushion({ plan, thickness, bevel, y, scaleFabric, children }: {
     }
     s.closePath();
     return s;
-  }, [plan.width, plan.depth, round]);
+  }, [plan.width, plan.depth, round, b]);
 
   /*
-   * The bevel is the pillow edge, and it grows the extrusion in *both* directions — so the
-   * extrusion is shortened by two of them and lifted by one, and the cushion finishes exactly
-   * `thickness` tall sitting on the seat. `RoundedBox` is centred and needs no such correction,
-   * which is why the two branches read differently.
+   * The bevel is the pillow edge, and it grows the extrusion in **every** direction — which is
+   * two corrections, not one, and only the first was being made.
+   *
+   * **Thickness.** The extrusion is shortened by two bevels and lifted by one, so the cushion
+   * finishes exactly `thickness` tall sitting on the seat. That was always here and is right.
+   *
+   * **Plan.** `bevelSize` also pushes the *outline* outward by `b` on every edge, and nothing took
+   * it back off — so a radiused cushion came out `2b` wider and `2b` deeper than `plan` says, about
+   * 36mm on the shipped 18mm soft edge, and visibly overhung the curve it was supposed to sit on.
+   * Reported from the bench as the rounded end going *"a bit janky"*.
+   *
+   * **The give-away is that only the curved seat was wrong.** A square seat is drawn by
+   * `RoundedBox`, whose `args` are the finished size and which needs no correction at all — so the
+   * two branches disagreed about how big the same cushion is, on the same cabinet, by 36mm. That is
+   * §5.4's lid bug exactly: two descriptions of one thing, and the one nobody could check against a
+   * cutlist is the one that drifted. `insetShape` below is why the correction now lives with the
+   * shape rather than beside it.
    */
-  const b = Math.max(0.5, Math.min(bevel, thickness / 2 - 1));
-  return <mesh position={[plan.x0, y + b, plan.z1]} rotation={[-Math.PI / 2, 0, 0]} castShadow receiveShadow>
+  return <mesh position={[plan.x0 + b, y + b, plan.z1 - b]} rotation={[-Math.PI / 2, 0, 0]} castShadow receiveShadow>
     <extrudeGeometry ref={scaleFabric} args={[shape, {
       depth: Math.max(1, thickness - 2 * b),
       bevelEnabled: true,
