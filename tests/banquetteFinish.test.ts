@@ -62,7 +62,15 @@ import {
   CURRENT_STANDARDS_VERSION,
   migrateStandards,
 } from '../src/core/standards/standards.ts';
-import { softEdge, wedgeBackPlacement } from '../src/app/viewport/cushionMesh.ts';
+import { arcGeometry } from '../src/core/geom/arc.ts';
+import { type Polygon, polygonEdges, profileArea } from '../src/core/geom/profile.ts';
+import type { PlanRing } from '../src/core/rules/radius.ts';
+import {
+  cushionOccupancy,
+  seatCushionMesh,
+  softEdge,
+  wedgeBackPlacement,
+} from '../src/app/viewport/cushionMesh.ts';
 import { byName, occupies, size } from './helpers.ts';
 
 const W = 1200;
@@ -415,5 +423,173 @@ describe('a bevelled cushion finishes where it says it does', () => {
     });
     expect(placed.position[0]).toBe(450 - 18);
     expect(placed.depth).toBe(450 - 36);
+  });
+});
+
+/**
+ * The seat cushion's own mesh — the last one that was still arithmetic inside the component.
+ *
+ * **Both faults at the top of this file were in this cushion**, and neither was visible to a size
+ * assertion: the first made it 36mm too big, the second put a cushion of exactly the right size one
+ * bevel out of place on every axis. The shape and the placement are `seatCushionMesh` now, so what
+ * follows can be read in Node instead of measured in a screenshot.
+ *
+ * Worked longhand on the shipped 1200 × 400 × 500 banquette — finished front 520, cushion 10 proud
+ * of it, 80 thick, an 18mm soft edge, and a 200mm radiused right-hand end:
+ *
+ * ```
+ *   bevel           min(18, 80/2 − 1, 1200/4, 530/4)        =   18
+ *   square seat     RoundedBox, finished size, at its centre
+ *     size          1200 × 80 × 530
+ *     centre        (0 + 1200)/2, 400 + 40, (0 + 530)/2     = (600, 440, 265)
+ *   round seat      an extrusion, every figure a bevel small
+ *     inset rect    x 18 → 1182,  z 18 → 512
+ *     inset radius  200 − 18                                =  182
+ *     arc centre    (1182 − 182, 512 − 182)                 = (1000, 330)
+ *     origin        x 0,  y 400 + 18,  z 512
+ *     depth         80 − 2 × 18                             =   44
+ *   both            occupy x 0 → 1200,  y 400 → 480,  z 0 → 530
+ * ```
+ *
+ * **The arc centre is the assertion worth having.** 330 is the carcass's own arc centre — 520 − 200
+ * = 320 — moved forward by the 10mm overhang, which is `cushion.ts`'s rule that front-proud and
+ * end-flush join as one arc of the *unchanged* radius. A bevel-shrunk 182 finished radius, or a
+ * centre left at 320, both look like a cushion with a rounded end.
+ */
+describe('the seat cushion’s mesh, both shapes of it', () => {
+  const meshOf = (options: Record<string, unknown> = {}) => {
+    const { cabinet, built } = banquette(options);
+    return seatCushionMesh({
+      plan: seatCushionPlan({
+        W: mm(W),
+        D: mm(D),
+        finishedFrontZ: built.finishedFrontZ,
+        overhang: mm(OVERHANG),
+        round: built.radius ? { corner: built.radius.corner, radius: built.radius.r } : null,
+      }),
+      seatTop: cabinet.height,
+      thickness: 80,
+      radius: 18,
+    });
+  };
+  const rounded = (corner: string, r = 200) => meshOf({ radiusCorner: corner, carcassRadius: mm(r) });
+
+  /** The inset ring as a profile polygon: `x, z` in the room becomes `x, y` on paper. */
+  const asPolygon = (ring: PlanRing): Polygon =>
+    ring.map((v) => (v.bulge === undefined ? { x: v.x, y: v.z } : { x: v.x, y: v.z, bulge: v.bulge }));
+
+  it('draws a square seat as a rounded box at the plan’s own centre', () => {
+    const mesh = meshOf();
+    expect(mesh.kind).toBe('box');
+    if (mesh.kind !== 'box') return;
+    expect([...mesh.size]).toEqual([1200, 80, 530]);
+    // Centred on the plan, not on the carcass: those stopped being the same point when the cushion
+    // became flush at the back and proud at the front. A box the plan's size at the carcass's
+    // centre hangs off the back by exactly the overhang, and looks almost right.
+    expect([...mesh.position]).toEqual([600, 440, 265]);
+    expect(mesh.bevel).toBe(18);
+  });
+
+  it('draws a radiused seat as an extrusion, a bevel small, placed at the front', () => {
+    const mesh = rounded('front-right');
+    expect(mesh.kind).toBe('extrude');
+    if (mesh.kind !== 'extrude') return;
+    // The ring's largest z, which on a rectangle *is* the front — unlike the inside corner, where
+    // writing the front here put the cushion 372mm through the wall.
+    expect([...mesh.position]).toEqual([0, 418, 512]);
+    expect(mesh.depth).toBe(44);
+    expect(mesh.bevel).toBe(18);
+  });
+
+  it('finishes at the same box whichever shape it is — the fault, as an assertion', () => {
+    /*
+     * §5.14's first fault was the two branches disagreeing about how big one cushion is by 36mm:
+     * `RoundedBox` takes the finished size and the extrusion had to be told to take a bevel off,
+     * and only one of them knew. The cabinet is the same either way, so the box has to be.
+     */
+    const square = cushionOccupancy(meshOf());
+    expect(square).toEqual({ x0: 0, x1: 1200, y0: 400, y1: 480, z0: 0, z1: 530 });
+    // Both hands really are the extruded branch, or this compares two boxes and proves nothing.
+    expect([rounded('front-right').kind, rounded('front-left').kind]).toEqual(['extrude', 'extrude']);
+    expect(cushionOccupancy(rounded('front-right'))).toEqual(square);
+    expect(cushionOccupancy(rounded('front-left'))).toEqual(square);
+  });
+
+  it('turns the corner on the carcass’s own radius, moved forward by the overhang', () => {
+    /*
+     * The assertion this whole shape hangs on. The finished arc is the *unchanged* carcass radius
+     * about a centre pushed forward by the overhang — one arc tangent to the cushion's front edge
+     * and to the cabinet's end face, so the overhang eases from 10 at the front to nothing at the
+     * end. A radius shrunk by the bevel, or a centre left where the carcass has it, both draw a
+     * perfectly plausible rounded cushion.
+     */
+    const mesh = rounded('front-right');
+    expect(mesh.kind).toBe('extrude');
+    if (mesh.kind !== 'extrude') return;
+    const arc = polygonEdges(asPolygon(mesh.insetPlan)).find((e) => e.bulge !== 0)!;
+    const g = arcGeometry(arc.from, arc.to, arc.bulge);
+    expect(g.centre.x).toBeCloseTo(1000, 9);
+    expect(g.centre.y).toBeCloseTo(330, 9);
+    expect(g.radius).toBeCloseTo(182, 9);
+    // Which the extrude's bevel grows back to the carcass's own 200, about that same centre.
+    expect(g.radius + mesh.bevel).toBeCloseTo(200, 9);
+    // 320 is the carcass's arc centre. The 10 between them is the overhang, and nothing else.
+    expect(g.centre.y - (FINISHED_FRONT - 200)).toBeCloseTo(OVERHANG, 9);
+  });
+
+  it('turns the corner the shop asked for, on the hand it asked for', () => {
+    // Mirrored, and the mirror is the whole difference: same radius, same centre depth, other end.
+    const mesh = rounded('front-left');
+    expect(mesh.kind).toBe('extrude');
+    if (mesh.kind !== 'extrude') return;
+    const arc = polygonEdges(asPolygon(mesh.insetPlan)).find((e) => e.bulge !== 0)!;
+    const g = arcGeometry(arc.from, arc.to, arc.bulge);
+    expect(g.centre.x).toBeCloseTo(200, 9);
+    expect(g.centre.y).toBeCloseTo(330, 9);
+  });
+
+  it('bulges out, which is the opposite sign to an inside corner’s fillet', () => {
+    /*
+     * A convex corner on a counter-clockwise ring is a **positive** bulge. Negative is the scooped
+     * fillet the inside corner unit is built on — same radius, same arc length, and it would put a
+     * bite out of the cushion where a rounded end should be.
+     */
+    const mesh = rounded('front-right');
+    expect(mesh.kind).toBe('extrude');
+    if (mesh.kind !== 'extrude') return;
+    expect(mesh.insetPlan.find((v) => v.bulge)!.bulge).toBeCloseTo(Math.tan(Math.PI / 8), 12);
+    expect(profileArea({ outline: asPolygon(mesh.insetPlan), holes: [] })).toBeLessThan(1164 * 494);
+  });
+
+  it('draws the curve it says it draws — through the model’s arc code, not by hand', () => {
+    /*
+     * The flattened polygon that actually reaches three.js, read back and compared with the exact
+     * ring. **Smaller, and by a known amount**: chords across a convex arc cut inside the curve, so
+     * a flattened rounded corner is always a little leaner than the true one — under 10mm² at the
+     * 0.05mm flattening tolerance. Drawn with the bulge un-negated it would bow the other way and
+     * be 7,100mm² out, with nothing on screen to say which one you are looking at.
+     */
+    const mesh = rounded('front-right');
+    expect(mesh.kind).toBe('extrude');
+    if (mesh.kind !== 'extrude') return;
+    const drawn = mesh.shape.map((p) => ({ x: p.x, y: mesh.position[2] - p.y }));
+    const short =
+      profileArea({ outline: asPolygon(mesh.insetPlan), holes: [] }) -
+      profileArea({ outline: drawn, holes: [] });
+    expect(short).toBeGreaterThan(0);
+    expect(short).toBeLessThan(10);
+  });
+
+  it('clamps the soft edge to a quarter of the smallest face, on both shapes', () => {
+    // One clamp for both branches now. A 60mm cushion with an 18mm pillow edge on it is a cushion
+    // whose bevel has eaten the face it was softening — and `RoundedBox` used not to be told.
+    expect(meshOf({}).bevel).toBe(18);
+    const narrow = seatCushionMesh({
+      plan: seatCushionPlan({ W: mm(60), D: mm(D), finishedFrontZ: mm(FINISHED_FRONT), overhang: mm(OVERHANG), round: null }),
+      seatTop: 400,
+      thickness: 80,
+      radius: 18,
+    });
+    expect(narrow.bevel).toBe(15);
   });
 });

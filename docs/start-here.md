@@ -11,7 +11,7 @@ transcript. Then read `docs/woodtron-dialect.md` before touching anything under 
 
 ## Where things stand
 
-`main` is green at **1050 tests**. Schema **v32**, shop standards **v23**. Every session's work
+`main` is green at **1058 tests**. Schema **v32**, shop standards **v23**. Every session's work
 lands on `main` through a pull request, so `git log main` is the honest answer to what has shipped —
 check it rather than trusting this paragraph, which is exactly the kind of sentence that goes stale.
 
@@ -56,13 +56,12 @@ part whose true hole positions are known**. Until then every hole is reported by
 3. **The custom cabinet whose part list is itself data**, §5.13 item 3. The largest item on the list
    and a rethink rather than a field.
 
-**~~A test behind the inside corner cushion's mesh placement.~~ Done** — the outline, the inset and
-the origin are `insideCornerSeatMesh` in `viewport/cushionMesh.ts` now, asserted longhand and
-confirmed against the running scene. Five mutations reproducing the faults that cushion has actually
-had were all caught. Nothing about the picture changed, which was the point. **What it leaves** is
-the *plain* banquette's seat cushion, the last one still building its shape and placement in JSX —
-scope it before starting: its round corner is drawn with three.js's own `absarc`, so moving it
-changes the picture rather than moving it.
+**~~The cushion meshes.~~ Done, both of them** — `viewport/cushionMesh.ts` (§4.23 and the end of
+§5.13 item 1). **No cushion mesh is built from arithmetic a test cannot read now**, where all three
+faults these cushions have had were invisible to everything except measuring the running app. Eleven
+mutations reproducing those faults were all caught, and the assertion worth knowing about is that a
+square seat and a rounded one on the same cabinet must finish at the identical box — §5.14's 36mm
+fault stated as a question rather than left as a hope.
 
 ## Also open, and each says so in its own section
 
