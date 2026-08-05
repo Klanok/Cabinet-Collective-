@@ -11,7 +11,7 @@ transcript. Then read `docs/woodtron-dialect.md` before touching anything under 
 
 ## Where things stand
 
-`main` is green at **1042 tests**. Schema **v32**, shop standards **v23**. Every session's work
+`main` is green at **1050 tests**. Schema **v32**, shop standards **v23**. Every session's work
 lands on `main` through a pull request, so `git log main` is the honest answer to what has shipped —
 check it rather than trusting this paragraph, which is exactly the kind of sentence that goes stale.
 
@@ -55,9 +55,14 @@ part whose true hole positions are known**. Until then every hole is reported by
    code; it is closer to a benchtop's `joins` than to a nesting tweak.
 3. **The custom cabinet whose part list is itself data**, §5.13 item 3. The largest item on the list
    and a rethink rather than a field.
-4. **A test behind the inside corner cushion's mesh placement.** It took three goes and the last
-   fault was only found by measuring the running app. §4.23's `viewport/cushionMesh.ts` is the
-   pattern: get the arithmetic out of the JSX and assert it.
+
+**~~A test behind the inside corner cushion's mesh placement.~~ Done** — the outline, the inset and
+the origin are `insideCornerSeatMesh` in `viewport/cushionMesh.ts` now, asserted longhand and
+confirmed against the running scene. Five mutations reproducing the faults that cushion has actually
+had were all caught. Nothing about the picture changed, which was the point. **What it leaves** is
+the *plain* banquette's seat cushion, the last one still building its shape and placement in JSX —
+scope it before starting: its round corner is drawn with three.js's own `absarc`, so moving it
+changes the picture rather than moving it.
 
 ## Also open, and each says so in its own section
 

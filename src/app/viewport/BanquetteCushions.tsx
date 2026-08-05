@@ -15,14 +15,13 @@ import {
   returnRun,
   seatCushionPlan,
 } from '../../core/model/cushion.ts';
-import { type InsideCornerPlan, insideCornerRingAt } from '../../core/model/insideCorner.ts';
-import { flattenArc } from '../../core/geom/arc.ts';
+import type { InsideCornerPlan } from '../../core/model/insideCorner.ts';
 import type { UpholsteryMaterial } from '../../core/model/material.ts';
 import type { CornerRadius } from '../../core/rules/radius.ts';
 import { mm } from '../../core/units.ts';
 import { bundledAssetUrl } from './assetUrl.ts';
 import { applyFabricScale } from './fabricScale.ts';
-import { wedgeBackPlacement } from './cushionMesh.ts';
+import { insideCornerSeatMesh, wedgeBackPlacement } from './cushionMesh.ts';
 
 /**
  * The fabric image, resolved wherever this build is hosted.
@@ -411,60 +410,39 @@ export function BanquetteCornerCushions({ cabinet, plan, upholstery, selected, w
 
   const seatT = cabinet.options.seatCushionThickness ?? 80;
   const overhang = Math.max(0, cabinet.options.seatCushionOverhang ?? 10);
-  const bevel = Math.max(0.5, Math.min(cabinet.options.cushionCornerRadius ?? 18, seatT / 2 - 1));
 
   /*
-   * Shape space, and it is the same mapping `SeatCushion` documents: the mesh is turned −π/2 about
-   * X, so shape `y` runs **backwards** along cabinet z. The mesh is therefore placed at the seat's
-   * front-most z and the outline is written as `zMax − z`.
+   * **The arithmetic is `insideCornerSeatMesh`, in `cushionMesh.ts`, and none of it is left here.**
    *
-   * The overhang moves the two fronts out and the fillet with them: a surface `−overhang` behind
-   * the finished face, which is exactly what `insideCornerRingAt` does with a negative depth. One
-   * centre, one rule, and no second description of what a cushion proud of an L looks like.
+   * The outline, the inset the extrude's bevel grows back, and the origin the mesh sits at are all
+   * one derivation and all three have to agree. Two of them shipped correct and the third — the
+   * origin — was got wrong twice and could only be caught by measuring the live scene, because a
+   * `useMemo` in a component is not something a test in Node can read. §5.13 asked for exactly this
+   * before the corner cushion was touched again.
+   *
+   * What is left in this component is the mesh: three.js objects built from numbers somebody else
+   * has already checked.
    */
+  const seat = useMemo(
+    () =>
+      plan
+        ? insideCornerSeatMesh({
+            plan,
+            seatTop: cabinet.height,
+            thickness: seatT,
+            overhang,
+            radius: cabinet.options.cushionCornerRadius ?? 18,
+          })
+        : null,
+    [plan, cabinet.height, seatT, overhang, cabinet.options.cushionCornerRadius],
+  );
   const seatShape = useMemo(() => {
-    if (!plan) return null;
-    /*
-     * Built `bevel` smaller all round so the extrude's bevel grows it back to exactly the plan —
-     * §5.14's correction, which applies here for the same reason and was got wrong here first.
-     * The two fronts come in by the bevel as a parallel surface (one centre, one radius, so the
-     * fillet follows for free); the two walls and the two open ends are clamped.
-     */
-    const ring = insideCornerRingAt(plan, mm(bevel - overhang));
-    if (ring.length < 3) return null;
-    const inset = ring.map((v) => ({
-      x: Math.min(Math.max(v.x, bevel), plan.W - bevel),
-      z: Math.min(Math.max(v.z, bevel), plan.D - bevel),
-      bulge: v.bulge,
-    }));
-    const zMax = Math.max(...inset.map((v) => v.z));
-    /*
-     * **Flattened through the model's own arc code rather than rebuilt with `absarc`.** A hand-
-     * rolled centre-and-sweep here got the fillet wildly wrong first time — the cushion came out
-     * spanning z −390 → 546 on a 900 unit, found by measuring the live scene. `arcPoints` is the
-     * same function every part outline is drawn through, so the cushion cannot disagree with the
-     * seat about where the curve goes. The last sample is dropped because the next vertex is
-     * pushed as the start of its own edge.
-     */
-    const pts: { x: number; y: number }[] = [];
-    inset.forEach((v, i) => {
-      const next = inset[(i + 1) % inset.length]!;
-      const a = { x: v.x, y: zMax - v.z };
-      const b = { x: next.x, y: zMax - next.z };
-      pts.push(a);
-      if (v.bulge !== undefined && Math.abs(v.bulge) > 1e-9) {
-        // The z → y reflection reverses the arc's sense, so the bulge does too.
-        pts.push(...flattenArc(a, b, -v.bulge).slice(0, -1).map((f) => f.at));
-      }
-    });
+    if (!seat) return null;
     const shape = new Shape();
-    pts.forEach((p, i) => (i === 0 ? shape.moveTo(p.x, p.y) : shape.lineTo(p.x, p.y)));
+    seat.shape.forEach((p, i) => (i === 0 ? shape.moveTo(p.x, p.y) : shape.lineTo(p.x, p.y)));
     shape.closePath();
-    // `zMax` travels with the shape because the mesh has to be placed at it — see below. Working
-    // it out again from the plan is where this went wrong: on an **L** the deepest point is the
-    // far end of the second leg, not the front.
-    return { shape, zMax };
-  }, [plan, overhang, bevel]);
+    return shape;
+  }, [seat]);
 
   const material = () => <FabricSurface map={map} upholstery={upholstery} selected={selected} wireframe={wireframe} />;
 
@@ -473,23 +451,21 @@ export function BanquetteCornerCushions({ cabinet, plan, upholstery, selected, w
   const angle = Math.min(15, Math.max(0, cabinet.options.backCushionAngle ?? 0)) * Math.PI / 180;
   const backRadius = Math.max(1, Math.min(cabinet.options.cushionCornerRadius ?? 18, backThickness / 4));
   const backY = cabinet.height + seatT;
-  if (!plan || !seatShape) return null;
+  if (!plan || !seat || !seatShape) return null;
 
   return <>
     {/*
-      Shape space, and the placement is the half that had to be measured. The mesh is turned −π/2
-      about X, which maps a local `(x, y, z)` to `(x, z, −y)` — so shape `y` runs **backwards**
-      along cabinet z and the origin has to sit at the outline's **largest** z. On a rectangle that
-      is the front and it is easy to write `finishedFront` there by reflex; on an L it is the far
-      end of the second leg, and getting it wrong put the cushion 372mm through the wall. Found by
-      measuring the live scene, which is the third time this file has needed that.
+      Every number in this mesh comes out of `insideCornerSeatMesh` — the origin included, which is
+      the one that had to be measured in the running scene twice. The rotation stays here because it
+      is what the numbers were computed against: −π/2 about X maps a local `(x, y, z)` to
+      `(x, z, −y)`, so the extrude runs up and shape y runs backwards along cabinet z.
     */}
-    <mesh position={[0, cabinet.height + bevel, seatShape.zMax]} rotation={[-Math.PI / 2, 0, 0]} castShadow receiveShadow>
-      <extrudeGeometry ref={scaleFabric} args={[seatShape.shape, {
-        depth: Math.max(1, seatT - 2 * bevel),
+    <mesh position={[...seat.position]} rotation={[-Math.PI / 2, 0, 0]} castShadow receiveShadow>
+      <extrudeGeometry ref={scaleFabric} args={[seatShape, {
+        depth: seat.depth,
         bevelEnabled: true,
-        bevelSize: bevel,
-        bevelThickness: bevel,
+        bevelSize: seat.bevel,
+        bevelThickness: seat.bevel,
         bevelSegments: 3,
         steps: 1,
       }]} />

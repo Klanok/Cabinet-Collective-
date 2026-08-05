@@ -181,7 +181,7 @@ Section 4 records how each works and why; section 5 is what is actually left to 
 ```
 npm install
 npm run dev       # the app
-npm test          # 1042 tests
+npm test          # 1050 tests
 npm run build
 npm run report    # cutlist, hardware BOM, drilling, nest, G-code and costing for the sample kitchen
 npm run report -- shaker-57    # the same kitchen with routed fronts
@@ -228,6 +228,7 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | A front that does not open, cut without a door's reveal | **Working, see 4.23.** A reveal is swing clearance; a false front never swings |
 | The finish laminate over a curve, drawn and honestly charged | **Working, see 4.23.** Door decor on the outer skin; a curve with none says so, and is no longer charged for one |
 | Cushions cut to the size they claim, and placed where they claim | **Fixed, see 5.14 and 4.23.** Oversize by their own soft edge, then one bevel out of place on every axis — the second half invisible to the first half's tests |
+| Every number a cushion mesh is built from, out of the JSX | **Working, see the end of 5.13 item 1.** `viewport/cushionMesh.ts` — the corner seat's outline, inset and origin included, which is the arithmetic that had to be measured in the live scene twice |
 | Banquette cushions on the quote | **Working, see 4.19 and 4.23.** Bought in whole, $350/lin m **per cushion**, no parts produced |
 | Room — any shape, drawn in a 2D plan with typed lengths | Working |
 | Cabinets placed against a named wall, at any angle | Working |
@@ -2666,9 +2667,8 @@ them on the borer.
   code, and it is closer to a benchtop's `joins` than to a nesting tweak.
 - **The custom cabinet whose part list is itself data**, §5.13 item 3. The largest item on that
   list and a rethink rather than a field.
-- **A test behind the corner cushion's mesh placement.** It took three goes and the last fault was
-  found by measuring the running app — see the end of §5.13 item 1, and §4.23's `cushionMesh.ts`
-  for the pattern to follow.
+- ~~**A test behind the corner cushion's mesh placement.**~~ **Done** — `insideCornerSeatMesh`, and
+  the end of §5.13 item 1 for what it caught and what was measured to confirm it.
 
 **~~The one with the most value in it: write the Woodtron's second pass.~~ Done.**
 `writeSheetProgram` now walks the operation list twice: every contour to the 1.0mm skin, then
@@ -3661,12 +3661,31 @@ below the overcut.
 
    #### What is left on it
 
-   - **The corner cushion's mesh took three goes and the third was found by measuring.** A
-     hand-rolled `absarc` put it 372mm through the wall; it is now flattened through the model's own
-     `flattenArc`, and the mesh is placed at the outline's **largest z** — which on an L is the far
-     end of the second leg, not the front. There is no test on that placement: it is JSX, and the
-     lesson from §4.23's `cushionMesh.ts` is that this arithmetic wants extracting where it can be
-     asserted. **Do that before touching it again.**
+   - ~~**The corner cushion's mesh took three goes and the third was found by measuring.**~~
+     **Done.** The whole derivation — the outline, the inset the extrude's bevel grows back, and the
+     origin the mesh sits at — is `insideCornerSeatMesh` in `viewport/cushionMesh.ts`, and the
+     component is left with three.js objects built from numbers somebody else has checked. Eight
+     assertions in `tests/banquetteCorner.test.ts`, worked longhand off the reference unit; the
+     figures they claim were then **read back out of the running scene** (§7) rather than looked at:
+     seat x 0 → 900, y 400 → 480, z 0 → 900, both fronts at 530 — ten proud of the finished 520 —
+     the far corner of the footprint empty, and the fillet 140 at the show face about (670, 670).
+
+     **Five deliberate mutations, each reproducing one of the faults this cushion has actually
+     had**, and each caught: the origin written as the finished front (the 372mm one), the bevel
+     left off the lift, the outline not inset, the bulge left un-negated through the reflection, and
+     the overhang applied the wrong way. The one worth knowing is the fourth — a fillet flattened
+     the wrong way is 14,249mm² out and looks entirely plausible on screen, which is the same thing
+     the carcass's own centre assertion exists for.
+
+     Nothing about the picture changed, and that is the point: this was the arithmetic moving to
+     where a test in Node can read it.
+
+     **What it leaves is the plain banquette's own seat cushion**, which still builds its shape and
+     its placement inside `SeatCushion` — the one cushion whose mesh arithmetic is still JSX, and the
+     one both of §5.14's faults were in. It is a bigger job than the corner was rather than a
+     smaller one: its round branch draws the corner with three.js's `absarc`, so moving it means
+     drawing that corner through the model's arc code like every other outline here, which changes
+     the picture rather than moving it. Worth doing, worth scoping first.
    - **The back cushions run each wall's full span**, which is right for the backs and means they
      meet at the corner rather than mitring. Nobody has been asked what happens where they meet.
    - **The lid stay is still unmodelled**, as on the plain banquette.
