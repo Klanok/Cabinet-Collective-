@@ -121,6 +121,23 @@ export interface RuleContext {
    * from. Everything below is derived from it rather than from `t`.
    */
   readonly shell: ShellThicknesses;
+  /**
+   * The board the part now being produced is really cut from, by its index in its own rule.
+   *
+   * **A part that centres on its own thickness has to know its own thickness.** A shelf sits on the
+   * division line, so it starts at `centre − t/2`; with `t` the carcass board, a shelf cut from
+   * 18mm in a 16mm cabinet sat a millimetre low — the right board on the cutlist, in not quite the
+   * right place, which is the class of fault §7 exists for.
+   *
+   * **The index is the rule's own and there is no key here**, deliberately. `build.ts` scopes this
+   * per rule as it produces, so a builder asks "how thick is the one I am making" without ever
+   * naming a rule key — which would be a second source of truth about which rule it belongs to,
+   * and would silently miss the day a spec registered the same builder under another name.
+   *
+   * Answers the carcass board for anything not overridden, which is every part until somebody
+   * says otherwise.
+   */
+  readonly thicknessOf: (index: number) => Mm;
   /** Cabinet-space x where the interior starts: the left end's own board, or 0 if there is none. */
   readonly interiorX0: Mm;
   /** Cabinet-space y where the interior starts: the bottom's own board, or 0 if there is none. */
@@ -256,6 +273,9 @@ export const buildContext = (
     td: thicknesses.door,
     ts: thicknesses.skin,
     shell,
+    // Replaced per rule by `build.ts` while it produces; the carcass board is the answer for
+    // every part nobody has overridden.
+    thicknessOf: () => t,
     interiorX0: shell.left,
     interiorY0: shell.bottom,
     interiorWidth,

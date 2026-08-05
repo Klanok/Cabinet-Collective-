@@ -22,6 +22,7 @@ import { type DoorStyle, resolveDoorStyle } from '../standards/doorStyles.ts';
 import {
   type BuildThicknesses,
   type ResolvedMaterials,
+  type RuleContext,
   type ShellThicknesses,
   buildContext,
   shellProblems,
@@ -268,6 +269,22 @@ const toPanel = (
  * each, and a shell figure that depended on which index somebody happened to name would be a
  * different opening for the same cabinet depending on how the override was written.
  */
+/**
+ * The thickness an override's board really is, or the carcass board.
+ *
+ * **A board the job does not have falls back rather than failing**: a price list that has lost an
+ * entry must not silently resize a cabinet, and the override is reported separately.
+ */
+const overriddenThickness = (
+  override: PartOverride | undefined,
+  carcassThickness: Mm,
+  library: MaterialLibrary,
+): Mm => {
+  if (override?.materialId === undefined) return carcassThickness;
+  const board = library.sheets.find((m) => m.id === override.materialId);
+  return board ? actualThicknessOf(board) : carcassThickness;
+};
+
 const shellOf = (
   overrides: readonly PartOverride[] | undefined,
   carcassThickness: Mm,
@@ -276,11 +293,7 @@ const shellOf = (
   const of = (key: string): Mm => {
     const override = overrideFor(overrides, key, 0);
     if (override?.omit === true) return mm(0);
-    if (override?.materialId === undefined) return carcassThickness;
-    const board = library.sheets.find((m) => m.id === override.materialId);
-    // An override naming a board the job does not have falls back to the carcass rather than to
-    // zero: a missing price-list entry must not silently resize the cabinet. It is reported below.
-    return board ? actualThicknessOf(board) : carcassThickness;
+    return overriddenThickness(override, carcassThickness, library);
   };
   return { left: of('side-left'), right: of('side-right'), bottom: of('bottom'), top: of('top') };
 };
@@ -378,7 +391,21 @@ export const buildCabinet = (cabinet: Cabinet, project: Project): BuiltCabinet =
    */
   const offered: PartKey[] = [];
   for (const rule of spec.parts) {
-    rule.produce(ctx).forEach((instance, i) => {
+    /*
+     * The context this rule produces under, which knows the boards **its own** parts are cut from.
+     * Scoping it here is what lets a builder ask `ctx.thicknessOf(i)` without naming its own rule
+     * key — the key is `build.ts`'s to know, not the builder's.
+     */
+    const ruleCtx: RuleContext = {
+      ...ctx,
+      thicknessOf: (i: number) =>
+        overriddenThickness(
+          overrideFor(overrides, rule.key, i),
+          thicknesses.carcass,
+          project.materials,
+        ),
+    };
+    rule.produce(ruleCtx).forEach((instance, i) => {
       offered.push({
         key: rule.key,
         index: i,

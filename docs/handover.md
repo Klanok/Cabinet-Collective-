@@ -181,7 +181,7 @@ Section 4 records how each works and why; section 5 is what is actually left to 
 ```
 npm install
 npm run dev       # the app
-npm test          # 1089 tests
+npm test          # 1093 tests
 npm run build
 npm run report    # cutlist, hardware BOM, drilling, nest, G-code and costing for the sample kitchen
 npm run report -- shaker-57    # the same kitchen with routed fronts
@@ -3769,10 +3769,22 @@ below the overcut.
    controls at all**.
 
    #### What is left on it
-   - **A part whose placement centres on its own thickness** — a shelf, a divider — is still placed
-     off `ctx.t` rather than off its own board. Omission is unaffected; a per-part *material* on one
-     of those is half a millimetre out on an 18mm board in a 16mm cabinet. The shell parts the shop
-     named are all face-anchored, so they are exact.
+   - ~~**A part whose placement centres on its own thickness.**~~ **Fixed.** A shelf sits *on* the
+     division line, so it starts at `centre − t/2` — and that `t` was the carcass board whatever the
+     shelf was cut from, so an 18mm shelf came out the right size, on the right board, on the right
+     line of the cutlist, and **1mm low**. Nothing about it looks wrong anywhere, which is §7's
+     argument for occupancy over size in one sentence.
+
+     **`RuleContext.thicknessOf(index)` answers it, and there is deliberately no key in it.**
+     `build.ts` scopes the lookup per rule as it produces, so a builder asks *"how thick is the one
+     I am making"* without ever naming its own rule key — a key in the builder would be a second
+     source of truth about which rule it belongs to, and would silently miss the day a spec
+     registered the same builder under another name.
+
+     Three mutations, all caught, and the one worth keeping is the middle: **the thickness resolved
+     once per rule and reused** puts every shelf on the first one's offset and passes every size
+     assertion. The test that bites overrides *one* of three shelves and asserts all three centres —
+     188, 360 and 532 on a 688 opening, which divides exactly so nothing rests on a tolerance.
    - **An applied back does not follow a deleted end**, deliberately: it laps the carcass and is the
      full width by definition. Housed into the sides it would follow the opening like the top does.
      Worth knowing before somebody reports it.

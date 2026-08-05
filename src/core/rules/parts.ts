@@ -382,7 +382,7 @@ export const adjustableShelves = (ctx: RuleContext, count: number): PartInstance
       // A bowed shelf keeps its back where a straight one had it and reaches *forward*, so
       // the origin — the front-most plane of the part — moves out by the bow.
       placement: placement(
-        v3(leftX, mm(centreY - ctx.t / 2), mm(frontZ + (shelf ? 0 : bow))),
+        v3(leftX, mm(centreY - ctx.thicknessOf(i) / 2), mm(frontZ + (shelf ? 0 : bow))),
         '+X',
         '-Z',
       ),
@@ -1119,7 +1119,11 @@ export const dividers = (ctx: RuleContext, count: number): PartInstance[] => {
       name: count === 1 ? 'Divider' : `Divider ${i + 1}`,
       role: 'divider' as const,
       profile: rectProfile(ctx.interiorHeight, ctx.horizontalDepth),
-      placement: placement(v3(mm(centreX - ctx.t / 2), ctx.interiorY0, ctx.interiorBackZ), '+Y', '+Z'),
+      placement: placement(
+        v3(mm(centreX - ctx.thicknessOf(i) / 2), ctx.interiorY0, ctx.interiorBackZ),
+        '+Y',
+        '+Z',
+      ),
       material: 'carcass' as const,
       bandedDirections: BAND_FRONT,
       grain: 'length-along-grain' as const,
@@ -1169,7 +1173,9 @@ export const bayShelves = (
         placement: placement(
           v3(
             mm(bayLeft + c.shelfSideClearance / 2),
-            mm(centreY - ctx.t / 2),
+            // `parts.length` is this shelf's index in what the rule returns, which is exactly what
+            // `thicknessOf` is asked about — the bays and levels are this builder's own bookkeeping.
+            mm(centreY - ctx.thicknessOf(parts.length) / 2),
             mm(ctx.D - c.shelfSetback + bow),
           ),
           '+X',
