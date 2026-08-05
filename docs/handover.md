@@ -151,7 +151,7 @@ Section 4 records how each works and why; section 5 is what is actually left to 
 ```
 npm install
 npm run dev       # the app
-npm test          # 1010 tests
+npm test          # 1024 tests
 npm run build
 npm run report    # cutlist, hardware BOM, drilling, nest, G-code and costing for the sample kitchen
 npm run report -- shaker-57    # the same kitchen with routed fronts
@@ -192,7 +192,7 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | Banquette seating — solid front, hinged lift-up, cushions | Rejected at the bench, **rebuilt to the shop's own answers — see 5.4**, then finished off in **4.23**. Lid stay still unmodelled |
 | A rounded corner on a banquette, carried by lid, front and cushion | **Working, see 4.15.** Applied ends build on one too |
 | What each cabinet type supports, declared by its own spec | **Working, see 4.15 and 4.16.** `CabinetSpec.capabilities` — refusing costs a sentence |
-| Inside banquette corner — a quarter-circle connector | **Still the wrong shape on screen — see 5.13 item 1.** The right one is an L with a concave fillet, and it is now **built and asserted** in `model/insideCorner.ts`; no part reads it yet |
+| Inside banquette corner — an L with a concave fillet | **Working, see 5.13 item 1.** Formed bendy-ply front the whole way round, laminated; three independent numbers where there used to be one |
 | Upholstery as its own material type | Working — Warwick Caulfield, nine colours, `library/upholstery.au.ts` |
 | A seat cushion proud of the finished front, adjustable | **Working, see 4.23.** 10mm, the shop's own figure; flush at the ends and the back, and the reason for each |
 | A front that does not open, cut without a door's reveal | **Working, see 4.23.** A reveal is swing clearance; a false front never swings |
@@ -266,7 +266,7 @@ materials.
 
 **Migrations must never quietly change anyone's parts.** Every migration carries old values
 forward so a saved job cuts exactly as it did; adopting a new default is then a deliberate
-edit. Schema is at **v30**; migrations run in sequence in `model/project.ts`. Shop standards are
+edit. Schema is at **v31**; migrations run in sequence in `model/project.ts`. Shop standards are
 versioned separately and are at **v22** — and they get a *real* migration rather than a
 rejection, because refusing to load them silently replaces a shop's accumulated kick heights,
 reveals, door styles and saved cabinet types with the shipped Australian defaults.
@@ -3544,111 +3544,64 @@ below the overcut.
    fresh session re-deriving a shop decision gets a different answer — and this item has now been
    mis-derived twice from the same sentence.
 
-   #### The shape is now settled, with assertions — `model/insideCorner.ts`
+   #### Built — see the spec, `model/insideCorner.ts` and both test files
 
-   **The outline is built and tested; no part reads it yet.** That split is deliberate. This item
-   has been mis-derived twice, so the piece that keeps going wrong was done first, on its own, where
-   it can be checked — and the carcass is built against a proven outline rather than against a third
-   reading of one sentence. `tests/insideCorner.test.ts` carries every figure longhand.
+   **The unit is an L now**, and the shop answered the two questions §5.13 was holding on:
 
-   **One thing in it had to be measured rather than reasoned about, and reasoning got it wrong
-   twice in two different ways.** *Filleting the inside corner makes the seat bigger.* The corner
-   where the two fronts meet is a **reflex** vertex — 270° of seat around a point — so rounding it
-   cuts the corner off the **void**, not off the solid. On the shop's example the plan goes from
-   650,000mm² to **654,828.5mm²**, up by `r² − πr²/4`. The physical version: a sharp 270° corner of
-   bench is what somebody catches their hip on, and rounding it makes the seat fuller there.
+   > *"the entire radius front should be formed bendy ply then laminated — that is the point of this
+   > cabinet"*
 
-   **The bulge is negative**, on a counter-clockwise outline. Positive is the convex quarter disc
-   that was reported as *"a complete mess"*, at a fifteenth of its size — same radius, same arc
-   length, nearly the same bounding box. **The assertions that bite are the fillet's *centre*
-   (650, 650, out in the room) and the area**, not the radius. A radius assertion passes on the
-   rejected shape.
+   So there is **no flat front panel and no door-decor part on this unit at all**. The whole front —
+   along one leg, round the fillet, along the other — is one formed piece per layer, and the
+   laminate over it is the finish (`finishMaterialId`, §4.23). That is §4.5's *"one piece, no join"*
+   wrap bent the other way.
 
-   The geometry engine needed **no extension**: signed bulges were always in `arc.ts`, and a reflex
-   fillet extrudes and triangulates with a cap area matching the exact profile to a thousandth of a
-   percent. That was checked before anything was designed around it.
+   > *"the strip should be there and set back from the radius by 50mm — depending on what the
+   > entered radius is"*
 
-   #### What is left, and it is the carcass
+   So the formers run `fixingStripWidth` past each tangent, giving the ply a rigid landing where it
+   comes out of the bend, and a radius that does not leave the strip room is reported.
 
-   The parts, which the shop has since described: *"same as the plain banquette — solid fixed front,
-   hinged lift-up, bottom — the curve made in bendy ply on formers turned inward, and one
-   seat-depth figure for both legs."* So: two backs against the two walls, two sides at the open
-   ends where it butts its neighbours, an L-shaped bottom and lift-up, **two straight fronts** (one
-   per leg, each running from the fillet to its own open end), and formers and skin at the fillet.
+   **Three things in it are worth not re-deriving:**
 
-   **`resolveCornerRadius` cannot be reused and should not be bent into service.** It is written for
-   a *convex* corner throughout — fixing strip, tail, end panel, door zone, hand mirroring — and the
-   signs invert here. The one that matters: on a convex corner the formers are cut to
-   `r − skin`, and on this one they are cut to **`r + skin`**, because the ply is the finished face
-   and the formers sit *further from the centre* than it does. Getting that backwards puts the curve
-   a skin's thickness out of plane with the two fronts either side of it, which is §5.0's
-   finished-front bug in a new place. `insideCornerPlan` deliberately stops at the finished outline
-   and leaves the build-up to the builder that needs it.
+   - **Filleting the inside corner makes the seat *bigger*.** It is a reflex vertex, so rounding it
+     cuts the corner off the **void**. 650,000mm² → 654,828.5. Reasoning gave the opposite answer
+     twice; the assertion is what settles it.
+   - **Every surface is `r + d` about one centre out in the room**, so the formers are cut to
+     `r + skin` where a convex corner's are `r − skin`. On the shipped figures the ply's back face
+     lands 3mm *in front of* the carcass and the formers pack it out to finish flush with the
+     banquettes either side.
+   - **The assertions that bite are the fillet's centre and the plan area, not its radius.** The
+     rejected quarter disc has the identical radius and arc length.
 
-   Also still to do: **`seatDepth` has no field on the cabinet yet** — the plan function takes it,
-   nothing stores it — so it needs adding with a migration, and `validate`'s
-   `W = D = insideCornerRadius` has to go at the same time. Leaving that rule in place while the
-   parts still build a quarter disc is why neither moved in this session: a unit that validates by
-   one shape and draws another is worse than one that is consistently wrong.
+   **Project v31**, and it is the fifth migration here to re-price and the first that can make a job
+   **cheaper**: the corner seat is charged along two straight fronts plus a short fillet where it
+   used to be charged along one long convex arc that was never built, and the two backs are now one
+   per wall at its own span rather than the same number twice. Nothing carries forward, because the
+   old shape does not exist: `width = depth = radius` was one number written three times, so there
+   is no seat depth to recover. A saved 500 × 500 unit comes back **reporting that a 500 seat depth
+   leaves no L in a 500 span**, which is the honest outcome — what it should be is a decision about
+   two real walls.
 
-   `insideCornerSeatLineal` is written and also unread: it is §4.19's charge restated for two
-   straight fronts plus a short fillet where the old shape had one long arc. Switching costing over
-   **re-prices** every corner unit, so it travels with the parts rather than going in early.
+   Verified in the running app per §7, reading the live scene rather than looking: backs at
+   `[0,900]×[0,16]` and `[0,16]×[16,900]`, both open ends at the seat depth off their own wall,
+   three formers at `[500,718]²`, and the formed front's show layer carrying the **walnut** texture
+   over an inner layer still in bendy ply. The cutlist: 707.5 and 720 × 400 of bendy ply, which is
+   `232 + (150 + 1 + 4) × π/2 + 232` and one board thickness more.
 
-   #### The datum chain at the fillet, worked out — and where it runs into a shop question
+   #### What is left on it
 
-   Worked through before stopping, because it is the part a fresh session would re-derive and could
-   easily get wrong. On the shipped figures — 2mm standoff, 18mm door, 2 × 8mm bendy ply, 1mm
-   laminate, so `skin` = 17 — and with `seatDepth` read as the **carcass** depth off each wall,
-   exactly as a plain banquette's `depth` is:
-
-   ```
-     carcass front planes      z = sd            and  x = sd
-     finished front planes     z = fz = sd + 2 + 18 = sd + 20      (ctx.finishedFrontZ)
-     the reflex corner         (fz, fz)          in the finished planes
-     fillet centre  C          (fz + r, fz + r)  out in the room
-     finished ply face         radius r about C          — flush with the two fronts
-     ply back face             radius r + skin about C
-   ```
-
-   **The number that matters, and it is not obvious: the ply's back face lands 3mm *in front of* the
-   carcass.** The ply's back tangent plane is `fz − skin` = `fz − 17`, and the carcass front is
-   `fz − 20`. So the formers have to **pack the curve out by 3mm** — `so + td − skin` — to bring the
-   ply flush with the fronts either side. It is the same relationship §5.0 fixed for the convex
-   corner (*"the curve finishes in the door plane, not on the carcass"*), arriving with the opposite
-   sign, and it is why the former radius here is **`r + skin`** rather than `r − skin`.
-
-   **`resolveCornerRadius` still cannot be reused**, and now for a second reason on top of the
-   convex/concave one: it derives the fixing strip, the tail, the end panel and the door zone from a
-   single handed corner of a rectangle, and none of those exist on an L with two open ends.
-
-   #### Two things want asking before the carcass is cut, and neither should be guessed
-
-   §4.5 needed four decisions from the shop before a convex corner could be built, and the standing
-   note there is that a session re-deriving one gets a different answer. The concave corner has its
-   own, and they are **not answered by anything on file**:
-
-   1. **How far does the former run back along each leg, and is there a fixing strip?** On the convex
-      corner the strip is a flat run of front face the curved piece is screwed to, and §4.5 is
-      explicit that it is *"there to fix the curved piece to"* rather than being door clearance. An
-      inside corner has the ply on the **concave** side, so it is being pushed onto the formers
-      rather than pulled around them, and whether it still wants a flat landing each side — and how
-      much — is a bench answer.
-   2. **Do the ply's flat tails run on behind the two fronts, or does the ply stop at the tangents?**
-      On the convex corner the wrap is deliberately *"one piece, no join"* because an exposed end
-      wants no joint line. Here the curve meets a door-decor front on both sides, so there are two
-      joints whatever happens, and the question is only where they fall.
-
-   Until those are answered the honest options are a square inside corner (which
-   `insideCornerPlan` already builds with no special case, at `radius: 0`) or nothing. **Building the
-   fillet by picking an answer is the failure this document exists to prevent** — it is how the unit
-   came to be a quarter disc in the first place.
-
-   Note it also moves §4.19's corner-seat arc charge, which is measured along that front edge. The
-   reading survives; the shape it measures does not, and an L has two straight fronts plus a small
-   fillet where the old shape had one long arc. And the cushion has to turn with it —
-   `BanquetteCornerCushions` builds its quarter from the same description and would otherwise sit
-   convex on a concave seat.
+   - **The corner cushion's mesh took three goes and the third was found by measuring.** A
+     hand-rolled `absarc` put it 372mm through the wall; it is now flattened through the model's own
+     `flattenArc`, and the mesh is placed at the outline's **largest z** — which on an L is the far
+     end of the second leg, not the front. There is no test on that placement: it is JSX, and the
+     lesson from §4.23's `cushionMesh.ts` is that this arithmetic wants extracting where it can be
+     asserted. **Do that before touching it again.**
+   - **The back cushions run each wall's full span**, which is right for the backs and means they
+     meet at the corner rather than mitring. Nobody has been asked what happens where they meet.
+   - **The lid stay is still unmodelled**, as on the plain banquette.
+   - Nothing asks whether a lift-up this size wants two lids rather than one; an 864 × 864 panel is
+     a big thing to lift in one piece.
 
 2. ~~**A standalone panel should stand perpendicular to the wall, not flat against it**~~ —
    **done, see §4.21.**

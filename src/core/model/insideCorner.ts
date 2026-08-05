@@ -51,7 +51,7 @@
  */
 
 import { type Mm, mm } from '../units.ts';
-import type { Polygon } from '../geom/profile.ts';
+import type { PlanRing } from '../rules/radius.ts';
 import { type Vec2, v2 } from '../geom/vec.ts';
 
 /**
@@ -76,25 +76,42 @@ export interface InsideCornerInput {
   readonly seatDepth: Mm;
   /** The fillet where the two seat fronts meet. */
   readonly radius: Mm;
+  /**
+   * How far the finished face stands in front of the carcass — a standoff plus a front's board,
+   * `ctx.finishedFrontZ − seatDepth`.
+   *
+   * Absent means zero, which is the carcass ring itself and is what a test measuring the plain L
+   * wants. **It is not optional in a real build**: the wrap has to finish in the same plane as the
+   * fronts of the banquettes either side of it, or the connector steps where it joins them.
+   */
+  readonly frontProud?: Mm;
 }
 
 export interface InsideCornerPlan {
+  /** Span along wall A, the z = 0 wall. */
+  readonly W: Mm;
+  /** Span along wall B, the x = 0 wall. */
+  readonly D: Mm;
+  /** Carcass depth off each wall, after clamping. The same figure a banquette's `depth` is. */
   readonly seatDepth: Mm;
-  /** The fillet actually built, after clamping. Zero means a square inside corner. */
+  /** Where the finished face lands: `seatDepth + frontProud`. */
+  readonly finishedFront: Mm;
+  /** The fillet actually built, measured on the **finished** face. Zero is a square inside corner. */
   readonly radius: Mm;
   /**
-   * The seat's plan outline in cabinet space, wound counter-clockwise, with the fillet as a bulge.
+   * The finished seat outline in cabinet space, wound counter-clockwise, with the fillet as a bulge.
    *
-   * One description, read by the bottom, the lift-up, the cushion and the charge. The old unit had
-   * `quarterRing` in the spec and a second quarter in the viewport, which is the two-descriptions
-   * fault this codebase keeps paying for.
+   * One description, read by the wrap, the cushion and the charge; the carcass rings come off the
+   * same centre through `insideCornerRingAt`. The old unit had `quarterRing` in the spec and a
+   * second quarter in the viewport, which is the two-descriptions fault this codebase keeps paying
+   * for — and this unit is the one where nobody can check the answer against a cutlist.
    */
-  readonly outline: Polygon;
-  /** The front face of the leg running along wall A: the plane z = seatDepth. */
+  readonly outline: PlanRing;
+  /** The finished front of the leg running along wall A: the plane z = finishedFront. */
   readonly frontA: { readonly z: Mm; readonly x0: Mm; readonly x1: Mm };
-  /** The front face of the leg running along wall B: the plane x = seatDepth. */
+  /** The finished front of the leg running along wall B: the plane x = finishedFront. */
   readonly frontB: { readonly x: Mm; readonly z0: Mm; readonly z1: Mm };
-  /** Where the fillet leaves front A, and where it meets front B. */
+  /** Where the fillet leaves front A, and where it meets front B — on the finished face. */
   readonly tangentA: Vec2;
   readonly tangentB: Vec2;
   /** The fillet's centre — **out in the room**, which is what makes it an inside corner. */
@@ -104,9 +121,9 @@ export interface InsideCornerPlan {
 /**
  * The largest fillet this unit has room for.
  *
- * The fillet is tangent at `seatDepth + r` along each leg, so it needs that much leg to be tangent
- * to. A radius past it would put the tangent point beyond the open end of a leg, where there is no
- * front for it to be tangent to and the outline crosses itself. Clamped rather than refused,
+ * The fillet is tangent `radius` along each leg from the corner, so it needs that much leg to be
+ * tangent to. A radius past it puts the tangent point beyond the open end of a leg, where there is
+ * no front for it to be tangent to and the outline crosses itself. Clamped rather than refused,
  * because the carcass warnings are where an impossible figure gets reported in millimetres — and a
  * number field fires on every keystroke, so typing "150" asks for 1 and then 15 on the way.
  */
@@ -116,58 +133,77 @@ export const maxInsideCornerRadius = (input: {
   readonly seatDepth: Mm;
 }): Mm => mm(Math.max(0, Math.min(input.W, input.D) - input.seatDepth));
 
+/**
+ * The plan ring of any surface parallel to the finished front, `d` behind it.
+ *
+ * **One centre, and every layer is a radius.** That is the whole of the build-up on this unit, and
+ * it is worth stating as a rule rather than as three separate derivations — the alternative works
+ * out the carcass ring, the former ring and each ply layer from their own arithmetic, which is
+ * three chances to put one of them a millimetre out of plane with the other two, on the one face
+ * somebody's hand runs along.
+ *
+ * A surface `d` behind the finished face has its straight fronts at `F − d` and its fillet at
+ * `r + d`, **about the same centre**, because the centre is out in the room and going backwards is
+ * going further from it. Tangency falls out rather than being arranged:
+ * `centre − (r + d) = (F + r) − (r + d) = F − d`.
+ *
+ * **The sign is the one thing that inverts from §4.5's convex corner**, where a substrate is
+ * `r − skin`. Here it is `r + d`. Getting it backwards puts the curve two skins out of plane with
+ * the two runs of front it flows into, which is a step exactly where a hand lands.
+ */
+export const insideCornerRingAt = (plan: InsideCornerPlan, d: Mm): PlanRing => {
+  const f = mm(plan.finishedFront - d);
+  if (f <= 0) return [];
+  if (plan.radius <= 0) {
+    return [
+      { x: mm(0), z: mm(0) },
+      { x: plan.W, z: mm(0) },
+      { x: plan.W, z: f },
+      { x: f, z: f },
+      { x: f, z: plan.D },
+      { x: mm(0), z: plan.D },
+    ];
+  }
+  return [
+    { x: mm(0), z: mm(0) },
+    { x: plan.W, z: mm(0) },
+    { x: plan.W, z: f },
+    { x: plan.filletCentre.x, z: f, bulge: FILLET_BULGE },
+    { x: f, z: plan.filletCentre.y },
+    { x: f, z: plan.D },
+    { x: mm(0), z: plan.D },
+  ].filter((v) => v.x <= plan.W + SLOP && v.z <= plan.D + SLOP) as PlanRing;
+};
+
+/** Tolerance for "still on the unit" when a ring is taken well behind the finished face. */
+const SLOP = 1e-6;
+
 export const insideCornerPlan = (input: InsideCornerInput): InsideCornerPlan => {
   const sd = mm(Math.max(0, Math.min(input.seatDepth, input.W, input.D)));
-  const r = mm(Math.max(0, Math.min(input.radius, maxInsideCornerRadius({ ...input, seatDepth: sd }))));
+  const proud = mm(Math.max(0, input.frontProud ?? 0));
+  const finishedFront = mm(sd + proud);
+  const r = mm(
+    Math.max(0, Math.min(input.radius, maxInsideCornerRadius({ ...input, seatDepth: finishedFront }))),
+  );
 
-  const tangentA = v2(mm(sd + r), sd);
-  const tangentB = v2(sd, mm(sd + r));
-  const filletCentre = v2(mm(sd + r), mm(sd + r));
+  const tangentA = v2(mm(finishedFront + r), finishedFront);
+  const tangentB = v2(finishedFront, mm(finishedFront + r));
+  const filletCentre = v2(mm(finishedFront + r), mm(finishedFront + r));
 
-  /*
-   * Counter-clockwise from the corner where the two walls meet:
-   *
-   *   (0, 0) → (W, 0)          along wall A, the back of the first leg
-   *   (W, 0) → (W, sd)         the open end of the first leg, butting the next banquette
-   *   (W, sd) → tangentA       the front of the first leg, running back toward the corner
-   *   tangentA ⌒ tangentB      the fillet
-   *   tangentB → (sd, D)       the front of the second leg, running away from wall A
-   *   (sd, D) → (0, D)         the open end of the second leg
-   *   (0, D) → (0, 0)          along wall B
-   *
-   * At r = 0 the two tangent points collapse onto the reflex corner itself and the bulge sits on a
-   * zero-length edge, so the shape is the plain square-cornered L with no special case for it.
-   */
-  const outline: Polygon =
-    r > 0
-      ? [
-          v2(mm(0), mm(0)),
-          v2(input.W, mm(0)),
-          v2(input.W, sd),
-          { x: tangentA.x, y: tangentA.y, bulge: FILLET_BULGE },
-          v2(tangentB.x, tangentB.y),
-          v2(sd, input.D),
-          v2(mm(0), input.D),
-        ]
-      : [
-          v2(mm(0), mm(0)),
-          v2(input.W, mm(0)),
-          v2(input.W, sd),
-          v2(sd, sd),
-          v2(sd, input.D),
-          v2(mm(0), input.D),
-        ];
-
-  return {
+  const plan: InsideCornerPlan = {
+    W: input.W,
+    D: input.D,
     seatDepth: sd,
+    finishedFront,
     radius: r,
-    outline,
-    frontA: { z: sd, x0: mm(sd + r), x1: input.W },
-    frontB: { x: sd, z0: mm(sd + r), z1: input.D },
+    outline: [],
+    frontA: { z: finishedFront, x0: tangentA.x, x1: input.W },
+    frontB: { x: finishedFront, z0: tangentB.y, z1: input.D },
     tangentA,
     tangentB,
     filletCentre,
   };
+  return { ...plan, outline: insideCornerRingAt(plan, mm(0)) };
 };
 
 /**
@@ -183,9 +219,9 @@ export const insideCornerPlan = (input: InsideCornerInput): InsideCornerPlan => 
  * Still **on the unchecked list** (§3): nobody has put a corner unit to the upholsterer. What has
  * changed is that the figure is now measured along a front that exists.
  */
-export const insideCornerSeatLineal = (plan: InsideCornerPlan, W: Mm, D: Mm): Mm =>
+export const insideCornerSeatLineal = (plan: InsideCornerPlan): Mm =>
   mm(
-    Math.max(0, W - plan.frontA.x0) +
-      Math.max(0, D - plan.frontB.z0) +
+    Math.max(0, plan.frontA.x1 - plan.frontA.x0) +
+      Math.max(0, plan.frontB.z1 - plan.frontB.z0) +
       (plan.radius * Math.PI) / 2,
   );

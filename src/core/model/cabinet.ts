@@ -165,8 +165,23 @@ export interface CabinetOptions {
   readonly cushionCornerRadius?: Mm;
   readonly leftEndCushion?: boolean;
   readonly rightEndCushion?: boolean;
-  /** Inside-corner banquette only. Finished plan radius of the quarter-circle connector. */
+  /**
+   * Inside-corner banquette only. The **fillet** where the unit's two seat fronts meet.
+   *
+   * Not the unit's size, which is what it used to be forced to equal. The seat is an L — a span
+   * along each wall, a run's depth off each — and this is the small radius rounding off the one
+   * corner that points into the room. See `model/insideCorner.ts`.
+   */
   readonly insideCornerRadius?: Mm;
+  /**
+   * Inside-corner banquette only. How far the seat comes off **each** wall — one figure, both legs.
+   *
+   * The shop's own: *"it could be 900 x 900 along the back wall with 500mm depth to both."* So the
+   * spans and the depth are three independent numbers, where `validate` used to insist width, depth
+   * and radius were all the same one. Measured to the carcass, exactly as a plain banquette's
+   * `depth` is, so the two line up when they butt.
+   */
+  readonly seatDepth?: Mm;
 
   /*
    * Curved work.

@@ -35,14 +35,14 @@ import { type Cents, type Mm, mm, mmToM, roundCents } from '../units.ts';
 import type { Cabinet } from '../model/cabinet.ts';
 import {
   type CushionPiece,
-  cornerCushionPieces,
-  cornerSeatRadius,
   cushionPieces,
+  insideCornerCushionPieces,
   seatCushionPlan,
 } from '../model/cushion.ts';
 import { type UpholsteryMaterial, findUpholstery } from '../model/material.ts';
 import type { Project } from '../model/project.ts';
 import { AU_UPHOLSTERY_MATERIALS } from '../library/upholstery.au.ts';
+import { insideCornerSeatLineal } from '../model/insideCorner.ts';
 import { buildCabinet } from '../rules/build.ts';
 import { effectiveCost } from './gst.ts';
 
@@ -86,11 +86,23 @@ const piecesFor = (cabinet: Cabinet, project: Project): readonly CushionPiece[] 
   const overhang = mm(cabinet.options.seatCushionOverhang ?? 10);
   const hasBack = cabinet.options.hasBackCushion !== false;
 
-  if (cabinet.typeId === 'banquette-corner') {
-    return cornerCushionPieces(cornerSeatRadius(cabinet.width, cabinet.depth), hasBack);
+  const built = buildCabinet(cabinet, project);
+
+  /*
+   * The corner unit is charged off **the plan the rule engine settled on**, not off its width and
+   * depth. Those are two spans on this cabinet rather than a size, and the seat is the L between
+   * them — see `model/insideCorner.ts`. Reading the spans here is exactly the assumption that made
+   * the unit a quarter disc.
+   */
+  if (built.insideCorner) {
+    return insideCornerCushionPieces(
+      insideCornerSeatLineal(built.insideCorner),
+      cabinet.width,
+      cabinet.depth,
+      hasBack,
+    );
   }
 
-  const built = buildCabinet(cabinet, project);
   const radius = built.radius;
   const plan = seatCushionPlan({
     W: cabinet.width,

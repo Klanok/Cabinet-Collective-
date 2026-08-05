@@ -46,17 +46,31 @@ import { describe, expect, it } from 'vitest';
 import { mm } from '../src/core/units.ts';
 import { arcGeometry } from '../src/core/geom/arc.ts';
 import {
+  type Polygon,
   polygonEdges,
   profileArea,
   profileBounds,
   profileHasArcs,
   signedArea,
 } from '../src/core/geom/profile.ts';
+import type { PlanRing } from '../src/core/rules/radius.ts';
+
 import {
   insideCornerPlan,
   insideCornerSeatLineal,
   maxInsideCornerRadius,
 } from '../src/core/model/insideCorner.ts';
+
+/**
+ * A plan ring as a profile polygon.
+ *
+ * `x, z` in the room becomes `x, y` on the board: a rename, not a transform, so area, winding and
+ * every arc come through untouched — which is what lets the plan be asserted with the same
+ * geometry functions a part is.
+ */
+const asPolygon = (ring: PlanRing): Polygon =>
+  ring.map((v) => (v.bulge === undefined ? { x: v.x, y: v.z } : { x: v.x, y: v.z, bulge: v.bulge }));
+
 
 const W = mm(900);
 const D = mm(900);
@@ -73,7 +87,7 @@ const FILLET_GAIN = R * R - (Math.PI * R * R) / 4;
 describe('the plan is an L, not a quarter disc', () => {
   it('spans both walls and comes one seat depth off each', () => {
     const p = plan();
-    expect(profileBounds({ outline: p.outline, holes: [] })).toEqual({
+    expect(profileBounds({ outline: asPolygon(p.outline), holes: [] })).toEqual({
       minX: 0,
       minY: 0,
       maxX: 900,
@@ -82,11 +96,11 @@ describe('the plan is an L, not a quarter disc', () => {
     expect(p.seatDepth).toBe(SEAT);
     // The far corner of the 900 × 900 footprint is 900 from both walls. That is bed depth, and it
     // is not seat: the outline has to exclude it or the unit is a 900mm-deep box.
-    expect(profileArea({ outline: p.outline, holes: [] })).toBeLessThan(900 * 900);
+    expect(profileArea({ outline: asPolygon(p.outline), holes: [] })).toBeLessThan(900 * 900);
   });
 
   it('is wound counter-clockwise, which is what the fillet’s sign is stated against', () => {
-    expect(signedArea(plan().outline)).toBeGreaterThan(0);
+    expect(signedArea(asPolygon(plan().outline))).toBeGreaterThan(0);
   });
 
   it('measures 654,828.5mm² — the L plus the fillet, not minus it', () => {
@@ -94,7 +108,7 @@ describe('the plan is an L, not a quarter disc', () => {
      * The assertion this whole file exists for. Filleting a reflex corner cuts the corner off the
      * void, so the seat gets **bigger**. 645,171.5 is the same fillet on the wrong side.
      */
-    expect(profileArea({ outline: plan().outline, holes: [] })).toBeCloseTo(
+    expect(profileArea({ outline: asPolygon(plan().outline), holes: [] })).toBeCloseTo(
       PLAIN_L + FILLET_GAIN,
       6,
     );
@@ -121,7 +135,7 @@ describe('the fillet', () => {
 
     // And the arc the geometry engine actually builds from the stored bulge agrees, which is the
     // half that would otherwise be taken on trust.
-    const arc = polygonEdges(p.outline).find((e) => e.bulge !== 0)!;
+    const arc = polygonEdges(asPolygon(p.outline)).find((e) => e.bulge !== 0)!;
     const g = arcGeometry(arc.from, arc.to, arc.bulge);
     expect(g.centre.x).toBeCloseTo(650, 9);
     expect(g.centre.y).toBeCloseTo(650, 9);
@@ -129,14 +143,14 @@ describe('the fillet', () => {
   });
 
   it('is a quarter turn, so the seat leaves one front and arrives square on the other', () => {
-    const arc = polygonEdges(plan().outline).find((e) => e.bulge !== 0)!;
+    const arc = polygonEdges(asPolygon(plan().outline)).find((e) => e.bulge !== 0)!;
     expect(arc.length).toBeCloseTo((Math.PI * R) / 2, 6);
   });
 
   it('gives up the curve for a square inside corner rather than drawing an impossible one', () => {
     const square = plan({ radius: mm(0) });
-    expect(profileHasArcs({ outline: square.outline, holes: [] })).toBe(false);
-    expect(profileArea({ outline: square.outline, holes: [] })).toBeCloseTo(PLAIN_L, 6);
+    expect(profileHasArcs({ outline: asPolygon(square.outline), holes: [] })).toBe(false);
+    expect(profileArea({ outline: asPolygon(square.outline), holes: [] })).toBeCloseTo(PLAIN_L, 6);
     expect([square.tangentA.x, square.tangentA.y]).toEqual([500, 500]);
   });
 
@@ -149,7 +163,7 @@ describe('the fillet', () => {
     expect(maxInsideCornerRadius({ W, D, seatDepth: SEAT })).toBe(400);
     expect(plan({ radius: mm(900) }).radius).toBe(400);
     // Still a closed, positively wound shape at the limit rather than a bow tie.
-    expect(signedArea(plan({ radius: mm(900) }).outline)).toBeGreaterThan(0);
+    expect(signedArea(asPolygon(plan({ radius: mm(900) }).outline))).toBeGreaterThan(0);
   });
 
   it('takes the shorter leg’s word for it when the two spans differ', () => {
@@ -181,13 +195,13 @@ describe('what the upholsterer measures', () => {
      * convex arc, `radius × π/2` — 785mm on a 500 unit. This is 250 + 250 + 235.6.
      */
     const p = plan();
-    expect(insideCornerSeatLineal(p, W, D)).toBeCloseTo(250 + 250 + (Math.PI * R) / 2, 6);
+    expect(insideCornerSeatLineal(p)).toBeCloseTo(250 + 250 + (Math.PI * R) / 2, 6);
   });
 
   it('charges more than one leg’s front and less than the whole footprint', () => {
     // The same sanity bracket §4.19 put on the old reading, restated for a shape that exists.
     const p = plan();
-    const lineal = insideCornerSeatLineal(p, W, D);
+    const lineal = insideCornerSeatLineal(p);
     expect(lineal).toBeGreaterThan(p.frontA.x1 - p.frontA.x0);
     expect(lineal).toBeLessThan(W + D);
   });
@@ -196,6 +210,6 @@ describe('what the upholsterer measures', () => {
     // Not an obvious property, and it is the right one: the fronts are what is left of each span
     // once the other leg and the fillet have taken their share.
     const deep = plan({ seatDepth: mm(700) });
-    expect(insideCornerSeatLineal(deep, W, D)).toBeLessThan(insideCornerSeatLineal(plan(), W, D));
+    expect(insideCornerSeatLineal(deep)).toBeLessThan(insideCornerSeatLineal(plan()));
   });
 });

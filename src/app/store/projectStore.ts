@@ -206,7 +206,11 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
               : typeId === 'banquette'
                 ? 1200
               : typeId === 'banquette-corner'
-                ? 500
+                // An inside corner's width and depth are its two **spans along the walls**, not
+                // its size — the seat's depth is `seatDepth`. It arrives at the shop's own
+                // example, 900 × 900 with 500 deep to both, so adding one gives a real L rather
+                // than a unit that reports itself as too shallow to be a corner.
+                ? 900
               : typeId === 'panel'
                 ? 600
               : typeId === 'drawer-bank' || typeId === 'tall'

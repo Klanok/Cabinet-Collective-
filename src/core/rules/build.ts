@@ -25,6 +25,8 @@ import { type ResolvedHardware, hardwareProblems } from './hardware.ts';
 import { applyCustomFeatures } from './customFeatures.ts';
 import { appliedEndProblems, cornerRadiusProblems } from './parts.ts';
 import type { CornerRadius } from './radius.ts';
+import type { InsideCornerPlan } from '../model/insideCorner.ts';
+import { cornerPlanOf } from './specs/banquetteCorner.ts';
 import { getSpec } from './registry.ts';
 import { buildRunUnits } from './runUnits.ts';
 import { type MaterialSlot, type PartInstance, resolveBanding } from './spec.ts';
@@ -68,6 +70,15 @@ export interface BuiltCabinet {
    * cutlist, which is where a second opinion goes unnoticed.
    */
   readonly finishedFrontZ: Mm;
+  /**
+   * The L-shaped plan of an inside banquette corner, or `null` for every other cabinet.
+   *
+   * Carried out for the same reason `radius` is, and it earns it for the same reason: the corner
+   * unit's cushion is not a panel, so the only way for it to follow the seat is to read the plan the
+   * engine settled on. A second reading of "an L with a fillet" is how this unit came to have a
+   * quarter disc in the spec and a second quarter in the viewport.
+   */
+  readonly insideCorner: InsideCornerPlan | null;
   /**
    * Which part rule produced each panel — index-aligned with `panels`.
    *
@@ -274,6 +285,7 @@ export const buildCabinet = (cabinet: Cabinet, project: Project): BuiltCabinet =
       hardware: ctx.hardware,
       radius: ctx.radius,
       finishedFrontZ: ctx.finishedFrontZ,
+      insideCorner: cabinet.typeId === 'banquette-corner' ? cornerPlanOf(ctx) : null,
       partKeys: [],
     };
   }
@@ -336,6 +348,7 @@ export const buildCabinet = (cabinet: Cabinet, project: Project): BuiltCabinet =
     hardware: ctx.hardware,
     radius: ctx.radius,
     finishedFrontZ: ctx.finishedFrontZ,
+    insideCorner: cabinet.typeId === 'banquette-corner' ? cornerPlanOf(ctx) : null,
     partKeys: produced.map((p) => ({
       key: p.key,
       index: p.index,

@@ -1,39 +1,222 @@
+/**
+ * The inside banquette corner, as a cabinet.
+ *
+ * The shape it is built on is asserted in `tests/insideCorner.test.ts`; this file is the parts.
+ * Both are worth reading before touching either — the shape has been mis-derived twice, and the
+ * unit that shipped for months was a convex quarter disc the shop called *"a complete mess"*.
+ *
+ * ## The reference unit, worked longhand
+ *
+ * The shop's own example: 900 along each wall, 500 deep to both, a 150mm internal radius. 16mm
+ * carcass and back, 18mm doors, 8mm bendy ply × 2, 1mm laminate, 2mm front standoff, 50mm fixing
+ * strip.
+ *
+ * ```
+ *   front proud of carcass   2 standoff + 18 door                   =  20
+ *   finished front planes    z = 520  and  x = 520
+ *   fillet centre            (520 + 150, 520 + 150)                 = (670, 670)
+ *   skin                     2 × 8 + 1 laminate                     =  17
+ *   former radius            150 + 17                               = 167
+ *   ply back face            520 − 17 = 503, which is 3mm PROUD of the 500 carcass
+ *
+ *   front run, leg A         900 − 670                              = 230
+ *   front run, leg B         900 − 670                              = 230
+ *   fillet arc, show face    150 × π/2                              = 235.6
+ *   layer 1 developed        230 + (150 + 1 + 4) × π/2 + 230        = 703.4
+ *   layer 2 developed        230 + (150 + 1 + 8 + 4) × π/2 + 230    = 716.0
+ * ```
+ *
+ * **The 3mm is the number worth keeping.** The ply is only 17 thick where a door stands 20 off the
+ * carcass, so the formers pack the curve out to finish flush with the banquettes either side of it.
+ * It is §5.0's *"the curve finishes in the door plane, not on the carcass"* arriving with the
+ * opposite sign, and it is why the formers here are cut to `r + skin` rather than `r − skin`.
+ *
+ * ## What the shop said it is made of
+ *
+ * > *"the entire radius front should be formed bendy ply then laminated — that is the point of this
+ * > cabinet"*
+ *
+ * So there is **no flat front panel on this unit at all**, and no door-decor part: the whole front
+ * is one formed piece per layer and the laminate over it is the finish.
+ *
+ * > *"the strip should be there and set back from the radius by 50mm"*
+ *
+ * So the formers run 50mm past each tangent, giving the ply a rigid landing where it comes out of
+ * the bend — the construction method's `fixingStripWidth`, not a second 50.
+ */
+
 import { describe, expect, it } from 'vitest';
 import { createCabinet, createEmptyProject } from '../src/core/project/factory.ts';
 import { buildCabinet } from '../src/core/rules/build.ts';
 import { mm } from '../src/core/units.ts';
-import { isRectangular } from '../src/core/geom/profile.ts';
+import { isRectangular, profileArea, profileHasArcs } from '../src/core/geom/profile.ts';
+import type { Project } from '../src/core/model/project.ts';
+import { byName, namesOf, occupies, size } from './helpers.ts';
 
-describe('inside-corner banquette', () => {
-  it('starts as a square quarter-circle connector at banquette height', () => {
-    const project = createEmptyProject('Corner banquette');
-    const cabinet = createCabinet(
-      { typeId: 'banquette-corner', name: 'BQC1', width: mm(500), x: mm(0) },
-      project.defaults,
-      project.constructions,
-    );
-    const built = buildCabinet(cabinet, project);
+const SPAN = 900;
+const SEAT = 500;
+const R = 150;
 
-    expect(cabinet.width).toBe(500);
-    expect(cabinet.depth).toBe(500);
-    expect(cabinet.height).toBe(400);
-    expect(cabinet.placement.anchor.y).toBe(0);
+const corner = (options: Record<string, unknown> = {}, over: Record<string, number> = {}) => {
+  const project = createEmptyProject('Inside corner');
+  const base = createCabinet(
+    {
+      typeId: 'banquette-corner',
+      name: 'BQC1',
+      width: mm(over.width ?? SPAN),
+      depth: mm(over.depth ?? SPAN),
+      x: mm(0),
+    },
+    project.defaults,
+    project.constructions,
+  );
+  const cabinet = { ...base, options: { ...base.options, ...options } };
+  const withCabinet: Project = { ...project, cabinets: [cabinet] };
+  return { project: withCabinet, cabinet, built: buildCabinet(cabinet, withCabinet) };
+};
+
+describe('it is an L-shaped seat box, not a quarter disc', () => {
+  it('builds the same kinds of part a plain banquette does', () => {
+    const { built } = corner();
     expect(built.warnings).toEqual([]);
-    expect(built.panels.filter((panel) => panel.role === 'former').length).toBeGreaterThan(1);
-    expect(built.panels.filter((panel) => panel.role === 'skin').length).toBe(2);
-    expect(built.panels.filter((panel) => panel.role === 'back').length).toBe(2);
-    const lid = built.panels.find((panel) => panel.name === 'Corner lid');
-    expect(lid).toBeDefined();
-    expect(isRectangular(lid!.profile)).toBe(false);
+    // Two backs against the two walls, two open ends, a bottom, formers, the formed front, a lid.
+    expect(built.panels.filter((p) => p.role === 'back')).toHaveLength(2);
+    expect(built.panels.filter((p) => p.role === 'side')).toHaveLength(2);
+    expect(namesOf(built.panels)).toContain('Bottom');
+    expect(namesOf(built.panels)).toContain('Lift-up');
+    expect(built.panels.filter((p) => p.role === 'former').length).toBeGreaterThan(1);
   });
 
-  it('reports dimensions that cannot describe one circular corner', () => {
-    const project = createEmptyProject('Bad corner');
-    const cabinet = createCabinet(
-      { typeId: 'banquette-corner', name: 'BQC1', width: mm(600), depth: mm(500), x: mm(0) },
-      project.defaults,
-      project.constructions,
-    );
-    expect(buildCabinet(cabinet, project).warnings.join(' ')).toContain('width and depth');
+  it('takes its spans and its seat depth as three separate numbers', () => {
+    /*
+     * **The constraint this replaces is the whole reason the unit was the wrong shape.** `validate`
+     * used to insist `width = depth = insideCornerRadius`, which made it look like a square with a
+     * disc taken out of it — and that is what both earlier readings of the shop's sentence assumed.
+     */
+    const { built } = corner({}, { width: 1500, depth: 900 });
+    expect(built.warnings).toEqual([]);
+    expect(built.panels.length).toBeGreaterThan(0);
+  });
+
+  it('leaves the far corner of the footprint out — that is bed depth, not seat', () => {
+    // A 900 × 900 unit 500 deep to both walls is an L of 654,828.5mm², not an 810,000mm² box.
+    // The bottom is inset from the walls and the ends, so it is smaller again — what matters is
+    // that it is nowhere near the full rectangle.
+    const { built } = corner();
+    const bottom = byName(built.panels, 'Bottom');
+    expect(profileArea(bottom.profile)).toBeLessThan(SPAN * SPAN * 0.9);
+    expect(isRectangular(bottom.profile)).toBe(false);
+    // The fillet reaches it: the bottom carries the arc the formers stand on.
+    expect(profileHasArcs(bottom.profile)).toBe(true);
+  });
+
+  it('stands its two open ends where the banquettes either side butt them', () => {
+    const { project, built } = corner();
+    const endA = byName(built.panels, 'End A');
+    const endB = byName(built.panels, 'End B');
+    // Occupancy, not size: an end of the right size at the wrong end of the unit is the same part.
+    expect(occupies(endA, project).x).toEqual([mm(SPAN - 16), mm(SPAN)]);
+    expect(occupies(endB, project).z).toEqual([mm(SPAN - 16), mm(SPAN)]);
+    // Each runs the seat depth off its own wall, not the full span.
+    expect(occupies(endA, project).z[1]).toBeLessThanOrEqual(SEAT);
+    expect(occupies(endB, project).x[1]).toBeLessThanOrEqual(SEAT);
+  });
+});
+
+describe('the front is one formed piece per layer', () => {
+  it('produces no flat front panel and no door-decor part at all', () => {
+    /*
+     * *"the entire radius front should be formed bendy ply then laminated — that is the point of
+     * this cabinet"*. A flat front here would be the thing the shop was ruling out.
+     */
+    const { project, built } = corner();
+    expect(built.panels.some((p) => p.role === 'false-front')).toBe(false);
+    expect(built.panels.some((p) => p.materialId === project.defaults.doorMaterialId)).toBe(false);
+  });
+
+  it('runs the whole front — down one leg, round the fillet and out the other — with no join', () => {
+    const { built } = corner();
+    const layers = built.panels.filter((p) => p.role === 'skin');
+    expect(layers).toHaveLength(2);
+    // 230 + (150 + 1 + 4) × π/2 + 230, from the header.
+    expect(size(layers[0]!)[0]).toBeCloseTo(230 + (R + 1 + 4) * (Math.PI / 2) + 230, 3);
+    expect(size(layers[0]!)[1]).toBe(mm(400));
+  });
+
+  it('cuts each layer longer than the one inside it by exactly one board round the turn', () => {
+    // §4.4's rule, surviving a change of sign: here the layers stack away from the room rather
+    // than toward it, and the gap between them is still `ts × π/2`.
+    const { built } = corner();
+    const [inner, outer] = built.panels.filter((p) => p.role === 'skin');
+    expect(size(outer!)[0] - size(inner!)[0]).toBeCloseTo(8 * (Math.PI / 2), 4);
+  });
+
+  it('laminates the show layer in the door decor, and is still cut from bendy ply', () => {
+    /*
+     * §4.23's `finishMaterialId`: what is applied over the face after machining, never what the
+     * part is cut from. On this unit the show face is the **inside** of the bend, so the laminate
+     * goes on the first layer rather than the last — the opposite end of the stack from a convex
+     * wrap, which is the trap this assertion exists for.
+     */
+    const { project, built } = corner();
+    const layers = built.panels.filter((p) => p.role === 'skin');
+    expect(layers[0]!.finishMaterialId).toBe(project.defaults.doorMaterialId);
+    expect(layers[1]!.finishMaterialId).toBeUndefined();
+    expect(layers[0]!.materialId).toBe(project.defaults.skinMaterialId);
+  });
+
+  it('bends about the show face, because on this curve the show face is the inside of the bend', () => {
+    // The one thing that inverts. A convex wrap has its B-face against the formers; here the
+    // formers are on the far side and the face somebody sees is the one nearest the centre.
+    const { built } = corner();
+    const inner = built.panels.filter((p) => p.role === 'skin')[0]!;
+    expect(inner.forming?.kind).toBe('cylindrical');
+    expect(inner.forming).toMatchObject({ innerRadius: R + 1 });
+  });
+});
+
+describe('the formers', () => {
+  it('are cut to the radius PLUS the skin, not minus it', () => {
+    /*
+     * **The sign that inverts, and the one worth an assertion of its own.** Every surface parallel
+     * to the finished face is `r + d` about one centre out in the room, so the formers sit further
+     * from it than the ply does. Cut to `r − skin` they would leave the curve two skins proud of
+     * the two fronts it runs into.
+     *
+     * Asserted through the note, which is what reaches the person at the saw.
+     */
+    const { built } = corner();
+    const former = built.panels.find((p) => p.role === 'former')!;
+    expect(former.note).toContain(`${R + 17}mm radius`);
+    expect(former.note).toContain('50mm fixing strip');
+  });
+
+  it('reports a radius that leaves the strip nowhere to land', () => {
+    // *"depending on what the entered radius is"* — the same rule the convex corner has: a strip
+    // too small to fix to is reported rather than drawn.
+    const { built } = corner({ insideCornerRadius: mm(370) });
+    expect(built.warnings.join(' ')).toContain('flat front for the formers to land on');
+  });
+
+  it('reports a radius the legs cannot fit, and builds the biggest that does', () => {
+    const { built } = corner({ insideCornerRadius: mm(900) });
+    expect(built.warnings.join(' ')).toContain('does not fit');
+  });
+});
+
+describe('what it refuses, and says why', () => {
+  it('will not pretend a seat as deep as the unit is an L', () => {
+    const { built } = corner({ seatDepth: mm(900) });
+    expect(built.warnings.join(' ')).toContain('leaves no L');
+  });
+
+  it('turns down an outside corner radius, naming its own', () => {
+    const { built } = corner({ radiusCorner: 'front-right', carcassRadius: mm(100) });
+    expect(built.warnings.join(' ')).toContain('Inside corner radius');
+  });
+
+  it('turns down an applied end, because both of its ends butt something', () => {
+    const { built } = corner({ appliedEnds: ['left'] });
+    expect(built.warnings.join(' ')).toContain('butt the banquettes');
   });
 });

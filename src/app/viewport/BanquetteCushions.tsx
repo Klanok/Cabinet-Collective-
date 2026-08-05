@@ -12,10 +12,11 @@ import {
 import type { Cabinet } from '../../core/model/cabinet.ts';
 import {
   type SeatCushionPlan,
-  cornerSeatRadius,
   returnRun,
   seatCushionPlan,
 } from '../../core/model/cushion.ts';
+import { type InsideCornerPlan, insideCornerRingAt } from '../../core/model/insideCorner.ts';
+import { flattenArc } from '../../core/geom/arc.ts';
 import type { UpholsteryMaterial } from '../../core/model/material.ts';
 import type { CornerRadius } from '../../core/rules/radius.ts';
 import { mm } from '../../core/units.ts';
@@ -384,9 +385,23 @@ export function BanquetteCushions({ cabinet, radius, finishedFrontZ, upholstery,
   </>;
 }
 
-/** Upholstery for the quarter-circle unit joining two perpendicular banquettes. */
-export function BanquetteCornerCushions({ cabinet, upholstery, selected, wireframe }: {
+/**
+ * Upholstery for the inside corner unit.
+ *
+ * **The seat follows the L the rule engine settled on**, taken off `built.insideCorner` rather than
+ * rebuilt here. That is the whole reason the plan lives in `core`: the unit shipped for months with
+ * a quarter disc in the spec and a *second* quarter in this file, and when the shape turned out to
+ * be wrong both had to be found. One description, two readers.
+ *
+ * The seat is drawn from the finished outline with the cushion's overhang applied by moving the two
+ * front faces outward — the same rule as a plain banquette, which is proud at the front and flush
+ * everywhere it meets something. Here "the front" is both legs' fronts and the fillet between them,
+ * and "flush" is the two walls and the two open ends.
+ */
+export function BanquetteCornerCushions({ cabinet, plan, upholstery, selected, wireframe }: {
   cabinet: Cabinet;
+  /** The L the engine built, or null if this cabinet could not produce one. */
+  plan: InsideCornerPlan | null;
   upholstery: UpholsteryMaterial;
   selected: boolean;
   wireframe: boolean;
@@ -395,21 +410,62 @@ export function BanquetteCornerCushions({ cabinet, upholstery, selected, wirefra
   const scaleFabric = useFabricScale(upholstery);
 
   const seatT = cabinet.options.seatCushionThickness ?? 80;
+  const overhang = Math.max(0, cabinet.options.seatCushionOverhang ?? 10);
+  const bevel = Math.max(0.5, Math.min(cabinet.options.cushionCornerRadius ?? 18, seatT / 2 - 1));
+
   /*
-   * Shared with costing, for the same reason `returnRun` is — see `core/model/cushion.ts`, which
-   * is also where the reason this unit takes **no** overhang is written out. Short version: its
-   * two straight edges are radii of the same circle as its front, so a proud arc is also a pair of
-   * edges pushed into the banquettes either side, and the outline is §5.13 item 1's anyway.
+   * Shape space, and it is the same mapping `SeatCushion` documents: the mesh is turned −π/2 about
+   * X, so shape `y` runs **backwards** along cabinet z. The mesh is therefore placed at the seat's
+   * front-most z and the outline is written as `zMax − z`.
+   *
+   * The overhang moves the two fronts out and the fillet with them: a surface `−overhang` behind
+   * the finished face, which is exactly what `insideCornerRingAt` does with a negative depth. One
+   * centre, one rule, and no second description of what a cushion proud of an L looks like.
    */
-  const r = cornerSeatRadius(cabinet.width, cabinet.depth);
   const seatShape = useMemo(() => {
+    if (!plan) return null;
+    /*
+     * Built `bevel` smaller all round so the extrude's bevel grows it back to exactly the plan —
+     * §5.14's correction, which applies here for the same reason and was got wrong here first.
+     * The two fronts come in by the bevel as a parallel surface (one centre, one radius, so the
+     * fillet follows for free); the two walls and the two open ends are clamped.
+     */
+    const ring = insideCornerRingAt(plan, mm(bevel - overhang));
+    if (ring.length < 3) return null;
+    const inset = ring.map((v) => ({
+      x: Math.min(Math.max(v.x, bevel), plan.W - bevel),
+      z: Math.min(Math.max(v.z, bevel), plan.D - bevel),
+      bulge: v.bulge,
+    }));
+    const zMax = Math.max(...inset.map((v) => v.z));
+    /*
+     * **Flattened through the model's own arc code rather than rebuilt with `absarc`.** A hand-
+     * rolled centre-and-sweep here got the fillet wildly wrong first time — the cushion came out
+     * spanning z −390 → 546 on a 900 unit, found by measuring the live scene. `arcPoints` is the
+     * same function every part outline is drawn through, so the cushion cannot disagree with the
+     * seat about where the curve goes. The last sample is dropped because the next vertex is
+     * pushed as the start of its own edge.
+     */
+    const pts: { x: number; y: number }[] = [];
+    inset.forEach((v, i) => {
+      const next = inset[(i + 1) % inset.length]!;
+      const a = { x: v.x, y: zMax - v.z };
+      const b = { x: next.x, y: zMax - next.z };
+      pts.push(a);
+      if (v.bulge !== undefined && Math.abs(v.bulge) > 1e-9) {
+        // The z → y reflection reverses the arc's sense, so the bulge does too.
+        pts.push(...flattenArc(a, b, -v.bulge).slice(0, -1).map((f) => f.at));
+      }
+    });
     const shape = new Shape();
-    shape.moveTo(0, 0);
-    shape.lineTo(r, 0);
-    shape.absarc(0, 0, r, 0, Math.PI / 2, false);
+    pts.forEach((p, i) => (i === 0 ? shape.moveTo(p.x, p.y) : shape.lineTo(p.x, p.y)));
     shape.closePath();
-    return shape;
-  }, [r]);
+    // `zMax` travels with the shape because the mesh has to be placed at it — see below. Working
+    // it out again from the plan is where this went wrong: on an **L** the deepest point is the
+    // far end of the second leg, not the front.
+    return { shape, zMax };
+  }, [plan, overhang, bevel]);
+
   const material = () => <FabricSurface map={map} upholstery={upholstery} selected={selected} wireframe={wireframe} />;
 
   const backHeight = cabinet.options.backCushionHeight ?? 400;
@@ -417,17 +473,37 @@ export function BanquetteCornerCushions({ cabinet, upholstery, selected, wirefra
   const angle = Math.min(15, Math.max(0, cabinet.options.backCushionAngle ?? 0)) * Math.PI / 180;
   const backRadius = Math.max(1, Math.min(cabinet.options.cushionCornerRadius ?? 18, backThickness / 4));
   const backY = cabinet.height + seatT;
+  if (!plan || !seatShape) return null;
 
   return <>
-    <mesh position={[0, cabinet.height, r]} rotation={[-Math.PI / 2, 0, 0]} castShadow receiveShadow>
-      <extrudeGeometry ref={scaleFabric} args={[seatShape, { depth: seatT, bevelEnabled: true, bevelSize: 3, bevelThickness: 3, bevelSegments: 3 }]} />
+    {/*
+      Shape space, and the placement is the half that had to be measured. The mesh is turned −π/2
+      about X, which maps a local `(x, y, z)` to `(x, z, −y)` — so shape `y` runs **backwards**
+      along cabinet z and the origin has to sit at the outline's **largest** z. On a rectangle that
+      is the front and it is easy to write `finishedFront` there by reflex; on an L it is the far
+      end of the second leg, and getting it wrong put the cushion 372mm through the wall. Found by
+      measuring the live scene, which is the third time this file has needed that.
+    */}
+    <mesh position={[0, cabinet.height + bevel, seatShape.zMax]} rotation={[-Math.PI / 2, 0, 0]} castShadow receiveShadow>
+      <extrudeGeometry ref={scaleFabric} args={[seatShape.shape, {
+        depth: Math.max(1, seatT - 2 * bevel),
+        bevelEnabled: true,
+        bevelSize: bevel,
+        bevelThickness: bevel,
+        bevelSegments: 3,
+        steps: 1,
+      }]} />
       {material()}
     </mesh>
+    {/*
+      One back per wall, each running its own wall's full span — where the old pair were both one
+      radius long, which was the same number twice because the unit was square by construction.
+    */}
     {cabinet.options.hasBackCushion !== false && <>
-      <WedgeBack scaleFabric={scaleFabric} width={r} height={backHeight} thickness={backThickness} angle={angle}
+      <WedgeBack scaleFabric={scaleFabric} width={cabinet.width} height={backHeight} thickness={backThickness} angle={angle}
         radius={backRadius} x={0} y={backY}>{material()}</WedgeBack>
-      <group position={[0, 0, r]} rotation={[0, Math.PI / 2, 0]}>
-        <WedgeBack scaleFabric={scaleFabric} width={r} height={backHeight} thickness={backThickness} angle={angle}
+      <group position={[0, 0, cabinet.depth]} rotation={[0, Math.PI / 2, 0]}>
+        <WedgeBack scaleFabric={scaleFabric} width={cabinet.depth} height={backHeight} thickness={backThickness} angle={angle}
           radius={backRadius} x={0} y={backY}>{material()}</WedgeBack>
       </group>
     </>}
