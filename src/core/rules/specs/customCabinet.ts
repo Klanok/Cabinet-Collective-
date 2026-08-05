@@ -78,6 +78,7 @@ export const CUSTOM_CABINET_SPEC: CabinetSpec = {
       'with nothing wrapped round it. A base, wall, tall or banquette unit builds one.',
     appliedEnds: true,
     customFeatures: true,
+    partOverrides: true,
   },
   defaultOptions: {
     topStyle: 'panel',

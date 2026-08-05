@@ -141,6 +141,9 @@ export const RADIUS_END_SPEC: CabinetSpec = {
       'the size to change the curve rather than adding a corner radius on top of it.',
     appliedEnds: true,
     customFeatures: true,
+    partOverrides:
+      'The skin wraps the formers and the formers exist to carry the skin, so deleting either ' +
+      'leaves the other standing in the open. The curve is the cabinet.',
   },
   defaultOptions: {
     formerSpacing: mm(300),

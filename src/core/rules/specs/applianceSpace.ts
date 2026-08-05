@@ -41,6 +41,9 @@ export const APPLIANCE_SPACE_SPEC: CabinetSpec = {
     customFeatures:
       'An appliance space cuts no parts, so there is nothing to put a cutout in. Put it on the ' +
       'cabinet beside the space — a hole for a waste or a power point usually goes in a side.',
+    partOverrides:
+      'An appliance space is a gap of a known width. It has no parts to delete or to cut from ' +
+      'another board.',
   },
   isCarcass: false,
   defaultOptions: {

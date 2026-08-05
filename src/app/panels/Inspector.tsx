@@ -19,8 +19,10 @@ import { wallLength } from '../../core/model/room.ts';
 import { type WallAnchor, wallAnchorOf } from '../../core/project/wallPlacement.ts';
 import { sheetLabel } from './MaterialPicker.tsx';
 import { CutoutEditor } from './CutoutEditor.tsx';
+import { overrideFor, withPartOverride } from '../../core/model/partOverride.ts';
 import type { BuiltCabinet } from '../../core/rules/build.ts';
 import { getSpec } from '../../core/rules/registry.ts';
+import { refusalOf } from '../../core/rules/spec.ts';
 import { useAsk } from './ask.tsx';
 import { tallestSideHeightFor } from '../../core/model/hardware.ts';
 
@@ -497,6 +499,7 @@ export function Inspector({
 
   const { cabinet, warnings } = built;
   const spec = getSpec(cabinet.typeId);
+  const canOverrideParts = refusalOf(spec.capabilities.partOverrides) === null;
   const isDrawerBank = cabinet.typeId === 'drawer-bank';
   const isWall = cabinet.typeId === 'wall';
   const isTall = cabinet.typeId === 'tall';
@@ -1203,15 +1206,74 @@ export function Inspector({
       <CutoutEditor cabinet={cabinet} built={built} onUpdate={onUpdate} />
 
       <div className="subhead">Parts</div>
+      {refusalOf(spec.capabilities.partOverrides) !== null ? (
+        <p className="note subtle">{refusalOf(spec.capabilities.partOverrides)}</p>
+      ) : (
+        <p className="note subtle">
+          Take a part out and the cabinet is worked out again around it — delete an end and the
+          bottom, top and shelves come out wider, running to the face of the cabinet. The width you
+          drew stays the width you drew. A part cut from a different board takes that board's real
+          thickness out of the opening.
+        </p>
+      )}
       <table className="parts-table">
         <tbody>
-          {built.panels.map((p) => {
-            const { length, width } = panelExtent(p);
+          {built.offeredParts.map((part) => {
+            const panel = built.panels.find((p) => p.id === part.panelId);
+            const extent = panel ? panelExtent(panel) : null;
+            const override = overrideFor(cabinet.partOverrides, part.key, part.index);
+            const deleted = override?.omit === true;
             return (
-              <tr key={p.id}>
-                <td>{p.name}</td>
-                <td className="num">{Math.round(length)}</td>
-                <td className="num">{Math.round(width)}</td>
+              <tr key={part.panelId} className={deleted ? 'part-deleted' : undefined}>
+                <td>{part.name}</td>
+                <td className="num">{extent ? Math.round(extent.length) : '—'}</td>
+                <td className="num">{extent ? Math.round(extent.width) : '—'}</td>
+                {canOverrideParts && (
+                  <>
+                    <td>
+                      <select
+                        className="wide"
+                        value={override?.materialId ?? ''}
+                        onChange={(e) =>
+                          onUpdate(cabinet.id, {
+                            partOverrides: withPartOverride(
+                              cabinet.partOverrides,
+                              part.key,
+                              part.index,
+                              { materialId: e.target.value === '' ? undefined : e.target.value },
+                            ),
+                          })
+                        }
+                      >
+                        {/* Empty means "the board this part is normally cut from" — the cabinet's
+                            own slot — rather than a board with no name. */}
+                        <option value="">As the cabinet</option>
+                        {project.materials.sheets.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.decor} {Math.round(m.thickness)}mm
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
+                      <button
+                        className="btn small"
+                        onClick={() =>
+                          onUpdate(cabinet.id, {
+                            partOverrides: withPartOverride(
+                              cabinet.partOverrides,
+                              part.key,
+                              part.index,
+                              { omit: deleted ? undefined : true },
+                            ),
+                          })
+                        }
+                      >
+                        {deleted ? 'Put back' : 'Delete'}
+                      </button>
+                    </td>
+                  </>
+                )}
               </tr>
             );
           })}

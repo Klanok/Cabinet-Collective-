@@ -35,7 +35,7 @@ import { createCabinet, createEmptyProject } from '../src/core/project/factory.t
 import { buildCabinet } from '../src/core/rules/build.ts';
 import { mm } from '../src/core/units.ts';
 import type { Project } from '../src/core/model/project.ts';
-import type { PartOverride } from '../src/core/model/partOverride.ts';
+import { type PartOverride, withPartOverride } from '../src/core/model/partOverride.ts';
 import { byName, namesOf, occupies, size } from './helpers.ts';
 
 const W = 600;
@@ -211,5 +211,97 @@ describe('an override that names a part this cabinet does not build', () => {
     // looks slightly wrong.
     const { built } = unit([{ key: 'lift-up', omit: true }]);
     expect(built.warnings.join(' ')).toContain('lift-up');
+  });
+});
+
+/* ── What the app needs from the model, and what each spec will allow ────────────────────────── */
+
+describe('the parts the app offers', () => {
+  it('keeps a deleted part on the list so it can be put back', () => {
+    /*
+     * **Without this, deleting is a one-way door.** `partKeys` is what the cabinet has; a part that
+     * was taken away is in neither list unless the build says what it *would* have built, and the
+     * app can only offer what it is told about.
+     */
+    const { built } = unit([{ key: 'side-left', omit: true }]);
+    expect(built.partKeys.some((k) => k.key === 'side-left')).toBe(false);
+    expect(built.offeredParts.some((k) => k.key === 'side-left')).toBe(true);
+    // And it is named, because a row reading "side-left" helps nobody at a bench.
+    expect(built.offeredParts.find((k) => k.key === 'side-left')!.name).toBe('Side L');
+  });
+
+  it('offers exactly what it builds when nothing is deleted', () => {
+    const { built } = unit();
+    expect(built.offeredParts.map((k) => k.panelId)).toEqual(built.partKeys.map((k) => k.panelId));
+  });
+});
+
+describe('what each cabinet type allows', () => {
+  const build = (typeId: string, overrides: readonly PartOverride[]) => {
+    const project = createEmptyProject('Capability');
+    const base = createCabinet(
+      { typeId: typeId as 'base', name: 'X1', width: mm(W), x: mm(0) },
+      project.defaults,
+      project.constructions,
+    );
+    const cabinet = { ...base, partOverrides: overrides };
+    const withCabinet: Project = { ...project, cabinets: [cabinet] };
+    return buildCabinet(cabinet, withCabinet);
+  };
+
+  it('lets an ordinary carcass lose an end, because a run sharing one is real joinery', () => {
+    // The same re-derivation the custom cabinet gets: this is the shared carcass builders, so
+    // enabling it on a base unit is a declaration rather than a second implementation.
+    const built = build('base', [{ key: 'side-left', omit: true }]);
+    expect(built.panels.some((p) => p.name === 'Side L')).toBe(false);
+    expect(size(byName(built.panels, 'Bottom'))[0]).toBe(mm(W - T));
+  });
+
+  it('refuses on a banquette, in the spec’s own words, and builds it whole', () => {
+    /*
+     * **A refusal is not a warning with the feature still on.** A banquette that said "you cannot
+     * delete this" and then deleted it would be worse than either answer — so the override is
+     * resolved to nothing and the front is still there.
+     */
+    const built = build('banquette', [{ key: 'front', omit: true }]);
+    expect(built.warnings.join(' ')).toContain('leaves a seat over a hole');
+    expect(built.panels.length).toBeGreaterThan(0);
+    expect(built.offeredParts.length).toBe(built.partKeys.length);
+  });
+
+  it('refuses on a radiused end, because the skin and the formers need each other', () => {
+    const built = build('radius-end', [{ key: 'skin', omit: true }]);
+    expect(built.warnings.join(' ')).toContain('The curve is the cabinet');
+    expect(built.panels.some((p) => p.role === 'skin')).toBe(true);
+  });
+});
+
+describe('editing the list', () => {
+  it('drops an entry that has stopped saying anything', () => {
+    // Putting a part back and setting its board to "as the cabinet" must leave a clean cabinet,
+    // not a list of entries that change nothing and a warning naming parts nobody touched.
+    const deleted = withPartOverride(undefined, 'side-left', 0, { omit: true });
+    expect(deleted).toHaveLength(1);
+    expect(withPartOverride(deleted, 'side-left', 0, { omit: undefined })).toEqual([]);
+  });
+
+  it('changes one part without disturbing another', () => {
+    const two = withPartOverride(
+      withPartOverride(undefined, 'side-left', 0, { omit: true }),
+      'bottom',
+      0,
+      { materialId: 'mdf-raw-18' },
+    );
+    expect(two).toHaveLength(2);
+    const back = withPartOverride(two, 'side-left', 0, { omit: undefined });
+    expect(back).toEqual([{ key: 'bottom', index: 0, materialId: 'mdf-raw-18' }]);
+  });
+
+  it('keeps a board when a part is deleted and put back', () => {
+    // Deleting is not a way to lose the board somebody chose for that part.
+    const withBoard = withPartOverride(undefined, 'bottom', 0, { materialId: 'mdf-raw-18' });
+    const gone = withPartOverride(withBoard, 'bottom', 0, { omit: true });
+    const back = withPartOverride(gone, 'bottom', 0, { omit: undefined });
+    expect(back).toEqual([{ key: 'bottom', index: 0, materialId: 'mdf-raw-18' }]);
   });
 });

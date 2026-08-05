@@ -385,6 +385,31 @@ tbody td {
   font-size: 11px;
 }
 
+/*
+ * A deleted part stays on the list, struck through, so it can be put back. Taking the row away
+ * would make deleting a one-way door with nothing on screen to say a part is missing rather than
+ * never offered — which is the same argument `BuiltCabinet.offeredParts` exists for.
+ */
+.parts-table tr.part-deleted td {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+
+.parts-table tr.part-deleted td:has(button),
+.parts-table tr.part-deleted td:has(select) {
+  text-decoration: none;
+}
+
+.parts-table select {
+  font-size: 11px;
+  max-width: 150px;
+}
+
+.btn.small {
+  padding: 1px 6px;
+  font-size: 11px;
+}
+
 .cutlist-table tbody tr:hover,
 .mat-table tbody tr:hover {
   background: var(--bg-raised);

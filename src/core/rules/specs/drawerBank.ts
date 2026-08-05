@@ -51,6 +51,7 @@ export const DRAWER_BANK_SPEC: CabinetSpec = {
       'with nothing wrapped round it. Use a base cabinet at the end of the run.',
     appliedEnds: true,
     customFeatures: true,
+    partOverrides: true,
   },
   defaultOptions: {
     drawerCount: 4,
