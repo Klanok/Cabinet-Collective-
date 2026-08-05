@@ -411,10 +411,14 @@ anything from this.
 testable in Node and reusable by every later phase. `src/app` is the React/R3F layer on top,
 and the dependency only points one way.
 
-**Continuing this work in a new session? Start with
-[docs/handover.md](docs/handover.md)** — it carries the current state, the decisions that
-shouldn't be casually undone, the shop-specific corrections, and the open items in
-recommended order.
+**Continuing this work in a new session? Paste
+[docs/start-here.md](docs/start-here.md) as your first message** — it is a page:
+where things stand, the one item that is blocked and must not be guessed, what to pick up next,
+and how this project expects work to be done.
+
+Behind it is **[docs/handover.md](docs/handover.md)**, the long form — the current state, the
+decisions that shouldn't be casually undone, the shop-specific corrections, and every open item
+with the reasoning that produced it.
 
 Two more documents are worth reading before changing anything:
 

@@ -3,6 +3,10 @@
 **Purpose:** feed this to a new Claude Code session as the founding context for continuing
 work. It replaces the need to read the original session transcript.
 
+**If you want the short form**, `docs/start-here.md` is a page you can paste into a new session as
+its first message: where things stand, the one thing that is blocked, what to pick up, and how to
+work. It points back into this document for everything else.
+
 Read alongside:
 - `docs/woodtron-dialect.md` — the machine's real dialect, read off ten programs it runs. **Read
   this before touching `post/` or `library/machines.ts`.**
@@ -146,6 +150,32 @@ cushion fix was **half done**: the size was corrected, the placement was not, so
 sat exactly the right size and one bevel out of place on every axis — invisible to every assertion
 that pass added, and found only by measuring the running app. **Assert occupancy, not size.**
 
+**And then the three things that had been sitting at the top of the list all went.** The **inside
+banquette corner** is an **L** now — a span along each wall, a seat depth off each, and a small
+concave fillet where the two seat fronts meet — instead of the convex quarter disc the shop called
+*"a complete mess"*. The **whole front is one formed, laminated piece of bendy ply**, which is the
+shop's own answer and simpler than what was planned before asking. §5.13 item 1 has it, and
+**read that before touching it**: the shape had been mis-derived twice from one sentence, and it
+was mis-derived a third time in the session that built it — on paper, twice, before the geometry
+engine settled it. **Filleting an inside corner makes the seat bigger**, because you are cutting
+the corner off the void rather than off the solid.
+
+**The Woodtron's second pass is written** (§5.10, the item this file called its most valuable for
+three sessions). Every contour on the sheet goes to the 1.0mm skin, then `(NEXT OPERATION)`, then a
+sheet-wide sweep takes them all through — which is what holds each part on the vacuum while its
+neighbours are cut. It was a change to how `writeSheetProgram` *walks* the list rather than a new
+number, exactly as §5.10 predicted, and it retired `PARTS DO NOT COME FREE` from the top of every
+program the machine was handed.
+
+**And a sheet is the board you are handed, not the area you can nest into** (§5.13 item 7). The
+carcass board is 2410 × 1205 where it said 2400 × 1200, off the machine's own sheet declaration —
+and then the shop corrected the rule itself: **the allowance is material dependent**, 10 and 5 on
+carcass board against **20 and 10 on any MDF board**, finished or raw, because the margin is a
+pressing trim rather than anything to do with a decor. That broke a migration written an hour
+earlier which keyed its map on the **size alone**, and no size-keyed table can give two answers for
+2400 × 1200. **The first re-price in this file that makes a job cheaper**: it was being quoted for
+board it did not need.
+
 Section 4 records how each works and why; section 5 is what is actually left to do.
 
 ```
@@ -227,9 +257,11 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | The Woodtron dialect, off 21 real programs | **Read and written down — `docs/woodtron-dialect.md`** |
 | A machine profile with two heads — origins, rapid heights, depths | **Working, see 4.20.** All four figures differ per head |
 | A Woodtron profile, every figure read rather than guessed | **Working, see 4.20** — and it names four things wrong with itself |
+| A sheet stated at the board's real size, per material | **Working, see 5.13 item 7.** Carcass 10 and 5 over, any MDF board 20 and 10 — the allowance is the material's |
 | Nesting a curved part | **Nested as its blank, which is right for a saw — see 4.8** |
 | True-shape nesting for a router | Not started — a different cutting model, see 5.9 |
 | The drill bank — a System 32 row in one hit | **Spindle map solved, bank still off — see 4.20.** One question blocks it |
+| The Woodtron's two passes — skin the sheet, then take it through | **Working, see 5.10.** Per sheet, not per part: that ordering is the only thing an assertion can see |
 | Simulation / backplot | Not started, and it is the gate before anything runs |
 
 ---
@@ -1912,15 +1944,22 @@ paragraph would have built a second copy of a feature that already existed.
 **Check the code, not this file.** Every other section says so about *shipped* work going stale;
 this one says it about an *open item* going stale, which is the direction nobody watches.
 
-**Six sessions running have now caught one, and the sixth is the one that closes the argument.**
+**Seven sessions running have now caught one, and the last two close the argument from both ends.**
 Four caught stale open items; the fifth caught two stale *fix* claims and an unreproduced bug report
 that was one grep from reproducing; the sixth (§4.23) caught a **migration's own comment about
 itself** — v23 says *"nothing is re-priced"* and it charged a laminate sheet on every curve in every
 job with one. A claim in a doc comment sitting directly on the function is the strongest form this
-document has, and it was still wrong, because nothing fails when a comment goes stale. The general
-form, and it has not changed: **a repair has to cover every chain that reads the field, not every
-field in one chain** — and a claim has to be checked against the code that reads it, not the code it
-sits on.
+document has, and it was still wrong, because nothing fails when a comment goes stale.
+
+**The seventh went the other way, and it is the one to copy.** The Woodtron profile's
+`PARTS DO NOT COME FREE` was true, stopped being true the moment the second pass was written, and
+**went out in the same commit that made it false** — along with the test pinning it. That is the
+first claim in this file retired on purpose rather than caught later, and it is what noticing the
+pattern is *for*.
+
+The general form has not changed: **a repair has to cover every chain that reads the field, not
+every field in one chain** — and a claim has to be checked against the code that reads it, not the
+code it sits on. What the seventh adds: **when you make a claim false, go and find it.**
 
 **What was actually broken was worse than what was claimed.** Four things, and the first is the one
 that matters:
@@ -2606,16 +2645,32 @@ upholsterer at $350 a lineal metre per cushion — and a cushion nobody can pric
 of quoting at zero. **And the finishing pass is done** — §4.23: the cushion stands proud of the
 front, the front is cut full height, and the curve carries its laminate.
 
-**If asked which to do next, there are two that need nothing from anybody, and one that is waiting
-on the shop.**
+**If asked which to do next: the drill bank is one measurement away and is worth more than
+everything else open put together. Nothing else is blocked.**
 
-**The one that is visibly wrong on the shop's screen: the inside banquette corner**, §5.13 item 1 —
-answered, specified, and never started. It is the only open item somebody has looked at and called
-*"a complete mess"*, and §4.23 has just made everything around it right, which makes it the odd one
-out in a finished-looking run of seating. Read §5.13 item 1 rather than reasoning from the shape:
-it has been mis-derived twice from one sentence.
+**The one thing to get off the shop: one real Woodtron part whose true hole positions are known** —
+a shelf-pin row measured off a known edge. That settles whether a programmed coordinate positions
+the **reference spindle** or the **head origin**, which is the only thing keeping the drill bank
+off. The spindle map is solved; the bank is one field away. **128mm is the cost of guessing**, every
+drilled row in all twenty-one files is symmetric, and no amount of re-reading them can separate the
+two readings. Until it is answered every hole is reported by name and left out, and the shop bores
+them on the borer.
 
-**~~The one with the most value in it: write the Woodtron's second pass.~~ Done — see below.**
+**Unblocked, in the order I would take them:**
+
+- **Sheet sizes, the tail of §5.13 item 7.** Three footprints are still stated at their usable area
+  and named on `unconfirmedSheetSizes` — the large 3600 × 1800 carcass sheet, the imported
+  2440 × 1220, and `AU_LARGE_MD`. Each is one line in `CARCASS_REAL_SIZES` or `MD_REAL_SIZES` once
+  somebody reads the published range, and an entry there repairs saved jobs as well as new ones.
+- **A part too big for its sheet is silently not nested**, §5.13 item 6. Design questions before
+  code, and it is closer to a benchtop's `joins` than to a nesting tweak.
+- **The custom cabinet whose part list is itself data**, §5.13 item 3. The largest item on that
+  list and a rethink rather than a field.
+- **A test behind the corner cushion's mesh placement.** It took three goes and the last fault was
+  found by measuring the running app — see the end of §5.13 item 1, and §4.23's `cushionMesh.ts`
+  for the pattern to follow.
+
+**~~The one with the most value in it: write the Woodtron's second pass.~~ Done.**
 `writeSheetProgram` now walks the operation list twice: every contour to the 1.0mm skin, then
 `(NEXT OPERATION)` and a sheet-wide sweep taking each skinned perimeter through at a single plunge,
 exactly as the machine's own files have it. It was a change to how the writer *walks* the list
