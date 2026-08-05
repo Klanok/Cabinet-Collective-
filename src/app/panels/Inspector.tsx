@@ -624,17 +624,22 @@ export function Inspector({
           Three separate boxes holding one fact is exactly what this codebase avoids in its
           data, and it is no better in a form: two of them would be wrong until you typed the
           third.
+
+          **The inside banquette corner used to be in here and is not any more**, which is
+          §5.13 item 1: welding its width, depth and radius into one box is precisely what made
+          everyone read it as a square with a disc taken out. Its two spans are ordinary width
+          and depth, and its seat depth and fillet are their own fields further down.
         */}
-        {isRadiusEnd || isBanquetteCorner ? (
+        {isRadiusEnd ? (
           <NumberField
             label="Radius"
-            value={isBanquetteCorner ? cabinet.options.insideCornerRadius ?? cabinet.depth : cabinet.options.endRadius ?? cabinet.depth}
+            value={cabinet.options.endRadius ?? cabinet.depth}
             min={100}
             max={1200}
             step={10}
             onChange={(n) => {
               onUpdate(cabinet.id, { width: mm(n), depth: mm(n) });
-              onUpdateOptions(cabinet.id, isBanquetteCorner ? { insideCornerRadius: mm(n) } : { endRadius: mm(n) });
+              onUpdateOptions(cabinet.id, { endRadius: mm(n) });
             }}
           />
         ) : (
@@ -1015,6 +1020,14 @@ export function Inspector({
         )}
 
         {isBanquetteCorner && <>
+          {/*
+            Three separate numbers, which is the whole of §5.13 item 1. Width and depth are the two
+            **spans along the walls**; this is how far the seat comes off each of them; and the
+            inside radius is the fillet where the two seat fronts meet. `validate` used to insist
+            all three were the same one, which is what made the unit a quarter disc.
+          */}
+          <NumberField label="Seat depth (both legs)" value={cabinet.options.seatDepth ?? 500} min={200} max={1200} step={10} onChange={(n) => onUpdateOptions(cabinet.id, { seatDepth: mm(n) })} />
+          <NumberField label="Inside corner radius" value={cabinet.options.insideCornerRadius ?? 150} min={0} max={600} step={10} onChange={(n) => onUpdateOptions(cabinet.id, { insideCornerRadius: mm(n) })} />
           <NumberField label="Seat cushion" value={cabinet.options.seatCushionThickness ?? 80} min={30} max={200} step={5} onChange={(n) => onUpdateOptions(cabinet.id, { seatCushionThickness: mm(n) })} />
           {/*
             No overhang control on the corner unit, and that is not an oversight — `cornerSeatRadius`

@@ -151,7 +151,7 @@ Section 4 records how each works and why; section 5 is what is actually left to 
 ```
 npm install
 npm run dev       # the app
-npm test          # 996 tests
+npm test          # 1024 tests
 npm run build
 npm run report    # cutlist, hardware BOM, drilling, nest, G-code and costing for the sample kitchen
 npm run report -- shaker-57    # the same kitchen with routed fronts
@@ -192,7 +192,7 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | Banquette seating — solid front, hinged lift-up, cushions | Rejected at the bench, **rebuilt to the shop's own answers — see 5.4**, then finished off in **4.23**. Lid stay still unmodelled |
 | A rounded corner on a banquette, carried by lid, front and cushion | **Working, see 4.15.** Applied ends build on one too |
 | What each cabinet type supports, declared by its own spec | **Working, see 4.15 and 4.16.** `CabinetSpec.capabilities` — refusing costs a sentence |
-| Inside banquette corner — a quarter-circle connector | **Wrong shape and now answered — see 5.13 item 1.** It is an L with a small concave fillet, not a quarter disc. Ready to build |
+| Inside banquette corner — an L with a concave fillet | **Working, see 5.13 item 1.** Formed bendy-ply front the whole way round, laminated; three independent numbers where there used to be one |
 | Upholstery as its own material type | Working — Warwick Caulfield, nine colours, `library/upholstery.au.ts` |
 | A seat cushion proud of the finished front, adjustable | **Working, see 4.23.** 10mm, the shop's own figure; flush at the ends and the back, and the reason for each |
 | A front that does not open, cut without a door's reveal | **Working, see 4.23.** A reveal is swing clearance; a false front never swings |
@@ -266,7 +266,7 @@ materials.
 
 **Migrations must never quietly change anyone's parts.** Every migration carries old values
 forward so a saved job cuts exactly as it did; adopting a new default is then a deliberate
-edit. Schema is at **v30**; migrations run in sequence in `model/project.ts`. Shop standards are
+edit. Schema is at **v31**; migrations run in sequence in `model/project.ts`. Shop standards are
 versioned separately and are at **v22** — and they get a *real* migration rather than a
 rejection, because refusing to load them silently replaces a shop's accumulated kick heights,
 reveals, door styles and saved cabinet types with the shipped Australian defaults.
@@ -3544,11 +3544,64 @@ below the overcut.
    fresh session re-deriving a shop decision gets a different answer — and this item has now been
    mis-derived twice from the same sentence.
 
-   Note it also moves §4.19's corner-seat arc charge, which is measured along that front edge. The
-   reading survives; the shape it measures does not, and an L has two straight fronts plus a small
-   fillet where the old shape had one long arc. And the cushion has to turn with it —
-   `BanquetteCornerCushions` builds its quarter from the same description and would otherwise sit
-   convex on a concave seat.
+   #### Built — see the spec, `model/insideCorner.ts` and both test files
+
+   **The unit is an L now**, and the shop answered the two questions §5.13 was holding on:
+
+   > *"the entire radius front should be formed bendy ply then laminated — that is the point of this
+   > cabinet"*
+
+   So there is **no flat front panel and no door-decor part on this unit at all**. The whole front —
+   along one leg, round the fillet, along the other — is one formed piece per layer, and the
+   laminate over it is the finish (`finishMaterialId`, §4.23). That is §4.5's *"one piece, no join"*
+   wrap bent the other way.
+
+   > *"the strip should be there and set back from the radius by 50mm — depending on what the
+   > entered radius is"*
+
+   So the formers run `fixingStripWidth` past each tangent, giving the ply a rigid landing where it
+   comes out of the bend, and a radius that does not leave the strip room is reported.
+
+   **Three things in it are worth not re-deriving:**
+
+   - **Filleting the inside corner makes the seat *bigger*.** It is a reflex vertex, so rounding it
+     cuts the corner off the **void**. 650,000mm² → 654,828.5. Reasoning gave the opposite answer
+     twice; the assertion is what settles it.
+   - **Every surface is `r + d` about one centre out in the room**, so the formers are cut to
+     `r + skin` where a convex corner's are `r − skin`. On the shipped figures the ply's back face
+     lands 3mm *in front of* the carcass and the formers pack it out to finish flush with the
+     banquettes either side.
+   - **The assertions that bite are the fillet's centre and the plan area, not its radius.** The
+     rejected quarter disc has the identical radius and arc length.
+
+   **Project v31**, and it is the fifth migration here to re-price and the first that can make a job
+   **cheaper**: the corner seat is charged along two straight fronts plus a short fillet where it
+   used to be charged along one long convex arc that was never built, and the two backs are now one
+   per wall at its own span rather than the same number twice. Nothing carries forward, because the
+   old shape does not exist: `width = depth = radius` was one number written three times, so there
+   is no seat depth to recover. A saved 500 × 500 unit comes back **reporting that a 500 seat depth
+   leaves no L in a 500 span**, which is the honest outcome — what it should be is a decision about
+   two real walls.
+
+   Verified in the running app per §7, reading the live scene rather than looking: backs at
+   `[0,900]×[0,16]` and `[0,16]×[16,900]`, both open ends at the seat depth off their own wall,
+   three formers at `[500,718]²`, and the formed front's show layer carrying the **walnut** texture
+   over an inner layer still in bendy ply. The cutlist: 707.5 and 720 × 400 of bendy ply, which is
+   `232 + (150 + 1 + 4) × π/2 + 232` and one board thickness more.
+
+   #### What is left on it
+
+   - **The corner cushion's mesh took three goes and the third was found by measuring.** A
+     hand-rolled `absarc` put it 372mm through the wall; it is now flattened through the model's own
+     `flattenArc`, and the mesh is placed at the outline's **largest z** — which on an L is the far
+     end of the second leg, not the front. There is no test on that placement: it is JSX, and the
+     lesson from §4.23's `cushionMesh.ts` is that this arithmetic wants extracting where it can be
+     asserted. **Do that before touching it again.**
+   - **The back cushions run each wall's full span**, which is right for the backs and means they
+     meet at the corner rather than mitring. Nobody has been asked what happens where they meet.
+   - **The lid stay is still unmodelled**, as on the plain banquette.
+   - Nothing asks whether a lift-up this size wants two lids rather than one; an 864 × 864 panel is
+     a big thing to lift in one piece.
 
 2. ~~**A standalone panel should stand perpendicular to the wall, not flat against it**~~ —
    **done, see §4.21.**

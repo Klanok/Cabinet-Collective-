@@ -190,24 +190,43 @@ export const returnRun = (
 ): Mm => mm(Math.max(MIN_CUSHION, Math.min(plan.depth, plan.endRun[end]) - backThickness));
 
 /**
- * The radius of a corner unit's quarter-disc seat.
+ * The cushions on an inside corner unit, which is an **L** and not a quarter disc.
  *
- * Its own function because the corner unit's cushion is not `seatCushionPlan` — that describes a
- * rectangle with at most one rounded corner, and this is a quarter circle. Both the mesh and the
- * charge need the one number.
+ * **The seat is one cushion following the seat's own outline**, and it is charged along its front:
+ * the two straight runs plus the fillet. §4.19's reading is unchanged — a lineal metre of seating
+ * is measured along the front of the run — and it is the *shape* underneath that moved. The old
+ * unit charged `radius × π/2` of convex arc, which was the front of a piece that did not exist.
  *
- * **It goes flush and takes no overhang, and that is deliberate rather than an omission.** The
- * disc's arc is its front, but its two straight edges are radii of the same circle: grow the
- * radius to push the arc 10mm into the room and both straight edges grow with it, 10mm into the
- * banquette either side. So "10mm proud of the finish panel" has no meaning on this outline — and
- * §5.13 item 1 says this outline is wrong in kind anyway. It is an **L with a small concave
- * fillet**, not a quarter disc, and the overhang is worth stating once against the shape the shop
- * actually described rather than twice against one that is on its way out.
+ * **The backs are one per leg**, each running the wall it stands against. On the old quarter disc
+ * both came out one radius long, which was the same number twice because the unit was square by
+ * construction. Here the two legs are independent, so a 1500 × 900 corner has a 1500 back and a
+ * 900 one, and reading them as equal would under-buy one of them by 600mm.
  *
- * Going flush still closes the reported fault here: the old inset held the disc 5mm inside the
- * carcass all round, so the corner unit exposed carcass exactly as the straight run did.
+ * **Still on the unchecked list** (§3): nobody has put a corner unit to the upholsterer. What has
+ * changed is that the figure is measured along a front that exists.
  */
-export const cornerSeatRadius = (W: Mm, D: Mm): Mm => mm(Math.max(MIN_CUSHION, Math.min(W, D)));
+export const insideCornerCushionPieces = (
+  seatLineal: Mm,
+  legA: Mm,
+  legB: Mm,
+  hasBackCushion: boolean,
+): readonly CushionPiece[] => {
+  const pieces: CushionPiece[] = [
+    { kind: 'seat', label: 'Corner seat', linealMm: mm(Math.max(MIN_CUSHION, seatLineal)) },
+  ];
+  if (!hasBackCushion) return pieces;
+  pieces.push({
+    kind: 'back',
+    label: 'Back — along the first wall',
+    linealMm: mm(Math.max(MIN_CUSHION, legA)),
+  });
+  pieces.push({
+    kind: 'back',
+    label: 'Back — along the second wall',
+    linealMm: mm(Math.max(MIN_CUSHION, legB)),
+  });
+  return pieces;
+};
 
 export interface CushionPiecesInput {
   readonly plan: SeatCushionPlan;

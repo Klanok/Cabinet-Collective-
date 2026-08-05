@@ -30,18 +30,26 @@
  * answer — so the seat is 10mm longer and 40mm deeper than it was, and costs accordingly. See
  * project v29 → v30, which is the fourth migration in this codebase to make a saved job dearer.
  *
- * A corner unit at 500 × 500, flush:
+ * A corner unit at the shop's own example — 900 along each wall, 500 deep to both, 150 fillet:
  *
- *     seat radius      min(500, 500)                   =  500
- *     seat, on its arc 500 × π/2 = 785.4mm             = $274.89
- *     each back        500mm                           = $175.00
+ *     finished fronts  500 + 2 + 18                    =  520
+ *     front run, leg A 900 − (520 + 150)               =  230
+ *     front run, leg B 900 − (520 + 150)               =  230
+ *     fillet arc       150 × π/2                       =  235.62
+ *     seat, along its front                            =  695.62mm  = $243.47
+ *     back, first wall 900mm                           = $315.00
+ *     back, second     900mm                           = $315.00
  *
- * The corner unit takes **no overhang** — `cornerSeatRadius` sets out why, and it is a fact about a
- * quarter disc rather than an omission.
+ * **This is not the figure it used to be**, because the shape underneath it is not the shape it used
+ * to be. The old unit was a convex quarter disc and charged `radius × π/2` — the front of a piece
+ * that does not exist. §4.19's *reading* survives untouched: a lineal metre of seating is measured
+ * along the front of the run. See `model/insideCorner.ts` and §5.13 item 1.
  *
- * **The corner seat charged along its arc is a reading, not a fact** — §3's unchecked list. Nobody
- * has put a corner unit to the upholsterer, and the two other readings (one leg, or both legs) are
- * argued against in `cornerCushionPieces`.
+ * The two backs are now **one per wall at its own span**, where they used to both come out one
+ * radius long — the same number twice, because the unit was square by construction.
+ *
+ * **The corner seat measured along its front is a reading, not a fact** — §3's unchecked list.
+ * Nobody has put a corner unit to the upholsterer.
  *
  * ## And the thing this whole file is really guarding
  *
@@ -160,36 +168,36 @@ describe('a shipped 1200 banquette', () => {
  * ── The corner unit ───────────────────────────────────────────────────────────────────────────
  */
 
-describe('the quarter-circle corner unit', () => {
-  const corner = (): Project =>
-    withCabinets({
-      typeId: 'banquette-corner',
-      name: 'BQC1',
-      width: mm(500),
-      depth: mm(500),
-      x: mm(0),
-    });
+describe('the inside corner unit', () => {
+  const corner = (width = 900, depth = 900): Project =>
+    withCabinets({ typeId: 'banquette-corner', name: 'BQC1', width: mm(width), depth: mm(depth), x: mm(0) });
 
-  it('charges the seat along its arc, and a back down each run', () => {
+  it('charges the seat along its two fronts and the fillet between them', () => {
     const [charge] = cushionCharges(corner());
-    // radius = min(500, 500) = 500; arc = 500 × π/2 = 785.4mm. It was 495 and 777.5 while the
-    // disc was held 5mm inside the carcass.
     const seat = charge!.lines[0]!;
     expect(seat.label).toBe('Corner seat');
-    expect(seat.linealMm).toBeCloseTo(785.4, 1);
-    expect(dollars(seat.costExGst)).toBeCloseTo(274.89, 1);
-
-    const backs = charge!.lines.filter((l) => l.kind === 'back');
-    expect(backs).toHaveLength(2);
-    expect(backs.every((b) => b.linealMm === 500)).toBe(true);
-    expect(dollars(backs[0]!.costExGst)).toBe(175);
+    expect(seat.linealMm).toBeCloseTo(230 + 230 + (150 * Math.PI) / 2, 1);
+    expect(dollars(seat.costExGst)).toBeCloseTo(243.47, 1);
   });
 
-  it('charges the corner seat more than one leg and less than two — which is the whole reading', () => {
+  it('charges one back per wall, each at its own span', () => {
+    /*
+     * The two legs are independent now. On the old quarter disc both backs came out one radius
+     * long, which was the same number twice — so a corner with unequal spans under-bought one of
+     * them, and nothing in the quote said which.
+     */
+    const [charge] = cushionCharges(corner(1500, 900));
+    const backs = charge!.lines.filter((l) => l.kind === 'back');
+    expect(backs).toHaveLength(2);
+    expect(backs.map((b) => b.linealMm)).toEqual([mm(1500), mm(900)]);
+  });
+
+  it('charges the corner seat more than one front and less than the whole footprint', () => {
+    // The same sanity bracket §4.19 put on the old reading, restated for a shape that exists.
     const [charge] = cushionCharges(corner());
     const seat = charge!.lines[0]!;
-    expect(seat.linealMm).toBeGreaterThan(500);
-    expect(seat.linealMm).toBeLessThan(1000);
+    expect(seat.linealMm).toBeGreaterThan(230);
+    expect(seat.linealMm).toBeLessThan(900 + 900);
   });
 });
 

@@ -116,7 +116,7 @@ function CabinetGroup({
         const upholstery = (project.materials.upholstery ?? AU_UPHOLSTERY_MATERIALS).find(
           (item) => item.id === built.cabinet.materials.upholstery,
         ) ?? (project.materials.upholstery ?? AU_UPHOLSTERY_MATERIALS)[0];
-        return upholstery ? <BanquetteCornerCushions cabinet={built.cabinet} upholstery={upholstery} selected={selected} wireframe={wireframe} /> : null;
+        return upholstery ? <BanquetteCornerCushions cabinet={built.cabinet} plan={built.insideCorner} upholstery={upholstery} selected={selected} wireframe={wireframe} /> : null;
       })()}
     </group>
   );

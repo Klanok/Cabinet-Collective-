@@ -124,9 +124,17 @@ export const createCabinet = (
       ? defaults.wallCabinetDepth
       : args.typeId === 'tall'
         ? defaults.tallCabinetDepth
-        : args.typeId === 'banquette' || args.typeId === 'banquette-corner'
+        : args.typeId === 'banquette'
           ? mm(500)
-          : defaults.baseCabinetDepth;
+          /*
+           * An inside corner's `depth` is a **span along the second wall**, not a depth off a
+           * wall — the seat's depth is `seatDepth`, one figure for both legs. So it defaults to
+           * the shop's own example rather than to a seat depth: *"900 x 900 along the back wall
+           * with 500mm depth to both."* See `model/insideCorner.ts`.
+           */
+          : args.typeId === 'banquette-corner'
+            ? mm(900)
+            : defaults.baseCabinetDepth;
 
   const height = args.height ?? naturalHeight;
 

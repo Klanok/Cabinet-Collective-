@@ -37,7 +37,7 @@ import {
 } from '../library/blum.ts';
 import { AU_BENCHTOP_MATERIALS, AU_MATERIAL_LIBRARY, AU_SHEET_MATERIALS } from '../library/materials.au.ts';
 
-export const CURRENT_SCHEMA_VERSION = 30 as const;
+export const CURRENT_SCHEMA_VERSION = 31 as const;
 
 /**
  * The bendy ply an older job is given when it is migrated forward. It has no curved parts in
@@ -907,6 +907,64 @@ export const withCushionOverhang = (raw: Record<string, unknown>): Record<string
 const DEFAULT_CUSHION_OVERHANG = 10;
 
 /**
+ * v30 → v31: **the inside banquette corner stops being a quarter disc.**
+ *
+ * Reported from the bench with a screenshot and the verdict *"a complete mess"*. The unit built a
+ * convex quarter disc bulging into the room, off a `validate` rule insisting
+ * `width = depth = insideCornerRadius`. The shop's description is a different shape in kind:
+ *
+ * > *"essentially it wont be 500 x 500 — it could be 900 x 900 along the back wall with 500mm depth
+ * > to both. In this scenario you could have an internal radius of 150mm or so."*
+ *
+ * An **L**, a span along each wall and a run's depth off each, with a small concave fillet where the
+ * two seat fronts meet. See `model/insideCorner.ts`, and read it before touching this: the shape was
+ * mis-derived twice from that one sentence.
+ *
+ * **Nothing can be carried forward, because the old shape does not exist any more.** A saved unit's
+ * three numbers were one number written three times — `width = depth = radius` was enforced — so
+ * there is no seat depth in it to recover and no fillet either: the old "radius" *was* the unit's
+ * size, and the new one is a detail on its corner. Any arithmetic mapping one to the other would be
+ * inventing a shape the shop never saw.
+ *
+ * So the two fields are set to the **shop's own example** — 500 deep to both walls, a 150 fillet —
+ * and the spans are left exactly where they are, because a span is a real measurement somebody took
+ * off a real wall and this migration has no business moving a cabinet. A saved 500 × 500 unit
+ * therefore comes back reporting that a 500 seat depth leaves no L in a 500 span, **which is the
+ * honest outcome**: it was a quarter disc 500 across, and what it should be is a decision about two
+ * walls that only the person who measured them can make. The warning names it and says what to
+ * change.
+ *
+ * **It re-prices, and both directions are possible.** §4.19 charges the corner seat along its front,
+ * and the front is now two straight runs plus a short fillet where it was one long convex arc. A
+ * 500 unit charged 785mm of seat for a shape that was never built; the same spans as an L charge
+ * what the L's front actually measures. The backs move too — they used to come out one radius long
+ * each, the same number twice, and are now one per wall at its own span. This is the fifth migration
+ * in this file to re-price a saved job and the first where the number can go **down**, which is
+ * exactly why it says so rather than being quiet: a job that got cheaper on load is as surprising as
+ * one that got dearer.
+ */
+const migrateV30toV31 = (raw: Record<string, unknown>): Record<string, unknown> => ({
+  ...raw,
+  schemaVersion: 31,
+  cabinets: ((raw.cabinets as Record<string, unknown>[] | undefined) ?? []).map((c) =>
+    c.typeId === 'banquette-corner'
+      ? {
+          ...c,
+          options: {
+            ...((c.options as Record<string, unknown> | undefined) ?? {}),
+            seatDepth: DEFAULT_CORNER_SEAT_DEPTH,
+            insideCornerRadius: DEFAULT_INSIDE_CORNER_RADIUS,
+          },
+        }
+      : c,
+  ),
+});
+
+/** The shop's own example: *"500mm depth to both ... an internal radius of 150mm or so."* */
+const DEFAULT_CORNER_SEAT_DEPTH = 500;
+const DEFAULT_INSIDE_CORNER_RADIUS = 150;
+
+/**
  * v11 → v12. **The screen colours, backfilled onto jobs that never had them.**
  *
  * Reported from the bench as "changing the door to Notaio Walnut has done nothing", and the
@@ -1186,6 +1244,7 @@ export const migrateProject = (raw: unknown): Project => {
   if (data.schemaVersion === 27) data = migrateV27toV28(data);
   if (data.schemaVersion === 28) data = migrateV28toV29(data);
   if (data.schemaVersion === 29) data = migrateV29toV30(data);
+  if (data.schemaVersion === 30) data = migrateV30toV31(data);
 
   if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`migrateProject: could not migrate schema version ${String(version)}`);
