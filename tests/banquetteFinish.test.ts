@@ -664,3 +664,103 @@ describe('the seat cushion’s mesh, both shapes of it', () => {
     expect(narrow.bevel).toBe(15);
   });
 });
+
+/* ── The laminate that was drawn, on jobs that had been told there was none ──────────────────── */
+
+/**
+ * *"The laminate decor is not showing on the bendy ply. I thought that was already done."*
+ *
+ * It was, and it was invisible anyway. §4.23 taught the outer skin of a wrap to carry the door
+ * decor — `finishMaterialId`, texture and all, which the viewport has read ever since. What nobody
+ * followed through was that **the same pass migrated the allowance to zero on every job and every
+ * shop standard that already existed**, so the rule engine had no laminate to put on the skin and
+ * drew bendy ply. Correctly, for a job that said there was none.
+ *
+ * **The reason for that zero has expired.** It was *"a shop's curve may have no laminate at all and
+ * nothing on screen tells the two apart"* — and something on screen tells them apart now. The
+ * shop's own words on the unit it matters most to: *"the entire radius front should be formed bendy
+ * ply then laminated — that is the point of this cabinet."*
+ *
+ * So v36 / standards v27 turn it back on at the shipped 1mm, which **re-cuts and re-prices**:
+ * `substrateRadius` takes the allowance off the finished radius, so the formers and every skin's
+ * developed length move, and the curve buys the sheet it is built with.
+ */
+describe('a job whose curves were left unlaminated by v23', () => {
+  /** A banquette with a radiused end on it — the curve this is all about. */
+  const withCurve = () => banquette({ radiusCorner: 'front-right', carcassRadius: mm(200) }).project;
+  /** A v35 job, current in every respect except that its allowance is the zero v23 left. */
+  const asV35 = (project: Project): Record<string, unknown> => ({
+    ...(JSON.parse(JSON.stringify(withoutLaminate(project))) as Record<string, unknown>),
+    schemaVersion: 35,
+  });
+
+  it('gets its laminate back, so the curve is finished in the door decor again', () => {
+    const migrated = migrateProject(asV35(withCurve()));
+    expect(migrated.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
+    expect(migrated.constructions.every((c) => c.finishLaminate > 0)).toBe(true);
+
+    // The half the bench actually sees: the outer skin carries a decor to draw.
+    const built = buildCabinet(migrated.cabinets[0]!, migrated);
+    const skins = built.panels.filter((p) => p.role === 'skin');
+    expect(skins[skins.length - 1]!.finishMaterialId).toBe(migrated.defaults.doorMaterialId);
+    expect(built.warnings.some((w) => w.includes('no finish laminate'))).toBe(false);
+  });
+
+  it('re-cuts the curve, because the allowance comes off the substrate', () => {
+    // Said out loud rather than discovered: the formers and the skins move by the millimetre the
+    // laminate takes, which is the whole reason v23 was nervous about doing this on load.
+    const unlaminated = withoutLaminate(withCurve());
+    const before = buildCabinet(unlaminated.cabinets[0]!, unlaminated);
+    const migrated = migrateProject(asV35(withCurve()));
+    const after = buildCabinet(migrated.cabinets[0]!, migrated);
+    const skinLength = (b: typeof before) => size(b.panels.filter((p) => p.role === 'skin')[0]!)[0];
+    expect(skinLength(after)).not.toBe(skinLength(before));
+  });
+
+  it('charges the sheet it is now built with', () => {
+    const migrated = migrateProject(asV35(withCurve()));
+    const cost = costProject(migrated);
+    expect(cost.laminatedCurves).toBe(1);
+    expect(cost.laminateCost).toBeGreaterThan(0);
+  });
+
+  it('leaves a shop’s own figure alone — it repairs a zero, it does not impose a default', () => {
+    /*
+     * **Caught by a mutation, not by design.** A repair written as "set them all to 1" passes every
+     * other assertion here and quietly overwrites a shop that laminates in 2mm — which is the
+     * migration rule this file is built on: carry old values forward, and only change what was
+     * wrong. What was wrong is the zero.
+     */
+    const own = withCurve();
+    const raw = {
+      ...(JSON.parse(JSON.stringify(own)) as Record<string, unknown>),
+      schemaVersion: 35,
+      constructions: own.constructions.map((c) => ({ ...c, finishLaminate: 2 })),
+    };
+    expect(migrateProject(raw).constructions.every((c) => c.finishLaminate === 2)).toBe(true);
+  });
+
+  it('repairs the shop standards too, or the next job arrives unlaminated again', () => {
+    /*
+     * **Also caught by a mutation.** §4.22's fault, and the fourth time it has been this chain: a
+     * job takes a *copy* of the standards, so standards left at zero hand every new job an
+     * unlaminated curve at the current version, where no migration is left to fix it.
+     */
+    const old = {
+      ...(JSON.parse(JSON.stringify(AU_SHOP_STANDARDS)) as Record<string, unknown>),
+      version: 26,
+      constructions: AU_SHOP_STANDARDS.constructions.map((c) => ({ ...c, finishLaminate: 0 })),
+    };
+    const migrated = migrateStandards(old);
+    expect(migrated.version).toBe(CURRENT_STANDARDS_VERSION);
+    expect(migrated.constructions.every((c) => c.finishLaminate > 0)).toBe(true);
+  });
+
+  it('still lets a shop that paints its curves say so, and says it back', () => {
+    // Zero is a setting, not a default now — and the warning names the field to change.
+    const painted = withoutLaminate(withCurve());
+    const built = buildCabinet(painted.cabinets[0]!, painted);
+    expect(built.warnings.some((w) => w.includes('no finish laminate'))).toBe(true);
+    expect(built.panels.filter((p) => p.role === 'skin').every((p) => !p.finishMaterialId)).toBe(true);
+  });
+});

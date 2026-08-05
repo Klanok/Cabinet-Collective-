@@ -11,7 +11,7 @@ transcript. Then read `docs/woodtron-dialect.md` before touching anything under 
 
 ## Where things stand
 
-`main` is green at **1093 tests**. Schema **v35**, shop standards **v26**. Every session's work
+`main` is green at **1099 tests**. Schema **v36**, shop standards **v27**. Every session's work
 lands on `main` through a pull request, so `git log main` is the honest answer to what has shipped —
 check it rather than trusting this paragraph, which is exactly the kind of sentence that goes stale.
 
@@ -75,6 +75,11 @@ out to be rendered in **zero** places while three sections of the handover said 
 **The finish laminate is a decor**, so it is one record per brand and `costing.ts` resolves it from
 the door decor's `brand` — *"the brand being used depends on the project as it's a decor, a choice
 the client would make for the finish."* Still assumed: that the laminate matches the doors.
+
+**A feature that ships switched off for everybody who already had the app has not shipped.** §4.23
+drew the laminate on a curve *and* migrated the allowance to zero on every existing job, so the bench
+saw bendy ply for months and reported it as never done. v36 repairs the zero. Before writing "done",
+ask what a **saved** job does — a migration that defaults a new feature off is a feature nobody has.
 
 **~~The cushion meshes.~~ Done, both of them** — `viewport/cushionMesh.ts` (§4.23 and the end of
 §5.13 item 1). **No cushion mesh is built from arithmetic a test cannot read now**, where all three
