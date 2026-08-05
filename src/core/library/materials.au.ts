@@ -68,12 +68,88 @@ const sheet = (length: number, width: number, priceExGst: number): SheetSize => 
  * Polytec's published ranges.
  */
 
-/** The full 3600 × 1800 board — still the **usable area**, not the sheet. See above. */
+/*
+ * **The allowance is material dependent**, which is the shop's own correction and the reason there
+ * is more than one footprint helper here rather than one rule:
+ *
+ * > *"laminex and polytecs boards are material dependant. Generally allow 20mm in length and 10mm
+ * > in width for MD finish boards."*
+ *
+ * So there are two classes, and they are **not** the same number:
+ *
+ * | | over on length | over on width | where it comes from |
+ * |---|---|---|---|
+ * | Carcass and melamine board | 10 | 5 | measured — the machine's own sheet declaration |
+ * | **MD finish** board | **20** | **10** | the shop's general allowance |
+ *
+ * A single global rule would have put every decorative door board 10mm short on the length and 5
+ * on the width, which is a part per sheet on a long run. That is what "material dependant" costs
+ * if it is read as "one number".
+ */
+
+/** The oversize on a carcass or melamine board. Measured, off `docs/woodtron-dialect.md` §1. */
 const AU_LARGE = (price: number) => sheet(3600, 1800, price);
 /** 2410 × 1205 — the real sheet behind the "2400 × 1200" everyone quotes. Off the machine files. */
 const AU_STANDARD = (price: number) => sheet(2410, 1205, price);
+
+/*
+ * The same two footprints on an **MD finish** board, at the shop's 20 and 10.
+ *
+ * `AU_LARGE_MD` is the one figure here that is the rule applied rather than a board anybody has
+ * measured — but it is the *shop's own* rule for *this class of board*, which is a different thing
+ * from the extrapolation `AU_LARGE` deliberately refuses to make. It is still on
+ * `unconfirmedSheetSizes`, because "generally allow" is an allowance and not a published size.
+ */
+const AU_STANDARD_MD = (price: number) => sheet(2420, 1210, price);
+const AU_LARGE_MD = (price: number) => sheet(3620, 1810, price);
+
+/**
+ * 3115 × 1205 — a long Polytec board, confirmed twice over.
+ *
+ * The machine's MDF door programs ran on one (`docs/woodtron-dialect.md` §1, 3115.0 × 1205.0 ×
+ * 18.0), and the shop confirms it is stock rather than a cut-down: *"3115 is a typical polytec
+ * size."* It was left out of the library until that answer arrived, because a stock size nobody has
+ * confirmed puts a board on an order that may not exist.
+ *
+ * **Stated as measured, so it takes no allowance on top.** The figure came off the machine, which
+ * is where this shop enters real-world numbers — the same reason its carcass board is entered at
+ * 16.3mm rather than 16.
+ */
+const POLYTEC_LONG = (price: number) => sheet(3115, 1205, price);
+
 /** Imported product runs to the metric-imperial 2440×1220 — still the usable area. */
 const IMPORTED = (price: number) => sheet(2440, 1220, price);
+
+/**
+ * The boards the shop's *"20mm in length and 10mm in width"* applies to.
+ *
+ * **MD is MDF** — confirmed by the shop when asked, rather than read off the abbreviation. So these
+ * are the branded decorative boards on an MDF substrate, which is what a door or a panel is made
+ * from.
+ *
+ * **Listed rather than derived from the substrate**, deliberately. A list can be checked at a
+ * glance and corrected in one line; a rule over substrate strings quietly captures the next
+ * material somebody adds, and this set is a judgement rather than a query.
+ *
+ * **Two things are off it and one of them is an open question.** The 1mm laminate is not a board at
+ * all, which is settled. **Raw MDF is off it because the shop said "MD *finish* boards"** — but the
+ * margin exists because a board is trimmed to a nominal after pressing, which has nothing to do
+ * with whether it was then finished, so raw MDF may well take the same 20 and 10. It is left at the
+ * conservative figure until somebody says, for the reason `unconfirmedSheetSizes` gives: a board
+ * stated small buys the odd extra sheet, and one stated large cuts a part short.
+ *
+ * Exported because the **migration reads the same list** — a saved job's sheets have to grow by the
+ * figure their own material takes, and a size-keyed map cannot express that.
+ */
+export const MD_FINISH_BOARDS: readonly string[] = [
+  'poly-florentine-walnut-16',
+  'poly-boston-oak-18',
+  'poly-prime-oak-16',
+  'poly-classic-white-door-18',
+  'lam-rural-oak-16',
+  'lam-classic-oak-16',
+  'lam-portsea-absolute-matte-16',
+];
 
 /**
  * Footprints that are still the **usable area** rather than the real sheet.
@@ -84,9 +160,15 @@ const IMPORTED = (price: number) => sheet(2440, 1220, price);
  * tight against it.
  */
 export const unconfirmedSheetSizes: readonly string[] = [
-  '3600 × 1800 — the usable area. The real board is over on both, by 10 and 5 on the one size the ' +
-    'machine files confirm, but nobody has read this one off a published range.',
+  '3600 × 1800 on a carcass or melamine board — the usable area. The real board is over on both, ' +
+    'by 10 and 5 on the one size the machine files confirm, but nobody has read this one off a ' +
+    'published range.',
   '2440 × 1220 — imported product, quoted at the metric-imperial size. Same question.',
+  '3620 × 1810 on an MD finish board — the shop\'s "generally allow 20 and 10" applied to the ' +
+    'large sheet. A stated allowance rather than a published size, and the only figure here that ' +
+    'is the rule applied rather than a board somebody has measured.',
+  'Raw MDF takes the carcass allowance, because the shop named "MD FINISH boards". The trim is a ' +
+    'pressing margin and may well be the same 20 and 10 on raw board — ask before cutting one tight.',
 ];
 
 export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
@@ -224,7 +306,7 @@ export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
       sourceUrl: 'https://www.polytec.com.au/colour/florentine-walnut/woodmatt/',
     },
     decorFaces: 2,
-    sheets: [AU_STANDARD(15_400)],
+    sheets: [AU_STANDARD_MD(15_400), POLYTEC_LONG(21_500)],
     indicativePricing: true,
   },
   {
@@ -241,7 +323,7 @@ export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
       sourceUrl: 'https://www.polytec.com.au/colour/boston-oak/',
     },
     decorFaces: 2,
-    sheets: [AU_STANDARD(15_400)],
+    sheets: [AU_STANDARD_MD(15_400), POLYTEC_LONG(21_500)],
     indicativePricing: true,
   },
   {
@@ -258,7 +340,7 @@ export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
       sourceUrl: 'https://www.polytec.com.au/colour/prime-oak/',
     },
     decorFaces: 2,
-    sheets: [AU_STANDARD(15_400), AU_LARGE(23_000)],
+    sheets: [AU_STANDARD_MD(15_400), AU_LARGE_MD(23_000), POLYTEC_LONG(21_500)],
     indicativePricing: true,
   },
   {
@@ -299,7 +381,7 @@ export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
       sourceUrl: 'https://www.laminex.com.au/products/rural-oak/Natural/p/AU1001713',
     },
     decorFaces: 2,
-    sheets: [AU_STANDARD(15_400)],
+    sheets: [AU_STANDARD_MD(15_400)],
     indicativePricing: true,
   },
   {
@@ -316,7 +398,7 @@ export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
       sourceUrl: 'https://www.laminex.com.au/products/classic-oak/Natural/p/AU1003601',
     },
     decorFaces: 2,
-    sheets: [AU_STANDARD(15_400), AU_LARGE(23_000)],
+    sheets: [AU_STANDARD_MD(15_400), AU_LARGE_MD(23_000)],
     indicativePricing: true,
   },
   {
@@ -333,7 +415,7 @@ export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
       sourceUrl: 'https://www.laminex.com.au/products/portsea/Natural/p/AU1005240',
     },
     decorFaces: 2,
-    sheets: [AU_STANDARD(15_400)],
+    sheets: [AU_STANDARD_MD(15_400)],
     indicativePricing: true,
   },
 
@@ -409,7 +491,7 @@ export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
     grain: 'none',
     colour: '#f7f6f2',
     decorFaces: 2,
-    sheets: [AU_LARGE(16_800)],
+    sheets: [AU_LARGE_MD(16_800), POLYTEC_LONG(21_500)],
     indicativePricing: true,
   },
 

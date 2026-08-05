@@ -35,7 +35,12 @@ import {
   DEFAULT_HINGE_SYSTEM_ID,
   DEFAULT_RUNNER_SYSTEM_ID,
 } from '../library/blum.ts';
-import { AU_BENCHTOP_MATERIALS, AU_MATERIAL_LIBRARY, AU_SHEET_MATERIALS } from '../library/materials.au.ts';
+import {
+  AU_BENCHTOP_MATERIALS,
+  AU_MATERIAL_LIBRARY,
+  AU_SHEET_MATERIALS,
+  MD_FINISH_BOARDS,
+} from '../library/materials.au.ts';
 
 export const CURRENT_SCHEMA_VERSION = 32 as const;
 
@@ -1011,27 +1016,51 @@ const migrateV31toV32 = (raw: Record<string, unknown>): Record<string, unknown> 
 };
 
 /**
- * The usable-area figures that are really a bigger board, keyed the way `sheetSizeKey` keys them.
+ * The usable-area figures that are really a bigger board — **per class of board, not per size.**
  *
- * One map, read by both halves of the migration and by both version chains, so a size cannot move
- * in the material list and stay put in somebody's stored choice. **Add to it rather than editing
- * a material** when the published ranges arrive: an entry here repairs saved jobs as well as new
- * ones, where a change in `materials.au.ts` alone reaches only the new.
+ * The shop's correction, and it is the reason this is two tables rather than one:
+ *
+ * > *"laminex and polytecs boards are material dependant. Generally allow 20mm in length and 10mm
+ * > in width for MD finish boards."*
+ *
+ * So `2400 × 1200` is **2410 × 1205** on a carcass board and **2420 × 1210** on an MD finish one,
+ * and a map keyed by the size alone cannot say both. It was keyed that way for one commit, before
+ * the shop answered — which is worth leaving in the record, because it looked like the natural key
+ * right up until the fact arrived that broke it.
+ *
+ * **Add to these rather than editing a material** when a published range turns up: an entry here
+ * repairs saved jobs as well as new ones, where a change in `materials.au.ts` alone reaches only
+ * the new.
  */
-const REAL_SHEET_SIZES: Record<string, { length: number; width: number }> = {
-  // §1 of the dialect doc, off the machine's own sheet declaration on a real job.
+const CARCASS_REAL_SIZES: Record<string, { length: number; width: number }> = {
+  // §1 of the dialect doc, off the machine's own sheet declaration on a real job. Measured.
   '2400x1200': { length: 2410, width: 1205 },
 };
 
-/** Grow every sheet whose stated size was really its usable area. Prices are untouched. */
+/** The same sizes on an MD finish board, at the shop's general 20 and 10. */
+const MD_REAL_SIZES: Record<string, { length: number; width: number }> = {
+  '2400x1200': { length: 2420, width: 1210 },
+  '3600x1800': { length: 3620, width: 1810 },
+};
+
+const realSizesFor = (materialId: string) =>
+  MD_FINISH_BOARDS.includes(materialId) ? MD_REAL_SIZES : CARCASS_REAL_SIZES;
+
+/**
+ * Grow every sheet whose stated size was really its usable area. Prices are untouched.
+ *
+ * Reads the **material's own** class, because the allowance is the material's, which is what makes
+ * this take the whole sheet list rather than one size at a time.
+ */
 export const withRealSheetSizes = (rawSheets: unknown): unknown => {
   const sheets = (rawSheets as Record<string, unknown>[] | undefined) ?? [];
   return sheets.map((material) => {
+    const table = realSizesFor(String(material.id));
     const sizes = (material.sheets as Record<string, unknown>[] | undefined) ?? [];
     return {
       ...material,
       sheets: sizes.map((size) => {
-        const real = REAL_SHEET_SIZES[`${String(size.length)}x${String(size.width)}`];
+        const real = table[`${String(size.length)}x${String(size.width)}`];
         // The price is the price of that board and always was — what was wrong is how big we said
         // it is. Nothing here touches money directly; the sheet *count* is where it shows up.
         return real ? { ...size, length: real.length, width: real.width } : size;
@@ -1046,7 +1075,9 @@ export const withRekeyedSheetChoices = (rawChoices: unknown): unknown => {
   if (!choices) return choices;
   const out: Record<string, string> = {};
   for (const [materialId, key] of Object.entries(choices)) {
-    const real = REAL_SHEET_SIZES[key];
+    // The choice is keyed on a size, and which board that size grew into depends on the material
+    // it was chosen for — so the lookup needs both halves, exactly as the resize does.
+    const real = realSizesFor(materialId)[key];
     out[materialId] = real ? `${real.length}x${real.width}` : key;
   }
   return out;

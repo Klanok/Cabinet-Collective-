@@ -37,6 +37,7 @@ import {
 } from '../src/core/model/project.ts';
 import {
   AU_SHEET_MATERIALS,
+  MD_FINISH_BOARDS,
   unconfirmedSheetSizes,
 } from '../src/core/library/materials.au.ts';
 import {
@@ -170,5 +171,77 @@ describe('a job saved against the usable area', () => {
     expect(migrated.version).toBe(CURRENT_STANDARDS_VERSION);
     const white = migrated.materials.sheets.find((m) => m.id === 'hmr-white-16')!;
     expect(white.sheets.map((s) => [s.length, s.width])).toContainEqual([2410, 1205]);
+  });
+});
+
+/**
+ * The allowance is **material dependent**, which is the shop's own correction to the rule.
+ *
+ * > *"laminex and polytecs boards are material dependant. Generally allow 20mm in length and 10mm
+ * > in width for MD finish boards."*
+ *
+ * So `2400 × 1200` is **2410 × 1205** on a carcass board and **2420 × 1210** on an MD finish one.
+ * A single global rule would have put every decorative door board 10mm short on the length and 5 on
+ * the width — a part per sheet on a long run.
+ *
+ * The set of "MD finish boards" is a **list**, not a rule over substrate strings: the phrase is a
+ * trade one and the set it names is a judgement, so it is written down where it can be checked at a
+ * glance and corrected in one line.
+ */
+describe('the MD finish allowance', () => {
+  it('runs 20 and 10 where a carcass board runs 10 and 5', () => {
+    const walnut = AU_SHEET_MATERIALS.find((m) => m.id === 'poly-florentine-walnut-16')!;
+    expect(walnut.sheets.map((s) => [s.length, s.width])).toContainEqual([2420, 1210]);
+
+    const white = AU_SHEET_MATERIALS.find((m) => m.id === 'hmr-white-16')!;
+    expect(white.sheets.map((s) => [s.length, s.width])).toContainEqual([2410, 1205]);
+  });
+
+  it('carries the long Polytec board, now that it is confirmed stock', () => {
+    /*
+     * *"3115 is a typical polytec size."* The machine's MDF door programs ran on one and it was
+     * deliberately left out until that answer arrived — a stock size nobody has confirmed puts a
+     * board on an order that may not exist. Stated as measured, so it takes no allowance on top.
+     */
+    const door = AU_SHEET_MATERIALS.find((m) => m.id === 'poly-classic-white-door-18')!;
+    expect(door.sheets.map((s) => [s.length, s.width])).toContainEqual([3115, 1205]);
+  });
+
+  it('leaves raw MDF and the 1mm laminate off the list', () => {
+    // "MD **finish** board" — raw MDF has no finish, and the laminate is not a board at all.
+    expect(MD_FINISH_BOARDS).not.toContain('mdf-raw-18');
+    expect(MD_FINISH_BOARDS).not.toContain('laminate-1mm');
+  });
+
+  it('grows a saved job by the figure its own material takes, not by one figure', () => {
+    /*
+     * **The assertion that says "material dependent" reached the migration.** It was keyed on the
+     * size alone for one commit, before the shop answered — and a size-keyed map cannot give two
+     * answers for 2400 × 1200. Both halves are checked in the same job, because getting one right
+     * and the other wrong is what a shared table would have done.
+     */
+    resetIdCounter();
+    const raw = JSON.parse(JSON.stringify(createSampleKitchen(AU_SHOP_STANDARDS))) as Record<string, unknown>;
+    const materials = raw.materials as Record<string, unknown>;
+    const old = {
+      ...raw,
+      schemaVersion: 31,
+      materials: {
+        ...materials,
+        sheets: (materials.sheets as Record<string, unknown>[]).map((m) => ({
+          ...m,
+          sheets: (m.sheets as Record<string, unknown>[]).map((s) =>
+            (s.length === 2410 && s.width === 1205) || (s.length === 2420 && s.width === 1210)
+              ? { ...s, length: 2400, width: 1200 }
+              : s,
+          ),
+        })),
+      },
+    };
+    const migrated = migrateProject(old);
+    const sizes = (id: string) =>
+      migrated.materials.sheets.find((m) => m.id === id)!.sheets.map((s) => [s.length, s.width]);
+    expect(sizes('hmr-white-16')).toContainEqual([2410, 1205]);
+    expect(sizes('poly-florentine-walnut-16')).toContainEqual([2420, 1210]);
   });
 });

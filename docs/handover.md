@@ -151,7 +151,7 @@ Section 4 records how each works and why; section 5 is what is actually left to 
 ```
 npm install
 npm run dev       # the app
-npm test          # 1037 tests
+npm test          # 1041 tests
 npm run build
 npm run report    # cutlist, hardware BOM, drilling, nest, G-code and costing for the sample kitchen
 npm run report -- shaker-57    # the same kitchen with routed fronts
@@ -3695,16 +3695,33 @@ below the overcut.
    `REAL_SHEET_SIZES` rather than editing a material** when the rest arrive: an entry there repairs
    saved jobs as well as new ones, where a library edit alone reaches only the new.
 
-   **What is left is data nobody in the repo has:** the published ranges. `unconfirmedSheetSizes`
-   names the two footprints still stated at their usable area — **3600 × 1800** and the imported
-   **2440 × 1220** — and they are deliberately left small rather than grown by the rule, because
-   **the direction of a guess decides it**: a sheet stated smaller than it is nests conservatively
-   and buys the odd extra board, and one stated larger places a part that does not fit and cuts it
-   short. An inconvenience against a remake.
+   **The shop then corrected the rule itself, and the correction is the important half:**
 
-   Also still open: **whether 3115 × 1205 is a stock size or a cut-down.** The MDF door programs ran
-   on one and it is not in the library, because adding a stock size nobody has confirmed would put
-   a board on an order that may not exist.
+   > *"laminex and polytecs boards are material dependant. Generally allow 20mm in length and 10mm
+   > in width for MD finish boards."* — and, asked what MD meant: *"MDF"*.
+
+   So `2400 × 1200` is **2410 × 1205** on a carcass board and **2420 × 1210** on an MD finish one.
+   **A single global rule would have put every decorative door board 10mm short on the length and 5
+   on the width** — a part per sheet on a long run. It also broke the migration written an hour
+   earlier, which keyed its map on the **size alone**: no size-keyed table can give two answers for
+   2400 × 1200. That is worth keeping, because the size looked like the obvious key right up until
+   the fact arrived that made it impossible.
+
+   `MD_FINISH_BOARDS` is a **list rather than a rule over substrate strings** — the set is a
+   judgement, and a list can be read at a glance and corrected in one line where a query quietly
+   captures the next material somebody adds. Both the library and the migration read it.
+
+   **3115 × 1205 is in**, confirmed twice: the MDF door programs ran on one, and the shop says
+   *"3115 is a typical polytec size."* Stated as measured, so it takes no allowance on top.
+
+   **What is left.** `unconfirmedSheetSizes` names four things, and the fourth is the interesting
+   one: **raw MDF is on the carcass allowance because the shop said "MD *finish* boards"** — but the
+   margin is a pressing trim and has nothing to do with whether the board was finished afterwards,
+   so raw MDF may well take the same 20 and 10. It is left conservative until somebody says, on the
+   rule that decides all of these: **a board stated smaller than it is buys the odd extra sheet, and
+   one stated larger cuts a part short.** The others are the large carcass sheet, the imported
+   2440 × 1220, and `AU_LARGE_MD` — the one figure here that is the rule applied rather than a board
+   anybody has measured.
 
    **The `.nc` files settle the principle and give two real numbers**: the white carcass board is
    **2410.0 × 1205.0 × 16.3** and the MDF door board is **3115.0 × 1205.0 × 18.0**, straight off the

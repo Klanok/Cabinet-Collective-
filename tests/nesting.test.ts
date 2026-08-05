@@ -29,8 +29,10 @@
  *   Polytec Classic White 18mm      16 parts    4.85m²   1 sheet  of 3600×1800 at $168.00 = $168.00
  *                                                                          sheet goods      $720.00
  *
- * A 3600×1800 sheet is 6.48m², so the carcass board comes out at 17.80 ÷ (4 × 6.48) = 68.7% yield
- * and the door board at 4.85 ÷ 6.48 = 74.8%. Both are *measured*. The figure they replace was
+ * A carcass 3600×1800 sheet is 6.48m², so the carcass board comes out at 17.80 ÷ (4 × 6.48) = 68.7%
+ * yield. **The door board's own 3600 × 1800 is 3620 × 1810** — it is an MD finish board and the
+ * shop's allowance for those is 20 and 10 rather than 10 and 5 — so its yield is measured against
+ * 6.5522m². Both are *measured*. The figure they replace was
  * `sheetWastageFactor` at 0.15 — an assumed 85% on every material, every part size and every job.
  *
  * What that estimate charged, for comparison: 17.80 ÷ 0.85 = 20.94m² of carcass at $21.296/m² =
@@ -432,9 +434,19 @@ describe('board is bought by the sheet', () => {
   });
 
   it('never charges a fraction of a sheet', () => {
+    /*
+     * **Each material against its own sheet, not against one figure.** This used to compare every
+     * material to a single 3600 × 1800, which held only while every board was the same size — and
+     * stopped holding the moment the shop said the oversize allowance is *material dependent*. The
+     * door board is an MD finish board and its 3600 × 1800 is really 3620 × 1810, so a shared
+     * constant here would now be asserting the wrong area on a board that is nested correctly.
+     */
+    const nest = nestProject(sample);
     for (const m of costProject(sample).byMaterial) {
       expect(Number.isInteger(m.sheets)).toBe(true);
-      expect(m.boughtM2).toBeCloseTo(m.sheets * SHEET_M2, 9);
+      const nested = nest.byMaterial.find((n) => n.materialId === m.materialId)!;
+      const area = (nested.sheet.length * nested.sheet.width) / 1_000_000;
+      expect(m.boughtM2).toBeCloseTo(m.sheets * area, 9);
     }
   });
 
