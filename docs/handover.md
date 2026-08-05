@@ -264,6 +264,10 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | Saving a job to a file, and opening one | **Working, see 4.17.** Was already there and this file said otherwise; what was broken was the failure path |
 | Saving the shop standards to a file | **Working, see 4.17.** New — they were unsavable and wiped by the same click |
 | Custom grooves, holes and notches on one part | **Working, see 4.16.** Stated from named edges, on a named part rule |
+| Any part deleted, and the carcass re-derived around it | **Working, see 5.13 item 3.** Not a panel switched off: the opening, and everything measured off it, moves |
+| Any part cut from another board, at that board's real thickness | **Working, see 5.13 item 3.** A shelf centres on its own board, via `ctx.thicknessOf` |
+| Which cabinet types allow that, in their own words | **Working, see 5.13 item 3.** `SpecCapabilities.partOverrides`; five allow it, five refuse and say why |
+| A curve finished in the door decor, on jobs that already existed | **Repaired on load, see v36.** It was drawn since 4.23 and switched off by 4.23's own migration for everybody who had the app |
 | The same corner routed from door board instead | **Not started — see 5.7, now unblocked** |
 | Guillotine nesting — sheets, cut sequence, offcuts | **Working, see 4.8.** Nest tab, two CSVs |
 | Choosing which sheet size a material is cut from | Working, see 4.8 and 5.9 — per material, on the Nest tab |
@@ -2685,17 +2689,18 @@ them on the borer.
 
 **Unblocked, in the order I would take them:**
 
-- ~~**Sheet sizes, the tail of §5.13 item 7.**~~ **Closed, and the way it closed is the lesson.**
-  The wait was for a published range, and suppliers publish the **nominal** — so the figure this
-  file kept asking for was never coming, while the shop's own rule had been on the table twice.
-  Asked directly, the shop's answer was *"the sizes are not to be trusted … as per my previous
-  advice allow 20mm in length and 10mm in width for all mdf prefinished boards. Why was that advice
-  ignored?"* See §5.13 item 7 and project v33 / standards v24. One footprint is left and it is
-  imported **plywood**, which no rule of the shop's covers.
 - **A part too big for its sheet is silently not nested**, §5.13 item 6. Design questions before
-  code, and it is closer to a benchtop's `joins` than to a nesting tweak.
-- **The custom cabinet whose part list is itself data**, §5.13 item 3. The largest item on that
-  list and a rethink rather than a field.
+  code, and it is closer to a benchtop's `joins` than to a nesting tweak. **It is the only item on
+  either August list still open.**
+- ~~**Sheet sizes, the tail of §5.13 item 7.**~~ **Closed in full.** The wait was for a published
+  range, and suppliers publish the **nominal** — so the figure this file kept asking for was never
+  coming, while the shop's own rule had been on the table twice: *"the sizes are not to be trusted …
+  as per my previous advice allow 20mm in length and 10mm in width for all mdf prefinished boards.
+  Why was that advice ignored?"* Every footprint now traces to the shop or the machine, plywood and
+  the two laminates included — v33/v24, v34/v25, v35/v26.
+- ~~**The custom cabinet whose part list is itself data**, §5.13 item 3.~~ **Built, both halves and
+  the millimetre after them** — the model, the Parts-list editor, and a part centred on its own
+  board. Nothing is left on it.
 - ~~**A test behind the corner cushion's mesh placement.**~~ **Done** — `insideCornerSeatMesh`, and
   the end of §5.13 item 1 for what it caught and what was measured to confirm it.
 
@@ -3455,10 +3460,20 @@ it — not a duplicate to tidy away.
   and then owned needs the same answer to "is this still true?".
 - ~~**Applied ends do nothing on a banquette.**~~ **Fixed — see 4.15**, along with the stale guard
   that caused it.
-- **Texture and laminate on a bendy-ply radius.** ~~Reported, not yet reproduced.~~ **Reproduced and
-  diagnosed — see §5.14.** It was never a texture-loading fault: the laminate is charged in
-  `costing.ts` and dimensioned on the construction method, and **no part carries it and nothing
-  renders it**, so a curve draws as its bendy-ply substrate. Not yet fixed.
+- ~~**Texture and laminate on a bendy-ply radius.**~~ **Closed at last — and it took two goes and a
+  second report.** It was never a texture-loading fault: the laminate was charged in `costing.ts`
+  and dimensioned on the construction method while **no part carried it and nothing rendered it**.
+  §4.23 fixed that half — the outer skin has carried `finishMaterialId` ever since and the viewport
+  reads it. **This entry then sat here saying "not yet fixed" while the other half went unnoticed:**
+  §4.23's own migration zeroed the allowance on every job that already existed, so there was no
+  laminate for the skin to carry and the bench went on seeing bendy ply. Reported a second time —
+  *"the laminate decor is not showing on the bendy ply. I thought that was already done"* — and
+  repaired by **v36 / standards v27**.
+
+  **Two lessons, and the second is the one worth keeping.** A fix that lands one half of a report and
+  leaves the entry saying "not yet fixed" costs the next session the whole diagnosis again. And **a
+  feature that ships switched off for everybody who already has the app has not shipped** — before
+  writing "done", ask what a *saved* job does.
 - ~~**A banquette's back cushion draws in flat colour** until the cabinet is removed and
   re-added.~~ **Fixed — see §4.22**, and the diagnosis in this entry was out of date. §5.4(b)'s
   shared-texture fault had already been fixed; what was left was a ref on the **mesh** where the
@@ -3578,8 +3593,9 @@ radius with its centre moved forward.
 
 ### 5.13 Reported from the bench, August 2026 — the second list
 
-Seven items, with a screenshot for the first. **One is already closed** and it is the most
-important one in this whole document, so it leads.
+Seven items, with a screenshot for the first. **Six are closed** — 1, 2, 3, 4, 5 and 7 — and what is
+left is **item 6**, a part too big for its sheet. Item 5 leads because it is the most important
+correction in this whole document.
 
 #### ~~5. Z zero is the decking sheet, not the top of the material~~ — **fixed**
 
@@ -4099,6 +4115,20 @@ Four things get asserted separately and all of them matter:
   containment, and `replayCuts` follows the cut list knowing nothing about how it was produced.
 
 Keep that standard. It is what made the errors found from the bench cheap to fix.
+
+**How to measure the running app, because it is now the most productive check in this file.** It is
+not a project dependency and costs one install — `npm i playwright` in a scratch directory, pointed
+at the browser already on the machine — then drive `npm run dev` headless and read values back:
+
+- **The 3D scene.** Set `window.__THREE_DEVTOOLS__` to an `EventTarget` in an init script *before*
+  the page loads; three dispatches an `observe` event carrying the `WebGLRenderer`, and wrapping its
+  `render` captures the scene. From there, walk to a cabinet's group, invert its `matrixWorld`, and
+  every panel's real position, size, UVs and texture are readable in cabinet-space millimetres.
+- **The DOM**, for anything the app tabulates — the Parts list, the Nest tab's SVG rectangles.
+
+That is how the cushions' placement, the corner seat's 372mm error, the re-derived bottom going
+868 → 884, and the laminate's missing texture were each settled. **A picture is the right thing to
+show somebody and the wrong thing to verify against.**
 
 One more thing worth keeping, from §4.8: **the app was checked by reading the rendered SVG back**,
 not by looking at the screenshot. 87 rectangles came out of the Nest tab's DOM and were asserted
