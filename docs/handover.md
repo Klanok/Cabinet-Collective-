@@ -151,7 +151,7 @@ Section 4 records how each works and why; section 5 is what is actually left to 
 ```
 npm install
 npm run dev       # the app
-npm test          # 1024 tests
+npm test          # 1029 tests
 npm run build
 npm run report    # cutlist, hardware BOM, drilling, nest, G-code and costing for the sample kitchen
 npm run report -- shaker-57    # the same kitchen with routed fronts
@@ -2615,13 +2615,28 @@ answered, specified, and never started. It is the only open item somebody has lo
 out in a finished-looking run of seating. Read §5.13 item 1 rather than reasoning from the shape:
 it has been mis-derived twice from one sentence.
 
-**The one with the most value in it: write the Woodtron's second pass.** §4.20 built a profile off twenty-one
-real programs and it is the honest one in this repo, but it writes files whose **parts never come
-free**. The machine cuts every contour on the sheet to a 1.0mm skin and only then takes them all
-through in a second sheet-wide pass — that is what holds each part on the vacuum while its
-neighbours are cut — and `writeSheetProgram` finishes each part before starting the next. It is a
-change to how the writer *walks the operation list*, not a new number, and it is the difference
-between a good draft and a file that can be run. **Nothing blocks it.**
+**~~The one with the most value in it: write the Woodtron's second pass.~~ Done — see below.**
+`writeSheetProgram` now walks the operation list twice: every contour to the 1.0mm skin, then
+`(NEXT OPERATION)` and a sheet-wide sweep taking each skinned perimeter through at a single plunge,
+exactly as the machine's own files have it. It was a change to how the writer *walks* the list
+rather than a new number, as §5.10 said it would be.
+
+**Three things about it are worth keeping.** The second pass is **per sheet, not per part**, and
+that ordering is the only thing an assertion can see: a per-part writer produces the same two
+depths, the same number of times, in the same file, interleaved — so `tests/cam.test.ts` asserts
+that no through cut appears before the marker and no skin cut after it, and counting would have
+passed on the bug. The second pass is a **single plunge**, not a stepped descent, because there is
+only 1mm of board left there. And **`leaveUncut` stays at 1.0**: the fix was never the number, it
+was where the number comes off, and setting it to zero still cuts each part clean out in turn.
+
+**It cleared a stale claim of its own making.** `PARTS DO NOT COME FREE` was the first line of the
+Woodtron profile's `unconfirmed` list and printed at the top of every program the machine was
+handed. It was true, it stopped being true, and it went with the commit that made it false — along
+with the test that pinned it. That is the seventh stale claim in this file and the first that was
+retired *on purpose* rather than caught later.
+
+**It also reaches the KDT**, whose `leaveUncut` is 0.2mm — so its parts did not come free either,
+quietly, and now do.
 
 **One is still waiting on the shop, asked and unanswered:**
 

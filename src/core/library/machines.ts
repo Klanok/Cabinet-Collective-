@@ -313,19 +313,17 @@ export const WOODTRON_DRILL_BANK_WITHOUT_DATUM: Omit<DrillBank, 'datum'> = {
  * `docs/woodtron-dialect.md`, which is twenty-one `.nc` files from one real job, and the section
  * each figure came from is named beside it. Read that document before changing anything here.
  *
- * ## What is still not right, and it is the important paragraph
+ * ## The two passes, which the post now writes
  *
  * The machine cuts a sheet in **two passes over the whole sheet** — every contour down to a 1.0mm
  * onion skin first, and only then a second pass taking them all through to Z−0.2. Not two passes
- * per part. That is what keeps each part held on the vacuum while its neighbours are cut, and the
- * post does not write it: it finishes each part before starting the next.
+ * per part. That is what keeps each part held on the vacuum while its neighbours are cut.
  *
- * So this profile ships with `leaveUncut` at the machine's own **1.0mm first-pass figure**, which
- * means parts come off the machine still attached to the sheet and somebody has to take them
- * through. That is deliberate. Setting it to zero would match the machine's finished depth and
- * would have the post cut each part clean out in turn, freeing the first one under a spinning
- * cutter — which is precisely the failure the two-pass structure exists to prevent. A program that
- * does not finish is an inconvenience; one that drops a part loose is not.
+ * `writeSheetProgram` writes both, so `leaveUncut` at **1.0mm** is now the first-pass figure of a
+ * program that finishes rather than a program that stops half way. **The thing not to do is still
+ * not to do**: setting it to zero matches the machine's finished depth in one pass and cuts each
+ * part clean out in turn, freeing the first one under a spinning cutter. The skin is the point; the
+ * second pass is where it comes off.
  */
 export const WOODTRON_NESTING_ROUTER: MachineProfile = {
   id: 'woodtron-nesting',
@@ -421,10 +419,6 @@ export const WOODTRON_NESTING_ROUTER: MachineProfile = {
   stopSpindle: ['M29', 'G49', 'G0 G53 Z0.'],
 
   unconfirmed: [
-    'PARTS DO NOT COME FREE. The machine cuts every contour on the sheet to a 1.0mm skin and then ' +
-      'takes them all through in a second sheet-wide pass; this post finishes each part before ' +
-      'starting the next, so it writes the first pass only. Take them through by hand, or add the ' +
-      'second pass before running a job on this.',
     'NO HOLES ARE DRILLED. Every drill on this machine lives on the multidrill head, which is ' +
       'switched off, and there is no evidence in the files of a boring bit on the router — so the ' +
       'tool table has none and every hole is reported by name and left out. Drill them on the ' +

@@ -388,21 +388,27 @@ describe('the Woodtron profile, against the files it was read from', () => {
     }
   });
 
-  it('never cuts a part clean out, because the second sheet-wide pass is not written', () => {
+  it('never cuts a part clean out — the skin is the point, and the second pass takes it off', () => {
     /*
      * **The one that would cost a part.** The machine cuts every contour on the sheet to a 1.0mm
      * skin and only then takes them all through, which is what keeps each part held on the vacuum
-     * while its neighbours are cut. This post finishes each part before starting the next, so a
-     * `leaveUncut` of zero here would free the first part under a spinning cutter — matching the
-     * machine's finished depth by doing the one thing its two-pass structure exists to prevent.
+     * while its neighbours are cut. `writeSheetProgram` writes both passes now — but a
+     * `leaveUncut` of zero here would still be wrong, and for the same reason it always was: one
+     * pass at the finished depth cuts each part clean out in turn and frees the first one under a
+     * spinning cutter. The fix was never the number; it was where the number comes off.
      */
     expect(WOODTRON.leaveUncut).toBeGreaterThan(0);
     expect(WOODTRON.leaveUncut).toBe(1.0);
   });
 
-  it('says out loud that parts do not come free, and that no holes are drilled', () => {
-    expect(WOODTRON.unconfirmed[0]).toMatch(/PARTS DO NOT COME FREE/);
-    expect(WOODTRON.unconfirmed[1]).toMatch(/NO HOLES ARE DRILLED/);
+  it('no longer claims parts do not come free, and still says no holes are drilled', () => {
+    /*
+     * **A claim that was true and stopped being true**, which is this codebase's most-repeated
+     * failure — and this one printed at the top of every program the machine was handed. It went
+     * with the commit that made it false. The drill-bank claim is untouched and still true.
+     */
+    expect(WOODTRON.unconfirmed.join(' ')).not.toMatch(/DO NOT COME FREE/);
+    expect(WOODTRON.unconfirmed[0]).toMatch(/NO HOLES ARE DRILLED/);
   });
 
   it('has no boring bit at all, because every drill on this machine is on the bank', () => {

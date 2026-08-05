@@ -215,6 +215,17 @@ export const writeSheetProgram = (
   let currentTool: MachineTool | null = null;
   let currentHead: Head | null = null;
 
+  /**
+   * The perimeters that finish in the second pass — the ones carrying an onion skin.
+   *
+   * Collected up front rather than as the first pass runs, so the header can say how many there
+   * are and the second loop cannot drift out of step with the first.
+   */
+  const skinned = program.operations.filter(
+    (op): op is Extract<Operation, { kind: 'contour' }> =>
+      op.kind === 'contour' && op.purpose === 'perimeter' && (op.leaveUncut ?? 0) > 0,
+  );
+
   const ensureTool = (tool: MachineTool) => {
     const head = headOf(tool);
     if (currentTool && headOf(currentTool) === head && currentTool.pocket === tool.pocket) return;
@@ -260,6 +271,48 @@ export const writeSheetProgram = (
     writeOperation(w, op, profile, tool, program.thickness);
   }
 
+  /*
+   * ## The second pass, and it is per **sheet** rather than per part
+   *
+   * `docs/woodtron-dialect.md` §7, off three files that each hold two parts:
+   *
+   * ```
+   *   (first block)     part A round at Z1.0 ... then part B round at Z1.0
+   *   (NEXT OPERATION)  part A round at Z-0.2 ... then part B round at Z-0.2
+   * ```
+   *
+   * **Every contour on the sheet goes down to the onion skin first, and only then does a second
+   * sweep take them all through.** That is what holds each part on the vacuum while its neighbours
+   * are cut. This writer used to finish each part before starting the next, which is why the
+   * Woodtron profile carried `PARTS DO NOT COME FREE` at the top of every program it wrote: the
+   * first pass was all there was, and somebody had to take them through by hand.
+   *
+   * **The fix is not to set `leaveUncut` to 0.** That matches the machine's finished depth and cuts
+   * each part clean out in turn, freeing the first one under a spinning cutter — the exact failure
+   * the two-pass structure exists to prevent. The onion skin stays; what changes is that the
+   * program now has somewhere to take it off.
+   *
+   * Only perimeters with a skin on them come back. A rebate, a groove or a pocket is finished at
+   * its own depth in the first pass and has no second half, and a profile with `leaveUncut` at zero
+   * is already through — for that one this loop does nothing at all, which is what keeps every
+   * existing program byte-identical.
+   */
+  if (skinned.length > 0) {
+    w.comment('NEXT OPERATION');
+    w.comment(
+      `second pass — ${skinned.length} contour${skinned.length === 1 ? '' : 's'} taken through, ` +
+        'after every one of them has been cut to the skin. Parts stay on the vacuum until here.',
+    );
+    for (const op of skinned) {
+      const tool = findMachineTool(profile, op.toolId);
+      // A missing tool was already reported by name in the first pass; saying it twice adds
+      // nothing and a second `SKIPPED` line reads like a second fault.
+      if (!tool) continue;
+      ensureTool(tool);
+      writeThroughPass(w, op, profile, tool, program.thickness);
+    }
+  }
+
   if (currentTool) for (const line of profile.stopSpindle) w.push(line);
   for (const line of profile.postamble) w.push(line);
 
@@ -268,6 +321,39 @@ export const writeSheetProgram = (
     filename: `${jobName.replace(/[^\w-]+/g, '-').toLowerCase()}-${program.materialId}-${program.sheetIndex}${profile.fileExtension}`,
     warnings,
   };
+};
+
+/**
+ * One contour's second pass: straight down through the skin, once round, out.
+ *
+ * **A single depth pass, deliberately, where the first pass steps down.** There is only
+ * `leaveUncut` of material left here — 1.0mm on the Woodtron — so stepping it down in
+ * `maxDepthOfCut` bites would write a stack of passes through air to reach a millimetre of board.
+ * The machine's own files plunge straight to `Z-0.2` and go once round, and that is what this is.
+ *
+ * The depth is the through depth for the head the tool is on, not the sheet's thickness: the two
+ * heads have their own overcut into the spoilboard, which is `HeadProfile`'s whole reason for
+ * existing.
+ */
+const writeThroughPass = (
+  w: Writer,
+  op: Extract<Operation, { kind: 'contour' }>,
+  profile: MachineProfile,
+  tool: MachineTool,
+  thickness: Mm,
+) => {
+  const head = headOf(tool);
+  const clearance = zClearance(profile, head, thickness);
+  const plunge = zPlunge(profile, head, thickness);
+  const z = zAtDepth(profile, throughDepth(profile, head, thickness, thickness, true), thickness);
+  const start = op.path[0]!;
+
+  w.comment(`${op.partName} ${op.purpose} — through`);
+  w.push(`G0 X${n(start.x)} Y${n(start.y)}`);
+  w.push(`G0 Z${n(plunge)}`);
+  w.push(`G1 Z${n(z)} F${tool.plungeFeed}`);
+  contourPass(w, op.path, op.closed, z, tool.feed);
+  w.push(`G0 Z${n(clearance)}`);
 };
 
 const writeOperation = (
