@@ -20,13 +20,24 @@
  * Which is the shop's rule exactly — 10mm over on the length, 5 over on the width — so the rule is
  * measured on the one size anybody has measured, rather than taken on trust.
  *
- * ## And only that one size moves
+ * ## The allowance is a rule about a class of board, so every board of that class takes it
  *
- * **The direction of a guess is what decides it here.** A sheet stated *smaller* than it is nests
- * conservatively and buys the odd extra board; one stated *larger* places a part that does not fit
- * and cuts it short. An inconvenience against a remake. So 3600 × 1800 and 2440 × 1220 stay at the
- * usable figure and `unconfirmedSheetSizes` names them, exactly as `indicativePricing` names money
- * nobody has checked.
+ * ```
+ *   carcass and melamine   +10 / +5     2400 × 1200 → 2410 × 1205    3600 × 1800 → 3610 × 1805
+ *   any MDF board          +20 / +10    2400 × 1200 → 2420 × 1210    3600 × 1800 → 3620 × 1810
+ * ```
+ *
+ * v32 moved only the size the machine had measured and left the rest at the usable area, on the
+ * argument that applying a measured rule to an unmeasured sheet is a guess in the direction that
+ * cuts a part short. **The shop overruled that**, and the correction is worth keeping because the
+ * app had been applying the rule and disclaiming it at the same time:
+ *
+ * > *"the sizes are not to be trusted … as per my previous advice allow 20mm in length and 10mm in
+ * > width for all mdf prefinished boards. Why was that advice ignored?"*
+ *
+ * Suppliers publish the nominal, so the published figure everyone was waiting on was never coming.
+ * What is left on `unconfirmedSheetSizes` is imported **plywood**, which is not board and which
+ * neither allowance is stated for.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -59,15 +70,26 @@ describe('the shipped sheet sizes', () => {
     expect(sizesOf('hmr-white-16')).not.toContainEqual([2400, 1200]);
   });
 
-  it('leaves the sizes nobody has measured alone, and says which they are', () => {
+  it('takes the shop’s allowance on the large board too, at its own class’s figure', () => {
+    // The rule is stated per class of board rather than per size, so both sizes of both classes
+    // take it. A carcass sheet at 3610 × 1805; the same nominal board in MDF at 3620 × 1810.
+    expect(sizesOf('hmr-white-16')).toContainEqual([3610, 1805]);
+    expect(sizesOf('hmr-white-16')).not.toContainEqual([3600, 1800]);
+    expect(sizesOf('mdf-raw-18')).toContainEqual([3620, 1810]);
+  });
+
+  it('flags only the footprint no rule of the shop’s covers', () => {
     /*
-     * **Not an oversight, and the assertion says so.** Applying the +10/+5 rule to 3600 × 1800
-     * would be a guess in the dangerous direction: a sheet stated larger than it is places a part
-     * that does not fit. Conservative is an extra board; optimistic is a remake.
+     * **The list used to name three and two of them were the shop's own rule.** Printing a caution
+     * against advice the shop had given twice is the app declining to take the answer it had — and
+     * it is what sent a session hunting for published sizes that do not exist. What is left is
+     * imported plywood: not board, so neither allowance is stated for it.
      */
-    expect(sizesOf('hmr-white-16')).toContainEqual([3600, 1800]);
-    expect(unconfirmedSheetSizes.join(' ')).toContain('3600');
+    expect(unconfirmedSheetSizes).toHaveLength(1);
     expect(unconfirmedSheetSizes.join(' ')).toContain('2440');
+    expect(unconfirmedSheetSizes.join(' ')).toContain('plywood');
+    expect(unconfirmedSheetSizes.join(' ')).not.toContain('3600');
+    expect(unconfirmedSheetSizes.join(' ')).not.toContain('3620');
   });
 
   it('does not touch what a sheet costs', () => {
@@ -107,12 +129,32 @@ describe('a job saved against the usable area', () => {
     expect(white.sheets.map((s) => [s.length, s.width])).not.toContainEqual([2400, 1200]);
   });
 
-  it('leaves a size that was never the usable area exactly where it is', () => {
-    // The invariant that keeps this from being a blanket resize: only the mapped size moves.
+  it('grows the large carcass sheet as well, at the carcass figure and not the MDF one', () => {
+    /*
+     * The invariant that keeps this from being a blanket resize: the table is keyed by class *and*
+     * size, so one nominal board gives two answers. 3620 × 1810 here would be the MDF allowance on
+     * a carcass sheet — 10mm of board that is not there, which is the direction that cuts short.
+     */
     resetIdCounter();
     const migrated = migrateProject(asV31(createSampleKitchen(AU_SHOP_STANDARDS)));
     const white = migrated.materials.sheets.find((m) => m.id === 'hmr-white-16')!;
-    expect(white.sheets.map((s) => [s.length, s.width])).toContainEqual([3600, 1800]);
+    expect(white.sheets.map((s) => [s.length, s.width])).toContainEqual([3610, 1805]);
+    expect(white.sheets.map((s) => [s.length, s.width])).not.toContainEqual([3620, 1810]);
+    expect(white.sheets.map((s) => [s.length, s.width])).not.toContainEqual([3600, 1800]);
+  });
+
+  it('reaches a job that had already been repaired once, at v32', () => {
+    /*
+     * **The half that decides whether this reaches anybody.** v32 ran the same repair, so a job
+     * saved since then is already at the current version with the old large sheet in it and nothing
+     * left to fix it — which is §4.22's fault exactly, one chain along. v33 exists to re-run it.
+     */
+    resetIdCounter();
+    const v32 = { ...asV31(createSampleKitchen(AU_SHOP_STANDARDS)), schemaVersion: 32 };
+    const migrated = migrateProject(v32);
+    expect(migrated.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
+    const white = migrated.materials.sheets.find((m) => m.id === 'hmr-white-16')!;
+    expect(white.sheets.map((s) => [s.length, s.width])).toContainEqual([3610, 1805]);
   });
 
   it('never buys more board than it did — the re-price only runs one way', () => {
@@ -124,7 +166,9 @@ describe('a job saved against the usable area', () => {
      * when the parts were close to filling one.
      */
     resetIdCounter();
-    const old = migrateProject({ ...asV31(createSampleKitchen(AU_SHOP_STANDARDS)), schemaVersion: 32 }) as Project;
+    const old = JSON.parse(JSON.stringify(
+      migrateProject({ ...asV31(createSampleKitchen(AU_SHOP_STANDARDS)), schemaVersion: 33 }),
+    )) as Project;
     resetIdCounter();
     const now = migrateProject(asV31(createSampleKitchen(AU_SHOP_STANDARDS)));
     const sheets = (p: Project) =>
@@ -148,7 +192,6 @@ describe('a job saved against the usable area', () => {
         ...settings,
         nesting: {
           ...(settings.nesting as Record<string, unknown>),
-          // A carcass board whose 3600 × 1800 nobody has measured, so it does not move.
           sheetSizes: { 'hmr-white-16': '2400x1200', 'hmr-white-18': '3600x1800' },
         },
       },
@@ -156,8 +199,8 @@ describe('a job saved against the usable area', () => {
     const migrated = migrateProject(withChoice);
     expect(migrated.settings.nesting.sheetSizes).toEqual({
       'hmr-white-16': '2410x1205',
-      // Untouched, because that size does not move on a carcass board.
-      'hmr-white-18': '3600x1800',
+      // Both sizes move now, so both choices have to move with them.
+      'hmr-white-18': '3610x1805',
     });
     // And the key it now points at is a size the material really has.
     const white = migrated.materials.sheets.find((m) => m.id === 'hmr-white-16')!;

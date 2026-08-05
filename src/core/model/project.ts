@@ -42,7 +42,7 @@ import {
   MDF_BOARDS,
 } from '../library/materials.au.ts';
 
-export const CURRENT_SCHEMA_VERSION = 32 as const;
+export const CURRENT_SCHEMA_VERSION = 33 as const;
 
 /**
  * The bendy ply an older job is given when it is migrated forward. It has no curved parts in
@@ -1016,6 +1016,55 @@ const migrateV31toV32 = (raw: Record<string, unknown>): Record<string, unknown> 
 };
 
 /**
+ * v32 → v33: **the shop's allowance is a rule about a class of board, so it applies to all of them.**
+ *
+ * v32 moved the one size the machine had measured and left the rest at their usable area, on the
+ * argument that applying a measured rule to an unmeasured sheet is a guess. `unconfirmedSheetSizes`
+ * then printed a caution against the large carcass sheet and — worse — against the large MDF one,
+ * which was never a guess at all: it is the shop's own *"generally allow 20mm in length and 10mm in
+ * width"*, applied exactly as stated.
+ *
+ * **The shop's verdict on that, asked directly:** *"the sizes are not to be trusted … as per my
+ * previous advice allow 20mm in length and 10mm in width for all mdf prefinished boards. Why was
+ * that advice ignored?"* It had not been ignored in the numbers — every MDF board has shipped at
+ * nominal + 20/10 since v32 — but the app applied the rule and then told the user not to trust it,
+ * and kept asking for a published figure. Suppliers publish the nominal; that figure was never
+ * coming. So the rule is now simply the rule, on both classes:
+ *
+ * ```
+ *   carcass and melamine board   +10 length  +5 width    3600 × 1800  →  3610 × 1805
+ *   any MDF board                +20 length  +10 width   3600 × 1800  →  3620 × 1810   (v32)
+ * ```
+ *
+ * **Only the large carcass sheet actually moves here.** The MDF sizes were already right; what
+ * changes for them is that the app stops disclaiming them.
+ *
+ * **It re-prices, downward, and says so** — the second one in this file to make a job cheaper, for
+ * the same reason v32 did: the job was being quoted for board it did not need. A 3600 × 1800 sheet
+ * that is really 3610 × 1805 may take the same parts on fewer sheets, and §4.8 charges whole sheets
+ * off the count. **No part moves** — a part's size has nothing to do with the sheet it is cut from —
+ * and no cut plan is disturbed, because a nest is derived on every load and never stored.
+ *
+ * The sheet choices are re-keyed with the sizes for the same reason v32 did it: `sheetSizeKey` is
+ * the dimensions, so moving a size would otherwise orphan any material set to be cut from it and
+ * quietly revert that setting to automatic.
+ */
+const migrateV32toV33 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const materials = (raw.materials as Record<string, unknown> | undefined) ?? {};
+  const settings = (raw.settings as Record<string, unknown> | undefined) ?? {};
+  const nesting = (settings.nesting as Record<string, unknown> | undefined) ?? {};
+  return {
+    ...raw,
+    schemaVersion: 33,
+    materials: { ...materials, sheets: withRealSheetSizes(materials.sheets) },
+    settings: {
+      ...settings,
+      nesting: { ...nesting, sheetSizes: withRekeyedSheetChoices(nesting.sheetSizes) },
+    },
+  };
+};
+
+/**
  * The usable-area figures that are really a bigger board — **per class of board, not per size.**
  *
  * The shop's correction, and it is the reason this is two tables rather than one:
@@ -1035,6 +1084,9 @@ const migrateV31toV32 = (raw: Record<string, unknown>): Record<string, unknown> 
 const CARCASS_REAL_SIZES: Record<string, { length: number; width: number }> = {
   // §1 of the dialect doc, off the machine's own sheet declaration on a real job. Measured.
   '2400x1200': { length: 2410, width: 1205 },
+  // The same rule on the large sheet. The shop states its allowance per class of board, not per
+  // size, so this is the rule applied rather than an extrapolation — see v32 → v33.
+  '3600x1800': { length: 3610, width: 1805 },
 };
 
 /** The same sizes on an MD finish board, at the shop's general 20 and 10. */
@@ -1365,6 +1417,7 @@ export const migrateProject = (raw: unknown): Project => {
   if (data.schemaVersion === 29) data = migrateV29toV30(data);
   if (data.schemaVersion === 30) data = migrateV30toV31(data);
   if (data.schemaVersion === 31) data = migrateV31toV32(data);
+  if (data.schemaVersion === 32) data = migrateV32toV33(data);
 
   if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`migrateProject: could not migrate schema version ${String(version)}`);

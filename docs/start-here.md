@@ -11,7 +11,7 @@ transcript. Then read `docs/woodtron-dialect.md` before touching anything under 
 
 ## Where things stand
 
-`main` is green at **1058 tests**. Schema **v32**, shop standards **v23**. Every session's work
+`main` is green at **1060 tests**. Schema **v33**, shop standards **v24**. Every session's work
 lands on `main` through a pull request, so `git log main` is the honest answer to what has shipped —
 check it rather than trusting this paragraph, which is exactly the kind of sentence that goes stale.
 
@@ -47,14 +47,16 @@ part whose true hole positions are known**. Until then every hole is reported by
 
 ## Unblocked, in the order I would take them
 
-1. **The tail of the sheet sizes**, §5.13 item 7. Three footprints are still stated at their usable
-   area and named on `unconfirmedSheetSizes`. Each is one line in `CARCASS_REAL_SIZES` or
-   `MD_REAL_SIZES` once somebody reads the published range — and an entry there repairs saved jobs
-   as well as new ones, where a library edit alone reaches only the new.
-2. **A part too big for its sheet is silently not nested**, §5.13 item 6. Design questions before
+1. **A part too big for its sheet is silently not nested**, §5.13 item 6. Design questions before
    code; it is closer to a benchtop's `joins` than to a nesting tweak.
-3. **The custom cabinet whose part list is itself data**, §5.13 item 3. The largest item on the list
+2. **The custom cabinet whose part list is itself data**, §5.13 item 3. The largest item on the list
    and a rethink rather than a field.
+
+**~~The tail of the sheet sizes.~~ Closed, and read §5.13 item 7 before touching any of this.** The
+wait was for a published range; suppliers publish the **nominal**, so that figure was never coming,
+while the shop's rule had been given twice. The app applied it to the MDF boards and printed a
+caution against its own output at the same time. **Do not do that again**: the shop's rule about a
+class of board is the answer for every board of that class.
 
 **~~The cushion meshes.~~ Done, both of them** — `viewport/cushionMesh.ts` (§4.23 and the end of
 §5.13 item 1). **No cushion mesh is built from arithmetic a test cannot read now**, where all three
@@ -87,3 +89,11 @@ anything involving a terminal or GitHub. He runs it on Windows from a ZIP.
 **Ask rather than derive.** Three times recently a shop answer was simpler than the design that was
 about to be built without it — and this codebase's worst shipped feature, the quarter-disc corner
 seat, came from re-deriving one sentence instead of asking about it.
+
+**And when you have been told, that is the answer — apply it and stop asking.** The sheet sizes sat
+open for sessions waiting on a published figure that does not exist, while the shop's rule had been
+given twice; the app applied the rule to the MDF boards and printed a caution against its own output
+in the same breath. *"Why was that advice ignored?"* is a fair question and it cost real time. A rule
+the shop states about a class of thing is the answer for **every** member of that class, and an
+`unconfirmed…` list is for figures nobody has an answer for — not for answers you would prefer to
+have from somewhere else.

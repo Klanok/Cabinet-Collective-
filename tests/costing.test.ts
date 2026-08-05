@@ -100,20 +100,21 @@ describe('GST mode changes the cost base, not just the invoice', () => {
 describe('sheet pricing', () => {
   it('rates a material per square metre off its best-value sheet', () => {
     const material = findSheet(AU_MATERIAL_LIBRARY, 'poly-classic-white-16');
-    // 3600 × 1800 = 6.48 m² at $105 ex-GST.
-    expect(sheetRatePerM2(material)).toBeCloseTo(10_500 / 6.48, 6);
+    // The large carcass-class sheet: 3610 × 1805 = 6.51605 m² at $105 ex-GST.
+    expect(sheetRatePerM2(material)).toBeCloseTo(10_500 / 6.51605, 6);
   });
 
-  it('prefers the 3600×1800 sheet over the 2400×1200 on rate', () => {
+  it('prefers the large sheet over the small one on rate', () => {
     const material = findSheet(AU_MATERIAL_LIBRARY, 'poly-classic-white-16');
     const best = bestValueSheet(material);
-    expect([best.length, best.width]).toEqual([3600, 1800]);
+    // Both are the shop's allowance over the size they are quoted by: 3600 × 1800 → 3610 × 1805.
+    expect([best.length, best.width]).toEqual([3610, 1805]);
   });
 
   it('will not rotate a grained part onto a sheet it only fits sideways', () => {
     const grained = findSheet(AU_MATERIAL_LIBRARY, 'poly-sepia-oak-16');
     expect(grained.grain).toBe('length');
-    // 1700 × 3000 fits a 3600×1800 sheet only if turned 90°, which grain forbids.
+    // 1700 × 3000 fits the large sheet only if turned 90°, which grain forbids.
     expect(smallestSheetFitting(grained, mm(1700), mm(3000))).toBeNull();
 
     const plain = findSheet(AU_MATERIAL_LIBRARY, 'poly-classic-white-16');

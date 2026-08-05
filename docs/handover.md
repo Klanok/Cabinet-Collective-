@@ -181,7 +181,7 @@ Section 4 records how each works and why; section 5 is what is actually left to 
 ```
 npm install
 npm run dev       # the app
-npm test          # 1058 tests
+npm test          # 1060 tests
 npm run build
 npm run report    # cutlist, hardware BOM, drilling, nest, G-code and costing for the sample kitchen
 npm run report -- shaker-57    # the same kitchen with routed fronts
@@ -299,8 +299,8 @@ materials.
 
 **Migrations must never quietly change anyone's parts.** Every migration carries old values
 forward so a saved job cuts exactly as it did; adopting a new default is then a deliberate
-edit. Schema is at **v32**; migrations run in sequence in `model/project.ts`. Shop standards are
-versioned separately and are at **v23** — and they get a *real* migration rather than a
+edit. Schema is at **v33**; migrations run in sequence in `model/project.ts`. Shop standards are
+versioned separately and are at **v24** — and they get a *real* migration rather than a
 rejection, because refusing to load them silently replaces a shop's accumulated kick heights,
 reveals, door styles and saved cabinet types with the shipped Australian defaults.
 
@@ -2668,10 +2668,13 @@ them on the borer.
 
 **Unblocked, in the order I would take them:**
 
-- **Sheet sizes, the tail of §5.13 item 7.** Three footprints are still stated at their usable area
-  and named on `unconfirmedSheetSizes` — the large 3600 × 1800 carcass sheet, the imported
-  2440 × 1220, and `AU_LARGE_MD`. Each is one line in `CARCASS_REAL_SIZES` or `MD_REAL_SIZES` once
-  somebody reads the published range, and an entry there repairs saved jobs as well as new ones.
+- ~~**Sheet sizes, the tail of §5.13 item 7.**~~ **Closed, and the way it closed is the lesson.**
+  The wait was for a published range, and suppliers publish the **nominal** — so the figure this
+  file kept asking for was never coming, while the shop's own rule had been on the table twice.
+  Asked directly, the shop's answer was *"the sizes are not to be trusted … as per my previous
+  advice allow 20mm in length and 10mm in width for all mdf prefinished boards. Why was that advice
+  ignored?"* See §5.13 item 7 and project v33 / standards v24. One footprint is left and it is
+  imported **plywood**, which no rule of the shop's covers.
 - **A part too big for its sheet is silently not nested**, §5.13 item 6. Design questions before
   code, and it is closer to a benchtop's `joins` than to a nesting tweak.
 - **The custom cabinet whose part list is itself data**, §5.13 item 3. The largest item on that
@@ -2748,10 +2751,9 @@ August lists.** What has the clearest shape now:
   The shop supplies *"templates or particleboard substrates"* and only the first costs nothing; a
   substrate is a real part on a real sheet, so adding one changes the parts of every existing
   banquette and wants asking for rather than assuming. It is the obvious next question.
-- **Sheet sizes off Polytec's and Laminex's published ranges**, §5.13 item 7. The machine files
-  proved the principle and gave two real numbers — 2410 × 1205 × 16.3 and 3115 × 1205 × 18.0 — so
-  *"2400 × 1200 is the usable area"* is confirmed rather than asserted. This re-prices every job and
-  wants the same treatment §4.8 got: say so out loud, assert both halves.
+- ~~**Sheet sizes off Polytec's and Laminex's published ranges.**~~ **Done, and not that way** —
+  see §5.13 item 7. The published ranges quote the nominal, so what closed it was the shop's own
+  rule applied to both classes of board rather than a catalogue figure.
 - **A pass over the whole UI.** The user's own words are *"any other user may struggle"*. Bigger and
   vaguer than anything else here, and worth agreeing a definition of done for before starting.
 
@@ -3765,7 +3767,8 @@ below the overcut.
    **The one size anybody has measured is fixed.** `docs/woodtron-dialect.md` §1 has the machine's
    own sheet declaration off a real job — the white carcass board is **2410.0 × 1205.0** — which is
    the shop's rule exactly, 10 over on the length and 5 on the width. `AU_STANDARD` is that figure
-   now, and project **v32** / standards **v23** carry it into saved jobs.
+   now, and project **v32** / standards **v23** carried it into saved jobs; **v33 / v24** finished
+   the job for the large sheet — see below.
 
    **It re-prices *downward*, which is a first here.** Every earlier re-price made a job dearer
    because it was quoted for less than it takes to build; this one is the reverse and the same
@@ -3806,16 +3809,48 @@ below the overcut.
    **3115 × 1205 is in**, confirmed twice: the MDF door programs ran on one, and the shop says
    *"3115 is a typical polytec size."* Stated as measured, so it takes no allowance on top.
 
-   **What is left**, on `unconfirmedSheetSizes`: the large **3600 × 1800 carcass** sheet, the
-   imported **2440 × 1220**, and `AU_LARGE_MD` — the one figure here that is the rule applied rather
-   than a board anybody has measured. All three are left at the conservative figure on the rule that
-   decides every one of these: **a board stated smaller than it is buys the odd extra sheet, and one
-   stated larger cuts a part short.**
+   #### Closed — and how it closed is worth more than the sizes
+
+   **Three footprints sat on `unconfirmedSheetSizes` waiting for "the published range", and that
+   wait was the mistake.** Suppliers publish the **nominal**: 3600 × 1800 is what every catalogue
+   says, so the figure this document kept asking for does not exist. Meanwhile the shop had given
+   the rule twice — 10 and 5 on carcass board, 20 and 10 on any MDF board — and the app was applying
+   it to the MDF sizes **and printing a caution against its own output at the same time**, on the
+   grounds that *"generally allow" is an allowance and not a published size*.
+
+   Asked to go and get the sizes, a session found only that the oversize is real and varies by
+   manufacturer (*"2420 × 1213mm or 3630 × 1213mm … may change with a change in manufacturer"*).
+   The shop's response settled it:
+
+   > *"the sizes are not to be trusted … as per my previous advice allow 20mm in length and 10mm in
+   > width for all mdf prefinished boards. Why was that advice ignored?"*
+
+   **It had not been ignored in the numbers** — every one of the ten `MDF_BOARDS` has shipped at
+   nominal + 20/10 since v32, and `MD_REAL_SIZES` carried it into saved jobs. It was ignored in the
+   app's own voice, which is the half a user actually sees. **Project v33 / standards v24** apply the
+   carcass rule to the large sheet too — 3600 × 1800 → **3610 × 1805** — and cut the caution list
+   from three entries to one.
+
+   **The re-price runs downward again**, the same shape as v32: no part moves, no cut plan is
+   disturbed, and a job that was quoted for board it did not need may now fit on fewer sheets. The
+   sample kitchen does not change — 4 carcass sheets either way — which is the honest outcome and
+   why the assertion is a **direction** rather than a figure.
+
+   **v33 exists because v32 already ran.** A job saved since v32 is at the current version with the
+   old large sheet in it and nothing left to repair it — §4.22's fault, one chain along — so the
+   repair had to be re-run under a new version rather than added to the old table.
+
+   **What is left is one footprint**: imported **2440 × 1220**, which carries the birch ply and the
+   three bendy plys. It is **plywood, not board**, and both of the shop's allowances are stated for
+   board — so no rule covers it and it stays at the conservative figure, on the rule that decides
+   every one of these: **a board stated smaller than it is buys the odd extra sheet, and one stated
+   larger cuts a part short.** This document had it filed under sheet sizes as though it were board;
+   it is not.
 
    **The `.nc` files settle the principle and give two real numbers**: the white carcass board is
    **2410.0 × 1205.0 × 16.3** and the MDF door board is **3115.0 × 1205.0 × 18.0**, straight off the
    machine's own sheet declaration. So the shop's rule is exactly right — 10mm over on the length,
-   5mm over on the width. The published sizes are still wanted for the rest of the range, and
+   5mm over on the width. The published sizes turned out not to be wanted after all, and
    whether 3115 is a stock size or a cut-down wants checking.
 
 **Asked for and declined, recorded so nobody picks it back up as an oversight:** the particleboard
