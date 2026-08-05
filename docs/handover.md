@@ -181,7 +181,7 @@ Section 4 records how each works and why; section 5 is what is actually left to 
 ```
 npm install
 npm run dev       # the app
-npm test          # 1068 tests
+npm test          # 1081 tests
 npm run build
 npm run report    # cutlist, hardware BOM, drilling, nest, G-code and costing for the sample kitchen
 npm run report -- shaker-57    # the same kitchen with routed fronts
@@ -3708,10 +3708,55 @@ below the overcut.
    **done, see §4.21.**
 
 3. **The custom cabinet is not custom enough.** Wanted: add and delete *any* part — left end, back,
-   bottom, each individually — and choose the material **per part**. This is the largest item on the
-   list and it is a rethink of what `customCabinet.ts` is, not a field: today a spec declares a
-   fixed set of part rules and §4.15 made each spec declare what it supports. A cabinet whose part
-   list is itself data is a different shape of object.
+   bottom, each individually — and choose the material **per part**.
+
+   #### The model is built — `model/partOverride.ts`, and it was not the rewrite this said it was
+
+   Two answers from the shop decided the shape, and both are bigger than they sound:
+
+   > *"if you delete an end it re-derives"*
+
+   > *"genuinely different thicknesses depending on real world availability"*
+
+   **They land on the same two figures.** `interiorWidth` was `W − 2t` and every horizontal was
+   placed at `x = ctx.t` — one thickness, twice, on the assumption that a carcass has two sides and
+   they are the same board. `RuleContext.shell` replaces the assumption with the four parts that are
+   really there, at the boards they are really cut from, and **zero is load-bearing**: a missing side
+   takes nothing out of the opening and the interior starts at the cabinet's own face, with no branch
+   anywhere downstream.
+
+   So a deleted end is **not a panel switched off**. On a 600 cabinet the bottom goes from 568
+   starting at x = 16 to **584 starting at x = 0**, and the right side does not move — the cabinet is
+   still the width it was drawn at. An 18mm end in a 16mm carcass takes 2mm more out of the opening
+   and everything measured off it follows.
+
+   **It is a list keyed by part, on the cabinet** — the same shape as `customFeatures` and for the
+   same reasons, including that panels are derived and never stored. It needs no migration: an
+   absent list is exactly today's cabinet, which is also the first assertion in
+   `tests/partOverrides.test.ts` and what makes the other 1068 tests the control for it.
+
+   **The one to keep:** an omitted part keeps its own index, so deleting shelf 2 of 3 leaves shelf 3
+   addressable as `2`. Renumbering the survivors would silently re-point every override and every
+   custom feature after it — §5.12's stable-key argument, one level down. Four mutations, all
+   caught, and one of them is that renumbering.
+
+   **A bug this found in itself:** the stranded-override check judged an override against the parts
+   that *survived*, so every omission reported itself as naming a part the cabinet does not build.
+   It is judged against what the spec would build now.
+
+   #### What is left on it
+
+   - **No UI.** Nothing in the app can reach any of this yet, which is also why there is no
+     `SpecCapabilities` entry: §4.15's capabilities exist so the app can refuse and explain, and
+     there is nothing to refuse from. **Declare it when the UI lands** — a banquette whose front is
+     deleted is not a banquette, and that sentence belongs in the spec that owns it.
+   - **A part whose placement centres on its own thickness** — a shelf, a divider — is still placed
+     off `ctx.t` rather than off its own board. Omission is unaffected; a per-part *material* on one
+     of those is half a millimetre out on an 18mm board in a 16mm cabinet. The shell parts the shop
+     named are all face-anchored, so they are exact.
+   - **An applied back does not follow a deleted end**, deliberately: it laps the carcass and is the
+     full width by definition. Housed into the sides it would follow the opening like the top does.
+     Worth knowing before somebody reports it.
 
 4. ~~**Woodtron `.nc` files are coming.**~~ **They arrived — twenty-one of them, read up in
    `docs/woodtron-dialect.md`, and the model has since been grown to hold them: see §4.20.**

@@ -202,7 +202,7 @@ export const bottomPanel = (ctx: RuleContext, name = 'Bottom'): PartInstance =>
         name,
         role: 'bottom',
         profile: rectProfile(ctx.interiorWidth, ctx.horizontalDepth),
-        placement: placement(v3(ctx.t, 0, ctx.D), '+X', '-Z'),
+        placement: placement(v3(ctx.interiorX0, 0, ctx.D), '+X', '-Z'),
         material: 'carcass',
         bandedDirections: BAND_FRONT,
         grain: 'any',
@@ -219,7 +219,7 @@ export const topPanel = (ctx: RuleContext, name = 'Top'): PartInstance =>
         name,
         role: 'top',
         profile: rectProfile(ctx.interiorWidth, ctx.horizontalDepth),
-        placement: placement(v3(ctx.t, ctx.H, ctx.interiorBackZ), '+X', '+Z'),
+        placement: placement(v3(ctx.interiorX0, ctx.H, ctx.interiorBackZ), '+X', '+Z'),
         material: 'carcass',
         bandedDirections: BAND_FRONT,
         grain: 'any',
@@ -246,7 +246,7 @@ export const stretcher = (
         name,
         role: 'stretcher',
         profile: rectProfile(ctx.interiorWidth, sw),
-        placement: placement(v3(ctx.t, ctx.H, position === 'front' ? mm(ctx.D - sw) : ctx.interiorBackZ), '+X', '+Z'),
+        placement: placement(v3(ctx.interiorX0, ctx.H, position === 'front' ? mm(ctx.D - sw) : ctx.interiorBackZ), '+X', '+Z'),
         material: 'carcass',
         bandedDirections: banding,
         grain: 'any',
@@ -294,7 +294,7 @@ export const backPanel = (ctx: RuleContext, name = 'Back'): PartInstance[] => {
     // Applied: covers the whole rear face. Inset: fits between the sides and the horizontals.
     const length = applied ? ctx.W : ctx.interiorWidth;
     const width = applied ? ctx.H : ctx.interiorHeight;
-    const origin = applied ? v3(0, 0, 0) : v3(ctx.t, ctx.t, 0);
+    const origin = applied ? v3(0, 0, 0) : v3(ctx.interiorX0, ctx.interiorY0, 0);
     return [
       {
         name,
@@ -322,7 +322,7 @@ export const backPanel = (ctx: RuleContext, name = 'Back'): PartInstance[] => {
       name,
       role: 'back',
       profile: rectProfile(length, applied ? ctx.H : ctx.interiorHeight),
-      placement: placement(v3(lo, applied ? mm(0) : ctx.t, 0), '+X', '+Y'),
+      placement: placement(v3(lo, applied ? mm(0) : ctx.interiorY0, 0), '+X', '+Y'),
       material: 'back',
       bandedDirections: BAND_NONE,
       grain: 'any',
@@ -358,7 +358,7 @@ export const adjustableShelves = (ctx: RuleContext, count: number): PartInstance
   if (count <= 0) return [];
   const c = ctx.construction;
   const rad = ctx.radius;
-  const openingBottom = ctx.t;
+  const openingBottom = ctx.interiorY0;
   const openingHeight = ctx.interiorHeight;
   const bow = Math.max(0, ctx.options.shelfBow ?? 0);
 
@@ -370,7 +370,7 @@ export const adjustableShelves = (ctx: RuleContext, count: number): PartInstance
 
   const length = shelf ? shelf.length : mm(ctx.interiorWidth - c.shelfSideClearance);
   const width = shelf ? shelf.width : mm(ctx.horizontalDepth - c.shelfSetback);
-  const leftX = shelf ? shelf.lo : mm(ctx.t + c.shelfSideClearance / 2);
+  const leftX = shelf ? shelf.lo : mm(ctx.interiorX0 + c.shelfSideClearance / 2);
 
   return Array.from({ length: count }, (_, i) => {
     // Evenly divide the opening; a shelf is centred on each division line.
@@ -1114,12 +1114,12 @@ export const dividers = (ctx: RuleContext, count: number): PartInstance[] => {
   if (count <= 0) return [];
   return Array.from({ length: count }, (_, i) => {
     // Bays are equal, so divider i sits on the (i+1)th division of the interior width.
-    const centreX = ctx.t + (ctx.interiorWidth * (i + 1)) / (count + 1);
+    const centreX = ctx.interiorX0 + (ctx.interiorWidth * (i + 1)) / (count + 1);
     return {
       name: count === 1 ? 'Divider' : `Divider ${i + 1}`,
       role: 'divider' as const,
       profile: rectProfile(ctx.interiorHeight, ctx.horizontalDepth),
-      placement: placement(v3(mm(centreX - ctx.t / 2), ctx.t, ctx.interiorBackZ), '+Y', '+Z'),
+      placement: placement(v3(mm(centreX - ctx.t / 2), ctx.interiorY0, ctx.interiorBackZ), '+Y', '+Z'),
       material: 'carcass' as const,
       bandedDirections: BAND_FRONT,
       grain: 'length-along-grain' as const,
@@ -1151,7 +1151,7 @@ export const bayShelves = (
   const bays = dividerCount + 1;
   const width = mm(bayWidth(ctx, dividerCount) - c.shelfSideClearance);
   const depth = mm(ctx.horizontalDepth - c.shelfSetback);
-  const openingBottom = ctx.t;
+  const openingBottom = ctx.interiorY0;
   const openingHeight = ctx.interiorHeight;
 
   const bow = Math.max(0, ctx.options.shelfBow ?? 0);
@@ -1161,7 +1161,7 @@ export const bayShelves = (
     const centreY = openingBottom + (openingHeight * (level + 1)) / (shelfCount + 1);
     for (let bay = 0; bay < bays; bay++) {
       // Left edge of this bay: the interior start, plus the bays and dividers before it.
-      const bayLeft = ctx.t + bay * (bayWidth(ctx, dividerCount) + ctx.t);
+      const bayLeft = ctx.interiorX0 + bay * (bayWidth(ctx, dividerCount) + ctx.t);
       parts.push({
         name: shelfCount === 1 ? `Shelf bay ${bay + 1}` : `Shelf ${level + 1} bay ${bay + 1}`,
         role: 'shelf-adjustable',
@@ -1345,7 +1345,7 @@ export const liftUpPanel = (ctx: RuleContext, clearance: Mm): PartInstance[] => 
    * about a square banquette moves.
    */
   const { lo: openLo, hi: openHi } =
-    rad === null ? span(ctx.t, mm(ctx.W - ctx.t)) : span(rad.farInnerX, rad.endInnerX);
+    rad === null ? span(ctx.interiorX0, mm(ctx.W - ctx.shell.right)) : span(rad.farInnerX, rad.endInnerX);
   const backZ = rad === null ? ctx.interiorBackZ : rad.backZ;
 
   const lo = mm(openLo + c);

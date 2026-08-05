@@ -11,7 +11,7 @@ transcript. Then read `docs/woodtron-dialect.md` before touching anything under 
 
 ## Where things stand
 
-`main` is green at **1068 tests**. Schema **v35**, shop standards **v26**. Every session's work
+`main` is green at **1081 tests**. Schema **v35**, shop standards **v26**. Every session's work
 lands on `main` through a pull request, so `git log main` is the honest answer to what has shipped —
 check it rather than trusting this paragraph, which is exactly the kind of sentence that goes stale.
 
@@ -49,8 +49,10 @@ part whose true hole positions are known**. Until then every hole is reported by
 
 1. **A part too big for its sheet is silently not nested**, §5.13 item 6. Design questions before
    code; it is closer to a benchtop's `joins` than to a nesting tweak.
-2. **The custom cabinet whose part list is itself data**, §5.13 item 3. The largest item on the list
-   and a rethink rather than a field.
+2. **The custom cabinet — the UI half.** §5.13 item 3's model is built: parts can be deleted
+   individually and cut from another board, and a deleted end **re-derives** the carcass rather than
+   switching a panel off. Nothing in the app reaches it yet, and the `SpecCapabilities` entry waits
+   for the UI, because a capability exists so the app can refuse and explain.
 
 **~~The sheet sizes.~~ Closed in full — read §5.13 item 7 before touching any of this.** The wait was
 for a published range; suppliers publish the **nominal**, so that figure was never coming, while the

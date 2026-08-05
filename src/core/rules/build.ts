@@ -5,9 +5,11 @@
  * and every part that depends on it moves, because there is nowhere for a stale copy to hide.
  */
 
-import type { Mm } from '../units.ts';
+import { type Mm, mm } from '../units.ts';
 import { type Cabinet, isRadiused } from '../model/cabinet.ts';
 import { findConstruction } from '../model/construction.ts';
+import { type MaterialLibrary, actualThicknessOf } from '../model/material.ts';
+import { isOmitted, overrideFor, strandedOverrides } from '../model/partOverride.ts';
 import type { GrainConstraint, Panel, PanelRole } from '../model/panel.ts';
 import type { Project } from '../model/project.ts';
 import { profileExtent } from '../geom/profile.ts';
@@ -15,7 +17,9 @@ import { type DoorStyle, resolveDoorStyle } from '../standards/doorStyles.ts';
 import {
   type BuildThicknesses,
   type ResolvedMaterials,
+  type ShellThicknesses,
   buildContext,
+  shellProblems,
   thicknessesFor,
   validateContext,
 } from './context.ts';
@@ -233,6 +237,39 @@ const toPanel = (
   note: instance.note,
 });
 
+/**
+ * The four parts the interior is measured between, as this cabinet really has them.
+ *
+ * **A deleted end is not a panel switched off** — *"if you delete an end it re-derives"* — so it
+ * comes back as zero and the opening grows by exactly the board that is no longer there. A part
+ * cut from another board comes back at that board's real thickness, because the shop's per-part
+ * material is about availability rather than colour: *"genuinely different thicknesses."*
+ *
+ * The four keys are the shared vocabulary every carcass spec already uses (`side-left`,
+ * `side-right`, `bottom`, `top`), which is what lets one mechanism serve every type rather than
+ * the custom cabinet alone.
+ *
+ * Only the **whole-rule** override is read here, not an indexed one: these rules make one part
+ * each, and a shell figure that depended on which index somebody happened to name would be a
+ * different opening for the same cabinet depending on how the override was written.
+ */
+const shellOf = (
+  cabinet: Cabinet,
+  carcassThickness: Mm,
+  library: MaterialLibrary,
+): ShellThicknesses => {
+  const of = (key: string): Mm => {
+    const override = overrideFor(cabinet.partOverrides, key, 0);
+    if (override?.omit === true) return mm(0);
+    if (override?.materialId === undefined) return carcassThickness;
+    const board = library.sheets.find((m) => m.id === override.materialId);
+    // An override naming a board the job does not have falls back to the carcass rather than to
+    // zero: a missing price-list entry must not silently resize the cabinet. It is reported below.
+    return board ? actualThicknessOf(board) : carcassThickness;
+  };
+  return { left: of('side-left'), right: of('side-right'), bottom: of('bottom'), top: of('top') };
+};
+
 export const buildCabinet = (cabinet: Cabinet, project: Project): BuiltCabinet => {
   const spec = getSpec(cabinet.typeId);
   const construction = findConstruction(project.constructions, cabinet.constructionId);
@@ -251,10 +288,14 @@ export const buildCabinet = (cabinet: Cabinet, project: Project): BuiltCabinet =
     options: { ...spec.defaultOptions, ...cabinet.options },
   };
   const thicknesses = thicknessesFor(materials, project.materials);
-  const ctx = buildContext(merged, construction, materials, thicknesses, {
-    library: project.hardware,
-    defaults: project.defaults,
-  });
+  const ctx = buildContext(
+    merged,
+    construction,
+    materials,
+    thicknesses,
+    { library: project.hardware, defaults: project.defaults },
+    shellOf(merged, thicknesses.carcass, project.materials),
+  );
 
   // An appliance space is not a box, so the carcass checks are not questions about it.
   const carcassProblems = spec.isCarcass === false ? [] : validateContext(ctx);
@@ -268,6 +309,7 @@ export const buildCabinet = (cabinet: Cabinet, project: Project): BuiltCabinet =
             '8mm; upgrading will change former radii, skin lengths and price.',
         ]
       : []),
+    ...shellProblems(ctx),
     ...cornerRadiusProblems(ctx, spec),
     ...appliedEndProblems(ctx, spec),
     ...hardwareProblems(ctx),
@@ -301,8 +343,28 @@ export const buildCabinet = (cabinet: Cabinet, project: Project): BuiltCabinet =
    * one resolution point cannot forget a caller.
    */
   const produced: { instance: PartInstance; id: string; key: string; index: number }[] = [];
+  /*
+   * Every part the spec *would* build, before anything is deleted — which is what an override has
+   * to be judged against. Judging against the survivors made every omission report itself as
+   * naming a part the cabinet does not build, which is true and useless: the override is the
+   * reason it is not there.
+   */
+  const offered: PartKey[] = [];
   for (const rule of spec.parts) {
     rule.produce(ctx).forEach((instance, i) => {
+      offered.push({
+        key: rule.key,
+        index: i,
+        panelId: `${cabinet.id}:${rule.key}:${i}`,
+        name: instance.name,
+      });
+      /*
+       * **The index is the part's own, not the survivors'.** Deleting shelf 2 of 3 must leave
+       * shelf 3 addressable as index 2 rather than sliding it to 1 — otherwise deleting one part
+       * silently re-points every override and every custom feature after it, which is §5.12's
+       * whole argument for a stable key repeated one level down.
+       */
+      if (isOmitted(merged.partOverrides, rule.key, i)) return;
       produced.push({ instance, id: `${cabinet.id}:${rule.key}:${i}`, key: rule.key, index: i });
     });
   }
@@ -324,26 +386,45 @@ export const buildCabinet = (cabinet: Cabinet, project: Project): BuiltCabinet =
   const panels: Panel[] = [];
   // A bank of identical drawer fronts would otherwise report the same fallback three times.
   const styleWarnings = new Set<string>();
-  produced.forEach(({ instance, id }, i) => {
+  produced.forEach(({ instance, id, key, index }, i) => {
     const styled = machineFront(instance, doorStyle, thicknesses);
     styled.warnings.forEach((w) => styleWarnings.add(w));
-    panels.push(
-      toPanel(
-        instance,
-        cabinet.id,
-        id,
-        materials,
-        styled,
-        boring.perInstance[i] ?? [],
-        grainForShowPart(instance, merged.options.grainDirection),
-      ),
+    const panel = toPanel(
+      instance,
+      cabinet.id,
+      id,
+      materials,
+      styled,
+      boring.perInstance[i] ?? [],
+      grainForShowPart(instance, merged.options.grainDirection),
     );
+    /*
+     * **The board this one part is cut from, overriding its slot.** It lands on the finished panel
+     * rather than inside the builder for the same reason the door style does: a part comes out of
+     * several places, and one resolution point cannot forget a caller.
+     *
+     * `materialId` is what the cutlist groups by, what the nest buys and what costing prices, so
+     * this one field carries the whole of "cut that end from 18mm" through every downstream reader
+     * without any of them knowing an override exists.
+     */
+    const board = overrideFor(merged.partOverrides, key, index)?.materialId;
+    panels.push(board === undefined ? panel : { ...panel, materialId: board });
   });
 
   return {
     cabinet: merged,
     panels,
-    warnings: [...warnings, ...custom.warnings, ...styleWarnings, ...boring.warnings],
+    warnings: [
+      ...warnings,
+      ...custom.warnings,
+      ...styleWarnings,
+      ...boring.warnings,
+      ...strandedOverrides(merged.partOverrides, offered).map(
+        (o) =>
+          `This cabinet has a setting for "${o.key}${o.index === undefined ? '' : ` ${o.index + 1}`}", ` +
+          'which it does not build. Nothing has been changed by it.',
+      ),
+    ],
     doorStyle,
     hardware: ctx.hardware,
     radius: ctx.radius,

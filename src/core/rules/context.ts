@@ -23,6 +23,35 @@ import {
 } from './hardware.ts';
 
 /** The resolved material ids for one cabinet, defaults already applied. */
+/**
+ * The four carcass parts the interior is measured between, at the thickness each is really cut
+ * from — **or zero where the part is not built at all**.
+ *
+ * This replaces `W − 2t` and `H − 2t`, which said "a carcass has two sides and they are the same
+ * board". Both halves of that turned out to be assumptions the shop does not make:
+ *
+ * > *"if you delete an end it re-derives"*
+ * > *"genuinely different thicknesses depending on real world availability"*
+ *
+ * Zero is load-bearing here rather than a sentinel: a missing side takes nothing out of the
+ * opening and the interior starts at the cabinet's own face, which is exactly what `left = 0`
+ * computes without a branch anywhere downstream.
+ */
+export interface ShellThicknesses {
+  readonly left: Mm;
+  readonly right: Mm;
+  readonly bottom: Mm;
+  readonly top: Mm;
+}
+
+/** Every shell part present and cut from the carcass board — what every cabinet was until now. */
+export const uniformShell = (t: Mm): ShellThicknesses => ({
+  left: t,
+  right: t,
+  bottom: t,
+  top: t,
+});
+
 export interface ResolvedMaterials {
   readonly carcass: string;
   readonly back: string;
@@ -87,6 +116,15 @@ export interface RuleContext {
   readonly ts: Mm;
 
   /** Clear width between the sides. */
+  /**
+   * The shell this cabinet really has — which of the four parts exist, and the board each is cut
+   * from. Everything below is derived from it rather than from `t`.
+   */
+  readonly shell: ShellThicknesses;
+  /** Cabinet-space x where the interior starts: the left end's own board, or 0 if there is none. */
+  readonly interiorX0: Mm;
+  /** Cabinet-space y where the interior starts: the bottom's own board, or 0 if there is none. */
+  readonly interiorY0: Mm;
   readonly interiorWidth: Mm;
   /** Clear height between bottom and top/stretchers. */
   readonly interiorHeight: Mm;
@@ -187,11 +225,19 @@ export const buildContext = (
   materials: ResolvedMaterials,
   thicknesses: BuildThicknesses,
   hardware: HardwareSelection,
+  /**
+   * The shell as overridden, or every part present in the carcass board — which is what every
+   * cabinet was before per-part overrides existed, and what every caller that does not care still
+   * gets by leaving this off.
+   */
+  shell: ShellThicknesses = uniformShell(thicknesses.carcass),
 ): RuleContext => {
   const t = thicknesses.carcass;
   const tb = thicknesses.back;
   const { width: W, height: H, depth: D } = cabinet;
-  const interiorWidth = mm(W - 2 * t);
+  // The opening is what is left between the parts that are really there, at the boards they are
+  // really cut from. With a uniform shell this is `W − 2t` exactly as it always was.
+  const interiorWidth = mm(W - shell.left - shell.right);
   // The clear run a runner has to live in: front edge of the carcass back to the front face of the
   // back panel. The same figure under both back styles, because the back occupies z ∈ [0, tb]
   // either way — what changes between them is how deep the *side* runs, not the opening.
@@ -209,8 +255,11 @@ export const buildContext = (
     tb,
     td: thicknesses.door,
     ts: thicknesses.skin,
+    shell,
+    interiorX0: shell.left,
+    interiorY0: shell.bottom,
     interiorWidth,
-    interiorHeight: mm(H - 2 * t),
+    interiorHeight: mm(H - shell.bottom - shell.top),
     sideDepth: sideDepth(construction, D, tb),
     horizontalDepth: innerDepth,
     // Under both back styles the back occupies z ∈ [0, tb], so the interior starts at tb.
@@ -236,6 +285,34 @@ export const buildContext = (
 
 
 /** Validate driving dimensions before any parts get built. */
+/**
+ * What deleting a shell part costs the cabinet, reported rather than refused.
+ *
+ * **Refusing is the wrong answer here** and that is the whole point of the distinction: the shop
+ * deleted the end deliberately — a run of cabinets sharing one end panel is ordinary joinery — so
+ * a carcass with one side is a cabinet to build, not an error. A carcass with *no* sides is still
+ * something to build and something nobody should discover from a photograph.
+ *
+ * These are warnings, so `buildCabinet` goes on to produce the parts. `validateContext`'s problems
+ * are the other kind: dimensions that cannot produce a meaningful part at all.
+ */
+export const shellProblems = (ctx: RuleContext): string[] => {
+  const problems: string[] = [];
+  if (ctx.shell.left <= 0 && ctx.shell.right <= 0) {
+    problems.push(
+      'Both ends have been deleted, so nothing holds this carcass square — the shelves and the ' +
+        'bottom have nothing to be fixed to. It is still cut as drawn.',
+    );
+  }
+  if (ctx.shell.bottom <= 0 && ctx.shell.top <= 0) {
+    problems.push(
+      'This cabinet has neither a bottom nor a top, so its ends have nothing tying them ' +
+        'together. It is still cut as drawn.',
+    );
+  }
+  return problems;
+};
+
 export const validateContext = (ctx: RuleContext): string[] => {
   const problems: string[] = [];
   if (ctx.interiorWidth <= 0) {
