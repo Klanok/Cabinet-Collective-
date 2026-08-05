@@ -9,6 +9,7 @@
 import type { Mm } from '../units.ts';
 import type { CabinetPlacement } from '../geom/placement.ts';
 import type { CustomFeature } from './partFeature.ts';
+import type { PartOverride } from './partOverride.ts';
 
 /** Identifies which declarative spec builds this cabinet. */
 export type CabinetTypeId =
@@ -337,6 +338,16 @@ export interface Cabinet {
    * the cutouts still on them.
    */
   readonly customFeatures?: readonly CustomFeature[];
+  /**
+   * Parts of this cabinet told to differ from what its spec builds — deleted, or cut from another
+   * board. See `model/partOverride.ts`.
+   *
+   * Here for the same reason `customFeatures` is: a list keyed by part rather than one more
+   * dimension every spec reads, and on the cabinet rather than on the panels, because panels are
+   * derived and never stored. A deleted end **re-derives** the carcass around itself rather than
+   * switching a panel off, which is the shop's own answer and the reason this is not an option.
+   */
+  readonly partOverrides?: readonly PartOverride[];
 }
 
 export const CABINET_TYPE_LABELS: Record<CabinetTypeId, string> = {
