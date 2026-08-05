@@ -37,7 +37,7 @@ import {
 } from '../library/blum.ts';
 import { AU_BENCHTOP_MATERIALS, AU_MATERIAL_LIBRARY, AU_SHEET_MATERIALS } from '../library/materials.au.ts';
 
-export const CURRENT_SCHEMA_VERSION = 31 as const;
+export const CURRENT_SCHEMA_VERSION = 32 as const;
 
 /**
  * The bendy ply an older job is given when it is migrated forward. It has no curved parts in
@@ -965,6 +965,94 @@ const DEFAULT_CORNER_SEAT_DEPTH = 500;
 const DEFAULT_INSIDE_CORNER_RADIUS = 150;
 
 /**
+ * v31 → v32: **a sheet is the board you are handed, not the area you can nest into.**
+ *
+ * From the shop: *"Sheet sizes are wrong — 2400 × 1200 is the usable area, not the sheet."* A sheet
+ * arrives with a ragged margin nobody cuts a part from; 2400 × 1200 is what is left after it. So
+ * the model was taking the trim off **twice** — once by the supplier and again by `sheetEdgeTrim` —
+ * and nesting into an area smaller than the board really is.
+ *
+ * **The figure is confirmed rather than asserted.** `docs/woodtron-dialect.md` §1 has the machine's
+ * own sheet declaration off a real job: the white carcass board is **2410.0 × 1205.0**, which is
+ * the shop's rule exactly — 10mm over on the length, 5 over on the width.
+ *
+ * **Only that one size moves.** The rule holds on the one board anybody has measured and applying
+ * it to the others is a guess, and the direction decides it: a sheet stated *smaller* than it is
+ * nests conservatively and buys the odd extra board, and one stated *larger* places a part that
+ * does not fit and cuts it short. `unconfirmedSheetSizes` names the rest.
+ *
+ * **It re-prices, and downward — which is why it says so.** A job whose parts nested into
+ * 2400 × 1200 may fit the same parts on fewer sheets at 2410 × 1205, and §4.8 charges whole sheets
+ * off the count. Every re-price before this made a job dearer because it was being quoted for less
+ * than it takes to build; this one is the reverse and the argument is the same shape: the job was
+ * being quoted for board it did not need. No part moves — a part's size has nothing to do with the
+ * sheet it is cut from — and no cut plan is disturbed, because a nest is derived on every load and
+ * never stored.
+ *
+ * **The other half is the shop's own choice of sheet size, and it would have gone silently.**
+ * `sheetSizeKey` is the *dimensions* — deliberately, so a choice survives a price change — so
+ * moving a size orphans any material set to be cut from it. `nestMaterial` reports that as
+ * `chosen-unavailable` rather than failing, which is honest but is still a setting somebody made
+ * quietly reverting to automatic. So the stored choices are re-keyed here with the sizes.
+ */
+const migrateV31toV32 = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const materials = (raw.materials as Record<string, unknown> | undefined) ?? {};
+  const settings = (raw.settings as Record<string, unknown> | undefined) ?? {};
+  const nesting = (settings.nesting as Record<string, unknown> | undefined) ?? {};
+  return {
+    ...raw,
+    schemaVersion: 32,
+    materials: { ...materials, sheets: withRealSheetSizes(materials.sheets) },
+    settings: {
+      ...settings,
+      nesting: { ...nesting, sheetSizes: withRekeyedSheetChoices(nesting.sheetSizes) },
+    },
+  };
+};
+
+/**
+ * The usable-area figures that are really a bigger board, keyed the way `sheetSizeKey` keys them.
+ *
+ * One map, read by both halves of the migration and by both version chains, so a size cannot move
+ * in the material list and stay put in somebody's stored choice. **Add to it rather than editing
+ * a material** when the published ranges arrive: an entry here repairs saved jobs as well as new
+ * ones, where a change in `materials.au.ts` alone reaches only the new.
+ */
+const REAL_SHEET_SIZES: Record<string, { length: number; width: number }> = {
+  // §1 of the dialect doc, off the machine's own sheet declaration on a real job.
+  '2400x1200': { length: 2410, width: 1205 },
+};
+
+/** Grow every sheet whose stated size was really its usable area. Prices are untouched. */
+export const withRealSheetSizes = (rawSheets: unknown): unknown => {
+  const sheets = (rawSheets as Record<string, unknown>[] | undefined) ?? [];
+  return sheets.map((material) => {
+    const sizes = (material.sheets as Record<string, unknown>[] | undefined) ?? [];
+    return {
+      ...material,
+      sheets: sizes.map((size) => {
+        const real = REAL_SHEET_SIZES[`${String(size.length)}x${String(size.width)}`];
+        // The price is the price of that board and always was — what was wrong is how big we said
+        // it is. Nothing here touches money directly; the sheet *count* is where it shows up.
+        return real ? { ...size, length: real.length, width: real.width } : size;
+      }),
+    };
+  });
+};
+
+/** Re-point a shop's stored "cut this material from that size" at the size's new key. */
+export const withRekeyedSheetChoices = (rawChoices: unknown): unknown => {
+  const choices = rawChoices as Record<string, string> | undefined;
+  if (!choices) return choices;
+  const out: Record<string, string> = {};
+  for (const [materialId, key] of Object.entries(choices)) {
+    const real = REAL_SHEET_SIZES[key];
+    out[materialId] = real ? `${real.length}x${real.width}` : key;
+  }
+  return out;
+};
+
+/**
  * v11 → v12. **The screen colours, backfilled onto jobs that never had them.**
  *
  * Reported from the bench as "changing the door to Notaio Walnut has done nothing", and the
@@ -1245,6 +1333,7 @@ export const migrateProject = (raw: unknown): Project => {
   if (data.schemaVersion === 28) data = migrateV28toV29(data);
   if (data.schemaVersion === 29) data = migrateV29toV30(data);
   if (data.schemaVersion === 30) data = migrateV30toV31(data);
+  if (data.schemaVersion === 31) data = migrateV31toV32(data);
 
   if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`migrateProject: could not migrate schema version ${String(version)}`);

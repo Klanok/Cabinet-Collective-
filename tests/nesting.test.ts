@@ -815,10 +815,10 @@ describe('choosing the sheet size', () => {
 
   it('cuts the size it is told to, and buys different sheets for it', () => {
     const auto = carcassNest(createSampleKitchen());
-    const forced = carcassNest(withChoice(createSampleKitchen(), '2400x1200'));
+    const forced = carcassNest(withChoice(createSampleKitchen(), '2410x1205'));
 
     expect(forced.sizeChoice).toBe('chosen');
-    expect([forced.sheet.length, forced.sheet.width]).toEqual([2400, 1200]);
+    expect([forced.sheet.length, forced.sheet.width]).toEqual([2410, 1205]);
 
     // A smaller sheet holds less, so the order is for more of them. This is the assertion that
     // makes the setting real rather than cosmetic.
@@ -828,7 +828,7 @@ describe('choosing the sheet size', () => {
 
   it('carries the choice through to what the job is quoted', () => {
     const auto = costProject(createSampleKitchen());
-    const forced = costProject(withChoice(createSampleKitchen(), '2400x1200'));
+    const forced = costProject(withChoice(createSampleKitchen(), '2410x1205'));
     expect(forced.sheetCost).not.toBe(auto.sheetCost);
   });
 
@@ -852,7 +852,7 @@ describe('choosing the sheet size', () => {
   });
 
   it('leaves every other material alone', () => {
-    const project = withChoice(createSampleKitchen(), '2400x1200');
+    const project = withChoice(createSampleKitchen(), '2410x1205');
     for (const m of nestProject(project).byMaterial) {
       if (m.materialId !== CARCASS) expect(m.sizeChoice).toBe('automatic');
     }

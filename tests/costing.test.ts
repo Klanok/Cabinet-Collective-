@@ -123,7 +123,8 @@ describe('sheet pricing', () => {
   it('picks the smallest sheet a part actually fits on', () => {
     const material = findSheet(AU_MATERIAL_LIBRARY, 'poly-classic-white-16');
     const fit = smallestSheetFitting(material, mm(700), mm(500));
-    expect([fit?.length, fit?.width]).toEqual([2400, 1200]);
+    // The real sheet behind the "2400 × 1200" everyone quotes — see `AU_STANDARD`.
+    expect([fit?.length, fit?.width]).toEqual([2410, 1205]);
   });
 });
 

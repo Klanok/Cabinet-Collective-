@@ -34,11 +34,60 @@ const sheet = (length: number, width: number, priceExGst: number): SheetSize => 
   priceExGst,
 });
 
-/** AU standard sheet footprint. */
+/*
+ * ── The sheet footprints, and the difference between a sheet and its usable area ──────────────
+ *
+ * **A `SheetSize` is the board you are handed, not the area you can nest into.** The shop, on the
+ * sizes this library shipped with:
+ *
+ * > *"Sheet sizes are wrong — 2400 × 1200 is the usable area, not the sheet."*
+ *
+ * A sheet comes with a ragged, chipped or out-of-square margin all round it that nobody cuts a
+ * part from. `2400 × 1200` is what is left after it, and stating that as the sheet made the model
+ * take the trim off **twice** — once by the supplier and once by `sheetEdgeTrim`, which then took
+ * a further 6mm off an area that had already lost it. A job could buy a sheet it did not need.
+ *
+ * The two figures the machine settles are read straight off its own sheet declaration in
+ * `docs/woodtron-dialect.md` §1 — a real job, on real board:
+ *
+ * ```
+ *   white carcass board   2410.0 × 1205.0 × 16.3
+ *   MDF door board        3115.0 × 1205.0 × 18.0
+ * ```
+ *
+ * So the shop's rule is **confirmed rather than asserted**: 10mm over on the length, 5mm over on
+ * the width, exactly. `AU_STANDARD` is that figure.
+ *
+ * **`AU_LARGE` is deliberately left alone, and that is not an oversight.** Nothing confirms a
+ * 3600 × 1800 sheet is really 3610 × 1805 — the rule holds on the one size anybody has measured,
+ * and applying it to another is a guess. The direction of the guess is what decides it: a sheet
+ * stated **smaller** than it is nests conservatively and buys the odd extra board, and one stated
+ * **larger** than it is places a part that does not fit and cuts it short. An inconvenience against
+ * a remake. So the unmeasured sizes stay at the usable figure and `unconfirmedSheetSizes` says
+ * which they are, in the report and on screen, until somebody reads them off Laminex's and
+ * Polytec's published ranges.
+ */
+
+/** The full 3600 × 1800 board — still the **usable area**, not the sheet. See above. */
 const AU_LARGE = (price: number) => sheet(3600, 1800, price);
-const AU_STANDARD = (price: number) => sheet(2400, 1200, price);
-/** Imported product runs to the metric-imperial 2440×1220. */
+/** 2410 × 1205 — the real sheet behind the "2400 × 1200" everyone quotes. Off the machine files. */
+const AU_STANDARD = (price: number) => sheet(2410, 1205, price);
+/** Imported product runs to the metric-imperial 2440×1220 — still the usable area. */
 const IMPORTED = (price: number) => sheet(2440, 1220, price);
+
+/**
+ * Footprints that are still the **usable area** rather than the real sheet.
+ *
+ * The same contract `indicativePricing` has for money and `unconfirmedFigures` has for hardware: a
+ * figure nobody has checked is a figure that gets trusted. Each of these nests a little small,
+ * which is the safe direction, and each wants the supplier's published size before a job is cut
+ * tight against it.
+ */
+export const unconfirmedSheetSizes: readonly string[] = [
+  '3600 × 1800 — the usable area. The real board is over on both, by 10 and 5 on the one size the ' +
+    'machine files confirm, but nobody has read this one off a published range.',
+  '2440 × 1220 — imported product, quoted at the metric-imperial size. Same question.',
+];
 
 export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
   /*
