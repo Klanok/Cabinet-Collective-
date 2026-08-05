@@ -7,8 +7,10 @@
  * localisation pass over a US default; it is the baseline.
  *
  * **Those quoted figures are the usable area rather than the board**, which is the correction the
- * next comment down is about: 2400 × 1200 ships as 2410 × 1205 on carcass board and 2420 × 1210 on
- * MDF. The two that are still stated at the usable area say so on `unconfirmedSheetSizes`.
+ * next comment down is about. Every board here is stated at the shop's own allowance over the
+ * quoted size — 10 and 5 on carcass, 20 and 10 on MDF — so 2400 × 1200 ships as 2410 × 1205 or
+ * 2420 × 1210 and 3600 × 1800 as 3610 × 1805 or 3620 × 1810. The imported plywood is the one
+ * footprint neither rule covers, and it says so on `unconfirmedSheetSizes`.
  *
  * Each material also carries a `colour` — roughly what the decor looks like on screen. It is a
  * screen approximation and nothing is cut, priced or ordered from it; the decor *name* is the fact.
@@ -62,14 +64,22 @@ const sheet = (length: number, width: number, priceExGst: number): SheetSize => 
  * So the shop's rule is **confirmed rather than asserted**: 10mm over on the length, 5mm over on
  * the width, exactly. `AU_STANDARD` is that figure.
  *
- * **`AU_LARGE` is deliberately left alone, and that is not an oversight.** Nothing confirms a
- * 3600 × 1800 sheet is really 3610 × 1805 — the rule holds on the one size anybody has measured,
- * and applying it to another is a guess. The direction of the guess is what decides it: a sheet
- * stated **smaller** than it is nests conservatively and buys the odd extra board, and one stated
- * **larger** than it is places a part that does not fit and cuts it short. An inconvenience against
- * a remake. So the unmeasured sizes stay at the usable figure and `unconfirmedSheetSizes` says
- * which they are, in the report and on screen, until somebody reads them off Laminex's and
- * Polytec's published ranges.
+ * **The rule is the shop's, and it is stated per class of board rather than per size** — so it is
+ * applied to every board of its class, which is what "generally allow" means:
+ *
+ * > *"Generally allow 20mm in length and 10mm in width for MD finish boards."*
+ *
+ * These figures used to sit at the usable area on `unconfirmedSheetSizes`, waiting for somebody to
+ * read a published range. **That wait was a mistake and it is over.** The published ranges quote
+ * the nominal — 3600 × 1800 is what every supplier's catalogue says — so waiting for one meant
+ * waiting for a number that does not get published, while the shop had already given the answer.
+ * Two suppliers who do describe the oversize put it at *"2420 × 1213mm or 3630 × 1213mm … may
+ * change with a change in manufacturer"*, which is the shop's own point about it being material
+ * dependent, arriving less precisely. **The shop's rule wins**, and the shop said so: *"the sizes
+ * are not to be trusted."*
+ *
+ * What still has no rule is a footprint no rule of the shop's covers — see `unconfirmedSheetSizes`,
+ * which is now one entry rather than three.
  */
 
 /*
@@ -91,25 +101,19 @@ const sheet = (length: number, width: number, priceExGst: number): SheetSize => 
  * if it is read as "one number".
  */
 
-/**
- * 3600 × 1800 — still the **usable area**, and the one board here that is deliberately left at it.
- *
- * The 10-and-5 rule is measured on `AU_STANDARD` and nothing confirms it holds on this sheet, so
- * applying it would be a guess in the direction that cuts a part short. See the note above and
- * `unconfirmedSheetSizes`, which says so on screen and in the report until somebody reads the
- * published range.
- */
-const AU_LARGE = (price: number) => sheet(3600, 1800, price);
+/** 3610 × 1805 — the shop's 10 and 5 on the large carcass or melamine board. */
+const AU_LARGE = (price: number) => sheet(3610, 1805, price);
 /** 2410 × 1205 — the real sheet behind the "2400 × 1200" everyone quotes. Off the machine files. */
 const AU_STANDARD = (price: number) => sheet(2410, 1205, price);
 
 /*
  * The same two footprints on an **MD finish** board, at the shop's 20 and 10.
  *
- * `AU_LARGE_MD` is the one figure here that is the rule applied rather than a board anybody has
- * measured — but it is the *shop's own* rule for *this class of board*, which is a different thing
- * from the extrapolation `AU_LARGE` deliberately refuses to make. It is still on
- * `unconfirmedSheetSizes`, because "generally allow" is an allowance and not a published size.
+ * Both are the shop's own rule for this class of board, and neither is flagged as doubtful. It used
+ * to say here that "generally allow" was an allowance rather than a published size — so the app
+ * applied the rule and then printed a caution telling the user not to trust it, and kept asking for
+ * a figure suppliers do not publish. The shop's answer to that was short: **the advice stands, and
+ * the published sizes are not to be trusted.**
  */
 const AU_STANDARD_MD = (price: number) => sheet(2420, 1210, price);
 const AU_LARGE_MD = (price: number) => sheet(3620, 1810, price);
@@ -132,7 +136,14 @@ const AU_LARGE_MD = (price: number) => sheet(3620, 1810, price);
  */
 const POLYTEC_LONG = (price: number) => sheet(3115, 1205, price);
 
-/** Imported product runs to the metric-imperial 2440×1220 — still the usable area. */
+/**
+ * 2440 × 1220 — imported **plywood**, at the metric-imperial size everyone quotes it by.
+ *
+ * The one footprint here no rule of the shop's covers: it carries the birch ply and the three bendy
+ * plys, not board, and both allowances above are stated for board. Left at the quoted figure, which
+ * nests conservatively — a sheet stated smaller than it is buys the odd extra board, where one
+ * stated larger cuts a part short.
+ */
 const IMPORTED = (price: number) => sheet(2440, 1220, price);
 
 /**
@@ -171,21 +182,21 @@ export const MDF_BOARDS: readonly string[] = [
 ];
 
 /**
- * Footprints that are still the **usable area** rather than the real sheet.
+ * Footprints no rule of the shop's covers, still quoted at the size they are sold by.
  *
  * The same contract `indicativePricing` has for money and `unconfirmedFigures` has for hardware: a
- * figure nobody has checked is a figure that gets trusted. Each of these nests a little small,
- * which is the safe direction, and each wants the supplier's published size before a job is cut
- * tight against it.
+ * figure nobody has checked is a figure that gets trusted. This one nests a little small, which is
+ * the safe direction.
+ *
+ * **It used to have three entries and two of them should never have been here.** The shop states
+ * its allowance per class of board — 10 and 5 on carcass, 20 and 10 on MDF — so every board of
+ * either class has an answer, and printing a caution against the shop's own rule was the app
+ * declining to take the answer it had been given. Twice. What is left is genuinely uncovered:
+ * plywood is not board, and neither allowance is stated for it.
  */
 export const unconfirmedSheetSizes: readonly string[] = [
-  '3600 × 1800 on a carcass or melamine board — the usable area. The real board is over on both, ' +
-    'by 10 and 5 on the one size the machine files confirm, but nobody has read this one off a ' +
-    'published range.',
-  '2440 × 1220 — imported product, quoted at the metric-imperial size. Same question.',
-  '3620 × 1810 on an MD finish board — the shop\'s "generally allow 20 and 10" applied to the ' +
-    'large sheet. A stated allowance rather than a published size, and the only figure here that ' +
-    'is the rule applied rather than a board somebody has measured.',
+  '2440 × 1220 on imported plywood — the metric-imperial size it is sold by. The shop\'s ' +
+    'allowances are stated for board, so neither covers this one, and nobody has measured a sheet.',
 ];
 
 export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [

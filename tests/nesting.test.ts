@@ -25,14 +25,14 @@
  *
  * 87 parts across two materials.
  *
- *   White HMR particleboard 16mm    71 parts   17.80m²   4 sheets of 3600×1800 at $138.00 = $552.00
- *   Polytec Classic White 18mm      16 parts    4.85m²   1 sheet  of 3600×1800 at $168.00 = $168.00
+ *   White HMR particleboard 16mm    71 parts   17.80m²   4 sheets of 3610×1805 at $138.00 = $552.00
+ *   Polytec Classic White 18mm      16 parts    4.85m²   1 sheet  of 3620×1810 at $168.00 = $168.00
  *                                                                          sheet goods      $720.00
  *
- * A carcass 3600×1800 sheet is 6.48m², so the carcass board comes out at 17.80 ÷ (4 × 6.48) = 68.7%
- * yield. **The door board's own 3600 × 1800 is 3620 × 1810** — it is an MD finish board and the
- * shop's allowance for those is 20 and 10 rather than 10 and 5 — so its yield is measured against
- * 6.5522m². Both are *measured*. The figure they replace was
+ * **Both boards are quoted as "3600 × 1800" and neither is.** The shop's allowance is stated per
+ * class of board, so a carcass sheet is 3610 × 1805 = 6.51605m² and an MD finish board of the same
+ * nominal size is 3620 × 1810 = 6.5522m². The carcass board therefore comes out at
+ * 17.80 ÷ (4 × 6.51605) = 68.3% yield. Both are *measured*. The figure they replace was
  * `sheetWastageFactor` at 0.15 — an assumed 85% on every material, every part size and every job.
  *
  * What that estimate charged, for comparison: 17.80 ÷ 0.85 = 20.94m² of carcass at $21.296/m² =
@@ -98,7 +98,7 @@ import {
   resetIdCounter,
 } from '../src/core/project/factory.ts';
 
-const SHEET_M2 = (3600 * 1800) / 1_000_000;
+const SHEET_M2 = (3610 * 1805) / 1_000_000;
 
 /** Do two blanks overlap? Touching along an edge is not overlapping — that is where the cut is. */
 const overlaps = (a: Rect, b: Rect): boolean =>
@@ -171,7 +171,7 @@ describe('every part gets a home, or is reported', () => {
   });
 
   it('reports a part too big for any sheet rather than losing it', () => {
-    // A 4000mm bench, on a material whose largest sheet is 3600 long. It cannot be cut as drawn.
+    // A 4000mm bench, on a material whose largest sheet is 3610 long. It cannot be cut as drawn.
     const project: Project = {
       ...createEmptyProject('Oversize'),
       cabinets: [
@@ -485,16 +485,16 @@ describe('board is bought by the sheet', () => {
 
 describe('choosing a sheet size', () => {
   it('takes the size that costs least for the material', () => {
-    // White HMR comes in 3600×1800 at $138.00 and 2400×1200 at $63.00. Per m² the big sheet is
-    // $21.30 and the small one $21.88, and the big one also holds the 3000mm plinth rails, so it
-    // wins on both counts.
+    // White HMR is quoted as 3600×1800 at $138.00 and 2400×1200 at $63.00, and the boards are
+    // 3610×1805 and 2410×1205. Per m² the big sheet is $21.18 and the small one $21.69, and the
+    // big one also holds the 3000mm plinth rails, so it wins on both counts.
     const carcass = nestProject(sample).byMaterial.find((m) => m.materialId === 'hmr-white-16')!;
-    expect(carcass.sheet.length).toBe(3600);
-    expect(carcass.sheet.width).toBe(1800);
+    expect(carcass.sheet.length).toBe(3610);
+    expect(carcass.sheet.width).toBe(1805);
   });
 
   it('will not choose a size that cannot hold every part, however cheap it is', () => {
-    // A single 3000mm part on a material whose small sheet is 2400 long. The cheap size is
+    // A single 3000mm part on a material whose small sheet is 2410 long. The cheap size is
     // disqualified by the part rather than by its price.
     const project: Project = {
       ...createEmptyProject('One long part'),
@@ -510,7 +510,7 @@ describe('choosing a sheet size', () => {
       ],
     };
     const carcass = nestProject(project).byMaterial.find((m) => m.materialId === 'hmr-white-16')!;
-    expect(carcass.sheet.length).toBe(3600);
+    expect(carcass.sheet.length).toBe(3610);
     expect(carcass.oversize).toEqual([]);
   });
 });
@@ -822,7 +822,7 @@ describe('choosing the sheet size', () => {
     const nest = carcassNest(createSampleKitchen());
     expect(nest.sizeChoice).toBe('automatic');
     // The sample kitchen's carcass comes out on the large sheet on price.
-    expect([nest.sheet.length, nest.sheet.width]).toEqual([3600, 1800]);
+    expect([nest.sheet.length, nest.sheet.width]).toEqual([3610, 1805]);
   });
 
   it('cuts the size it is told to, and buys different sheets for it', () => {
@@ -844,12 +844,16 @@ describe('choosing the sheet size', () => {
     expect(forced.sheetCost).not.toBe(auto.sheetCost);
   });
 
-  it('may be told to cut the size the search would not have picked', () => {
-    // The point of the control: naming the dearer-per-job size is allowed, because the reason for
-    // it is outside the model.
-    const forced = carcassNest(withChoice(createSampleKitchen(), '3600x1800'));
+  it('reports a choice as chosen even when it lands on the size the search wanted', () => {
+    /*
+     * The point of the control is that it is the shop's call, so it has to *read* as the shop's
+     * call. A choice that agreed with the search and then reported itself as `automatic` would be
+     * a setting that disappears the moment it stops disagreeing — and the next thing that moves a
+     * sheet size would take it with it, silently.
+     */
+    const forced = carcassNest(withChoice(createSampleKitchen(), '3610x1805'));
     expect(forced.sizeChoice).toBe('chosen');
-    expect([forced.sheet.length, forced.sheet.width]).toEqual([3600, 1800]);
+    expect([forced.sheet.length, forced.sheet.width]).toEqual([3610, 1805]);
   });
 
   it('reports a stale choice and nests anyway rather than failing', () => {
