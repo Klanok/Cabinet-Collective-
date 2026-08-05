@@ -11,7 +11,7 @@ transcript. Then read `docs/woodtron-dialect.md` before touching anything under 
 
 ## Where things stand
 
-`main` is green at **1089 tests**. Schema **v35**, shop standards **v26**. Every session's work
+`main` is green at **1093 tests**. Schema **v35**, shop standards **v26**. Every session's work
 lands on `main` through a pull request, so `git log main` is the honest answer to what has shipped —
 check it rather than trusting this paragraph, which is exactly the kind of sentence that goes stale.
 
@@ -53,9 +53,9 @@ it is closer to a benchtop's `joins` than to a nesting tweak.
 **~~The custom cabinet.~~ Built, both halves** — §5.13 item 3. Any part deleted or cut from another
 board, and a deleted end **re-derives** the carcass rather than switching a panel off. The Parts list
 in the Inspector is the editor; a deleted part stays on it, struck through, so it can be put back.
-Base, wall, tall, drawer-bank and custom allow it; the other five refuse in their own words. **What
-is left** is the half-millimetre on a shelf cut from another board — it still centres on the carcass
-thickness rather than its own.
+Base, wall, tall, drawer-bank and custom allow it; the other five refuse in their own words. A part
+that centres on its own thickness — a shelf, a divider — asks `ctx.thicknessOf(i)`, which `build.ts`
+scopes per rule so no builder ever names its own key. **Nothing is left on it.**
 
 **~~The sheet sizes.~~ Closed in full — read §5.13 item 7 before touching any of this.** The wait was
 for a published range; suppliers publish the **nominal**, so that figure was never coming, while the

@@ -305,3 +305,69 @@ describe('editing the list', () => {
     expect(back).toEqual([{ key: 'bottom', index: 0, materialId: 'mdf-raw-18' }]);
   });
 });
+
+/* ── A part that centres on its own thickness ───────────────────────────────────────────────── */
+
+/**
+ * The half-millimetre, and why it is worth a section.
+ *
+ * A shelf sits **on** the division line rather than under it, so it starts at `centre − t/2`. That
+ * `t` was the carcass board for every shelf, whatever it was cut from — so an 18mm shelf in a 16mm
+ * cabinet came out the right size, on the right board, on the right line of the cutlist, and
+ * **1mm low**. Nothing about it looks wrong anywhere: the part is correct and the placement is not,
+ * which is §7's whole argument for asserting occupancy rather than size.
+ *
+ * Worked longhand on a 600 × 720 × 560 cabinet with one shelf, 16mm carcass:
+ *
+ * ```
+ *   opening        y 16 → 704, so the division line is at 16 + 688/2   = 360
+ *   16mm shelf     360 − 8                                            = 352 → 368
+ *   18mm shelf     360 − 9                                            = 351 → 369
+ *   the fault      360 − 8 with an 18mm board                         = 352 → 370, 1mm low
+ * ```
+ */
+describe('a shelf cut from another board', () => {
+  const shelfY = (overrides?: readonly PartOverride[]) => {
+    const u = unit(overrides, { shelfCount: 1 });
+    const shelf = u.built.panels.find((p) => p.role === 'shelf-adjustable')!;
+    return occupies(shelf, u.project).y;
+  };
+
+  it('is centred on the division line, not hung off the carcass thickness', () => {
+    const [lo, hi] = shelfY([{ key: 'shelves', materialId: 'mdf-raw-18' }]);
+    // Straddling 360 evenly: 351 → 369. The fault put it at 352 → 370.
+    expect(hi - lo).toBe(mm(18));
+    expect((lo + hi) / 2).toBeCloseTo(360, 9);
+  });
+
+  it('leaves an ordinary shelf exactly where it was', () => {
+    const [lo, hi] = shelfY();
+    expect(hi - lo).toBe(mm(16));
+    expect((lo + hi) / 2).toBeCloseTo(360, 9);
+  });
+
+  it('centres each shelf on its own board, not on the first one’s', () => {
+    /*
+     * The assertion that separates a per-part lookup from one figure read once. Two shelves, one
+     * overridden: a builder that resolved the thickness once and reused it would put both on the
+     * same offset and pass every size assertion.
+     */
+    // Three shelves, because 688 divides into four by 172 exactly — the division lines are 188,
+    // 360 and 532, so nothing here rests on a rounding tolerance.
+    const u = unit([{ key: 'shelves', index: 0, materialId: 'mdf-raw-18' }], { shelfCount: 3 });
+    const spans = u.built.panels
+      .filter((p) => p.role === 'shelf-adjustable')
+      .map((p) => occupies(p, u.project).y);
+    expect(spans.map(([lo, hi]) => hi - lo)).toEqual([mm(18), mm(16), mm(16)]);
+    expect(spans.map(([lo, hi]) => (lo + hi) / 2)).toEqual([mm(188), mm(360), mm(532)]);
+  });
+
+  it('centres a divider on its own board too', () => {
+    const u = unit([{ key: 'dividers', materialId: 'mdf-raw-18' }], { dividerCount: 1 });
+    const divider = u.built.panels.find((p) => p.role === 'divider')!;
+    const [lo, hi] = occupies(divider, u.project).x;
+    expect(hi - lo).toBe(mm(18));
+    // The interior runs 16 → 584, so one divider straddles its centre at 300.
+    expect((lo + hi) / 2).toBeCloseTo(300, 9);
+  });
+});
