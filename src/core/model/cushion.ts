@@ -9,13 +9,32 @@
  * So the shape is worked out here, where a test in Node can read it, and the viewport extrudes
  * what it is given.
  *
- * **The cushion is measured off the carcass, not off the finished front face.** That is how it
- * has always been drawn — inset from `width` and `depth` — and it is left that way deliberately:
- * moving the cushion forward onto the door plane is a separate question about how far a seat
- * overhangs its front, which nobody has been asked. What follows from it is that the cushion's
- * rounded corner is concentric with the carcass corner in x and sits back from the cabinet's own
- * arc in z by exactly the amount the whole cushion already sits back. It is one soft object with
- * one radius, not two arcs that have to agree to a tenth.
+ * **The cushion is measured off the finished front face, and stands proud of it.** That is the
+ * §5.14 correction and it replaces the opposite rule: the cushion used to be held *inside* every
+ * carcass face by `seatCushionInset`, so you looked down onto a strip of white carcass all the way
+ * round it — reported from the bench as *"standard straight run cushion is exposing the carcass"*.
+ * The shop's answer:
+ *
+ * > *"it should be adjustable — but generally should be 10mm proud of the finish panel/door"*
+ *
+ * **Proud at the front; flush at the ends and the back.** Only the front carries the overhang,
+ * and the reason each of the other three does not is a physical one rather than a simplification:
+ *
+ * - **The back** goes against a wall. A cushion standing proud there is a cushion the wall pushes
+ *   forward.
+ * - **The ends** butt the next unit in the run. Two cushions each 10mm proud of their own end
+ *   overlap by 20, and a run of banquettes is the normal case rather than the exception.
+ * - **A finished end does not change that**, and this codebase already says so: `banquette.ts`
+ *   describes an applied end's top edge as sitting *"at seat height with a cushion beside it"*.
+ *   Beside, not under.
+ *
+ * ## The rounded corner falls out, rather than needing a rule of its own
+ *
+ * Front proud by `o` and end flush would look like two edges that cannot be joined. They join
+ * exactly: the cushion's fillet is the **same radius** as the carcass arc with its centre moved
+ * forward by `o`. That arc is tangent to the cushion's own front edge (`z1`) and to the cabinet's
+ * end face, so the overhang eases from `o` at the front tangent to nothing at the end tangent —
+ * which is what a soft corner does. One arc, one radius, no second number to keep in step.
  *
  * ## The lineal metres are here for a sharper reason
  *
@@ -60,8 +79,18 @@ export interface SeatCushionPlan {
 export interface SeatCushionInput {
   readonly W: Mm;
   readonly D: Mm;
-  /** How far the cushion is held in from every face of the carcass. */
-  readonly inset: Mm;
+  /**
+   * Cabinet-space z of the finished front face — the front of the fixed front panel, which is
+   * `RuleContext.finishedFrontZ`.
+   *
+   * **Passed in rather than derived from `D`.** The overhang is stated against *the finish panel*,
+   * and how far that stands in front of the carcass is the construction method's business: a
+   * standoff plus a board, both of which a shop can change. Working it out here would be a second
+   * opinion about where the front of the kitchen is, and the one that goes stale.
+   */
+  readonly finishedFrontZ: Mm;
+  /** How far the cushion stands proud of that finished front. Shipped at the shop's 10mm. */
+  readonly overhang: Mm;
   /**
    * The cabinet's **resolved** finished corner radius, or null.
    *
@@ -73,11 +102,12 @@ export interface SeatCushionInput {
 }
 
 export const seatCushionPlan = (input: SeatCushionInput): SeatCushionPlan => {
-  const inset = mm(Math.max(0, input.inset));
-  const x0 = inset;
-  const x1 = mm(input.W - inset);
-  const z0 = inset;
-  const z1 = mm(input.D - inset);
+  const overhang = mm(Math.max(0, input.overhang));
+  // Flush at both ends and at the back; proud of the finished front by the overhang.
+  const x0 = mm(0);
+  const x1 = input.W;
+  const z0 = mm(0);
+  const z1 = mm(input.finishedFrontZ + overhang);
   const width = mm(Math.max(0, x1 - x0));
   const depth = mm(Math.max(0, z1 - z0));
 
@@ -87,14 +117,19 @@ export const seatCushionPlan = (input: SeatCushionInput): SeatCushionPlan => {
   }
 
   /*
-   * The cushion's own radius, held in from the finished curve by the same inset as the rest of
-   * it, and never more than the cushion has room to turn — a rounded corner needs its radius to
-   * fit within the rectangle on both axes, and at the limit the cushion is a quarter disc.
+   * **The cushion's radius is the carcass's radius, unchanged**, and that is the whole of the
+   * corner. Front proud and end flush is one arc of radius `r` whose centre has moved forward by
+   * the overhang: still tangent to the cushion's front edge at `z1`, still tangent to the
+   * cabinet's end face. It used to be `r − inset`, which was right for a cushion held inside
+   * every face and is wrong for one that is only held off the front.
+   *
+   * Never more than the cushion has room to turn — a rounded corner needs its radius to fit
+   * within the rectangle on both axes, and at the limit the cushion is a quarter disc.
    *
    * Clamped rather than reported: this is a soft part in a picture, and a radius the cabinet
    * cannot turn has already been reported against the carcass, in the warnings, in millimetres.
    */
-  const radius = mm(Math.min(input.round.radius - inset, width, depth));
+  const radius = mm(Math.min(input.round.radius, width, depth));
   if (radius <= 0) return { x0, x1, z0, z1, width, depth, round: null, endRun: full };
 
   const round = { corner: input.round.corner, radius };
@@ -160,9 +195,19 @@ export const returnRun = (
  * Its own function because the corner unit's cushion is not `seatCushionPlan` — that describes a
  * rectangle with at most one rounded corner, and this is a quarter circle. Both the mesh and the
  * charge need the one number.
+ *
+ * **It goes flush and takes no overhang, and that is deliberate rather than an omission.** The
+ * disc's arc is its front, but its two straight edges are radii of the same circle: grow the
+ * radius to push the arc 10mm into the room and both straight edges grow with it, 10mm into the
+ * banquette either side. So "10mm proud of the finish panel" has no meaning on this outline — and
+ * §5.13 item 1 says this outline is wrong in kind anyway. It is an **L with a small concave
+ * fillet**, not a quarter disc, and the overhang is worth stating once against the shape the shop
+ * actually described rather than twice against one that is on its way out.
+ *
+ * Going flush still closes the reported fault here: the old inset held the disc 5mm inside the
+ * carcass all round, so the corner unit exposed carcass exactly as the straight run did.
  */
-export const cornerSeatRadius = (W: Mm, D: Mm, inset: Mm): Mm =>
-  mm(Math.max(MIN_CUSHION, Math.min(W, D) - Math.max(0, inset)));
+export const cornerSeatRadius = (W: Mm, D: Mm): Mm => mm(Math.max(MIN_CUSHION, Math.min(W, D)));
 
 export interface CushionPiecesInput {
   readonly plan: SeatCushionPlan;
@@ -176,8 +221,9 @@ export interface CushionPiecesInput {
  * Every cushion on a plain banquette, in the order an order would list them.
  *
  * **The seat and the back are both charged at the cushion's own width**, not the cabinet's: the
- * upholsterer makes and measures the cushion, which is held in from the carcass by the inset. On a
- * 1200 cabinet at the shipped 5mm inset that is 1190, and the difference is 20mm of nobody's money.
+ * upholsterer makes and measures the cushion. Now that the cushion runs flush to both ends that is
+ * the cabinet's width as well — 1200 on a 1200 unit, where the 5mm inset used to make it 1190. The
+ * charge follows the cushion, and the cushion got bigger; see §5.14 for the re-price.
  *
  * **A rounded front corner does not lengthen the seat.** The cushion still spans the same distance
  * along the run; what changes is the shape of one corner of it. Charging the longer front edge

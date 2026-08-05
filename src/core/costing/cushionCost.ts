@@ -83,18 +83,21 @@ const fabricLabel = (fabric: UpholsteryMaterial): string =>
  * option would charge for a curve that was never built.
  */
 const piecesFor = (cabinet: Cabinet, project: Project): readonly CushionPiece[] => {
-  const inset = mm(cabinet.options.seatCushionInset ?? 5);
+  const overhang = mm(cabinet.options.seatCushionOverhang ?? 10);
   const hasBack = cabinet.options.hasBackCushion !== false;
 
   if (cabinet.typeId === 'banquette-corner') {
-    return cornerCushionPieces(cornerSeatRadius(cabinet.width, cabinet.depth, inset), hasBack);
+    return cornerCushionPieces(cornerSeatRadius(cabinet.width, cabinet.depth), hasBack);
   }
 
-  const radius = buildCabinet(cabinet, project).radius;
+  const built = buildCabinet(cabinet, project);
+  const radius = built.radius;
   const plan = seatCushionPlan({
     W: cabinet.width,
     D: cabinet.depth,
-    inset,
+    // The plane the engine settled on, not `depth + a standoff + a board` worked out again here.
+    finishedFrontZ: built.finishedFrontZ,
+    overhang,
     round: radius ? { corner: radius.corner, radius: radius.r } : null,
   });
   return cushionPieces({

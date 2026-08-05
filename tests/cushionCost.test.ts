@@ -13,25 +13,31 @@
  *
  * ## The rest of the figures, worked longhand
  *
- * A shipped banquette is 1200 wide and **500 deep** — seat depth, not a base cabinet's 560 — with a
- * 5mm cushion inset and an 80mm back:
+ * A shipped banquette is 1200 wide and **500 deep** — seat depth, not a base cabinet's 560 — with an
+ * 18mm door on a 2mm standoff, the shop's **10mm overhang** and an 80mm back:
  *
- *     cushion width   1200 − 2 × 5                     = 1190      ← what the upholsterer makes
- *     cushion depth    500 − 2 × 5                     =  490
- *     seat             1.190 m × $350                  = $416.50
- *     back             1.190 m × $350                  = $416.50
- *     a return         (490 − 80) = 410mm × $350       = $143.50
- *     seat + back                                      = $833.00
+ *     finished front    500 + 2 standoff + 18 door      =  520      ← what the cushion measures off
+ *     cushion width     flush to both ends              = 1200      ← what the upholsterer makes
+ *     cushion depth     520 + 10 proud, from z = 0      =  530
+ *     seat              1.200 m × $350                  = $420.00
+ *     back              1.200 m × $350                  = $420.00
+ *     a return          (530 − 80) = 450mm × $350       = $157.50
+ *     seat + back                                       = $840.00
  *
- * The cushion is measured off the **carcass** and held in by the inset, so it is 1190 and not 1200
- * — see `model/cushion.ts`. Twenty millimetres is nobody's money on one banquette and it is still
- * the number the upholsterer would measure.
+ * **These figures moved in §5.14 and the move is the point.** The cushion used to be held 5mm
+ * inside every carcass face, which made it 1190 × 490 and left white carcass on show all round it.
+ * It now runs flush to both ends and stands 10mm proud of the finished front — the shop's own
+ * answer — so the seat is 10mm longer and 40mm deeper than it was, and costs accordingly. See
+ * project v29 → v30, which is the fourth migration in this codebase to make a saved job dearer.
  *
- * A corner unit at 500 × 500 with the same 5mm inset:
+ * A corner unit at 500 × 500, flush:
  *
- *     seat radius      min(500, 500) − 5               =  495
- *     seat, on its arc 495 × π/2 = 777.5mm             = $272.13
- *     each back        495mm                           = $173.25
+ *     seat radius      min(500, 500)                   =  500
+ *     seat, on its arc 500 × π/2 = 785.4mm             = $274.89
+ *     each back        500mm                           = $175.00
+ *
+ * The corner unit takes **no overhang** — `cornerSeatRadius` sets out why, and it is a fact about a
+ * quarter disc rather than an omission.
  *
  * **The corner seat charged along its arc is a reading, not a fact** — §3's unchecked list. Nobody
  * has put a corner unit to the upholsterer, and the two other readings (one leg, or both legs) are
@@ -78,11 +84,11 @@ beforeEach(() => {
 describe('the reference figure', () => {
   it('charges one lineal metre with a base and a back at $700', () => {
     /*
-     * Stated as the shop stated it: one metre *of cushion*. So the cabinet is 1010 wide, which
-     * after the 5mm inset each side is exactly the 1000mm of cushion the figure is about — rather
-     * than a 1000 cabinet, which would make 990 of cushion and quietly prove a different claim.
+     * Stated as the shop stated it: one metre *of cushion*. Since §5.14 the seat runs flush to
+     * both ends, so a 1000 cabinet is exactly the 1000mm of cushion the figure is about. It used
+     * to take a 1010 cabinet to get there, which is the 5mm inset each side, now gone.
      */
-    const job = banquette(1010, { hasBackCushion: true });
+    const job = banquette(1000, { hasBackCushion: true });
     const [charge] = cushionCharges(job);
 
     expect(charge!.lines.map((l) => l.label)).toEqual(['Seat', 'Back']);
@@ -92,7 +98,7 @@ describe('the reference figure', () => {
 
   it('is $700 because it is two cushions, not one metre', () => {
     // The failure this guards: one charge for the run instead of one per piece.
-    const job = banquette(1010, { hasBackCushion: true });
+    const job = banquette(1000, { hasBackCushion: true });
     const [charge] = cushionCharges(job);
     expect(charge!.lines).toHaveLength(2);
     expect(dollars(charge!.lines[0]!.costExGst)).toBe(350);
@@ -100,7 +106,7 @@ describe('the reference figure', () => {
   });
 
   it('charges a seat on its own when the back is switched off', () => {
-    const job = banquette(1010, { hasBackCushion: false });
+    const job = banquette(1000, { hasBackCushion: false });
     const [charge] = cushionCharges(job);
     expect(charge!.lines.map((l) => l.label)).toEqual(['Seat']);
     expect(dollars(charge!.totalExGst)).toBe(350);
@@ -114,21 +120,22 @@ describe('the reference figure', () => {
 describe('a shipped 1200 banquette', () => {
   it('measures the cushion, not the cabinet', () => {
     const [charge] = cushionCharges(banquette(1200));
-    // 1200 − 2 × 5 = 1190.
-    expect(charge!.lines[0]!.linealMm).toBe(1190);
-    expect(dollars(charge!.lines[0]!.costExGst)).toBe(416.5);
-    expect(dollars(charge!.totalExGst)).toBe(833);
+    // Flush to both ends, so the cushion is the cabinet's width. It was 1190 before §5.14.
+    expect(charge!.lines[0]!.linealMm).toBe(1200);
+    expect(dollars(charge!.lines[0]!.costExGst)).toBe(420);
+    expect(dollars(charge!.totalExGst)).toBe(840);
   });
 
   it('adds a return that stops short of the back cushion', () => {
     const [charge] = cushionCharges(banquette(1200, { leftEndCushion: true }));
-    // A banquette is 500 deep, not a base cabinet's 560: 500 − 2 × 5 = 490 of cushion, less the
-    // 80mm back the return starts in front of = 410.
+    // A banquette is 500 deep, not a base cabinet's 560. The cushion runs from the back wall to
+    // 10mm proud of the finished front — 520 + 10 = 530 — less the 80mm back the return starts in
+    // front of = 450. It was 410 while the cushion sat inside the carcass.
     const ret = charge!.lines.find((l) => l.kind === 'return')!;
     expect(ret.label).toBe('Left return');
-    expect(ret.linealMm).toBe(410);
-    expect(dollars(ret.costExGst)).toBe(143.5);
-    expect(dollars(charge!.totalExGst)).toBe(833 + 143.5);
+    expect(ret.linealMm).toBe(450);
+    expect(dollars(ret.costExGst)).toBe(157.5);
+    expect(dollars(charge!.totalExGst)).toBe(840 + 157.5);
   });
 
   it('charges both returns when both ends are cushioned, and they match', () => {
@@ -165,23 +172,24 @@ describe('the quarter-circle corner unit', () => {
 
   it('charges the seat along its arc, and a back down each run', () => {
     const [charge] = cushionCharges(corner());
-    // radius = min(500, 500) − 5 = 495; arc = 495 × π/2 = 777.5mm.
+    // radius = min(500, 500) = 500; arc = 500 × π/2 = 785.4mm. It was 495 and 777.5 while the
+    // disc was held 5mm inside the carcass.
     const seat = charge!.lines[0]!;
     expect(seat.label).toBe('Corner seat');
-    expect(seat.linealMm).toBeCloseTo(777.54, 1);
-    expect(dollars(seat.costExGst)).toBeCloseTo(272.14, 1);
+    expect(seat.linealMm).toBeCloseTo(785.4, 1);
+    expect(dollars(seat.costExGst)).toBeCloseTo(274.89, 1);
 
     const backs = charge!.lines.filter((l) => l.kind === 'back');
     expect(backs).toHaveLength(2);
-    expect(backs.every((b) => b.linealMm === 495)).toBe(true);
-    expect(dollars(backs[0]!.costExGst)).toBe(173.25);
+    expect(backs.every((b) => b.linealMm === 500)).toBe(true);
+    expect(dollars(backs[0]!.costExGst)).toBe(175);
   });
 
   it('charges the corner seat more than one leg and less than two — which is the whole reading', () => {
     const [charge] = cushionCharges(corner());
     const seat = charge!.lines[0]!;
-    expect(seat.linealMm).toBeGreaterThan(495);
-    expect(seat.linealMm).toBeLessThan(990);
+    expect(seat.linealMm).toBeGreaterThan(500);
+    expect(seat.linealMm).toBeLessThan(1000);
   });
 });
 
@@ -191,14 +199,14 @@ describe('the quarter-circle corner unit', () => {
 
 describe('on the quote', () => {
   it('is its own line and is inside the material cost', () => {
-    const job = banquette(1010);
+    const job = banquette(1000);
     const cost = costProject(job);
     expect(dollars(cost.cushionCost)).toBe(700);
     expect(cost.materialCost).toBeGreaterThanOrEqual(cost.cushionCost);
   });
 
   it('moves the total by the cushions and nothing else', () => {
-    const job = banquette(1010);
+    const job = banquette(1000);
     const withNoRate: Project = {
       ...job,
       materials: {
@@ -211,9 +219,9 @@ describe('on the quote', () => {
   });
 
   it('produces no parts — the shop supplies templates, not cushions', () => {
-    const job = banquette(1010);
+    const job = banquette(1000);
     const withCushions = costProject(job);
-    const noCushionOptions = banquette(1010, { hasBackCushion: false });
+    const noCushionOptions = banquette(1000, { hasBackCushion: false });
     // Switching the back off changes the price and not the part count: nothing here is cut.
     expect(costProject(noCushionOptions).panelCount).toBe(withCushions.panelCount);
     expect(costProject(noCushionOptions).cushionCost).toBeLessThan(withCushions.cushionCost);
@@ -236,7 +244,7 @@ describe('on the quote', () => {
 
 describe('a fabric with no upholsterer’s rate', () => {
   const rateless = (): Project => {
-    const job = banquette(1010);
+    const job = banquette(1000);
     return {
       ...job,
       materials: {
@@ -289,7 +297,7 @@ describe('migrating a job saved before cushions were costed', () => {
   });
 
   it('gives a banquette job the rate it always should have had, and it gets dearer', () => {
-    const job = banquette(1010);
+    const job = banquette(1000);
     const migrated = migrateProject(asV26(job));
     expect(migrated.schemaVersion).toBe(CURRENT_SCHEMA_VERSION);
     // The half that admits to re-pricing: $700 of cushions the old quote did not mention.
@@ -305,7 +313,7 @@ describe('migrating a job saved before cushions were costed', () => {
   });
 
   it('never overwrites a rate the shop has set for itself', () => {
-    const job = banquette(1010);
+    const job = banquette(1000);
     const edited = {
       ...asV26(job),
       materials: {

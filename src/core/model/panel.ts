@@ -100,6 +100,23 @@ export interface Panel {
   readonly name: string;
   readonly materialId: string;
   /**
+   * The decor applied over the A-face after machining, when the board is not the finish.
+   *
+   * **The one case is the finish laminate over a bendy-ply wrap**, and it is the §5.14 fault: the
+   * laminate was charged in `costing.ts`, taken off the former radius in `radius.ts`, and drawn
+   * nowhere — so a curved end rendered in cream bendy ply beside a walnut front. Reported from the
+   * bench with a photograph.
+   *
+   * **It is deliberately not a second part.** §5.0 settled that the laminate is *a dimension, not a
+   * part*: it is hand-applied and hand-trimmed after machining, so it has no blank, no nest and no
+   * line on the cutlist, and inventing one would put a sheet nobody cuts into the cut plan. What was
+   * missing was never a part — it was the fact that the finished face is not the face of the board.
+   *
+   * So `materialId` still says bendy ply, which is what you order, what the nest packs and what the
+   * cutlist groups; this says what you see. Absent on nearly every part in every job.
+   */
+  readonly finishMaterialId?: string;
+  /**
    * Shape in part space, **flat and as cut** — always. A part that gets bent afterwards is
    * stored at the size it is cut to, which for a skin round a radius is its developed length.
    * How it then bends is `forming`, and nothing dimensional reads that. See model/forming.ts.

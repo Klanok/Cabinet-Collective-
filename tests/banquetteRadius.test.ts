@@ -27,10 +27,16 @@
  * From which the two parts that had to learn about it:
  *
  * ```
- *   front     door zone 0 → 950, less 1.5 each side        = 947 × 397 at x ∈ [1.5, 948.5]
+ *   front     door zone 0 → 950, no reveal                 = 950 × 400 at x ∈ [0, 950]
  *   lift-up   1167 − 16 − 2×2  ×  500 − 16 − 2×2           = 1147 × 480
  *   notch     |1167 − 950|  ×  500 − 320                   = 217 × 180
  * ```
+ *
+ * **The front takes no reveal, and that is §5.14 rather than an oversight here.** It used to be
+ * 947 × 397 — 1.5mm in at each end and 3mm down from the top — because it was cut like a door. A
+ * reveal is clearance for a door to swing, and a false front does not swing; all the gap did was
+ * show a white band of carcass along the top. See `fixedFrontPanel`. The strip is a different
+ * thing entirely and stays: it is structure, not clearance.
  *
  * **The clearances cancel in the notch, and that is worth seeing rather than trusting.** The
  * panel's edges are already 2mm inside the opening, and the notch has to stand 2mm clear of the
@@ -168,22 +174,19 @@ describe('the lift-up stops at the curve', () => {
 });
 
 describe('the solid front stops at the curve', () => {
-  it('ends at the fixing strip, with its own side reveal', () => {
+  it('fills the door zone exactly — it ends at the fixing strip and nowhere sooner', () => {
     const { project, built } = rounded();
     const front = byName(built.panels, 'Front');
 
-    expect(size(front)).toEqual([mm(947), mm(397)]);
-    expect(occupies(front, project).x).toEqual([mm(1.5), mm(948.5)]);
+    expect(size(front)).toEqual([mm(950), mm(400)]);
+    expect(occupies(front, project).x).toEqual([mm(0), mm(950)]);
     // The strip is what the curved piece is fixed to; it is not door clearance to borrow back.
     expect(occupies(front, project).x[1]).toBeLessThanOrEqual(STRIP_INNER_X);
   });
 
   it('runs to the far end on the other hand', () => {
     const { project, built } = rounded('front-left');
-    expect(occupies(byName(built.panels, 'Front'), project).x).toEqual([
-      mm(W - 948.5),
-      mm(W - 1.5),
-    ]);
+    expect(occupies(byName(built.panels, 'Front'), project).x).toEqual([mm(W - 950), mm(W)]);
   });
 
   it('keeps its grain running along the run, curve or no curve', () => {
@@ -243,43 +246,69 @@ describe('an applied end on a banquette', () => {
  * looked like a slightly boxy cushion.
  */
 describe('the cushion follows the corner', () => {
-  const plan = (radius: number | null, inset = 5) =>
+  /** The finished front face, from the header: 500 + 2 standoff + 18 door. */
+  const FINISHED_FRONT = 520;
+
+  const plan = (radius: number | null, overhang = 10) =>
     seatCushionPlan({
       W: mm(W),
       D: mm(D),
-      inset: mm(inset),
+      finishedFrontZ: mm(FINISHED_FRONT),
+      overhang: mm(overhang),
       round: radius === null ? null : { corner: 'front-right', radius: mm(radius) },
     });
 
-  it('is the inset rectangle it always was on a square banquette', () => {
+  it('runs flush to both ends and stands 10mm proud of the finished front', () => {
     const square = plan(null);
-    expect([square.x0, square.x1, square.z0, square.z1]).toEqual([mm(5), mm(1195), mm(5), mm(495)]);
+    expect([square.x0, square.x1, square.z0, square.z1]).toEqual([mm(0), mm(1200), mm(0), mm(530)]);
     expect(square.round).toBeNull();
-    expect(square.endRun).toEqual({ left: mm(490), right: mm(490) });
+    expect(square.endRun).toEqual({ left: mm(530), right: mm(530) });
   });
 
-  it('turns the same corner, one inset tighter', () => {
-    // Held in from the finished curve by the same 5mm the rest of the cushion is held in by, so
-    // the fabric follows the ply round rather than standing proud of it at the tangent.
+  it('lands exactly on the door face at no overhang', () => {
+    // The control is adjustable, and zero has to mean the plane itself rather than "nearly".
+    expect(plan(null, 0).z1).toBe(mm(FINISHED_FRONT));
+  });
+
+  it('turns the carcass radius, unchanged, with its centre moved forward', () => {
+    /*
+     * **The whole of the corner, and the reason there is no second radius to keep in step.** The
+     * cushion is proud at the front and flush at the end, which sounds like two edges that cannot
+     * be joined — and joins exactly, because an arc of radius `r` centred `o` forward of the
+     * carcass centre is still tangent to both. Asserted as the two tangents rather than as the
+     * radius alone, since the radius on its own passes with the arc in the wrong place.
+     */
     const curved = plan(RADIUS);
-    expect(curved.round).toEqual({ corner: 'front-right', radius: mm(195) });
+    expect(curved.round).toEqual({ corner: 'front-right', radius: mm(RADIUS) });
+
+    // Tangent to the cushion's own front edge, 10mm proud: centre z = 530 − 200 = 330, which is
+    // exactly the carcass centre's 320 moved forward by the overhang.
+    expect(curved.z1 - curved.round!.radius).toBe(mm(TANGENT_Z + 10));
+    // Tangent to the cabinet's end face, which the cushion is flush with.
+    expect(curved.x1 - curved.round!.radius).toBe(mm(W - RADIUS));
   });
 
   it('stops the end bolster at the tangent on the radiused end only', () => {
     // Past the tangent the seat is turning away underneath, and a straight bolster carried on
     // would be hanging over the curve in mid-air.
     const curved = plan(RADIUS);
-    expect(curved.endRun.right).toBe(mm(490 - 195));
-    expect(curved.endRun.left).toBe(mm(490));
+    expect(curved.endRun.right).toBe(mm(530 - 200));
+    expect(curved.endRun.left).toBe(mm(530));
     // And it moves with the radius rather than being a figure of its own.
-    expect(plan(300).endRun.right).toBe(mm(490 - 295));
+    expect(plan(300).endRun.right).toBe(mm(530 - 300));
   });
 
   it('gives up the curve rather than drawing an impossible one', () => {
-    // A radius smaller than the inset leaves nothing to turn; a square cushion is the honest
-    // answer, and the carcass warnings are where an impossible radius gets reported.
-    expect(plan(4).round).toBeNull();
-    expect(plan(4).endRun).toEqual({ left: mm(490), right: mm(490) });
+    // Nothing to turn is a square cushion, which is the honest answer; an impossible carcass
+    // radius is reported against the carcass, in the warnings, in millimetres.
+    expect(plan(0).round).toBeNull();
+    expect(plan(0).endRun).toEqual({ left: mm(530), right: mm(530) });
+  });
+
+  it('clamps a radius bigger than the cushion rather than folding the outline over', () => {
+    // At the limit the cushion is a quarter disc. A radius past that would wind the arc back
+    // through the shape, which extrudes into something nobody could name.
+    expect(plan(900).round?.radius).toBe(mm(530));
   });
 
   it('reads the corner the rule engine settled on, not the one that was typed', () => {

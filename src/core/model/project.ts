@@ -37,7 +37,7 @@ import {
 } from '../library/blum.ts';
 import { AU_BENCHTOP_MATERIALS, AU_MATERIAL_LIBRARY, AU_SHEET_MATERIALS } from '../library/materials.au.ts';
 
-export const CURRENT_SCHEMA_VERSION = 29 as const;
+export const CURRENT_SCHEMA_VERSION = 30 as const;
 
 /**
  * The bendy ply an older job is given when it is migrated forward. It has no curved parts in
@@ -581,7 +581,15 @@ const migrateV10toV11 = (raw: Record<string, unknown>): Record<string, unknown> 
  * v22 → v23: the finish laminate over a curved wrap, at zero on everything already saved.
  *
  * **No part moves and nothing is re-priced.** The field arrives at zero, which is precisely the
- * arithmetic every saved job already used — formers sized to the plies alone. A shop adopting the
+ * arithmetic every saved job already used — formers sized to the plies alone.
+ *
+ * **That second claim was false for two years and nothing failed when it went stale — see §4.23.**
+ * This migration also puts `laminate-1mm` on the price list, and `costing.ts` charged a sheet of it
+ * plus its labour on **every** curve in the job, whether the method carried an allowance or not. So
+ * a job migrated by this function was cut with no laminate in it and quoted with one: up to a $400
+ * sheet, for material nobody buys. The charge now reads the same predicate the geometry does, which
+ * makes this comment true. It is left here rather than quietly corrected, because a comment on the
+ * function is this document's strongest form of claim and it is worth knowing that one can be wrong. A shop adopting the
  * 1mm laminate does it by editing the method, and at that point the former radii and the skins'
  * developed lengths move, which is a change somebody made on purpose rather than one that
  * happened on load. New jobs take the shipped method and get 1mm from the start.
@@ -835,6 +843,68 @@ const migrateV28toV29 = (raw: Record<string, unknown>): Record<string, unknown> 
   schemaVersion: 29,
   settings: withBackfilledLabourRates(raw.settings),
 });
+
+/**
+ * v29 → v30: **the seat cushion stops hiding inside the carcass, and it re-prices.**
+ *
+ * Reported from the bench with a photograph, as *"standard straight run cushion is exposing the
+ * carcass"*. The answer came straight back from the shop:
+ *
+ * > *"it should be adjustable — but generally should be 10mm proud of the finish panel/door"*
+ *
+ * `seatCushionInset` held the cushion **5mm inside every carcass face**. `seatCushionOverhang`
+ * stands it **10mm proud of the finished front** and flush at the ends and the back. That is a
+ * 1200 banquette's seat going from 1190 × 490 to 1200 × 530.
+ *
+ * **The number cannot be carried forward, and that is the whole of why this is a migration rather
+ * than a rename.** The two fields measure opposite directions from different datums — one inward
+ * from the carcass, one outward from the door face — so there is no arithmetic that turns a 5 into
+ * the figure a shop would have typed had they been asked the other question. A shop that had typed
+ * 20 wanted the cushion held *further in*, which is the opposite of what has now been asked for.
+ * So the old field is dropped and the shop's own 10mm is adopted, on every banquette, deliberately.
+ *
+ * **This is the fourth migration in this file to make a saved job dearer**, after v9, v11 and v27,
+ * and it is their argument for the fourth time. §4.19 charges the seat and the back at the
+ * *cushion's* own width, because the upholsterer makes and measures the cushion — and the cushion
+ * has grown. A 1200 banquette with a back goes from 2 × 1190mm of upholstery to 2 × 1200mm: about
+ * $7 at the shop's $350 a lineal metre. Small, real, and said out loud rather than found later.
+ *
+ * **No part moves here**, which for once is true in the strong sense: a cushion is bought in whole
+ * from the upholsterer and produces no `Panel` at all (§4.19). The part that *does* move is the
+ * banquette front, and it moves for a different reason and by a different mechanism — see
+ * `fixedFrontPanel`, which stops taking a door's reveal on a front that never opens. That is a rule
+ * change rather than a migration, so nothing here carries the old size forward; it is named in this
+ * comment because the two shipped together and a shop opening a saved job will see both.
+ */
+const migrateV29toV30 = (raw: Record<string, unknown>): Record<string, unknown> => ({
+  ...raw,
+  schemaVersion: 30,
+  cabinets: ((raw.cabinets as Record<string, unknown>[] | undefined) ?? []).map(withCushionOverhang),
+});
+
+/**
+ * Swap a cabinet's cushion inset for the shop's overhang.
+ *
+ * **Exported because two version chains carry cabinet options and both have to make the same swap.**
+ * A job's `cabinets` are one; the shop standards' **saved cabinet types** are the other, and a saved
+ * "Banquette 1800" recipe carries a full `CabinetOptions` of its own. Repairing the job and leaving
+ * the recipe would mean the next banquette placed from it came back with a field the app no longer
+ * reads and no overhang at all — which is §4.22's fault exactly: one chain repaired, the other not,
+ * and a new cabinet born broken from standards nobody migrated.
+ *
+ * Applied to every cabinet rather than only to the two banquette types. The field is meaningless on
+ * a base cabinet, so dropping it there costs nothing and the alternative is a type test that has to
+ * stay in step with the list of things that carry cushions.
+ */
+export const withCushionOverhang = (raw: Record<string, unknown>): Record<string, unknown> => {
+  const options = (raw.options as Record<string, unknown> | undefined) ?? {};
+  if (!('seatCushionInset' in options)) return raw;
+  const { seatCushionInset: _dropped, ...rest } = options;
+  return { ...raw, options: { ...rest, seatCushionOverhang: DEFAULT_CUSHION_OVERHANG } };
+};
+
+/** The shop's figure: *"generally should be 10mm proud of the finish panel/door"*. */
+const DEFAULT_CUSHION_OVERHANG = 10;
 
 /**
  * v11 → v12. **The screen colours, backfilled onto jobs that never had them.**
@@ -1115,6 +1185,7 @@ export const migrateProject = (raw: unknown): Project => {
   if (data.schemaVersion === 26) data = migrateV26toV27(data);
   if (data.schemaVersion === 27) data = migrateV27toV28(data);
   if (data.schemaVersion === 28) data = migrateV28toV29(data);
+  if (data.schemaVersion === 29) data = migrateV29toV30(data);
 
   if (data.schemaVersion !== CURRENT_SCHEMA_VERSION) {
     throw new Error(`migrateProject: could not migrate schema version ${String(version)}`);

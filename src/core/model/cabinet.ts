@@ -140,7 +140,22 @@ export interface CabinetOptions {
   /** Gap all round the lift-up panel so it can swing without binding. */
   readonly liftUpClearance?: Mm;
   readonly seatCushionThickness?: Mm;
-  readonly seatCushionInset?: Mm;
+  /**
+   * How far the seat cushion stands **proud of the finished front face** — the front of the fixed
+   * front panel, not the carcass.
+   *
+   * From the shop: *"it should be adjustable — but generally should be 10mm proud of the finish
+   * panel/door"*. It replaces `seatCushionInset`, which held the cushion 5mm *inside* every
+   * carcass face and left a strip of white carcass on show all round it.
+   *
+   * **The two fields measure opposite directions from different datums**, so no arithmetic turns
+   * one into the other — which is why the migration adopts the shop's figure rather than carrying
+   * a number forward. See project v29 → v30.
+   *
+   * The overhang is on the **front only**. Why the ends and the back stay flush is written out in
+   * `model/cushion.ts`, and it is a physical answer rather than a simplification.
+   */
+  readonly seatCushionOverhang?: Mm;
   readonly hasBackCushion?: boolean;
   readonly backCushionHeight?: Mm;
   readonly backCushionThickness?: Mm;

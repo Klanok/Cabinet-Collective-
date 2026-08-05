@@ -88,11 +88,17 @@ function CabinetGroup({
         <PanelMesh
           key={panel.id}
           panel={panel}
+          // **Thickness is the board, appearance is the finish, and they are different questions.**
+          // A laminated wrap is 8mm of bendy ply that *looks like* the doors: taking the thickness
+          // off the finish would draw a curve 1mm thick, and taking the colour off the board draws
+          // it in cream ply beside a walnut front — which is exactly what the bench photographed
+          // (§5.14). So the two lines below deliberately read different materials.
           thickness={actualThicknessOf(findSheet(project.materials, panel.materialId))}
-          // What the board actually looks like, where the material says. A part cut from a decor
-          // nobody has given a colour to falls back to the viewport's own colour for its role.
-          colour={findSheet(project.materials, panel.materialId).colour}
-          texture={findSheet(project.materials, panel.materialId).texture}
+          // What the finished face actually looks like: the decor laid over it if there is one,
+          // otherwise the board. A part cut from a decor nobody has given a colour to falls back
+          // to the viewport's own colour for its role.
+          colour={findSheet(project.materials, panel.finishMaterialId ?? panel.materialId).colour}
+          texture={findSheet(project.materials, panel.finishMaterialId ?? panel.materialId).texture}
           texturePlacement={texturePlacements.get(panel.id)}
           selected={selected}
           onSelect={onSelect}
@@ -104,7 +110,7 @@ function CabinetGroup({
         const upholstery = (project.materials.upholstery ?? AU_UPHOLSTERY_MATERIALS).find(
           (item) => item.id === built.cabinet.materials.upholstery,
         ) ?? (project.materials.upholstery ?? AU_UPHOLSTERY_MATERIALS)[0];
-        return upholstery ? <BanquetteCushions cabinet={built.cabinet} radius={built.radius} upholstery={upholstery} selected={selected} wireframe={wireframe} /> : null;
+        return upholstery ? <BanquetteCushions cabinet={built.cabinet} radius={built.radius} finishedFrontZ={built.finishedFrontZ} upholstery={upholstery} selected={selected} wireframe={wireframe} /> : null;
       })()}
       {built.cabinet.typeId === 'banquette-corner' && (() => {
         const upholstery = (project.materials.upholstery ?? AU_UPHOLSTERY_MATERIALS).find(

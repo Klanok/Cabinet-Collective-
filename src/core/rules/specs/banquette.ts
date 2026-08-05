@@ -91,7 +91,7 @@ export const BANQUETTE_SPEC: CabinetSpec = {
     // who genuinely wants a loose top, but a banquette is not that.
     hasLid: false,
     hasKick: false,
-    seatCushionThickness: mm(80), seatCushionInset: mm(5), hasBackCushion: true,
+    seatCushionThickness: mm(80), seatCushionOverhang: mm(10), hasBackCushion: true,
     backCushionHeight: mm(400), backCushionThickness: mm(80), backCushionAngle: 0,
     cushionCornerRadius: mm(18), leftEndCushion: false, rightEndCushion: false,
   },
