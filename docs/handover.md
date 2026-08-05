@@ -181,7 +181,7 @@ Section 4 records how each works and why; section 5 is what is actually left to 
 ```
 npm install
 npm run dev       # the app
-npm test          # 1081 tests
+npm test          # 1089 tests
 npm run build
 npm run report    # cutlist, hardware BOM, drilling, nest, G-code and costing for the sample kitchen
 npm run report -- shaker-57    # the same kitchen with routed fronts
@@ -3744,12 +3744,31 @@ below the overcut.
    that *survived*, so every omission reported itself as naming a part the cabinet does not build.
    It is judged against what the spec would build now.
 
-   #### What is left on it
+   #### The controls, and what each type will allow
 
-   - **No UI.** Nothing in the app can reach any of this yet, which is also why there is no
-     `SpecCapabilities` entry: §4.15's capabilities exist so the app can refuse and explain, and
-     there is nothing to refuse from. **Declare it when the UI lands** — a banquette whose front is
-     deleted is not a banquette, and that sentence belongs in the spec that owns it.
+   **The Parts list in the Inspector is the editor.** It was already there, listing what the cabinet
+   cuts; each row now carries a board and a Delete. A deleted part **stays on the list**, struck
+   through with dashes for its size — `BuiltCabinet.offeredParts` is what the spec *would* build, and
+   without it deleting is a one-way door with nothing on screen to say a part is missing rather than
+   never offered.
+
+   **`SpecCapabilities.partOverrides` is the tenth capability**, and adding it broke every spec until
+   each answered — which is the mechanism working. Base, wall, tall, drawer-bank and custom say yes:
+   a run sharing one end panel is ordinary joinery and the shared carcass builders already
+   re-derive. The other five refuse in their own words — *"a banquette's parts are not
+   interchangeable — the front carries the lift-up's hinges and the cushion sits over the top, so
+   deleting one leaves a seat over a hole"*.
+
+   **A refusal is not a warning with the feature still on.** The overrides are resolved to nothing
+   on a refusing spec, once, so a banquette that says "you cannot delete this" does not then delete
+   it. That is one of three mutations, all caught.
+
+   **Verified in the running app** (§7), read back rather than looked at: a 900 custom cabinet's
+   bottom goes **868 → 884** when the left end is deleted and back to 868 when it is restored; the
+   custom cabinet shows 7 rows with 7 boards and 7 Deletes; a banquette shows its refusal and **no
+   controls at all**.
+
+   #### What is left on it
    - **A part whose placement centres on its own thickness** — a shelf, a divider — is still placed
      off `ctx.t` rather than off its own board. Omission is unaffected; a per-part *material* on one
      of those is half a millimetre out on an 18mm board in a 16mm cabinet. The shell parts the shop

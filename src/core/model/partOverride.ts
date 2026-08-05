@@ -98,3 +98,24 @@ export const strandedOverrides = (
     (o) =>
       !parts.some((p) => p.key === o.key && (o.index === undefined || p.index === o.index)),
   );
+
+/**
+ * The list with one part's setting changed, added or dropped.
+ *
+ * **An override that says nothing is removed rather than stored empty.** Putting a part back and
+ * setting its board to "as the cabinet" leaves a cabinet that looks overridden — a saved job full
+ * of entries that change nothing, and a warning list naming parts nobody touched. The absence of an
+ * entry is the natural way to say "as the spec builds it", so that is what it comes back to.
+ */
+export const withPartOverride = (
+  overrides: readonly PartOverride[] | undefined,
+  key: string,
+  index: number,
+  patch: Partial<Omit<PartOverride, 'key' | 'index'>>,
+): readonly PartOverride[] => {
+  const rest = (overrides ?? []).filter((o) => !(o.key === key && o.index === index));
+  const current = (overrides ?? []).find((o) => o.key === key && o.index === index);
+  const merged: PartOverride = { key, index, ...current, ...patch };
+  const says = merged.omit === true || merged.materialId !== undefined;
+  return says ? [...rest, merged] : rest;
+};

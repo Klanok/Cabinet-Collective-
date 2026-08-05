@@ -9,7 +9,12 @@ import { type Mm, mm } from '../units.ts';
 import { type Cabinet, isRadiused } from '../model/cabinet.ts';
 import { findConstruction } from '../model/construction.ts';
 import { type MaterialLibrary, actualThicknessOf } from '../model/material.ts';
-import { isOmitted, overrideFor, strandedOverrides } from '../model/partOverride.ts';
+import {
+  type PartOverride,
+  isOmitted,
+  overrideFor,
+  strandedOverrides,
+} from '../model/partOverride.ts';
 import type { GrainConstraint, Panel, PanelRole } from '../model/panel.ts';
 import type { Project } from '../model/project.ts';
 import { profileExtent } from '../geom/profile.ts';
@@ -33,7 +38,7 @@ import type { InsideCornerPlan } from '../model/insideCorner.ts';
 import { cornerPlanOf } from './specs/banquetteCorner.ts';
 import { getSpec } from './registry.ts';
 import { buildRunUnits } from './runUnits.ts';
-import { type MaterialSlot, type PartInstance, resolveBanding } from './spec.ts';
+import { type MaterialSlot, type PartInstance, refusalOf, resolveBanding } from './spec.ts';
 import type { PanelFeature } from '../model/feature.ts';
 
 export interface BuiltCabinet {
@@ -91,6 +96,16 @@ export interface BuiltCabinet {
    * a shelf does not move `side-left`, where it would move part number 7.
    */
   readonly partKeys: readonly PartKey[];
+  /**
+   * Every part this spec **would** build, before anything was deleted — `partKeys` plus the ones
+   * an override omitted.
+   *
+   * Without it a deleted part is unreachable: the app can only offer what the cabinet has, so
+   * switching a side off would be a one-way door with nothing on screen to say a part is missing
+   * rather than never offered. It is also what a stranded override is judged against, because an
+   * override is not stranded by being the reason its own part is absent.
+   */
+  readonly offeredParts: readonly PartKey[];
 }
 
 /** A part rule's name for one produced panel. */
@@ -254,12 +269,12 @@ const toPanel = (
  * different opening for the same cabinet depending on how the override was written.
  */
 const shellOf = (
-  cabinet: Cabinet,
+  overrides: readonly PartOverride[] | undefined,
   carcassThickness: Mm,
   library: MaterialLibrary,
 ): ShellThicknesses => {
   const of = (key: string): Mm => {
-    const override = overrideFor(cabinet.partOverrides, key, 0);
+    const override = overrideFor(overrides, key, 0);
     if (override?.omit === true) return mm(0);
     if (override?.materialId === undefined) return carcassThickness;
     const board = library.sheets.find((m) => m.id === override.materialId);
@@ -287,6 +302,14 @@ export const buildCabinet = (cabinet: Cabinet, project: Project): BuiltCabinet =
     ...cabinet,
     options: { ...spec.defaultOptions, ...cabinet.options },
   };
+  /*
+   * **A refusal is not a warning with the feature still on.** §4.15's pattern: the spec that owns
+   * the parts is the only thing that knows whether one can be taken away, and a banquette that
+   * printed "you cannot delete this" and then deleted it would be worse than either answer. So the
+   * overrides are resolved to nothing here, once, and every reader below sees the same thing.
+   */
+  const overridesAllowed = refusalOf(spec.capabilities.partOverrides) === null;
+  const overrides = overridesAllowed ? merged.partOverrides : undefined;
   const thicknesses = thicknessesFor(materials, project.materials);
   const ctx = buildContext(
     merged,
@@ -294,7 +317,7 @@ export const buildCabinet = (cabinet: Cabinet, project: Project): BuiltCabinet =
     materials,
     thicknesses,
     { library: project.hardware, defaults: project.defaults },
-    shellOf(merged, thicknesses.carcass, project.materials),
+    shellOf(overrides, thicknesses.carcass, project.materials),
   );
 
   // An appliance space is not a box, so the carcass checks are not questions about it.
@@ -310,6 +333,9 @@ export const buildCabinet = (cabinet: Cabinet, project: Project): BuiltCabinet =
         ]
       : []),
     ...shellProblems(ctx),
+    ...((merged.partOverrides ?? []).length > 0 && !overridesAllowed
+      ? [refusalOf(spec.capabilities.partOverrides) as string]
+      : []),
     ...cornerRadiusProblems(ctx, spec),
     ...appliedEndProblems(ctx, spec),
     ...hardwareProblems(ctx),
@@ -329,6 +355,7 @@ export const buildCabinet = (cabinet: Cabinet, project: Project): BuiltCabinet =
       finishedFrontZ: ctx.finishedFrontZ,
       insideCorner: cabinet.typeId === 'banquette-corner' ? cornerPlanOf(ctx) : null,
       partKeys: [],
+      offeredParts: [],
     };
   }
 
@@ -364,7 +391,7 @@ export const buildCabinet = (cabinet: Cabinet, project: Project): BuiltCabinet =
        * silently re-points every override and every custom feature after it, which is §5.12's
        * whole argument for a stable key repeated one level down.
        */
-      if (isOmitted(merged.partOverrides, rule.key, i)) return;
+      if (isOmitted(overrides, rule.key, i)) return;
       produced.push({ instance, id: `${cabinet.id}:${rule.key}:${i}`, key: rule.key, index: i });
     });
   }
@@ -407,7 +434,7 @@ export const buildCabinet = (cabinet: Cabinet, project: Project): BuiltCabinet =
      * this one field carries the whole of "cut that end from 18mm" through every downstream reader
      * without any of them knowing an override exists.
      */
-    const board = overrideFor(merged.partOverrides, key, index)?.materialId;
+    const board = overrideFor(overrides, key, index)?.materialId;
     panels.push(board === undefined ? panel : { ...panel, materialId: board });
   });
 
@@ -419,7 +446,7 @@ export const buildCabinet = (cabinet: Cabinet, project: Project): BuiltCabinet =
       ...custom.warnings,
       ...styleWarnings,
       ...boring.warnings,
-      ...strandedOverrides(merged.partOverrides, offered).map(
+      ...strandedOverrides(overrides, offered).map(
         (o) =>
           `This cabinet has a setting for "${o.key}${o.index === undefined ? '' : ` ${o.index + 1}`}", ` +
           'which it does not build. Nothing has been changed by it.',
@@ -436,6 +463,7 @@ export const buildCabinet = (cabinet: Cabinet, project: Project): BuiltCabinet =
       panelId: p.id,
       name: p.instance.name,
     })),
+    offeredParts: offered,
   };
 };
 

@@ -11,7 +11,7 @@ transcript. Then read `docs/woodtron-dialect.md` before touching anything under 
 
 ## Where things stand
 
-`main` is green at **1081 tests**. Schema **v35**, shop standards **v26**. Every session's work
+`main` is green at **1089 tests**. Schema **v35**, shop standards **v26**. Every session's work
 lands on `main` through a pull request, so `git log main` is the honest answer to what has shipped —
 check it rather than trusting this paragraph, which is exactly the kind of sentence that goes stale.
 
@@ -45,14 +45,17 @@ They differ by **128mm** on an asymmetric pattern, every drilled row in all twen
 is symmetric, and no amount of re-reading them can separate the two readings. It needs **one real
 part whose true hole positions are known**. Until then every hole is reported by name and left out.
 
-## Unblocked, in the order I would take them
+## Unblocked, and it is the only one left
 
-1. **A part too big for its sheet is silently not nested**, §5.13 item 6. Design questions before
-   code; it is closer to a benchtop's `joins` than to a nesting tweak.
-2. **The custom cabinet — the UI half.** §5.13 item 3's model is built: parts can be deleted
-   individually and cut from another board, and a deleted end **re-derives** the carcass rather than
-   switching a panel off. Nothing in the app reaches it yet, and the `SpecCapabilities` entry waits
-   for the UI, because a capability exists so the app can refuse and explain.
+**A part too big for its sheet is silently not nested**, §5.13 item 6. Design questions before code;
+it is closer to a benchtop's `joins` than to a nesting tweak.
+
+**~~The custom cabinet.~~ Built, both halves** — §5.13 item 3. Any part deleted or cut from another
+board, and a deleted end **re-derives** the carcass rather than switching a panel off. The Parts list
+in the Inspector is the editor; a deleted part stays on it, struck through, so it can be put back.
+Base, wall, tall, drawer-bank and custom allow it; the other five refuse in their own words. **What
+is left** is the half-millimetre on a shelf cut from another board — it still centres on the carcass
+thickness rather than its own.
 
 **~~The sheet sizes.~~ Closed in full — read §5.13 item 7 before touching any of this.** The wait was
 for a published range; suppliers publish the **nominal**, so that figure was never coming, while the

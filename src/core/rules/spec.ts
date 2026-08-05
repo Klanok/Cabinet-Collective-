@@ -115,6 +115,17 @@ export interface SpecCapabilities {
    * as missing its part every time the job was opened, with nothing on screen to explain why.
    */
   readonly customFeatures: Capability;
+  /**
+   * `Cabinet.partOverrides`: a part deleted, or cut from another board — see
+   * `model/partOverride.ts`.
+   *
+   * **A capability rather than a blanket feature, because the engine cannot judge what a part is
+   * for.** Deleting a side is ordinary joinery on a carcass — a run sharing one end panel — and the
+   * opening re-derives around it. Deleting a banquette's front leaves a seat with a cushion sitting
+   * over a hole, and deleting a radiused end's skin leaves the formers it wraps standing in the
+   * open. Both are parts; only the spec knows which is which.
+   */
+  readonly partOverrides: Capability;
 }
 
 /** The reason a capability is off, or `null` when it is on. */

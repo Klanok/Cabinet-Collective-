@@ -326,6 +326,9 @@ export const BANQUETTE_CORNER_SPEC: CabinetSpec = {
       'An inside banquette corner is a connector: both of its ends butt the banquettes it joins, ' +
       'so neither is exposed. Put the end panel on the banquette at the end of the run.',
     customFeatures: true,
+    partOverrides:
+      'The whole front of this unit is one formed piece of bendy ply over the formers behind it, ' +
+      'so there is no part in it that can be removed on its own.',
   },
   defaultOptions: {
     formerSpacing: mm(250), skinLayers: 2, hasKick: false, hasBack: true,

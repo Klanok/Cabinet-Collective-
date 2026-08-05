@@ -47,6 +47,8 @@ export const STANDALONE_PANEL_SPEC: CabinetSpec = {
       'A standalone panel is the board an applied end is made of. Place a second panel rather ' +
       'than applying one to this one.',
     customFeatures: true,
+    partOverrides:
+      'This is one board. Deleting its only part leaves nothing — delete the panel itself.',
   },
   isCarcass: false,
   defaultOptions: {
