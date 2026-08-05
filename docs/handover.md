@@ -3595,6 +3595,55 @@ below the overcut.
    straight fronts plus a short fillet where the old shape had one long arc. Switching costing over
    **re-prices** every corner unit, so it travels with the parts rather than going in early.
 
+   #### The datum chain at the fillet, worked out — and where it runs into a shop question
+
+   Worked through before stopping, because it is the part a fresh session would re-derive and could
+   easily get wrong. On the shipped figures — 2mm standoff, 18mm door, 2 × 8mm bendy ply, 1mm
+   laminate, so `skin` = 17 — and with `seatDepth` read as the **carcass** depth off each wall,
+   exactly as a plain banquette's `depth` is:
+
+   ```
+     carcass front planes      z = sd            and  x = sd
+     finished front planes     z = fz = sd + 2 + 18 = sd + 20      (ctx.finishedFrontZ)
+     the reflex corner         (fz, fz)          in the finished planes
+     fillet centre  C          (fz + r, fz + r)  out in the room
+     finished ply face         radius r about C          — flush with the two fronts
+     ply back face             radius r + skin about C
+   ```
+
+   **The number that matters, and it is not obvious: the ply's back face lands 3mm *in front of* the
+   carcass.** The ply's back tangent plane is `fz − skin` = `fz − 17`, and the carcass front is
+   `fz − 20`. So the formers have to **pack the curve out by 3mm** — `so + td − skin` — to bring the
+   ply flush with the fronts either side. It is the same relationship §5.0 fixed for the convex
+   corner (*"the curve finishes in the door plane, not on the carcass"*), arriving with the opposite
+   sign, and it is why the former radius here is **`r + skin`** rather than `r − skin`.
+
+   **`resolveCornerRadius` still cannot be reused**, and now for a second reason on top of the
+   convex/concave one: it derives the fixing strip, the tail, the end panel and the door zone from a
+   single handed corner of a rectangle, and none of those exist on an L with two open ends.
+
+   #### Two things want asking before the carcass is cut, and neither should be guessed
+
+   §4.5 needed four decisions from the shop before a convex corner could be built, and the standing
+   note there is that a session re-deriving one gets a different answer. The concave corner has its
+   own, and they are **not answered by anything on file**:
+
+   1. **How far does the former run back along each leg, and is there a fixing strip?** On the convex
+      corner the strip is a flat run of front face the curved piece is screwed to, and §4.5 is
+      explicit that it is *"there to fix the curved piece to"* rather than being door clearance. An
+      inside corner has the ply on the **concave** side, so it is being pushed onto the formers
+      rather than pulled around them, and whether it still wants a flat landing each side — and how
+      much — is a bench answer.
+   2. **Do the ply's flat tails run on behind the two fronts, or does the ply stop at the tangents?**
+      On the convex corner the wrap is deliberately *"one piece, no join"* because an exposed end
+      wants no joint line. Here the curve meets a door-decor front on both sides, so there are two
+      joints whatever happens, and the question is only where they fall.
+
+   Until those are answered the honest options are a square inside corner (which
+   `insideCornerPlan` already builds with no special case, at `radius: 0`) or nothing. **Building the
+   fillet by picking an answer is the failure this document exists to prevent** — it is how the unit
+   came to be a quarter disc in the first place.
+
    Note it also moves §4.19's corner-seat arc charge, which is measured along that front edge. The
    reading survives; the shape it measures does not, and an L has two straight fronts plus a small
    fillet where the old shape had one long arc. And the cushion has to turn with it —
