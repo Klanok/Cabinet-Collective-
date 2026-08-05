@@ -180,6 +180,10 @@ spec such as `core/rules/specs/baseCabinet.ts` to see how parts are declared, an
 | What each cabinet type supports, declared by its own spec | **Working, see 4.15 and 4.16.** `CabinetSpec.capabilities` — refusing costs a sentence |
 | Inside banquette corner — a quarter-circle connector | **Wrong shape and now answered — see 5.13 item 1.** It is an L with a small concave fillet, not a quarter disc. Ready to build |
 | Upholstery as its own material type | Working — Warwick Caulfield, nine colours, `library/upholstery.au.ts` |
+| Cushions cut to the size they claim | **Fixed, see 5.14.** Both were oversize by their own soft edge; the two draw paths disagreed by 36mm |
+| A cushion sitting proud of the front | **Not done — see 5.14.** Wanted at 10mm proud and adjustable; today inset 5mm and showing carcass |
+| A banquette front reaching the carcass top | **Not done — see 5.14.** Cut 3mm short by a reveal that exists for a door to open |
+| The finish laminate, drawn on the curve | **Not done — see 5.14.** Charged in costing, dimensioned in the method, rendered nowhere |
 | Banquette cushions on the quote | **Working, see 4.19.** Bought in whole, $350/lin m **per cushion**, no parts produced |
 | Room — any shape, drawn in a 2D plan with typed lengths | Working |
 | Cabinets placed against a named wall, at any angle | Working |
@@ -2468,6 +2472,13 @@ shop directly. One program off it would do for the KDT what those did for the Wo
 `library/machines.ts` says at the top exactly what to compare and in what order, with the Woodtron
 doc as the worked example.
 
+**And there is a banquette finishing pass with three items left on it — §5.14.** Four faults were
+reported from the bench with photographs; the oversize cushions are fixed and the other three are
+diagnosed to the line and not built. They want **one branch**, because two of them deliberately
+re-price and that argument is better made once. The laminate one has a trap in it worth reading
+before you start: `finishLaminate` migrates to **zero**, so a curve may have no laminate at all
+rather than an unrendered one, and nothing on screen tells those apart.
+
 **For the app: everything named here has shipped** — the out-of-step indicator is §4.18, getting a
 job out of the browser is §4.17, §5.12's custom part features are §4.16, the cushions are §4.19, and
 the standalone panel standing edge out is §4.21. **§5.11 and §5.13 are what is left of the two
@@ -3165,7 +3176,10 @@ it — not a duplicate to tidy away.
   and then owned needs the same answer to "is this still true?".
 - ~~**Applied ends do nothing on a banquette.**~~ **Fixed — see 4.15**, along with the stale guard
   that caused it.
-- **Texture and laminate on a bendy-ply radius.** Reported, not yet reproduced.
+- **Texture and laminate on a bendy-ply radius.** ~~Reported, not yet reproduced.~~ **Reproduced and
+  diagnosed — see §5.14.** It was never a texture-loading fault: the laminate is charged in
+  `costing.ts` and dimensioned on the construction method, and **no part carries it and nothing
+  renders it**, so a curve draws as its bendy-ply substrate. Not yet fixed.
 - ~~**A banquette's back cushion draws in flat colour** until the cabinet is removed and
   re-added.~~ **Fixed — see §4.22**, and the diagnosis in this entry was out of date. §5.4(b)'s
   shared-texture fault had already been fixed; what was left was a ref on the **mesh** where the
@@ -3198,6 +3212,71 @@ The real faults were on the failure paths — an `alert` that a sandboxed frame 
 three one-click ways to destroy a job without being asked, and a non-job file that loaded far enough
 to crash the app into the reload loop. All fixed, and **the shop standards can now be saved out
 too**, which genuinely could not be done before. §4.17 is the record.
+
+### 5.14 The banquette finishing pass — reported from the bench with photographs
+
+**Four things, reported together while looking at a real corner banquette on screen. One is fixed;
+the other three are diagnosed to the line and not built.** They belong on **one branch**, because
+two of them carry a deliberate re-price and that argument is better made once than twice.
+
+**The one that is done — both cushions were oversize by their own soft edge.** An extrude's
+`bevelSize` grows the outline outward on every plan edge as well as through the thickness, and only
+the thickness was being taken back off. On a 1200 × 500 seat at the shipped 18mm soft edge the
+extruded seat came out **1226 × 526** and the back cushion **116 × 436 × 1226**, against stated
+figures of 1190 × 490 and 80 × 400 × 1190. Both now build their shape inside the bevel so it grows
+back to exactly the plan, and on a rounded corner the radius is inset with it — a fillet offset
+inward by `b` has radius `r − b`, which is what keeps the cushion's arc concentric with the carcass
+curve rather than `b` fatter than it.
+
+Two things about *how* that was found are worth more than the fix:
+
+- **Only the curved seat looked wrong**, because a square seat is drawn by drei's `RoundedBox`,
+  whose `args` are the finished size and which needs no correction. So the two branches disagreed
+  about how big the same cushion is on the same cabinet by 36mm. That is §5.4's lid bug exactly, and
+  the pattern is now three-for-three: **two descriptions of one thing, and the one nobody can check
+  against a cutlist is the one that drifts.**
+- **The back cushion's identical fault was found by measuring the running app after the seat was
+  fixed**, not by reading the diff. Reading the code found one of the two.
+
+#### The three that are left
+
+- **The cushion should sit 10mm proud of the finished front, and be adjustable.** Straight from the
+  shop: *"it should be adjustable — but generally should be 10mm proud of the finish panel/door"*.
+  Today `seatCushionInset` holds it **5mm inside every carcass face**, so you look down onto white
+  carcass all the way round it — reported as *"standard straight run cushion is exposing the
+  carcass"*. **This re-prices**: §4.19 charges the seat at the cushion's own width, so a cushion that
+  grows charges more. It is the v9/v11/v27 argument for the fourth time and must say so out loud.
+  Note the field's *meaning* inverts — an inset becomes an overhang — so the migration cannot simply
+  carry the number forward.
+
+- **A banquette front is cut 3mm short at the top, and the gap shows.** `fixedFrontPanel` cuts
+  `H − revealTop − revealBottom`, and `revealTop` is 3mm. **That reveal exists so a door can open
+  under a benchtop** (§3). A banquette front is a `false-front`: it takes no hinges, it never opens,
+  and there is no benchtop above it — the cushion sits on top. So the clearance is for a movement
+  that never happens and all it does is expose carcass, which is the white band visible along the top
+  of the front in the photograph. Same argument for the 1.5mm each side, and in a run of seating the
+  fronts should meet rather than leave a gap. One line, and it **re-cuts every existing banquette
+  front**, so it travels with the migration above.
+
+- **The finish laminate is charged, dimensioned, and drawn nowhere.** Reported as *"laminate finish
+  is still not applying to bendy ply as a finish"*, and the photograph is unambiguous: the curved
+  wrap renders **cream** where the flat front beside it is walnut. `wrapPart` sets `material: 'skin'`
+  — the bendy ply, which is what you order — and `Viewport3D.tsx:94` draws every panel in its own
+  material. **`LAMINATE_MATERIAL_ID` appears in exactly one place in the codebase, `costing.ts:28`,
+  where it is charged as sheet goods.** No part carries it and nothing renders it. §5.0 decided it
+  was *"a dimension, not a part"*, which is right for the cutlist and leaves the curve showing its
+  substrate for ever.
+
+  **There is a second half, and it is the one that will waste somebody's afternoon.**
+  `finishLaminate` **migrates to zero** on saved jobs and standards (project v23, standards v19),
+  deliberately, because a curve already quoted was cut without it. So a shop's curve may have *no
+  laminate at all* rather than an unrendered one — and **nothing on screen tells those two apart**,
+  which is §4.18's lesson wearing a new hat. Fixing the render without surfacing the zero would make
+  the bare-ply case invisible instead of wrong.
+
+**Where to look:** `viewport/BanquetteCushions.tsx` for the bevel correction that is done, with both
+reference measurements in its comments; `rules/parts.ts` `fixedFrontPanel` for the reveal;
+`rules/parts.ts` `wrapPart` and `Viewport3D.tsx:94` for the laminate.
 
 ### 5.13 Reported from the bench, August 2026 — the second list
 
