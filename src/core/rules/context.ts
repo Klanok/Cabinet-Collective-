@@ -228,6 +228,7 @@ const resolveRadius = (
     ts: dims.ts,
     td: dims.td,
     finishLaminate,
+    routedPocketResidual: construction.routedPocketResidual,
   });
   if (radius - outboard <= 0) return null;
   return resolveCornerRadius({
@@ -236,6 +237,7 @@ const resolveRadius = (
     layers,
     cornerMethod,
     td: dims.td,
+    routedPocketResidual: construction.routedPocketResidual,
     W: dims.W,
     D: dims.D,
     t: dims.t,

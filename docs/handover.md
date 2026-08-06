@@ -2926,13 +2926,15 @@ re-cuts and re-prices by a millimetre's worth.
 
 #### Verified
 
-23 assertions plus the corrected radius suite, and **nine deliberate mutations**: subtracting
+25 assertions plus the corrected radius suite, and **thirteen deliberate mutations**: subtracting
 the laminate on a routed curve fails 3, taking the piece off the skin slot fails 1, dropping the
 edge band fails 1, cutting the pockets *to* the residual instead of *from* it fails 1, running the
 pockets through the flat lead and tail fails 1, and giving the routed curve a finish laminate
-fails 2. On the kick and the cut length: bending a kerfed part about mid-board fails 3, measuring
-the developed length off the ply fails 1, putting the kick back in bendy ply fails 1, and dropping
-the kick's pockets fails 1. Read back out of the running app, the same cabinet cuts:
+fails 2. On the kick, the formers and the cut length: putting the former a whole
+board back fails 5, unstepping it fails 1, developing the piece off the board instead of the web
+fails 2, running the pockets through the screw-fixing flat fails 1, measuring the developed length
+off the ply fails 1, putting the kick back in bendy ply fails 1, and dropping the kick's pockets
+fails 1. Read back out of the running app, the same cabinet cuts:
 
 ```
 wrapped   Skin layer 1   721.7 × 720   Bendy plywood 8mm    no band    grain free
@@ -2940,66 +2942,76 @@ wrapped   Skin layer 1   721.7 × 720   Bendy plywood 8mm    no band    grain fr
 routed    Curved front   723.3 × 720   Notaio Walnut 16mm   band W1    grain width
 ```
 
-#### The kick, and the cut length — the answer that arrived an hour later
+#### The kick, the formers, and the cut length — three answers from the bench
 
-The one question this shipped with was the kick: it turns the same corner, it is also a bent
-part, and §5.7 never mentioned it. A test pinned the old behaviour and said out loud that it was
-unasked. The shop answered, the test failed, and it pointed at itself — which is what that shape
-of test is for:
+The one question this shipped with was the kick. A test pinned the old behaviour and said out loud
+it was unasked; the shop answered, the test failed and pointed at itself, which is what that shape
+of test is for. Then the answer widened, and the widening is the important part:
 
 > *"the kick would be kerfed and have a developed length"*
+>
+> *"the web will be 2mm. the formers will be hard up to that 2mm. the route doesn't go full width,
+> it ends at the radius and the run goes minimum 50mm past to allow screw fixing. the area that
+> gets screw fixed is still full depth. so the formers are shaped to account for this offset in
+> depth on the radius face piece"*
 
-So a routed corner's kick is **the straight kick, curved**: the same carcass board a square
-cabinet's kick already comes from, banded on the same top edge, pocket-routed on the rear. Not the
-door board — nothing sees a kick, and a decor sheet bought to hide behind a plinth is the dearest
-board in the job spent on the one part nobody looks at.
-
-**Answering it uncovered two faults in the cut length, and the second is the interesting one.**
-
-**`wrapPart` measured every developed length off `ctx.ts`** — the bendy ply — because until §5.7
-every part it made *was* bendy ply. A routed curve off an 18mm door board was therefore cut to the
-length an 8mm ply would need.
-
-**And a kerfed board does not bend about its middle.** Pocket the rear and the only continuous
-material left is the **residual web at the decor face**; everything between the pockets is a rigid
-segment hinging on it. The model already had the vocabulary — `cylindricalForming` takes a
-k-factor, and `DEFAULT_K_FACTOR`'s own comment says it is *"the value to change if a shop measures
-otherwise"* — so a kerfed part is formed with `kerfKFactor`, `(board − residual/2) / board`, and
-every downstream length follows. On an 18mm board with a 4mm web that is 0.889 rather than 0.5:
+**The first cut of this feature had the formers a whole board back all the way round**, as a
+wrapped one is. They are not. Two numbers, not one, and 16mm apart on an 18mm board:
 
 ```
-neutral radius   right          182 + 0.889 × 18 = 198      ( = r − residual/2 )
-                 mid-board      182 + 9          = 191
-                 the ply        182 + 4          = 186
-arc, quarter turn               311.0  /  300.0  /  292.2
+over the arc      hard up to the 2mm web       200 − 2  = 198
+along the flats   full board, and screwed to   200 − 18 = 182
+the step                                       16
 ```
 
-**19mm of blank between the right answer and the worst wrong one**, on the one part that has to
-meet the doors either side of it.
+So `outboardOfFormers` grew a companion, `outboardOverArc`, and a routed former is a **stepped**
+part rather than one offset of the finished shape. Read back off the model, in part space:
 
-The neutral radius comes out at `r − residual/2` **whatever the board is** — the algebra cancels —
-and that is asserted as the property rather than as 198, because a test pinned to a number passes
-for the wrong reason the day somebody cuts curves from 16mm.
+```
+wrapped   (0,0) (50,0)~arc (233,183) (0,183)                       four vertices, one plane
+routed    (0,16) (50,16) (50,0)~arc (248,198) (232,198) (0,198)    six, stepping 16 twice
+```
 
-#### The mutation that did not bite, and what it was hiding
+The flats sit 16 proud of the arc plane and drop at **x = 50** — exactly where the screw-fixing
+run ends — and the far end steps back the same 16 for the tail.
 
-Reverting `wrapPart` to the ply thickness **passed every assertion in the new file**. All of them
-derived the expected arc from the model and then checked it loosely against the part, so the one
-number the fix was about — the actual cut length — was never pinned.
+**And the piece bends on the web, which made the model simpler rather than harder.** With the
+former hard against the web, everything between the pockets is a rigid segment hinging on a 2mm
+strip at radius 198. So it develops exactly as *a 2mm board wrapped at 198*, about its own middle,
+with no special k-factor at all — the neutral surface lands at `r − web/2` = 199 and the arc is
+312.6. The `kerfKFactor` the previous cut needed is gone: it expressed the same thing as a
+fraction of the whole board, which was only equivalent while the former was assumed to sit a whole
+board back.
 
-What separates them is two boards. Build the same cabinet on 16mm and on 18mm: the arc does not
-move at all, and the **tail** grows by exactly the board difference, because a thicker board sets
-the substrate face back. So the blank grows by 2mm and not a millimetre more. Under the bug the arc
-*shrinks* 3mm while the tail grows 2, and the blank comes out 1mm shorter instead. That assertion
-bites; the first version of it claimed the whole blank was board-independent and was wrong about
-the tail, which the measurement said immediately.
+**Two faults in the cut length came out of this.** `wrapPart` measured **every** developed length
+off `ctx.ts`, the bendy ply, because until §5.7 every part it made was bendy ply — so a routed
+curve off an 18mm board was cut to the length an 8mm ply would need. And the bend datum was wrong,
+as above. On the shipped cabinet the blank went 723.3 → **739.0**.
+
+The kick follows the same rule: kerfed, from the **carcass** board a straight kick already comes
+from, banded on the same top edge, bending on its own 2mm web. Not the door board — nothing sees a
+kick.
+
+#### The two mutations that did not bite, and what they were hiding
+
+**Reverting the developed length to the ply thickness passed everything.** Every assertion derived
+the expected arc from the model and then checked it loosely, so the one number the fix was about —
+the cut length — was never pinned. What separates them is two boards: the arc does not move with
+the board at all, and the flat tail grows by exactly the board difference. So the blank grows 2mm
+and not a millimetre more; under the bug the arc shrinks while the tail grows and it comes out
+1mm shorter.
+
+**And the first assertion about the step checked that a former existed** — true of every radiused
+cabinet ever built. The shape is the claim, so the shape is what is read now. Its replacement then
+failed for a second reason worth keeping: taking the *minimum* y across the fixing strip returns
+the arc plane, because the tangent carries **both** vertices of the step. Read at the inner end
+instead.
 
 #### Still a question
 
-- **The pocket pitch and residual are readings**, 40mm centres leaving 4mm, and they now decide
-  two things rather than one: the tightest radius the piece will take, *and* where it bends and
-  therefore how long it is cut. `unconfirmedRoutedCurveFigures` says so on the Joinery tab, and
-  says the length assumes the pockets close up completely.
+- **The web is the shop's own figure, 2mm. The pitch is not** — 40mm centres is a reading, and it
+  decides the tightest radius the piece will take. `unconfirmedRoutedCurveFigures` says so on the
+  Joinery tab.
 - **The pocket pitch and residual are readings**, 40mm centres leaving 4mm, and they decide the
   tightest radius the piece will take. `unconfirmedRoutedCurveFigures` reports them on the Joinery
   tab, and only on a routed method — a warning about a figure nothing reads is the noise that

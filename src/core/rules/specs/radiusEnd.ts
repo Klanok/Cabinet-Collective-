@@ -86,6 +86,7 @@ const asCorner = (ctx: RuleContext): CornerRadius => {
     // that routes its corners routes this unit's curve too.
     cornerMethod: ctx.construction.cornerMethod ?? 'wrapped',
     td: ctx.td,
+    routedPocketResidual: ctx.construction.routedPocketResidual,
     finishLaminate: ctx.construction.finishLaminate ?? mm(0),
     // No doors, so no door zone and nothing for a fixing strip to divide off — the wrap is
     // the whole quarter and nothing else.

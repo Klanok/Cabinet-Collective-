@@ -11,7 +11,7 @@ transcript. Then read `docs/woodtron-dialect.md` before touching anything under 
 
 ## Where things stand
 
-`main` is green at **1163 tests**. Schema **v36**, shop standards **v27**. Every session's work
+`main` is green at **1165 tests**. Schema **v36**, shop standards **v27**. Every session's work
 lands on `main` through a pull request, so `git log main` is the honest answer to what has shipped —
 check it rather than trusting this paragraph, which is exactly the kind of sentence that goes stale.
 
@@ -39,11 +39,11 @@ nothing without the program that drilled it.
 
 ## Two shop questions holding nothing up, but worth answering
 
-- **The pocket pitch and the residual on a routed curve** — 40mm centres leaving 4mm ships, and
-  they decide **two** things: the tightest radius the piece will take, and where it bends, which
-  is what the blank is cut to. Reported on the Joinery tab as not yet checked. The kick question
-  that sat here is answered — *"the kick would be kerfed and have a developed length"* — and
-  §4.27 has what that changed.
+- **The pocket pitch on a routed curve** — 40mm centres is a reading and decides the tightest
+  radius the piece will take. The **web is the shop's own figure, 2mm**, and the formers are hard
+  up against it. Reported on the Joinery tab as not yet checked. The kick question that sat here
+  is answered and §4.27 has what it changed — including that the formers are **stepped**, which
+  the first cut of that feature had wrong by 16mm.
 
 ## Also worth five minutes on scrap, and cheap to get wrong
 

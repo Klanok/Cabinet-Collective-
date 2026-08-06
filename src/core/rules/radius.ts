@@ -217,6 +217,8 @@ export interface CornerRadiusInput {
   readonly cornerMethod?: CornerMethod;
   /** The door board's real thickness — what a **routed** curve is cut from. */
   readonly td?: Mm;
+  /** The web left under a rear pocket — what the former sits hard up against round the arc. */
+  readonly routedPocketResidual?: Mm;
   /**
    * The plane the curve has to **finish** in — the front face of a door, not the carcass.
    *
@@ -247,8 +249,20 @@ export interface CornerRadius {
   /** Finished plan radius, to the outside of the wrap. */
   readonly r: Mm;
   readonly layers: number;
-  /** Total thickness of the wrap — what the substrate is set back by. */
+  /**
+   * What sits outboard of the former along the **flat** runs — the fixing strip and the tail.
+   *
+   * The whole wrap on a wrapped corner, and the **full board** on a routed one, because the
+   * routing stops at the tangent and the screw-fixed runs stay full depth.
+   */
   readonly skin: Mm;
+  /**
+   * What sits outboard of the former **over the arc** — the wrap again, or the routed **web**.
+   *
+   * Different from `skin` only on a routed corner, and that difference is the step the former is
+   * cut with. See `outboardOverArc`.
+   */
+  readonly skinArc: Mm;
   /** Radius the substrate is cut to: the formers, and the arc on the top and the bottom. */
   readonly rSub: Mm;
 
@@ -341,16 +355,48 @@ export const substrateRadius = (
  *   the finish, so there is no laminate to allow for; allowing for one would put the formers a
  *   millimetre small and the finished curve a millimetre shy of the doors beside it.
  */
-export const outboardOfFormers = (input: {
+export interface OutboardInput {
   readonly cornerMethod?: CornerMethod;
   readonly layers: number;
   readonly ts: Mm;
   readonly td: Mm;
   readonly finishLaminate?: Mm;
-}): Mm =>
+  /** What is left under a rear pocket on a routed curve — the web it bends on. */
+  readonly routedPocketResidual?: Mm;
+}
+
+/**
+ * Over the **flat** runs either side of the arc — the fixing strip, and the tail down the end.
+ *
+ * On a routed corner those runs are **full board**: *"the route doesn't go full width, it ends at
+ * the radius and the run goes minimum 50mm past to allow screw fixing. The area that gets screw
+ * fixed is still full depth."* So the former sits a whole board back there, and the screws have
+ * something to bite.
+ */
+export const outboardOfFormers = (input: OutboardInput): Mm =>
   input.cornerMethod === 'routed'
     ? input.td
     : mm(wrapLayerCount(input.layers) * input.ts + (input.finishLaminate ?? mm(0)));
+
+/**
+ * Over the **arc** — and on a routed corner this is a different number, which is the whole of the
+ * shop's correction.
+ *
+ * *"The formers will be hard up to that 2mm"*: where the piece is pocketed, the only material
+ * between the former and the finished face is the **web**. So the former's arc is cut to
+ * `r − web`, not `r − board`, and on an 18mm board with a 2mm web those are **16mm apart**.
+ *
+ * The consequence is a former that is not one offset from the finished shape but a **stepped**
+ * one — *"the formers are shaped to account for this offset in depth on the radius face piece"*.
+ * Full board back along the flats, stepping forward at each tangent to meet the web round the
+ * curve. `cornerFormerRing` and `plateRingRight` draw that step.
+ *
+ * A wrapped corner has no step: the ply covers the flats as well, so both numbers are the wrap.
+ */
+export const outboardOverArc = (input: OutboardInput): Mm =>
+  input.cornerMethod === 'routed'
+    ? (input.routedPocketResidual ?? input.td)
+    : outboardOfFormers(input);
 
 export const resolveCornerRadius = (input: CornerRadiusInput): CornerRadius => {
   const { corner, radius: r, W, D, t, tb, ts } = input;
@@ -358,14 +404,17 @@ export const resolveCornerRadius = (input: CornerRadiusInput): CornerRadius => {
   const layers = wrapLayerCount(input.layers);
   // Everything outboard of the formers — the ply stack and its laminate, or the one routed
   // board. One function, so the formers and the finished face cannot disagree.
-  const skin = outboardOfFormers({
+  const outboard = {
     cornerMethod: input.cornerMethod,
     layers,
     ts,
     td: input.td ?? ts,
     finishLaminate,
-  });
-  const rSub = mm(r - skin);
+    routedPocketResidual: input.routedPocketResidual,
+  };
+  const skin = outboardOfFormers(outboard);
+  const skinArc = outboardOverArc(outboard);
+  const rSub = mm(r - skinArc);
 
   const sign: 1 | -1 = corner === 'front-right' ? 1 : -1;
   /** Un-mirrored → real. Front-right is the frame everything is written in, so it is identity. */
@@ -434,6 +483,7 @@ export const resolveCornerRadius = (input: CornerRadiusInput): CornerRadius => {
     subEndX,
     tangentX,
     stripInnerX,
+    skinArc,
     tangentZ,
     subFrontZ,
     strip,
@@ -495,7 +545,15 @@ const plateRingRight = (rad: CornerRadius, W: Mm, frontZ: Mm): PlanVertex[] => {
     ring.push({ x: stripInnerX, z: frontZ });
   }
   ring.push({ x: stripInnerX, z: rad.subFrontZ });
-  ring.push({ x: tangentX, z: rad.subFrontZ, bulge: PLAN_ARC_BULGE });
+  if (arcStep(rad)) {
+    // A routed corner's plate carries the same step as its formers — the screw-fixed flat is a
+    // whole board back, the arc is hard up to the web.
+    ring.push({ x: tangentX, z: rad.subFrontZ });
+    ring.push({ x: tangentX, z: arcEnds(rad, W).frontZ, bulge: PLAN_ARC_BULGE });
+    ring.push({ x: arcEnds(rad, W).endX, z: rad.tangentZ });
+  } else {
+    ring.push({ x: tangentX, z: rad.subFrontZ, bulge: PLAN_ARC_BULGE });
+  }
   // Out to the substrate face: forward of the end panel the plate has to carry the wrap on
   // its own, which is the whole reason a bottom on a radiused cabinet is also a former.
   ring.push({ x: subEndX, z: rad.tangentZ });
@@ -513,6 +571,25 @@ export const cornerPlateRing = (rad: CornerRadius, W: Mm, frontZ: Mm): PlanRing 
   handRing(plateRingRight(rad, W, frontZ), rad.corner, W);
 
 /**
+ * The step a routed former is cut with, at the tangent where the routing starts.
+ *
+ * Along the flats the board is full thickness and screwed to the former; round the arc only the
+ * web is there. So the former's edge steps forward by the difference at each tangent — the
+ * shop's *"the formers are shaped to account for this offset in depth on the radius face
+ * piece"*.
+ *
+ * Emits nothing when the two setbacks are equal, which is every wrapped corner: the ply covers
+ * the flats too, so there is no step and the ring keeps exactly the four vertices it always had.
+ */
+const arcStep = (rad: CornerRadius): boolean => Math.abs(rad.skin - rad.skinArc) > SAME_POINT;
+
+/** Where the arc actually starts and finishes, once the step is taken. */
+const arcEnds = (rad: CornerRadius, W: Mm): { frontZ: Mm; endX: Mm } => ({
+  frontZ: mm(rad.tangentZ + rad.rSub),
+  endX: mm(W - rad.skinArc),
+});
+
+/**
  * The plan ring of a corner former: the fixing strip, the arc, and enough behind it to screw
  * to the end panel.
  *
@@ -524,11 +601,24 @@ export const cornerFormerRing = (rad: CornerRadius, W: Mm): PlanRing => {
   const tangentX = mm(W - rad.r);
   const stripInnerX = mm(W - rad.r - rad.strip);
   const subEndX = mm(W - rad.skin);
-  const right: PlanVertex[] = [
-    { x: stripInnerX, z: rad.subFrontZ },
-    { x: tangentX, z: rad.subFrontZ, bulge: PLAN_ARC_BULGE },
-    { x: subEndX, z: rad.tangentZ },
-    { x: stripInnerX, z: rad.tangentZ },
-  ];
+  const arc = arcEnds(rad, W);
+  const right: PlanVertex[] = arcStep(rad)
+    ? [
+        // Flat, at a whole board back — this is what gets screwed.
+        { x: stripInnerX, z: rad.subFrontZ },
+        { x: tangentX, z: rad.subFrontZ },
+        // Step forward to meet the web, and round.
+        { x: tangentX, z: arc.frontZ, bulge: PLAN_ARC_BULGE },
+        { x: arc.endX, z: rad.tangentZ },
+        // Step back for the flat tail down the end.
+        { x: subEndX, z: rad.tangentZ },
+        { x: stripInnerX, z: rad.tangentZ },
+      ]
+    : [
+        { x: stripInnerX, z: rad.subFrontZ },
+        { x: tangentX, z: rad.subFrontZ, bulge: PLAN_ARC_BULGE },
+        { x: subEndX, z: rad.tangentZ },
+        { x: stripInnerX, z: rad.tangentZ },
+      ];
   return handRing(right, rad.corner, W);
 };

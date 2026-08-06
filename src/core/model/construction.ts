@@ -298,12 +298,12 @@ export const FRAMELESS_32: ConstructionMethod = {
    */
   cornerMethod: 'wrapped',
   /*
-   * A reading, and it says so — `unconfirmedRoutedCurveFigures`. 40mm pitch leaving a 4mm web is
+   * A reading, and it says so — `unconfirmedRoutedCurveFigures`. 40mm pitch leaving the shop's 2mm web is
    * the ordinary range for pocket-routing an 18mm board round a tight radius, and neither number
    * has been measured off one this shop has made. They only bite on a `routed` corner.
    */
   routedPocketPitch: mm(40),
-  routedPocketResidual: mm(4),
+  routedPocketResidual: mm(2),
   ladderRailFloorGap: mm(10),
   ladderFaceScribeAllowance: mm(10),
   ladderFaceScribeEnd: 'floor',

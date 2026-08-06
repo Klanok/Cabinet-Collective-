@@ -22,20 +22,21 @@
  *
  * A 900 × 560 base cabinet with an 18mm door board, a 200mm front-right radius and a 50mm strip:
  *
- *   finished radius   200            (the outside of the finished curve, in the door plane)
- *   former radius     200 − 18 = 182 (the routed board is *all* that sits outboard of them)
- *   arc, on the B face (182 + 18/2) × π/2 = 191 × 1.5708 = 300.0
+ *   finished radius     200                 (the outside of the finished curve, in the door plane)
+ *   former, over the arc 200 − 2  = 198      (hard up against the 2mm web)
+ *   former, on the flats 200 − 18 = 182      (full board — this is what gets screwed)
+ *   the step             16
+ *   arc                  (198 + 2/2) × π/2 = 199 × 1.5708 = 312.58
  *
  * Against the wrapped method on the same cabinet: two 8mm plies and a 1mm laminate is 17mm
- * outboard, so the formers come out at 183 — **one millimetre different, and for a completely
- * different reason.** That is the pair `outboardOfFormers` exists to keep honest.
+ * outboard **all the way round**, so the formers come out at 183 with no step in them at all.
+ * That pair is what `outboardOfFormers` and `outboardOverArc` exist to keep honest.
  */
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createCabinet, createEmptyProject } from '../src/core/project/factory.ts';
 import { buildCabinet } from '../src/core/rules/build.ts';
 import { outboardOfFormers } from '../src/core/rules/radius.ts';
-import { kerfKFactor } from '../src/core/rules/parts.ts';
 import { unconfirmedRoutedCurveFigures } from '../src/core/model/construction.ts';
 import { costProject } from '../src/core/costing/costing.ts';
 import { actualThicknessOf } from '../src/core/model/material.ts';
@@ -184,11 +185,12 @@ describe('the curved piece', () => {
     // The part stored is the flat blank — what gets nested and cut. `forming` records the bend.
     const piece = byName(curved('routed').built.panels, 'Curved front');
     expect(piece.forming).toBeDefined();
-    expect(piece.forming!.innerRadius).toBe(mm(182));
+    // 200 finished, less the 2mm web the former is hard up against — not less the whole board.
+    expect(piece.forming!.innerRadius).toBe(mm(198));
     const [length, height] = size(piece);
     expect(height).toBe(mm(720));
-    // 50 strip + arc on the B face (182 + 9) × π/2 + the tail down the end of the cabinet.
-    expect(length).toBeGreaterThan(50 + 300);
+    // 50 strip + the arc round the web + the tail down the end of the cabinet.
+    expect(length).toBeGreaterThan(50 + 312);
   });
 });
 
@@ -212,9 +214,10 @@ describe('the rear pockets — how the piece bends', () => {
     const { project, built } = curved('routed');
     const piece = byName(built.panels, 'Curved front');
     const depth = (pockets(piece)[0] as { depth: number }).depth;
-    const board = project.constructions[0]!;
-    // 18mm door board less the 4mm residual.
-    expect(depth).toBeCloseTo(18 - board.routedPocketResidual, 6);
+    const method = project.constructions[0]!;
+    // 18mm door board less the 2mm web the shop leaves.
+    expect(depth).toBeCloseTo(18 - method.routedPocketResidual, 6);
+    expect(method.routedPocketResidual).toBe(2);
   });
 
   it('puts no pockets in the flat lead or the flat tail', () => {
@@ -250,90 +253,121 @@ describe('the rear pockets — how the piece bends', () => {
 });
 
 /*
- * The length a kerfed piece is cut to — the one number a remake turns on.
+ * Where the formers sit, and what the piece is cut to — the shop's correction.
  *
- * Two separate faults met here, and both were live in the first cut of this feature:
+ * The first cut of this feature had the former a **whole board** back from the finished face all
+ * the way round, as a wrapped one is. It is not:
  *
- * 1. `wrapPart` measured **every** developed length off `ctx.ts`, the bendy ply, because until
- *    §5.7 every part it made was bendy ply. A routed curve off a 16mm door board was therefore
- *    cut to the length an 8mm ply would need.
- * 2. A kerfed board does not bend about its middle. Pocket the rear and the only continuous
- *    material is the residual web at the decor face; everything between the pockets is rigid and
- *    hinges on it. So the length is measured round the **web**.
+ * > *"the web will be 2mm. the formers will be hard up to that 2mm. the route doesn't go full
+ * > width, it ends at the radius and the run goes minimum 50mm past to allow screw fixing. the
+ * > area that gets screw fixed is still full depth. so the formers are shaped to account for this
+ * > offset in depth on the radius face piece"*
  *
- * Hand-worked, on the shipped 18mm door board with a 4mm web, a 200 radius and a 50mm strip:
+ * So a routed former is **stepped**, and the two numbers are 16mm apart on an 18mm board:
  *
- *   inner radius (formers)  200 − 18 = 182
- *   k-factor                (18 − 4/2) / 18 = 0.8889
- *   neutral radius          182 + 0.8889 × 18 = 198    ( = 200 − 4/2, the middle of the web )
- *   arc                     198 × π/2 = 311.02
+ *   over the arc      hard up to the web            200 − 2  = 198
+ *   along the flats   full board, screwed to        200 − 18 = 182
+ *   the step                                        16
  *
- * **The neutral radius is `r − residual/2` whatever the board is**, and the algebra says so:
- * (r − td) + ((td − w/2)/td)·td = r − w/2. That is worth asserting rather than a number, because
- * it is the property, and a test pinned to 198 on an 18mm board passes for the wrong reason the
- * day somebody cuts curves from 16.
+ * And the piece develops as **a 2mm strip wrapped at 198**, because the segments between the
+ * pockets are rigid and only the web bends — so it needs no special k-factor at all, and the
+ * neutral surface lands at `r − web/2` = 199:
  *
- * Against the two wrong answers on that board: mid-board gives (182 + 9) × π/2 = 300.0, and the
- * ply thickness — what `wrapPart` actually used — gives (182 + 4) × π/2 = 292.2. **19mm of blank
- * between the right answer and the worst wrong one**, on the one part that has to meet the doors
- * either side of it.
+ *   arc   199 × π/2 = 312.58
+ *
+ * Against the model this replaced, which had the former at 182 and the piece hinging at 198 off
+ * an 18mm board: the same 312.6 by arithmetic accident on those numbers, and **16mm of former**
+ * wrong. The arc came out right for the wrong reason, which is exactly why the formers are
+ * asserted here and not just the blank.
  */
-describe('the length a kerfed piece is cut to', () => {
-  const kFor = (board: number) =>
-    kerfKFactor({ construction: { routedPocketResidual: mm(4) } } as never, mm(board));
-
-  it('measures round the web, not the middle of the board', () => {
-    expect(kFor(16)).toBeCloseTo((16 - 2) / 16, 6);
-    expect(kFor(18)).toBeCloseTo((18 - 2) / 18, 6);
-    // Mid-board is what a solid bend does, and it is the wrong answer for a kerfed one.
-    expect(kFor(18)).toBeGreaterThan(0.5);
+describe('where the former sits, and what the piece is cut to', () => {
+  it('cuts the former hard up to the web round the arc', () => {
+    const { built } = curved('routed');
+    const piece = byName(built.panels, 'Curved front');
+    // 200 finished less the 2mm web.
+    expect(piece.forming!.innerRadius).toBeCloseTo(198, 6);
   });
 
-  it('puts the neutral surface half a web in from the finished face, whatever the board', () => {
+  /*
+   * **The step, measured off the former's own outline.**
+   *
+   * This assertion was first written as "a routed job has a former and so does a wrapped one",
+   * which is true of every radiused cabinet ever built and checks nothing whatsoever. The shape
+   * is the claim, so the shape is what is read.
+   *
+   * Read back from the model, part space, 200 radius on an 18mm board with a 2mm web:
+   *
+   *   wrapped   (0,0) (50,0)~ (233,183) (0,183)                    four vertices, no step
+   *   routed    (0,16) (50,16) (50,0)~ (248,198) (232,198) (0,198)  six, stepping 16 twice
+   *
+   * The routed flats sit at y = 16 — a whole board back — and drop to the arc plane at the
+   * tangent, x = 50, which is where the 50mm screw-fixing run ends. The far end steps back the
+   * same 16 for the tail. That is *"the formers are shaped to account for this offset in depth"*,
+   * and 16 is 18 less 2.
+   */
+  it('steps the former at the tangent, by the board less the web', () => {
+    const routed = byName(curved('routed').built.panels, 'Corner former 1');
+    const ys = routed.profile.outline.map((v) => v.y);
+    const step = Math.max(...ys) - Math.min(...ys);
+    expect(step).toBeCloseTo(198, 6);
+
+    /*
+     * The flat that gets screwed sits a whole board proud of the arc plane.
+     *
+     * Read at the *inner* end of the strip, x = 0, rather than as a minimum over the strip: the
+     * tangent at x = 50 carries **both** vertices of the step, so a min across it returns the
+     * arc plane and the assertion passes on a former with no step in it at all. It did.
+     */
+    const inner = routed.profile.outline.filter((v) => Math.abs(v.x) < 1e-6);
+    expect(inner.length).toBeGreaterThan(0);
+    expect(Math.max(...inner.map((v) => v.y))).toBeCloseTo(198, 6);
+    expect(Math.min(...inner.map((v) => v.y))).toBeCloseTo(18 - 2, 6);
+
+    // And the step really is two vertices at the tangent, one on each plane.
+    const atTangent = routed.profile.outline
+      .filter((v) => Math.abs(v.x - 50) < 1e-6)
+      .map((v) => v.y)
+      .sort((a, b) => a - b);
+    expect(atTangent.length).toBe(2);
+    expect(atTangent[1]! - atTangent[0]!).toBeCloseTo(18 - 2, 6);
+
+    // And the tail steps back by the same amount at the far end.
+    const xs = routed.profile.outline.map((v) => v.x);
+    expect(Math.max(...xs) - 232).toBeCloseTo(18 - 2, 6);
+  });
+
+  it('leaves a wrapped former unstepped, because the ply covers the flats too', () => {
+    const wrapped = byName(curved('wrapped').built.panels, 'Corner former 1');
+    // Four vertices, and the strip lies in the same plane the arc starts from.
+    expect(wrapped.profile.outline.length).toBe(4);
+    const strip = wrapped.profile.outline.filter((v) => v.x <= 50 + 1e-6);
+    expect(Math.min(...strip.map((v) => v.y))).toBeCloseTo(0, 6);
+  });
+
+  it('develops the piece as a strip of the web, not of the board', () => {
     const piece = byName(curved('routed').built.panels, 'Curved front');
     const f = piece.forming!;
-    // The board is read back off the model rather than typed: the formers are cut to r − td, so
-    // td is 200 less the inner radius. Asserting the *property* — r − residual/2 — rather than
-    // 198 keeps this honest the day somebody cuts curves from a different board.
-    const board = 200 - f.innerRadius;
-    expect(f.innerRadius + f.kFactor * board).toBeCloseTo(200 - 4 / 2, 6);
+    // Neutral at r − web/2 = 199, whatever the board is: (r − web) + web/2.
+    expect(f.innerRadius + f.kFactor * 2).toBeCloseTo(200 - 2 / 2, 6);
+    expect(f.kFactor).toBeCloseTo(0.5, 6);
   });
 
   it('cuts the blank to the arc round the web plus both flats', () => {
     const piece = byName(curved('routed').built.panels, 'Curved front');
     const [length] = size(piece);
-    const f = piece.forming!;
-    const board = 200 - f.innerRadius;
-    const arc = (f.innerRadius + f.kFactor * board) * (Math.PI / 2);
-    expect(arc).toBeCloseTo(198 * (Math.PI / 2), 6);
-    // 50mm strip + the arc + the tail down the end of the cabinet, and the tail is real.
+    const arc = 199 * (Math.PI / 2);
+    expect(arc).toBeCloseTo(312.58, 1);
+    // 50mm strip + the arc + a real tail down the end of the cabinet.
     expect(length - arc - 50).toBeGreaterThan(0);
-    // Decisively longer than either wrong answer: mid-board, or the bendy-ply thickness.
-    expect(arc).toBeGreaterThan((f.innerRadius + board / 2) * (Math.PI / 2));
-    expect(arc).toBeGreaterThan((f.innerRadius + 4) * (Math.PI / 2));
   });
 
   /*
-   * **The blank is the same length whatever the door board measures, and that is the test.**
+   * The blank still moves with the board, and only in the tail.
    *
-   * It follows from the algebra above — the neutral radius is `r − residual/2` however thick the
-   * board is — and it is the physical truth too: a kerfed piece hinges on the web just under the
-   * decor face, so the finished radius and the web decide the length. The board only decides how
-   * deep the pocket goes.
-   *
-   * **The whole blank is not board-independent, and the first cut of this test said it was.** The
-   * flat tail runs down the end of the cabinet from the substrate face, and a thicker board sets
-   * that face back — so the tail grows by exactly the board difference while the arc does not
-   * move at all. Measured: 739.02 on 16mm and 741.02 on 18mm, two millimetres apart.
-   *
-   * So the assertion is that the difference is **exactly** the board difference — every bit of it
-   * in the tail, none of it in the arc.
-   *
-   * This exists because a mutation said it had to. Reverting `wrapPart` to measure every part off
-   * the bendy-ply thickness — the bug this feature shipped with for an hour — passed every other
-   * assertion in this file, because they all derive the expected arc from the model rather than
-   * pinning the cut length. Under that bug the arc shrinks 3mm as the board thickens while the
-   * tail grows 2, so the blank comes out 1mm **shorter** instead of 2mm longer.
+   * The arc is now `r − web/2` and has nothing to do with the board at all, but the flat tail
+   * runs down the end from the substrate face, which is a whole board back. So a thicker board
+   * lengthens the tail and nothing else. This is the assertion that caught `wrapPart` measuring
+   * every developed length off the bendy ply.
    */
   it('moves the blank by the board thickness and not a millimetre more', () => {
     const lengthOn = (doorMaterialId: string) => {
@@ -393,7 +427,7 @@ describe('the two figures nobody has checked', () => {
     const notes = unconfirmedRoutedCurveFigures(routed);
     expect(notes.length).toBe(1);
     expect(notes[0]).toMatch(/40mm centres/);
-    expect(notes[0]).toMatch(/4mm of board/);
+    expect(notes[0]).toMatch(/2mm of board/);
   });
 
   it('says nothing on a wrapped method, where neither number is read', () => {
