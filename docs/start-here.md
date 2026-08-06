@@ -11,7 +11,7 @@ transcript. Then read `docs/woodtron-dialect.md` before touching anything under 
 
 ## Where things stand
 
-`main` is green at **1099 tests**. Schema **v36**, shop standards **v27**. Every session's work
+`main` is green at **1113 tests**. Schema **v36**, shop standards **v27**. Every session's work
 lands on `main` through a pull request, so `git log main` is the honest answer to what has shipped —
 check it rather than trusting this paragraph, which is exactly the kind of sentence that goes stale.
 
@@ -46,10 +46,13 @@ nothing without the program that drilled it.
    closer to a benchtop's `joins` than to a nesting tweak.
 2. **A drawer front's height can change the cabinet's height**, §5.11 — reported, never reproduced.
    The useful detail when it is reported again is whether the height moves *as you type* or *on
-   save*, because those are two different bugs. The bottom front's input is also partly off-screen.
-3. **A pass over the whole UI**, §5.11. The user's own words are *"any other user may struggle"*.
-   Bigger and vaguer than anything else here, and worth agreeing a definition of done for before
-   starting.
+   save*, because those are two different bugs. **The off-screen input reported with it is a
+   separate, closed thing — §4.24** — so do not take a fresh report of one as evidence of the
+   other.
+3. **The rest of the UI pass**, §5.11 — the Inspector is done, §4.24. What has had no pass is the
+   **Settings modal**, 1277 lines in one file, and the nine wrapping "+ cabinet type" buttons above
+   the list. Neither is clipped and neither is small; both are still cluttered. Worth agreeing a
+   definition of done before starting, the same way §4.24 did.
 
 ## Waiting on the shop, and worth asking early
 
@@ -67,10 +70,17 @@ nothing without the program that drilled it.
 
 ## Closed recently — read before reopening any of it
 
-The custom cabinet (§5.13 item 3, model + Parts-list editor + per-part thickness), the sheet sizes
-in full (§5.13 item 7), both cushion meshes (`viewport/cushionMesh.ts`), the finish laminate as a
-per-brand decor, and the laminate repair that made §4.23's drawing visible on jobs that already
-existed. Every footprint now traces to the shop or the machine:
+**The Inspector folds, and nothing in the app is clipped — §4.24.** One drawer bank was 2242px of
+controls in a 712px window; the whole of a cabinet now fits one screen folded, at four screen
+sizes. Two things there are worth knowing before you touch the panels: a shut section **still
+shows what is set inside it**, which is the only reason folding is safe, and the reported
+"off-screen" drawer front input was never off-screen — a long label was eating the box, in a rule
+shared by every field in the app.
+
+Also: the custom cabinet (§5.13 item 3, model + Parts-list editor + per-part thickness), the sheet
+sizes in full (§5.13 item 7), both cushion meshes (`viewport/cushionMesh.ts`), the finish laminate
+as a per-brand decor, and the laminate repair that made §4.23's drawing visible on jobs that
+already existed. Every footprint now traces to the shop or the machine:
 
 ```
 carcass and melamine   +10 / +5     any MDF board   +20 / +10
@@ -97,6 +107,14 @@ The eighth session found three more shapes of it, and they are the ones to watch
 - **A feature that ships switched off for everybody who already has the app.** §4.23 drew the
   laminate on a curve *and* zeroed the allowance on every existing job, so the bench saw bendy ply
   for months and reported it as never done. **Before writing "done", ask what a *saved* job does.**
+
+The ninth found a fourth shape, in the one place nobody thinks to look:
+
+- **A passing test whose stated reason is wrong.** §4.24 has an assertion about a deleted part
+  being put back, with a comment explaining the mechanism it guards. The mechanism does not exist —
+  the record it described is pruned elsewhere — and the test passed anyway, for a different reason
+  than the one written above it. **Only the mutation found it**, which is the argument for running
+  them: a green suite tells you the assertions hold, never that they hold for the reason you think.
 
 **Check the code, not the paragraph.** The general form: a repair has to cover every chain that
 reads the field, not every field in one chain. And when you make a claim false, go and find it.

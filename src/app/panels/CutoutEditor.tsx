@@ -211,10 +211,9 @@ export function CutoutEditor({ cabinet, built, onUpdate }: Props) {
 
   const selected = choices.find((c) => c.key === part) ?? choices[0];
 
+  // The "Cutouts" heading lives on the fold in `Inspector`, not here — see `Section.tsx`.
   return (
     <>
-      <div className="subhead">Cutouts</div>
-
       {refusal !== null && <p className="note warning">{refusal}</p>}
 
       {features.length === 0 ? (

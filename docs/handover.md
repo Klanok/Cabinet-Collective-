@@ -2646,6 +2646,79 @@ longhand.
 
 ---
 
+### 4.24 The Inspector folds, and three things were clipped that nobody had measured
+
+§5.11's last two entries, and the reason they are one session rather than two: *"the input for the
+bottom front is partly off-screen"* and *"any other user may struggle"* turned out to share a
+mechanism, and neither was what it said on the tin.
+
+**Everything here was measured in the running app before anything was changed**, per §7, and the
+numbers are why the work went where it did. On a 1366 × 768 laptop, with the sample kitchen:
+
+```
+one drawer bank's Inspector      2242px of controls in a 712px window — 3.1 screens
+the left column, all of it       2513px, scrolling as one strip
+the Parts list Delete buttons    41px past the panel — they read "De"
+text at 11px or smaller          781 of ~830 pieces of text on screen
+```
+
+**The report was not about drawer fronts.** `.field > span` was `flex: 0 0 auto` and
+`.field-input` was `flex: 0 1 150px`, so the box was the only thing in a row allowed to shrink and
+a long label ate it. `Front 1 (bottom) — E — 192mm` is the longest label in the app at 186px, which
+left its box **50px** against the 102px its `Front 2` neighbour kept. Nothing was off-screen; one
+control was half the size of the identical control beneath it. The same rule was quietly clipping
+the `mm` after every wider row, which is why those read "mn".
+
+**And folding the Inspector could not have fixed the scrolling on its own**, which is the part
+worth carrying forward. The cabinet list and the Inspector shared one scroll column, and nine
+cabinets is 659px of list — so the Inspector's first field started below the fold *however short
+the Inspector was*. The height in the way belonged to something else. The left column is now two
+panes that scroll independently, the list capped at 40%, and the cabinet you click is on screen
+because it cannot be pushed off.
+
+**What folding costs, and what pays for it.** A shut section that says nothing is
+indistinguishable from one with nothing in it — §4.18's lesson arriving in the UI. So every
+section that can hold a departure from the default carries it on the header while it is shut: "1
+deleted", "3 overrides", "2 cutouts". A cabinet on the job defaults shows nothing rather than a
+row of zeroes. **Fold away the controls, never the facts.** The decisions live in
+`panels/inspectorSections.ts` rather than in the component precisely so they can be checked in
+Node — `tests/inspectorSections.test.ts`, 14 assertions.
+
+Verified against the DOM at **1280 × 720, 1366 × 768, 1600 × 900 and 1920 × 1080** — the shop runs
+this on various screens — 23 assertions, all passing:
+
+- the Inspector has **200px+ on screen** for all nine cabinets, at every size
+- **folded, the whole map fits its pane** at every size, so every heading is reachable at once
+- **nothing overhangs its panel** — five tabs, the Inspector with every fold open, and Settings
+- **no input under 100px**, which is the drawer front report asserted by width
+- **no text under 12px**
+- a deleted part still reads "1 deleted" with Parts shut, and survives a reload
+
+**Six deliberate mutations, each restoring the original mechanism rather than its shape**: the
+fixed-width label fails 1, the auto-layout Parts table fails 1, the 12px section margins fail 1, a
+summary that stops rendering fails 1, the single scrolling column fails 1, an 11px heading fails 1.
+
+**One mutation did not bite, and it is the useful one.** A test asserting that a part put back
+stops counting survived a summary that counted override *records* instead of departures — because
+`withPartOverride` prunes a record that no longer says anything, so there is no record to
+miscount. The comment above that test claimed a mechanism this codebase does not have. It is
+corrected in place rather than deleted, because it still fails when the pruning and the counting
+go loose together — but it is not the test of the counting, and it said it was. **A test's stated
+reason can go stale exactly like a doc comment, and only a mutation finds it.**
+
+**One thing this did not touch and should be said plainly:** the Settings modal is 1277 lines and
+had no pass beyond the clipping check and the type size, and the nine "+ cabinet type" buttons
+still wrap to three lines above the list. Neither is clipped and neither is small; both are still
+cluttered.
+
+**Where to look:** `panels/Section.tsx` for the fold and why it is `<details>`;
+`panels/inspectorSections.ts` for the defaults, the stored-preference merge and the summaries;
+`store/persistence.ts` `UI_KEY` for why the fold state is a third key rather than a field on the
+job or the standards. **No schema change** — v36 and standards v27 stand, and a saved job opens
+unaffected, which is the §4.23 question asked in advance for once.
+
+---
+
 ## 5. Open items, in the order I'd do them
 
 **5.2 has shipped — see 4.6.** What is left of it is Hettich and a handful of gaps, listed below.
@@ -3479,12 +3552,21 @@ it — not a duplicate to tidy away.
   shared-texture fault had already been fixed; what was left was a ref on the **mesh** where the
   **geometry** is the thing R3F replaces, so a rebuilt cushion kept raw millimetre UVs. Removing and
   re-adding the cabinet "fixed" it because remounting is the only thing that re-fires a mesh ref.
-- **Changing a drawer front's height can change the cabinet's height**, and the input for the
-  bottom front is partly off-screen. Not yet reproduced; the useful detail when it is reported
-  again is whether the height moves *as you type* or *on save*, because those are two different
-  bugs.
-- **The UI is navigable but cluttered**, in the user's own words *"any other user may struggle"*.
-  Panels have grown per feature with no pass over the whole.
+- **Changing a drawer front's height can change the cabinet's height.** Still not reproduced; the
+  useful detail when it is reported again is whether the height moves *as you type* or *on save*,
+  because those are two different bugs.
+
+  ~~**and the input for the bottom front is partly off-screen**~~ — **that half is fixed, see
+  §4.24, and it was not off-screen.** It was *squashed*: `.field` let the label take whatever it
+  wanted and left the box to shrink, so `Front 1 (bottom) — E — 192mm` — the longest label in the
+  app — kept **50px** where the plain `Front 2` beside it kept 102. Worth separating from the
+  height bug above, because the two were reported in one sentence and only one of them was ever
+  about drawer fronts: the mechanism was in the shared field row and was clipping other panels
+  too.
+- ~~**The UI is navigable but cluttered**~~ — **first pass done, see §4.24.** The user's words
+  were *"any other user may struggle"*. What is closed is the Inspector, the sheer size of the
+  thing, and every clipped control in the app; what has had no pass at all is the Settings modal's
+  own 1277 lines and the nine wrapping "+ cabinet type" buttons.
 
 #### ~~Not reported, and a bigger risk than anything above~~ — done, see 4.17, and **this entry was wrong**
 
