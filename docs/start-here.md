@@ -11,7 +11,7 @@ transcript. Then read `docs/woodtron-dialect.md` before touching anything under 
 
 ## Where things stand
 
-`main` is green at **1165 tests**. Schema **v36**, shop standards **v27**. Every session's work
+`main` is green at **1166 tests**. Schema **v36**, shop standards **v27**. Every session's work
 lands on `main` through a pull request, so `git log main` is the honest answer to what has shipped —
 check it rather than trusting this paragraph, which is exactly the kind of sentence that goes stale.
 
@@ -39,11 +39,10 @@ nothing without the program that drilled it.
 
 ## Two shop questions holding nothing up, but worth answering
 
-- **The pocket pitch on a routed curve** — 40mm centres is a reading and decides the tightest
-  radius the piece will take. The **web is the shop's own figure, 2mm**, and the formers are hard
-  up against it. Reported on the Joinery tab as not yet checked. The kick question that sat here
-  is answered and §4.27 has what it changed — including that the formers are **stepped**, which
-  the first cut of that feature had wrong by 16mm.
+- **How tight a radius will a 2mm web actually turn?** The web is the shop's own figure and the
+  rear relief is **one continuous pocket** — both answered. What nobody has tried is the tightest
+  curve it will take before it cracks. Reported on the Joinery tab. §4.27 has the rest, including
+  that the formers are **stepped**, which the first cut of that feature had wrong by 16mm.
 
 ## Also worth five minutes on scrap, and cheap to get wrong
 

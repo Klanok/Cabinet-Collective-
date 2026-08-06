@@ -114,7 +114,6 @@ export const JOINERY_GROUPS: readonly JoineryGroup[] = [
       'cornerMethod',
       'fixingStripWidth',
       'finishLaminate',
-      'routedPocketPitch',
       'routedPocketResidual',
     ],
   },

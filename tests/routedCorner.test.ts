@@ -194,55 +194,74 @@ describe('the curved piece', () => {
   });
 });
 
-describe('the rear pockets — how the piece bends', () => {
-  const pockets = (panel: Panel) => panel.features.filter((f) => f.purpose === 'bend-relief');
+/*
+ * The rear relief — one continuous pocket, not a run of kerfs.
+ *
+ * Asked directly, because the first cut of this built a row of 6mm slots at 40mm centres and the
+ * shop did not recognise the setting: *"I'm not sure what 40mm pocket pitch means"*. Put as an
+ * either/or — a row of slots, or one cleared area — the answer was *"yeah one continuous
+ * pocket"*.
+ *
+ * So there is **no pitch at all**, and the setting is gone rather than left in meaning nothing.
+ * What is left is the web, which is the shop's own 2mm and decides everything: the cut depth, the
+ * former radius over the arc, and the length the blank is cut to.
+ */
+describe('the rear relief', () => {
+  const relief = (panel: Panel) => panel.features.filter((f) => f.purpose === 'bend-relief');
 
-  it('cuts a run of grooves on the rear face and nowhere else', () => {
+  it('clears one pocket on the rear face, not a run of grooves', () => {
     const piece = byName(curved('routed').built.panels, 'Curved front');
-    const found = pockets(piece);
-    expect(found.length).toBeGreaterThan(0);
-    for (const f of found) {
-      expect(f.kind).toBe('groove');
-      // The B face is the back. Pocketing the decor face would be a curve with grooves in it.
-      expect((f as { face: string }).face).toBe('B');
-    }
+    const found = relief(piece);
+    expect(found.length).toBe(1);
+    expect(found[0]!.kind).toBe('pocket');
+    // The B face is the back. Clearing the decor face would be a trench down the front of it.
+    expect((found[0] as { face: string }).face).toBe('B');
   });
 
   it('measures the cut from what is left, not from how deep to go', () => {
-    // The method stores the residual — the web the curve bends on — and the depth is derived,
-    // so a thicker door board deepens the cut instead of eating the web.
     const { project, built } = curved('routed');
     const piece = byName(built.panels, 'Curved front');
-    const depth = (pockets(piece)[0] as { depth: number }).depth;
+    const depth = (relief(piece)[0] as { depth: number }).depth;
     const method = project.constructions[0]!;
     // 18mm door board less the 2mm web the shop leaves.
     expect(depth).toBeCloseTo(18 - method.routedPocketResidual, 6);
     expect(method.routedPocketResidual).toBe(2);
   });
 
-  it('puts no pockets in the flat lead or the flat tail', () => {
-    /*
-     * Relief only where the piece bends. The lead is the fixing strip and the tail runs down the
-     * end of the cabinet — both are flat, and grooving them would weaken a part that is not
-     * being asked to do anything.
-     */
-    const { built } = curved('routed');
-    const piece = byName(built.panels, 'Curved front');
+  /*
+   * The pocket stops at the tangents, and that is a load-bearing fact rather than tidiness:
+   * *"the run goes minimum 50mm past to allow screw fixing. The area that gets screw fixed is
+   * still full depth."* Relieve the flats and there is nothing left for a screw to hold.
+   */
+  it('stops at the tangents, leaving the screw-fixed flats full depth', () => {
+    const piece = byName(curved('routed').built.panels, 'Curved front');
     const [length] = size(piece);
-    const arcEnd = 50 + (182 + 9) * (Math.PI / 2);
-    for (const f of pockets(piece)) {
-      const x = (f as { path: readonly { x: number }[] }).path[0]!.x;
-      expect(x, 'a pocket fell before the bend').toBeGreaterThanOrEqual(50);
-      expect(x, 'a pocket fell after the bend').toBeLessThanOrEqual(arcEnd);
-      expect(x).toBeLessThan(length);
-    }
+    const outline = (relief(piece)[0] as { outline: readonly { x: number }[] }).outline;
+    const xs = outline.map((v) => v.x);
+    const from = Math.min(...xs);
+    const to = Math.max(...xs);
+
+    // Starts at the end of the 50mm fixing strip.
+    expect(from).toBeCloseTo(50, 6);
+    // And spans exactly the arc round the web — 199 × π/2.
+    expect(to - from).toBeCloseTo(199 * (Math.PI / 2), 6);
+    // Leaving a real flat tail beyond it.
+    expect(length - to).toBeGreaterThan(0);
   });
 
-  it('spaces them at the method pitch', () => {
+  it('runs the full height of the piece', () => {
     const piece = byName(curved('routed').built.panels, 'Curved front');
-    const xs = pockets(piece).map((f) => (f as { path: readonly { x: number }[] }).path[0]!.x);
-    expect(xs.length).toBeGreaterThan(2);
-    for (let i = 1; i < xs.length; i++) expect(xs[i]! - xs[i - 1]!).toBeCloseTo(40, 6);
+    const ys = (relief(piece)[0] as { outline: readonly { y: number }[] }).outline.map((v) => v.y);
+    expect(Math.max(...ys) - Math.min(...ys)).toBeCloseTo(720, 6);
+  });
+
+  it('relieves the kick the same way', () => {
+    const kick = curved('routed').built.panels.find(
+      (p) => p.role === 'kick' && p.forming !== undefined,
+    )!;
+    const found = relief(kick);
+    expect(found.length).toBe(1);
+    expect(found[0]!.kind).toBe('pocket');
   });
 
   it('puts none on a wrapped curve, which bends because the ply is thin', () => {
@@ -422,12 +441,14 @@ describe('what the change costs, and what it must not', () => {
 });
 
 describe('the two figures nobody has checked', () => {
-  it('reports the pocket figures on a routed method', () => {
+  it('reports the web and what is unchecked about it on a routed method', () => {
     const routed = jobWith('routed').constructions[0]!;
     const notes = unconfirmedRoutedCurveFigures(routed);
     expect(notes.length).toBe(1);
-    expect(notes[0]).toMatch(/40mm centres/);
-    expect(notes[0]).toMatch(/2mm of board/);
+    // The web itself is the shop's figure. What nobody has checked is the tightest radius it
+    // will turn — so the note must say which is which rather than casting doubt on both.
+    expect(notes[0]).toMatch(/2mm web/);
+    expect(notes[0]).toMatch(/tightest radius/);
   });
 
   it('says nothing on a wrapped method, where neither number is read', () => {

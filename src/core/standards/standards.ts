@@ -319,8 +319,7 @@ export const labelForConstructionKey = (key: keyof ConstructionMethod): string =
   const labels: Partial<Record<keyof ConstructionMethod, string>> = {
     backStyle: 'Back style',
     cornerMethod: 'How a radiused corner is built',
-    routedPocketPitch: 'Routed curve — pocket pitch',
-    routedPocketResidual: 'Routed curve — material left under a pocket',
+    routedPocketResidual: 'Routed curve — web left under the rear pocket',
     kickHeight: 'Kick height',
     kickSetback: 'Kick setback',
     stretcherWidth: 'Top rail depth',

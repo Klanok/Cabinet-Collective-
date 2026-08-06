@@ -663,7 +663,7 @@ export const kickPanel = (ctx: RuleContext): PartInstance[] => {
             // anybody sees, under the door.
             banding: ['+Y'] as BandingRule,
             boardThickness: board,
-            features: rearPockets(ctx, {
+            features: rearRelief(ctx, {
               lead: flatFront,
               arc: developedLength(
                 cylindricalForming('x', inner, QUARTER_TURN, flatFront),
@@ -677,8 +677,8 @@ export const kickPanel = (ctx: RuleContext): PartInstance[] => {
         : {}),
       note: (length) =>
         routed
-          ? `Carcass board, cut flat ${length.toFixed(1)} × ${c.kickHeight}. Pocket the rear at ` +
-            `${c.routedPocketPitch}mm centres leaving ${c.routedPocketResidual}mm, and bend to ` +
+          ? `Carcass board, cut flat ${length.toFixed(1)} × ${c.kickHeight}. Pocket the rear ` +
+            `right across the curve leaving ${c.routedPocketResidual}mm, and bend to ` +
             `${Math.round(inner)}mm inside radius — set back ${c.kickSetback} from the door ` +
             'face. Band the top edge. Needs blocking behind it.'
           : `Bendy ply, cut flat ${length.toFixed(1)} × ${c.kickHeight} and bent to ` +
@@ -1053,48 +1053,50 @@ export const isLaminatedCurve = (construction: ConstructionMethod): boolean =>
  * with a placeholder colour and its own comment saying nothing is drawn from it.
  */
 /**
- * How a routed curve's rear pockets fall — the shop's *"pocket route on the rear"*.
+ * The rear relief that lets a routed curve bend — **one continuous pocket**, not a run of slots.
  *
- * A run of grooves across the back, on the **B face**, spanning the part's full height and
- * spaced at the method's pitch. They exist only over the **bent** part of the piece: the flat
- * lead is the fixing strip and the flat trail runs down the end of the cabinet, and cutting
- * relief into either would weaken a piece that is not being asked to bend.
+ * The shop's own words, twice: *"it's a pocket route on the rear"*, and asked whether that meant
+ * a row of kerfs or one cleared area, *"yeah one continuous pocket"*. So the whole curved section
+ * is cleared to a flat floor leaving the web, and the piece bends on a continuous 2mm band rather
+ * than hinging between rigid ribs. That is also what makes *"the formers will be hard up to that
+ * 2mm"* literally true: the former bears on an unbroken surface.
  *
- * Emitted as real `groove` features rather than described in the note, because they are
- * machining: they have a width, a depth and a position, CAM has to cut them, and a note is not
- * a toolpath. The cut depth is **derived** — `board − residual` — so the two cannot disagree
- * when the board changes, which is why the method stores what is *left* rather than how deep to
- * go.
+ * **It stops at the tangents**, which is the other half of the same sentence — *"the route
+ * doesn't go full width, it ends at the radius and the run goes minimum 50mm past to allow screw
+ * fixing. The area that gets screw fixed is still full depth."* So the flat lead and the flat
+ * tail keep the whole board, and the screws have something to bite.
+ *
+ * A `pocket` rather than a `groove`, and the model already drew that distinction: *a groove
+ * follows a line at a constant width; a pocket follows an area, and the tool has to clear the
+ * whole of it.* Clearing an area is exactly what this is.
+ *
+ * The depth is **derived** — `board − web` — because the method stores what is *left*. A shop
+ * thinks in the web that has to survive bending, not in how deep the cutter went, and deriving it
+ * means a thicker board deepens the cut instead of eating the web.
  */
-export const rearPockets = (
+export const rearRelief = (
   ctx: RuleContext,
   spec: { lead: Mm; arc: Mm; height: Mm; board: Mm },
 ): PanelFeature[] => {
-  const pitch = ctx.construction.routedPocketPitch;
-  const residual = ctx.construction.routedPocketResidual;
-  const depth = mm(spec.board - residual);
-  if (pitch <= 0 || depth <= 0 || spec.arc <= 0) return [];
-
-  // Centred in the arc, so the run is symmetrical about the middle of the bend and a piece
-  // turned end for end still lines up — the same argument `systemHoleEndClearance` makes.
-  const count = Math.max(1, Math.floor(spec.arc / pitch));
-  const used = mm((count - 1) * pitch);
-  const first = mm(spec.lead + (spec.arc - used) / 2);
-
-  return Array.from({ length: count }, (_, i) => {
-    const x = mm(first + i * pitch);
-    return {
-      id: `bend-relief-${i + 1}`,
-      kind: 'groove' as const,
-      purpose: 'bend-relief' as const,
-      face: 'B' as const,
-      path: [v2(x, mm(0)), v2(x, spec.height)],
-      // One cutter width. A wider pocket is a shop preference and a setting nobody has asked
-      // for; the pitch and the residual are the two that decide whether it bends.
-      width: mm(6),
+  const web = ctx.construction.routedPocketResidual;
+  const depth = mm(spec.board - web);
+  if (depth <= 0 || spec.arc <= 0) return [];
+  const x0 = spec.lead;
+  const x1 = mm(spec.lead + spec.arc);
+  return [
+    {
+      id: 'bend-relief',
+      kind: 'pocket',
+      purpose: 'bend-relief',
+      // The back. Clearing the decor face would be a curve with a trench down the front of it.
+      face: 'B',
+      outline: [v2(x0, mm(0)), v2(x1, mm(0)), v2(x1, spec.height), v2(x0, spec.height)],
       depth,
-    };
-  });
+      // Square walls at the tangents: the step from full board to web is the line the former
+      // lands against, and rounding it would leave the former proud of the flat.
+      cornerRadius: mm(0),
+    },
+  ];
 };
 
 /**
@@ -1147,12 +1149,13 @@ export const routedCurve = (ctx: RuleContext, rad: CornerRadius): PartInstance[]
       // The piece's length runs *around* the curve, so grain up the curve is across its width —
       // the same translation `finishGrainFor` does, and opposite to what a door gets.
       grain: wantVertical ? 'width-along-grain' : 'length-along-grain',
-      features: rearPockets(ctx, { lead: rad.strip, arc, height: ctx.H, board: ctx.td }),
+      features: rearRelief(ctx, { lead: rad.strip, arc, height: ctx.H, board: ctx.td }),
       note: (length) =>
         `${ctx.construction.name}: routed curve. Cut flat ${length.toFixed(1)} × ${ctx.H} from ` +
-        `the door board, pocket the rear at ${ctx.construction.routedPocketPitch}mm centres ` +
-        `leaving ${ctx.construction.routedPocketResidual}mm, and bend to ${Math.round(inner)}mm ` +
-        'inside radius over the formers. Band the leading edge — that band is the finished edge.',
+        `the door board. Pocket the rear right across the curve, leaving ` +
+        `${ctx.construction.routedPocketResidual}mm, and bend to ${Math.round(inner)}mm inside ` +
+        'radius over the formers. The flats either side stay full depth for the screws. Band the ' +
+        'leading edge — that band is the finished edge.',
     }),
   ];
 };

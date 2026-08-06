@@ -2926,15 +2926,16 @@ re-cuts and re-prices by a millimetre's worth.
 
 #### Verified
 
-25 assertions plus the corrected radius suite, and **thirteen deliberate mutations**: subtracting
+26 assertions plus the corrected radius suite, and **seventeen deliberate mutations**: subtracting
 the laminate on a routed curve fails 3, taking the piece off the skin slot fails 1, dropping the
 edge band fails 1, cutting the pockets *to* the residual instead of *from* it fails 1, running the
 pockets through the flat lead and tail fails 1, and giving the routed curve a finish laminate
 fails 2. On the kick, the formers and the cut length: putting the former a whole
 board back fails 5, unstepping it fails 1, developing the piece off the board instead of the web
-fails 2, running the pockets through the screw-fixing flat fails 1, measuring the developed length
-off the ply fails 1, putting the kick back in bendy ply fails 1, and dropping the kick's pockets
-fails 1. Read back out of the running app, the same cabinet cuts:
+fails 2, running the relief through the screw-fixing flat fails 1, measuring the developed length
+off the ply fails 1, putting the kick back in bendy ply fails 1, and dropping the kick's relief
+fails 2. On the pocket itself: clearing the whole part fails 1, cutting *to* the web depth rather
+than down to it fails 1, and moving the relief to the decor face fails 1. Read back out of the running app, the same cabinet cuts:
 
 ```
 wrapped   Skin layer 1   721.7 × 720   Bendy plywood 8mm    no band    grain free
@@ -2991,6 +2992,34 @@ as above. On the shipped cabinet the blank went 723.3 → **739.0**.
 The kick follows the same rule: kerfed, from the **carcass** board a straight kick already comes
 from, banded on the same top edge, bending on its own 2mm web. Not the door board — nothing sees a
 kick.
+
+#### The relief is one pocket, and the pitch was a setting nobody could read
+
+The first cut of this built a **row of 6mm slots at 40mm centres** — a kerf pattern — and reported
+the spacing as an unconfirmed figure. The shop's reply was not about the number:
+
+> *"I'm not sure what 40mm pocket pitch means"*
+
+Put back as an either/or — a row of slots, or one cleared area — the answer settled it:
+
+> *"yeah one continuous pocket"*
+
+So the whole curved section is cleared to a flat floor leaving the web, and the piece bends on an
+unbroken band. **That is what makes *"the formers will be hard up to that 2mm"* literally true**:
+the former bears on a continuous surface rather than on the tops of ribs, which is the reading
+that should have been taken from that sentence the first time.
+
+It is a `pocket` rather than a run of `groove`s, and the model had already drawn the distinction —
+*a groove follows a line at a constant width; a pocket follows an area, and the tool has to clear
+the whole of it.* The pitch setting is **gone**, not left in at a default: a control the shop
+cannot read is worse than no control, and `joineryGroups`' total-coverage assertion caught the
+removal exactly as it caught the addition.
+
+**One figure is left, and it does three jobs**: the web decides the cut depth (`board − web`,
+derived), the former radius over the arc (`r − web`), and the length of the blank (the arc at
+`r − web/2`). It is the shop's own 2mm; what remains unchecked is the tightest radius it will
+actually turn, and the note now says which of those two is which rather than casting doubt on
+both.
 
 #### The two mutations that did not bite, and what they were hiding
 

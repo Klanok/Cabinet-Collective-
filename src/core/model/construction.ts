@@ -63,25 +63,24 @@ export interface ConstructionMethod {
    */
   readonly cornerMethod?: CornerMethod;
   /**
-   * Rear pocket spacing on a routed curve — centre to centre.
+   * The **web** left when the rear of a routed curve is pocketed out — 2mm, the shop's own figure.
    *
-   * The shop's words for how the piece bends: *"it's a pocket route on the rear"*. A run of
-   * pockets across the back thins the board to a web that will take the radius, and the pitch is
-   * how close together they are. Read only when `cornerMethod` is `routed`.
+   * *"It's a pocket route on the rear"*, and it is **one continuous pocket** rather than a run of
+   * kerfs: the whole curved section is cleared to a flat floor, so the piece bends on an unbroken
+   * band. That is what makes *"the formers will be hard up to that 2mm"* literally true — the
+   * former bears on a continuous surface, not on the tops of ribs.
    *
-   * **Not yet checked at the bench** — see `unconfirmedRoutedCurveFigures`. The pitch and the
-   * residual together decide the tightest radius the piece will take, and neither has been
-   * measured off a real one.
-   */
-  readonly routedPocketPitch: Mm;
-  /**
-   * What is left under a rear pocket — the web the curve actually bends on.
+   * It decides three things, which is why it is the only routed figure there is:
    *
-   * Measured from the **decor face**, so it is the thickness of the material still there rather
-   * than the depth of the cut. Stated that way round on purpose: the web is the thing that has to
-   * survive bending, and a shop thinks in what is left, not in how deep the cutter went. The cut
-   * depth is `board − residual`, which is derived rather than stored so the two cannot disagree
-   * when the board changes.
+   * - **How deep the cut goes** — derived, `board − web`, so a thicker board deepens the cut
+   *   instead of eating the web. A shop thinks in what is left, not in how far down the cutter
+   *   went, so what is left is what is stored.
+   * - **Where the formers are cut to** — `r − web` over the arc, against `r − board` along the
+   *   flats that get screwed. See `outboardOverArc`; the difference is the step in the former.
+   * - **How long the blank is** — the piece bends about the middle of the web, so the developed
+   *   length is the arc at `r − web/2`.
+   *
+   * Read only when `cornerMethod` is `routed`.
    */
   readonly routedPocketResidual: Mm;
 
@@ -298,11 +297,9 @@ export const FRAMELESS_32: ConstructionMethod = {
    */
   cornerMethod: 'wrapped',
   /*
-   * A reading, and it says so — `unconfirmedRoutedCurveFigures`. 40mm pitch leaving the shop's 2mm web is
-   * the ordinary range for pocket-routing an 18mm board round a tight radius, and neither number
-   * has been measured off one this shop has made. They only bite on a `routed` corner.
+   * The shop's own figure — *"the web will be 2mm"* — and the formers are cut hard up against it.
+   * It only bites on a `routed` corner.
    */
-  routedPocketPitch: mm(40),
   routedPocketResidual: mm(2),
   ladderRailFloorGap: mm(10),
   ladderFaceScribeAllowance: mm(10),
@@ -603,9 +600,7 @@ export const unconfirmedRoutedCurveFigures = (c: ConstructionMethod): readonly s
   (c.cornerMethod ?? 'wrapped') !== 'routed'
     ? []
     : [
-        `Routed curves and their kicks are pocketed at ${c.routedPocketPitch}mm centres leaving ` +
-          `${c.routedPocketResidual}mm of board. Neither figure has been checked against a curve ` +
-          'this shop has made. Together they decide the tightest radius the piece will take, and ' +
-          'the residual also sets where it bends — the blank is cut to the arc round the web, ' +
-          'which assumes the pockets close up completely.',
+        `Routed curves and their kicks are relieved to a ${c.routedPocketResidual}mm web, and ` +
+          'the blank is cut to the arc round the middle of it. That web is the shop\'s own ' +
+          'figure; what has not been checked is the tightest radius it will actually turn.',
       ];

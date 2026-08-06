@@ -146,15 +146,8 @@ const CONSTRUCTION_FIELDS: {
     step: 0.5,
   },
   {
-    key: 'routedPocketPitch',
-    hint: 'Routed corners only — centre to centre spacing of the rear pockets that let the curve bend',
-    min: 5,
-    max: 200,
-    step: 5,
-  },
-  {
     key: 'routedPocketResidual',
-    hint: 'Routed corners only — how much board is left under each pocket. This is the web the curve bends on, so it is stated as what is left rather than how deep the cutter goes',
+    hint: 'Routed corners only — how much board is left when the rear of the curve is pocketed out. This is the web the curve bends on and what the formers sit hard up against, so it is stated as what is left rather than how deep the cutter goes',
     min: 0.5,
     max: 12,
     step: 0.5,
