@@ -2742,12 +2742,22 @@ Every tab's map now fits its window at 1280 × 720 through 1920 × 1080.
 
 **A setting existed that nothing on screen could change, and the grouping is what found it.**
 `finishLaminate` has been on the construction method since §4.23. It has a label in
-`labelForConstructionKey`, it is read by the rule engine, it appears in
-`differencesFromStandards` when it drifts — and its own doc comment says *"adopting it is a
-deliberate edit per method"*. There was no control, on any screen, to make that edit with. §4.23
-deliberately migrated every existing method to zero so a job already quoted kept cutting the way
-it was quoted, which was right, and left the shop no way to ever adopt it, which was not. It has a
-control now, in the Curves group.
+`labelForConstructionKey`, the rule engine reads it, `substrateRadius` sizes the formers off it,
+costing charges the sheet against it, and it appears in `differencesFromStandards` when it drifts.
+**There was no control, on any screen, to change it.**
+
+Be precise about which gap that is, because the obvious reading is the wrong one. It is *not* that
+nobody could adopt the allowance: v23 zeroed it and **v36 set it back to 1mm on every method that
+had none**, wholesale, which is what §4.23's second half was. The gap runs the other way, and v36's
+own doc comment states it as though it were already true:
+
+> *"A shop that veneers or paints its curves still says so in one setting, and the carcass warning
+> names the field."*
+
+There was no such setting. A shop that does not laminate its curves was migrated to 1mm along with
+everybody else and had no way to say so — the field the warning named could not be reached. **The
+doc did not describe the app; it described the app somebody assumed existed.** It exists now, in
+the Curves group, and it moves in both directions.
 
 **The grouping is asserted total, not remembered.** `CONSTRUCTION_FIELDS` is a flat list, so a
 group written as "the keys I remembered" drops the next setting somebody adds — it would exist,

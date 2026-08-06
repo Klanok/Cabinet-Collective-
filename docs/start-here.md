@@ -127,13 +127,14 @@ The ninth found two more, and both are in places nobody thinks to look:
   the record it described is pruned elsewhere — and the test passed anyway, for a different reason
   than the one written above it. **Only the mutation found it**, which is the argument for running
   them: a green suite tells you the assertions hold, never that they hold for the reason you think.
-- **A doc comment describing an action the app does not allow.** `finishLaminate` says *"adopting
-  it is a deliberate edit per method"* and had no control, on any screen, to make that edit with —
-  see §4.25. Every part of it was individually right: the field, the label, the drift report, and
-  §4.23's migration deliberately leaving existing jobs at zero. Nobody checked that the sentence
-  telling the shop what to do described something the shop could do. **A claim about what the
-  *user* can do goes stale exactly like a claim about the code**, and the thing that found it was
-  a mapping asserted total rather than written from memory.
+- **A doc comment describing a control that does not exist.** v36's migration comment says *"a shop
+  that veneers or paints its curves still says so in one setting, and the carcass warning names the
+  field"*. There was no such setting — `finishLaminate` had no control on any screen, so a shop
+  migrated to 1mm that does not laminate could not say so. See §4.25. Every other part was right:
+  the field, the label, the drift report, the migration. Nobody checked that the sentence promising
+  the shop a setting described a setting. **A claim about what the *user* can do goes stale exactly
+  like a claim about the code**, and what found it was a mapping asserted total rather than written
+  from memory.
 
 **Check the code, not the paragraph.** The general form: a repair has to cover every chain that
 reads the field, not every field in one chain. And when you make a claim false, go and find it.

@@ -12,9 +12,11 @@
  * against `ConstructionMethod` itself, taken from a real method rather than from a second list
  * that could drift alongside the first.
  *
- * `finishLaminate` is the proof that this was not hypothetical: it has been on the method and in
- * `labelForConstructionKey` since §4.23, its own doc comment says *"adopting it is a deliberate
- * edit per method"*, and until this pass there was no control in the app to make that edit with.
+ * `finishLaminate` is the proof that this was not hypothetical. It has been on the method and in
+ * `labelForConstructionKey` since §4.23, and until this pass there was no control in the app to
+ * change it — in either direction. v36's own migration comment promised one: *"a shop that veneers
+ * or paints its curves still says so in one setting, and the carcass warning names the field"*.
+ * There was no such setting, so a shop migrated to 1mm that does not laminate could not say so.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -65,9 +67,9 @@ describe('every setting has somewhere to be', () => {
     expect(grouped).toBe(27);
   });
 
-  it('gives finishLaminate a home, because its own doc says it has to be editable', () => {
-    // The regression this guards is precise: the model told the shop to adopt the allowance
-    // deliberately, per method, and the app offered no way to.
+  it('gives finishLaminate a home, because v36 promised the shop a setting for it', () => {
+    // The regression this guards is precise: v36 migrated every method to 1mm and told the shop
+    // that a curve it veneers or paints "still says so in one setting". There was no setting.
     expect(groupOfKey('finishLaminate')).not.toBeNull();
   });
 });
