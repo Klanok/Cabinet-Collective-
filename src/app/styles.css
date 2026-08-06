@@ -95,8 +95,35 @@ body {
   flex-direction: column;
 }
 
+/*
+ * The left column is two panes, not one long scroll.
+ *
+ * It holds the cabinet list and the Inspector, and they used to scroll as one strip: nine
+ * cabinets is 659px of list, so on a laptop the Inspector's first field started below the fold
+ * however short the Inspector itself was. Folding the Inspector could not fix that — the height
+ * in the way was somebody else's.
+ *
+ * So each pane scrolls itself. The list gives way first and the Inspector takes what is left,
+ * which means the cabinet you just clicked is always on screen, and adding a tenth cabinet
+ * lengthens the list rather than pushing the thing you are editing off the bottom.
+ */
 .sidebar.left {
   border-right: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.sidebar.left > .panel {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.sidebar.left > .panel:first-child {
+  flex: 0 1 auto;
+  max-height: 40%;
+}
+
+.sidebar.left > .panel:last-child {
+  flex: 1 1 auto;
 }
 
 .sidebar.right {
@@ -116,7 +143,7 @@ body {
   position: absolute;
   left: 12px;
   bottom: 10px;
-  font-size: 11px;
+  font-size: 12px;
   pointer-events: none;
 }
 
@@ -136,7 +163,7 @@ body {
 
 .panel-head h2 {
   margin: 0;
-  font-size: 12px;
+  font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 0.07em;
   color: var(--text-muted);
@@ -144,7 +171,7 @@ body {
 }
 
 .badge {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   background: var(--bg-raised);
   border: 1px solid var(--line);
@@ -154,11 +181,102 @@ body {
 
 .subhead {
   margin: 16px 0 8px;
-  font-size: 11px;
+  font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.07em;
   color: var(--text-muted);
   font-weight: 600;
+}
+
+/* ── Folding sections ────────────────────────────────────────────────────── */
+
+/*
+ * A section of the Inspector that folds shut.
+ *
+ * Styled to read as the `.subhead` it replaces, so the panel looks the same standing still and
+ * only differs when you use it. The header keeps a real hit area — 26px tall and the full width
+ * of the panel — because the thing being clicked is a heading, and a heading you have to aim at
+ * is worse than no fold at all.
+ */
+/*
+ * Stacked flush, separated by their own rule rather than by a margin.
+ *
+ * The margin between sections was costing 12px seven times over — 84px of nothing, on a panel
+ * whose whole problem is height. A rule between two headers reads as one list, which is what a
+ * folded Inspector now is.
+ */
+.section {
+  border-top: 1px solid var(--line);
+}
+
+.section:first-of-type {
+  margin-top: 6px;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+/* Safari draws its own triangle through `::-webkit-details-marker`; this is the only way off. */
+.section-head::-webkit-details-marker {
+  display: none;
+}
+
+.section-head::before {
+  content: '▸';
+  color: var(--text-muted);
+  font-size: 12px;
+  transition: transform 0.12s ease;
+  flex: 0 0 auto;
+}
+
+.section[open] > .section-head::before {
+  transform: rotate(90deg);
+}
+
+.section-head:hover .section-title {
+  color: var(--accent);
+}
+
+.section-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+  font-weight: 600;
+  flex: 0 1 auto;
+}
+
+/*
+ * What is set inside, while the section is shut.
+ *
+ * The whole risk of folding is that a cabinet with a part deleted looks exactly like one without,
+ * so this is not decoration — it is the thing that makes folding safe. It stays visible when the
+ * section is open too, because a count that vanishes the moment you look at the controls is a
+ * count you cannot check what you just did against.
+ */
+.section-summary {
+  font-size: 12px;
+  color: var(--accent);
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0 8px;
+  margin-left: auto;
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.section-body {
+  padding-bottom: 6px;
 }
 
 .muted {
@@ -167,7 +285,7 @@ body {
 
 .mono {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .num {
@@ -193,7 +311,7 @@ body {
   border: 1px solid var(--line);
   border-radius: 5px;
   padding: 5px 10px;
-  font-size: 12px;
+  font-size: 13px;
   font-family: inherit;
   cursor: pointer;
 }
@@ -227,7 +345,7 @@ body {
 .add-row .btn {
   min-width: 0;
   padding: 5px 4px;
-  font-size: 11px;
+  font-size: 12px;
   white-space: normal;
 }
 
@@ -268,7 +386,7 @@ body {
 
 .cabinet-dims {
   font-variant-numeric: tabular-nums;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
 }
 
@@ -277,7 +395,7 @@ body {
   align-items: center;
   gap: 10px;
   margin-top: 2px;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .cabinet-row-meta .icon-btn {
@@ -305,16 +423,32 @@ body {
   gap: 10px;
 }
 
+/*
+ * The label gives way, not the box.
+ *
+ * This was `flex: 0 0 auto` on the label and `0 1 150px` on the input, which made the input the
+ * only thing in the row allowed to shrink — so a long label ate it. That is §5.11's report about
+ * the drawer fronts, and the measurement is exact: `Front 1 (bottom) — E — 192mm` is 186px of
+ * label, which left its box **50px** while the plain `Front 2` rows beside it kept 102px. Same
+ * control, half the size, on the one row whose label happens to be longest.
+ *
+ * So the label wraps and the box keeps a floor. Wrapping rather than truncating because these
+ * labels carry the answer — the box a front will take is *in* the label, and an ellipsis would
+ * hide the number somebody is setting the height for.
+ */
 .field > span {
   color: var(--text-muted);
-  flex: 0 0 auto;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .field-input {
   display: flex;
   align-items: center;
   gap: 5px;
-  flex: 0 1 150px;
+  flex: 0 0 auto;
+  width: 150px;
+  max-width: 60%;
 }
 
 .field-input input,
@@ -326,7 +460,7 @@ body {
   border-radius: 4px;
   padding: 4px 7px;
   font-family: inherit;
-  font-size: 12px;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -336,11 +470,20 @@ body {
   border-color: var(--accent);
 }
 
+/*
+ * The unit after the box — "mm", "°".
+ *
+ * `flex: 0 0 20px` was a guess that "mm" is under 20px wide, and at 12px it is not: the second m
+ * was clipped by the box itself, which is why the drawer front rows read "mn". Sized to its own
+ * text instead, so raising the font size again cannot silently re-clip it.
+ */
 .field-input em {
   font-style: normal;
   color: var(--text-muted);
-  font-size: 11px;
-  flex: 0 0 20px;
+  font-size: 12px;
+  flex: 0 0 auto;
+  min-width: 20px;
+  white-space: nowrap;
 }
 
 .field-check {
@@ -357,13 +500,13 @@ body {
 table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 thead th {
   text-align: left;
   font-weight: 600;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   padding: 4px 6px;
   border-bottom: 1px solid var(--line);
@@ -382,7 +525,7 @@ tbody td {
 }
 
 .parts-table td {
-  font-size: 11px;
+  font-size: 12px;
 }
 
 /*
@@ -400,14 +543,45 @@ tbody td {
   text-decoration: none;
 }
 
+/*
+ * The Parts list has to fit the column it is in.
+ *
+ * Five columns of natural width came out 41px past the sidebar, and the column that fell off the
+ * end was the one holding **Delete** — so the buttons read "De" and the last of them could not be
+ * clicked at all. Nothing said so; the table simply drew wider than its panel.
+ *
+ * `table-layout: fixed` makes the widths declared rather than negotiated, so the row can no
+ * longer grow to suit its longest board name. The name column wraps, the two dimensions are as
+ * narrow as four digits need, and the board select gets whatever is left over — with `min-width:
+ * 0`, without which a select refuses to shrink below its longest option and puts the overflow
+ * straight back.
+ */
+.parts-table {
+  table-layout: fixed;
+}
+
+.parts-table td:first-child {
+  overflow-wrap: anywhere;
+}
+
+.parts-table td.num {
+  width: 40px;
+}
+
+.parts-table td:last-child {
+  width: 58px;
+}
+
 .parts-table select {
-  font-size: 11px;
-  max-width: 150px;
+  font-size: 12px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .btn.small {
   padding: 1px 6px;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .cutlist-table tbody tr:hover,
@@ -461,7 +635,7 @@ tbody td {
   color: var(--text-muted);
   padding: 6px 12px;
   font-family: inherit;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
 }
 
@@ -474,7 +648,7 @@ tbody td {
 
 .note {
   margin: 10px 0 0;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.5;
   color: var(--text-muted);
 }
@@ -489,7 +663,7 @@ tbody td {
 
 .note code {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 12px;
   background: var(--bg);
   padding: 1px 4px;
   border-radius: 3px;
@@ -531,7 +705,7 @@ tbody td {
   border: none;
   color: var(--text);
   font-family: inherit;
-  font-size: 12px;
+  font-size: 13px;
   padding: 6px 9px;
   border-radius: 4px;
   cursor: pointer;
@@ -553,7 +727,7 @@ tbody td {
   padding-top: 6px;
   border-top: 1px solid var(--line);
   max-width: 240px;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.45;
 }
 
@@ -678,7 +852,7 @@ tbody td {
   border-radius: 5px;
   color: var(--text-muted);
   font-family: inherit;
-  font-size: 12px;
+  font-size: 13px;
   padding: 6px 10px;
   cursor: pointer;
 }
@@ -690,7 +864,7 @@ tbody td {
 
 .scope-note {
   margin: 8px 18px 0;
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--text-muted);
   line-height: 1.5;
 }
@@ -723,7 +897,7 @@ tbody td {
 
 .setting-label em {
   font-style: normal;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
 }
 
@@ -760,12 +934,12 @@ tbody td {
 
 .setting-input .suffix {
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 12px;
   width: 28px;
 }
 
 .sync-state {
-  font-size: 11.5px;
+  font-size: 12px;
   max-width: 60%;
 }
 
@@ -795,7 +969,7 @@ tbody td {
   border-radius: 5px;
   padding: 5px 8px;
   font-family: inherit;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .issue-bar {
@@ -813,7 +987,7 @@ tbody td {
   border: none;
   color: var(--warn);
   font-family: inherit;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
   padding: 0;
   text-align: left;
@@ -826,7 +1000,7 @@ tbody td {
 .warnings {
   margin: 10px 0 0;
   padding-left: 18px;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.5;
   color: var(--warn);
 }
@@ -843,7 +1017,7 @@ tbody td {
   border-radius: 3px;
   padding: 0 4px;
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 12px;
   margin: 0 1px;
 }
 
@@ -854,7 +1028,7 @@ tbody td {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   background: rgba(22, 24, 28, 0.75);
   border: 1px solid var(--line);
@@ -879,7 +1053,7 @@ tbody td {
 }
 
 .saved-types-head {
-  font-size: 10px;
+  font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.07em;
   color: var(--text-muted);
@@ -902,7 +1076,7 @@ tbody td {
   border: none;
   color: var(--text);
   font-family: inherit;
-  font-size: 12px;
+  font-size: 13px;
   text-align: left;
   padding: 4px 6px;
   border-radius: 4px;
@@ -916,7 +1090,7 @@ tbody td {
 
 .saved-type-add em {
   font-style: normal;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
@@ -1067,7 +1241,7 @@ tbody td {
   border-radius: 4px;
   color: var(--text);
   font-family: inherit;
-  font-size: 12px;
+  font-size: 13px;
   text-align: left;
   padding: 5px 7px;
   cursor: pointer;
@@ -1084,7 +1258,7 @@ tbody td {
 
 .plan-wall-index {
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 12px;
   color: var(--text-muted);
   min-width: 14px;
 }
@@ -1098,7 +1272,7 @@ tbody td {
 
 .plan-wall-length {
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
@@ -1135,7 +1309,7 @@ tbody td {
 
 .seg.view-seg .seg-btn {
   padding: 4px 12px;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .viewport-controls .viewport-toggle {
@@ -1210,7 +1384,7 @@ tbody td {
 
 .crash-error {
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 13px;
   color: var(--warn) !important;
   background: var(--bg-raised);
   border: 1px solid var(--line);
@@ -1268,26 +1442,26 @@ tbody td {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
 }
 
 .row-grid input,
 .row-grid select {
   font-family: inherit;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .btn.small {
   padding: 3px 8px;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .check {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: 13px;
   margin: 6px 0;
 }
 
@@ -1306,7 +1480,7 @@ tbody td {
   justify-content: space-between;
   align-items: baseline;
   gap: 8px;
-  font-size: 11px;
+  font-size: 12px;
   margin-bottom: 4px;
 }
 

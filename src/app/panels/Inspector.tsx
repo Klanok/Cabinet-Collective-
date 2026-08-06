@@ -25,6 +25,8 @@ import { getSpec } from '../../core/rules/registry.ts';
 import { refusalOf } from '../../core/rules/spec.ts';
 import { useAsk } from './ask.tsx';
 import { tallestSideHeightFor } from '../../core/model/hardware.ts';
+import { Section, useOpenSections } from './Section.tsx';
+import { sectionSummary } from './inspectorSections.ts';
 
 import { AU_UPHOLSTERY_MATERIALS } from '../../core/library/upholstery.au.ts';
 
@@ -358,6 +360,9 @@ function HardwareSection({
   const hw = built.hardware;
   const hasDrawers = built.panels.some((p) => p.role === 'drawer-front');
   const hasDoors = built.panels.some((p) => p.role === 'door');
+  // `hasHardware` decides whether the fold appears at all, so this guard should never fire — it
+  // stays because a spec that grows a third kind of front should fail visibly here, not silently
+  // draw an empty section.
   if (!hasDrawers && !hasDoors) return null;
 
   const cups = built.panels.reduce(
@@ -367,9 +372,9 @@ function HardwareSection({
   const box = built.panels.find((p) => p.role === 'drawer-bottom');
   const back = built.panels.find((p) => p.role === 'drawer-back');
 
+  // The "Hardware" heading lives on the fold in `Inspector`, not here — see `Section.tsx`.
   return (
     <>
-      <div className="subhead">Hardware</div>
       <div className="fields">
         {hasDrawers && (
           <>
@@ -485,6 +490,7 @@ export function Inspector({
 }: Props) {
   // Before the early return below — a hook can't sit behind a condition.
   const ask = useAsk();
+  const [openSections, setSectionOpen] = useOpenSections();
 
   if (!built) {
     return (
@@ -508,6 +514,9 @@ export function Inspector({
   const isPanel = cabinet.typeId === 'panel';
   const isBanquette = cabinet.typeId === 'banquette';
   const isBanquetteCorner = cabinet.typeId === 'banquette-corner';
+  // Asked here as well as inside `HardwareSection` so the fold itself can be left out: an empty
+  // section with a heading and nothing under it is worse than no section.
+  const hasHardware = built.panels.some((p) => p.role === 'drawer-front' || p.role === 'door');
   const resolvedSkinMaterialId = cabinet.materials.skin ?? project.defaults.skinMaterialId;
   const usesLegacyBendyPly =
     (isRadiusEnd || isBanquetteCorner || isRadiused(cabinet.options)) && resolvedSkinMaterialId === 'bendy-ply-3';
@@ -684,18 +693,44 @@ export function Inspector({
         />
       </div>
 
-      <div className="subhead">Where it stands</div>
-      <div className="fields">
-        <PlacementEditor
-          cabinet={cabinet}
-          project={project}
-          onUpdate={onUpdate}
-          onPlaceOnWall={onPlaceOnWall}
-        />
-      </div>
+      {/*
+        Warnings, above everything foldable.
 
-      {!isPanel && <div className="subhead">Configuration</div>}
-      {!isPanel && <div className="fields">
+        They used to sit below Configuration, which was harmless while the whole panel was one
+        list and is not once sections can be shut: the one line on this panel that says the
+        cabinet cannot be built has to be the one line that is never a click away.
+      */}
+      {warnings.length > 0 && (
+        <ul className="warnings">
+          {warnings.map((w) => (
+            <li key={w}>{w}</li>
+          ))}
+        </ul>
+      )}
+
+      <Section
+        id="stands"
+        title="Where it stands"
+        open={openSections.stands}
+        onToggle={setSectionOpen}
+      >
+        <div className="fields">
+          <PlacementEditor
+            cabinet={cabinet}
+            project={project}
+            onUpdate={onUpdate}
+            onPlaceOnWall={onPlaceOnWall}
+          />
+        </div>
+      </Section>
+
+      {!isPanel && <Section
+        id="configuration"
+        title="Configuration"
+        open={openSections.configuration}
+        onToggle={setSectionOpen}
+      >
+      <div className="fields">
         {/*
           A radiused end has no doors and no shelves — it is a closed curved feature, and the
           point of it is the outside. Offering the controls anyway would let somebody set a
@@ -1047,42 +1082,33 @@ export function Inspector({
           <NumberField label="Former spacing (max)" value={cabinet.options.formerSpacing ?? 250} min={50} max={800} step={25} onChange={(n) => onUpdateOptions(cabinet.id, { formerSpacing: mm(n) })} />
           <NumberField label="Skin layers" value={cabinet.options.skinLayers ?? 2} min={1} max={4} step={1} suffix="" onChange={(n) => onUpdateOptions(cabinet.id, { skinLayers: Math.round(n) })} />
         </>}
-      </div>}
+      </div>
+      </Section>}
 
-      {warnings.length > 0 && (
-        <ul className="warnings">
-          {warnings.map((w) => (
-            <li key={w}>{w}</li>
-          ))}
-        </ul>
+      {hasHardware && (
+        <Section
+          id="hardware"
+          title="Hardware"
+          summary={sectionSummary('hardware', cabinet, built)}
+          open={openSections.hardware}
+          onToggle={setSectionOpen}
+        >
+          <HardwareSection
+            cabinet={cabinet}
+            built={built}
+            project={project}
+            onUpdateOptions={onUpdateOptions}
+          />
+        </Section>
       )}
 
-      <HardwareSection
-        cabinet={cabinet}
-        built={built}
-        project={project}
-        onUpdateOptions={onUpdateOptions}
-      />
-
-      <div className="subhead">Reuse</div>
-      <button
-        className="btn full"
-        onClick={async () => {
-          const name = await ask.prompt(
-            'Save this cabinet as a reusable type. What would you call it?',
-            cabinet.name,
-            { confirmLabel: 'Save type' },
-          );
-          if (name?.trim()) onSaveAsType(cabinet.id, name.trim());
-        }}
+      <Section
+        id="finish"
+        title="Finish"
+        summary={sectionSummary('finish', cabinet, built)}
+        open={openSections.finish}
+        onToggle={setSectionOpen}
       >
-        Save as a cabinet type
-      </button>
-      <p className="note subtle">
-        Saves the size and configuration, not where it sits. Available in every job from then on.
-      </p>
-
-      <div className="subhead">Finish</div>
       <div className="fields">
         {(isBanquette || isBanquetteCorner) && <label className="field"><span>Upholstery</span><div className="field-input"><select
           value={cabinet.materials.upholstery ?? (project.materials.upholstery ?? AU_UPHOLSTERY_MATERIALS)[0]?.id ?? ''}
@@ -1202,10 +1228,25 @@ export function Inspector({
           end panel on this cabinet. They stay one part each on the cutlist.
         </p>
       )}
+      </Section>
 
-      <CutoutEditor cabinet={cabinet} built={built} onUpdate={onUpdate} />
+      <Section
+        id="cutouts"
+        title="Cutouts"
+        summary={sectionSummary('cutouts', cabinet, built)}
+        open={openSections.cutouts}
+        onToggle={setSectionOpen}
+      >
+        <CutoutEditor cabinet={cabinet} built={built} onUpdate={onUpdate} />
+      </Section>
 
-      <div className="subhead">Parts</div>
+      <Section
+        id="parts"
+        title="Parts"
+        summary={sectionSummary('parts', cabinet, built)}
+        open={openSections.parts}
+        onToggle={setSectionOpen}
+      >
       {refusalOf(spec.capabilities.partOverrides) !== null ? (
         <p className="note subtle">{refusalOf(spec.capabilities.partOverrides)}</p>
       ) : (
@@ -1279,6 +1320,30 @@ export function Inspector({
           })}
         </tbody>
       </table>
+      </Section>
+
+      {/*
+        Last, because it is the one thing here that is not about this cabinet — it is about the
+        next one. Nothing above it should have to be scrolled past to reach something you change.
+      */}
+      <Section id="reuse" title="Reuse" open={openSections.reuse} onToggle={setSectionOpen}>
+        <button
+          className="btn full"
+          onClick={async () => {
+            const name = await ask.prompt(
+              'Save this cabinet as a reusable type. What would you call it?',
+              cabinet.name,
+              { confirmLabel: 'Save type' },
+            );
+            if (name?.trim()) onSaveAsType(cabinet.id, name.trim());
+          }}
+        >
+          Save as a cabinet type
+        </button>
+        <p className="note subtle">
+          Saves the size and configuration, not where it sits. Available in every job from then on.
+        </p>
+      </Section>
     </section>
   );
 }

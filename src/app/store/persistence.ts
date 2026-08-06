@@ -27,6 +27,17 @@ import {
 
 const STANDARDS_KEY = 'cabinet-collective:standards:v1';
 const PROJECT_KEY = 'cabinet-collective:project:v1';
+/*
+ * Which Inspector sections are folded open.
+ *
+ * A third key rather than a field on either of the other two, because it is neither a job nor a
+ * shop standard — it is how this person likes the screen, and it must not travel. Put it in the
+ * project and every saved job would carry somebody else's folds and need a schema migration to
+ * add a section; put it in the standards and it would arrive in the shop's exported settings as
+ * though it were a rule about cabinets. It is deliberately *not* offered as a file: losing it
+ * costs one click per section, which is the definition of something not worth backing up.
+ */
+const UI_KEY = 'cabinet-collective:ui:v1';
 
 const available = (): boolean => {
   try {
@@ -77,6 +88,29 @@ export const clearSaved = (): void => {
   if (!available()) return;
   localStorage.removeItem(PROJECT_KEY);
   localStorage.removeItem(STANDARDS_KEY);
+};
+
+/**
+ * Read the Inspector's fold state back, or `null` if there is none.
+ *
+ * Returns the raw parsed value rather than a typed record: what a stored preference is *allowed*
+ * to mean belongs with the sections themselves, in `panels/inspectorSections.ts`, where it can be
+ * checked in Node. Anything unreadable comes back as `null` and the defaults win — a corrupted
+ * preference should cost you the preference and nothing else.
+ */
+export const loadUiPrefs = (): unknown => {
+  if (!available()) return null;
+  try {
+    const raw = localStorage.getItem(UI_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+/** Save the fold state. Failure is ignored on purpose — see `UI_KEY`. */
+export const saveUiPrefs = (prefs: unknown): void => {
+  write(UI_KEY, prefs);
 };
 
 /**
