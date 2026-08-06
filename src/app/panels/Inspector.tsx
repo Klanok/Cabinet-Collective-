@@ -26,7 +26,7 @@ import { refusalOf } from '../../core/rules/spec.ts';
 import { useAsk } from './ask.tsx';
 import { tallestSideHeightFor } from '../../core/model/hardware.ts';
 import { Section, useOpenSections } from './Section.tsx';
-import { sectionSummary } from './inspectorSections.ts';
+import { readOpenSections, sectionSummary } from './inspectorSections.ts';
 
 import { AU_UPHOLSTERY_MATERIALS } from '../../core/library/upholstery.au.ts';
 
@@ -490,7 +490,7 @@ export function Inspector({
 }: Props) {
   // Before the early return below — a hook can't sit behind a condition.
   const ask = useAsk();
-  const [openSections, setSectionOpen] = useOpenSections();
+  const [openSections, setSectionOpen] = useOpenSections(readOpenSections);
 
   if (!built) {
     return (

@@ -75,6 +75,31 @@ export interface SheetMaterial {
   readonly actualThickness?: Mm;
   readonly grain: GrainDirection;
   /**
+   * Which way a bendable board will actually bend — **absent on every board that stays flat**.
+   *
+   * A second direction on the sheet, and it is not the decor's. `grain` is about appearance:
+   * whether two parts read as matched, and which way round they are laid so they do.
+   * `bendAxis` is structural — bendy ply is manufactured with the plies running one way and it
+   * rolls around one axis only. Sold as **column form** or **barrel form**, and a shop buys both.
+   *
+   * The two must not share a field. Bendy ply's decor is nothing — it is a substrate, laminated
+   * over — so its `grain` is honestly `none`, and `none` is exactly what tells the nester every
+   * part on it may rotate freely. It does, and it turned both skins of the first radiused end
+   * that was measured. The blank came out the right size, off a sheet that will not bend that
+   * way: **the same size and completely wrong**, which is the fault this codebase's whole
+   * verification standard exists to catch.
+   *
+   * Stated as the sheet axis the part's **length** must run along to bend, because the part is
+   * what has to be laid: a skin is cut flat to its developed length and curls *along* that
+   * length, so that length has to lie the way the board rolls.
+   *
+   * **Not yet checked at the bench** — see `unconfirmedBendAxis`. The shop has said which *form*
+   * it buys (column, and barrel for some jobs); which sheet axis that word names is the part
+   * nobody has confirmed against a real sheet, and getting it backwards is a whole job of curves
+   * cut the wrong way round. So it is a setting rather than a constant, and it says so on screen.
+   */
+  readonly bendAxis?: 'length' | 'width';
+  /**
    * Roughly what the decor looks like on screen, as a hex colour.
    *
    * **A screen approximation, not a colour match.** Nothing is cut, priced or ordered from it, and
@@ -360,3 +385,28 @@ export const smallestSheetFitting = (
   if (candidates.length === 0) return null;
   return candidates.reduce((a, b) => (a.length * a.width <= b.length * b.width ? a : b));
 };
+
+/**
+ * Bendable boards whose bend axis is a reading rather than a measurement.
+ *
+ * The shop has said which *form* it buys — column, and barrel for some jobs. What nobody has
+ * confirmed against a real sheet is which axis of the sheet the word names; this library's
+ * long-standing note says column bends along the length, and that is what ships. It is one
+ * sheet and five minutes to settle, and it is worth settling: **backwards is not a worse nest,
+ * it is a job of curves that will not bend**, and the parts come off the saw the right size
+ * either way.
+ *
+ * Reported for the same reason the Blum figures and the ladder scribe end are: a number that is
+ * a reading rather than a measurement costs ten seconds with a tape if it says so, and a run of
+ * parts if it stays quiet. Only boards that actually bend appear — a flat board has no axis to
+ * be wrong about.
+ */
+export const unconfirmedBendAxis = (library: MaterialLibrary): readonly string[] =>
+  library.sheets
+    .filter((sheet) => sheet.bendAxis !== undefined)
+    .map(
+      (sheet) =>
+        `${sheet.decor} is set to ${
+          sheet.bendAxis === 'length' ? 'column form — bending along the sheet length' : 'barrel form — bending across the sheet length'
+        }. Every curved skin is nested to suit it. Confirm against a real sheet before cutting a job of curves.`,
+    );

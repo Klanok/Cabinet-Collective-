@@ -583,15 +583,26 @@ export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
    * ── Bendy ply ────────────────────────────────────────────────────────────────────────
    *
    * For skinning formers on a radiused end. Sold as barrel form (bends across the length of
-   * the sheet) or column form (bends along it) and bought to suit the job — which the model
-   * does not yet record, so the parts carry a note to check the sheet before cutting. Two
-   * layers is the usual build: one takes up the shape of every former it crosses.
+   * the sheet) or column form (bends along it) and bought to suit the job. Two layers is the
+   * usual build: one takes up the shape of every former it crosses.
    *
-   * Grain is left `none` deliberately. It is not that the sheet has no direction — it has a
-   * very strong one — but that the direction constrains which way it *bends*, which is not
-   * what `GrainDirection` means here. Recording it properly is a material-model change, and
-   * pretending it is a grain constraint would nest these the right way round by accident and
-   * the wrong way round the moment someone changed the nester.
+   * **`bendAxis` is the material-model change this comment used to say was needed**, and the
+   * paragraph it replaces was right about why it mattered: grain stays `none` because the sheet
+   * genuinely has no decor — it is a substrate, laminated over — and its very strong direction
+   * constrains which way it *bends*, which is a different question. Putting the bend in `grain`
+   * would have nested these correctly by accident and wrongly the moment somebody touched the
+   * nester.
+   *
+   * What the old wording did not say is that leaving it unrecorded was not neutral. `none` is
+   * exactly what tells the nester a part may rotate freely, and it does: measured on a plain
+   * radiused end, **both skins came off the sheet turned**. The note on the part told the
+   * operator to check the sheet, by which point the cut plan had already committed.
+   *
+   * **Column is the shop's default** — *"generally column but sometimes barrel depending on the
+   * application"* — so `length` is what ships, and it is a setting per board rather than a
+   * constant because the shop buys both. The word-to-axis mapping is this file's own long-standing
+   * reading and is **worth confirming once against a real sheet**: backwards is a whole job of
+   * curves cut the wrong way round, which is why `unconfirmedBendAxis` says so on screen.
    */
   {
     id: 'bendy-ply-3',
@@ -600,6 +611,8 @@ export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
     substrate: 'plywood',
     thickness: mm(3),
     grain: 'none',
+    // Column form — bends along the sheet's length. See the block comment above.
+    bendAxis: 'length' as const,
     colour: '#d9bd90',
     decorFaces: 2,
     sheets: [IMPORTED(6_400)],
@@ -679,6 +692,8 @@ export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
     substrate: 'plywood',
     thickness: mm(8),
     grain: 'none',
+    // Column form — bends along the sheet's length. See the block comment above.
+    bendAxis: 'length' as const,
     colour: '#d9bd90',
     decorFaces: 2,
     sheets: [IMPORTED(12_400)],
@@ -691,6 +706,8 @@ export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
     substrate: 'plywood',
     thickness: mm(5),
     grain: 'none',
+    // Column form — bends along the sheet's length. See the block comment above.
+    bendAxis: 'length' as const,
     colour: '#d9bd90',
     decorFaces: 2,
     sheets: [IMPORTED(8_900)],

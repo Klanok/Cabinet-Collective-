@@ -18,12 +18,14 @@ import {
   type ConstructionMethod,
   unconfirmedAppliedEndFigures,
   unconfirmedLadderFigures,
+  unconfirmedRoutedCurveFigures,
 } from '../../core/model/construction.ts';
 import type { GstMode, Project, ProjectDefaults, ProjectSettings } from '../../core/model/project.ts';
 import {
   type MaterialLibrary,
   type SheetMaterial,
   actualThicknessOf,
+  unconfirmedBendAxis,
   isOversize,
 } from '../../core/model/material.ts';
 import {
@@ -39,7 +41,10 @@ import { EdgeBandPicker, SheetPicker } from './MaterialPicker.tsx';
 import { useAsk } from './ask.tsx';
 import { exportStandardsFile, importStandardsFile } from '../store/persistence.ts';
 import { DoorStyleEditor } from './DoorStyleEditor.tsx';
-import { NumberRow } from './fields.tsx';
+import { NumberRow, SelectRow } from './fields.tsx';
+import { Section, useOpenSections } from './Section.tsx';
+import { JOINERY_GROUPS, groupSummary } from './joineryGroups.ts';
+import { oversizeSummary, readOpenSettingsSections } from './settingsSections.ts';
 import type { DoorStyle } from '../../core/standards/doorStyles.ts';
 import {
   type ShopStandards,
@@ -124,6 +129,29 @@ const CONSTRUCTION_FIELDS: {
     max: 200,
     step: 5,
   },
+  /*
+   * The laminate over a curve — a setting v36 promised the shop and never provided.
+   *
+   * v36's migration comment says *"a shop that veneers or paints its curves still says so in one
+   * setting, and the carcass warning names the field"*. There was no such setting: v23 zeroed the
+   * allowance, v36 set every method back to 1mm wholesale, and a shop that does **not** laminate
+   * had no way to say so. The hint gives both answers rather than one, because zero and 1mm are
+   * each right for a different shop.
+   */
+  {
+    key: 'finishLaminate',
+    hint: 'Thickness of the laminate laid over a bendy-ply curve by hand, so the finished face lands on the radius you asked for. Zero cuts the way jobs were quoted before this allowance existed; 1mm is the shop’s laminate',
+    min: 0,
+    max: 3,
+    step: 0.5,
+  },
+  {
+    key: 'routedPocketResidual',
+    hint: 'Routed corners only — how much board is left when the rear of the curve is pocketed out. This is the web the curve bends on and what the formers sit hard up against, so it is stated as what is left rather than how deep the cutter goes',
+    min: 0.5,
+    max: 12,
+    step: 0.5,
+  },
   { key: 'systemPitch', hint: 'System 32 hole spacing', min: 8, max: 64 },
   { key: 'systemFrontSetback', hint: 'First hole line in from the front edge', min: 0, max: 100 },
   { key: 'systemBackSetback', hint: 'Second hole line in from the back edge', min: 0, max: 100 },
@@ -192,6 +220,7 @@ function HardwareEditor({
   onChange: (hardware: HardwareLibrary) => void;
   onChangeDefaults: (patch: Partial<ProjectDefaults>) => void;
 }) {
+  const [openGroups, setGroupOpen] = useOpenSections(readOpenSettingsSections);
   const runner =
     hardware.runnerSystems.find((s) => s.id === defaults.runnerSystemId) ??
     hardware.runnerSystems[0];
@@ -221,7 +250,13 @@ function HardwareEditor({
 
   return (
     <>
-      <div className="subhead">Drawer runners</div>
+      <Section
+        id="hardware:runners"
+        title="Drawer runners"
+        summary={runner ? `${runner.brand} ${runner.name}` : null}
+        open={openGroups['hardware:runners']}
+        onToggle={setGroupOpen}
+      >
       {runner ? (
         <>
           <div className="setting-row">
@@ -307,8 +342,15 @@ function HardwareEditor({
       ) : (
         <p className="empty">No runner systems in this library.</p>
       )}
+      </Section>
 
-      <div className="subhead">Hinges</div>
+      <Section
+        id="hardware:hinges"
+        title="Hinges"
+        summary={hinge ? hinge.name : null}
+        open={openGroups['hardware:hinges']}
+        onToggle={setGroupOpen}
+      >
       {hinge ? (
         <>
           <div className="setting-row">
@@ -379,7 +421,13 @@ function HardwareEditor({
       ) : (
         <p className="empty">No hinge systems in this library.</p>
       )}
+      </Section>
 
+      {/*
+        Outside both folds, deliberately. A figure that is a reading rather than a measurement is
+        the one thing on this screen that must not be a click away — the same placement, and the
+        same reason, as the Joinery tab's bench list.
+      */}
       {unconfirmedHardwareFigures(hardware).length > 0 && (
         <>
           <div className="subhead">Not yet checked against the catalogue</div>
@@ -394,16 +442,126 @@ function HardwareEditor({
   );
 }
 
+/**
+ * One construction method's settings, grouped and folded.
+ *
+ * The rows are unchanged — same controls, same hints, same order within a group. What changed is
+ * that they are dealt into the six groups `joineryGroups.ts` declares, and each group folds. The
+ * three hand-written selects are handled by key like every other setting, so the grouping is one
+ * list rather than "the numbers, plus three specials somebody has to remember".
+ */
 function ConstructionEditor({
   constructions,
+  standardFor,
   onChange,
 }: {
   constructions: readonly ConstructionMethod[];
+  /** The shop's version of a method, for the drift a folded group reports. */
+  standardFor: (id: string) => ConstructionMethod | undefined;
   onChange: (id: string, patch: Partial<ConstructionMethod>) => void;
 }) {
   const [activeId, setActiveId] = useState(constructions[0]?.id ?? '');
+  const [openGroups, setGroupOpen] = useOpenSections(readOpenSettingsSections);
   const active = constructions.find((c) => c.id === activeId) ?? constructions[0];
   if (!active) return <p className="empty">No construction methods.</p>;
+
+  const standard = standardFor(active.id);
+  const numberFields = new Map(CONSTRUCTION_FIELDS.map((f) => [f.key, f]));
+
+  /** One setting, whichever of the four kinds it is. Keyed, so nothing is offered by memory. */
+  const rowFor = (key: keyof ConstructionMethod) => {
+    const field = numberFields.get(key);
+    if (field) {
+      return (
+        <NumberRow
+          key={String(key)}
+          label={labelForConstructionKey(key)}
+          hint={field.hint}
+          value={active[key] as number}
+          min={field.min}
+          max={field.max}
+          step={field.step}
+          onChange={(n) => onChange(active.id, { [key]: mm(n) } as Partial<ConstructionMethod>)}
+        />
+      );
+    }
+    switch (key) {
+      case 'backStyle':
+        return (
+          <SelectRow
+            key={String(key)}
+            label="Back panel"
+            hint="How the back is housed in the carcass"
+            value={active.backStyle}
+            options={[
+              { id: 'applied', label: 'Applied — covers the whole rear face' },
+              { id: 'inset', label: 'Inset — fits between the sides' },
+            ]}
+            onChange={(v) => onChange(active.id, { backStyle: v as ConstructionMethod['backStyle'] })}
+          />
+        );
+      case 'ladderFaceScribeEnd':
+        return (
+          <SelectRow
+            key={String(key)}
+            label={labelForConstructionKey(key)}
+            hint="Which end of the kick face the extra sits at. Not yet confirmed against a real run"
+            value={active.ladderFaceScribeEnd ?? 'floor'}
+            options={[
+              { id: 'floor', label: 'At the floor — a scribe allowance' },
+              { id: 'top', label: 'At the top — under the carcass' },
+            ]}
+            onChange={(v) =>
+              onChange(active.id, {
+                ladderFaceScribeEnd: v as ConstructionMethod['ladderFaceScribeEnd'],
+              })
+            }
+          />
+        );
+      case 'cornerMethod':
+        return (
+          <SelectRow
+            key={String(key)}
+            label={labelForConstructionKey(key)}
+            hint="Bendy ply and laminate over formers, or one piece of the door board pocket-routed on the rear to bend over them"
+            value={active.cornerMethod ?? 'wrapped'}
+            options={[
+              { id: 'wrapped', label: 'Bendy ply and laminate' },
+              { id: 'routed', label: 'Routed — door board, pocketed rear' },
+            ]}
+            onChange={(v) =>
+              onChange(active.id, { cornerMethod: v as ConstructionMethod['cornerMethod'] })
+            }
+          />
+        );
+      case 'appliedEndToFloor':
+        return (
+          <SelectRow
+            key={String(key)}
+            label={labelForConstructionKey(key)}
+            hint="An applied end that stops at the carcass bottom leaves the kick returning across the end of the run in carcass board"
+            value={(active.appliedEndToFloor ?? true) ? 'floor' : 'kick'}
+            options={[
+              { id: 'floor', label: 'Down to the floor, past the kick' },
+              { id: 'kick', label: 'Stops at the carcass bottom, on the plinth' },
+            ]}
+            onChange={(v) => onChange(active.id, { appliedEndToFloor: v === 'floor' })}
+          />
+        );
+      default:
+        /*
+         * Unreachable while `tests/joineryGroups.test.ts` passes — it asserts every settings key
+         * is in a group, and every key in a group is rendered by one of the branches above. Left
+         * visible rather than silent, because the failure this guards is a setting that exists,
+         * drifts from the shop standards and has nowhere on screen to be.
+         */
+        return (
+          <p className="note warning" key={String(key)}>
+            {labelForConstructionKey(key)} has no control on this screen.
+          </p>
+        );
+    }
+  };
 
   return (
     <>
@@ -421,84 +579,34 @@ function ConstructionEditor({
         </div>
       )}
 
-      <div className="setting-row">
-        <div className="setting-label">
-          <span>Back panel</span>
-          <em>How the back is housed in the carcass</em>
-        </div>
-        <div className="setting-input">
-          <select
-            value={active.backStyle}
-            onChange={(e) =>
-              onChange(active.id, { backStyle: e.target.value as ConstructionMethod['backStyle'] })
-            }
-          >
-            <option value="applied">Applied — covers the whole rear face</option>
-            <option value="inset">Inset — fits between the sides</option>
-          </select>
-        </div>
-      </div>
-
-      <div className="setting-row">
-        <div className="setting-label">
-          <span>{labelForConstructionKey('ladderFaceScribeEnd')}</span>
-          <em>Which end of the kick face the extra sits at. Not yet confirmed against a real run</em>
-        </div>
-        <div className="setting-input">
-          <select
-            value={active.ladderFaceScribeEnd ?? 'floor'}
-            onChange={(e) =>
-              onChange(active.id, {
-                ladderFaceScribeEnd: e.target.value as ConstructionMethod['ladderFaceScribeEnd'],
-              })
-            }
-          >
-            <option value="floor">At the floor — a scribe allowance</option>
-            <option value="top">At the top — under the carcass</option>
-          </select>
-        </div>
-      </div>
-
-      <div className="setting-row">
-        <div className="setting-label">
-          <span>{labelForConstructionKey('appliedEndToFloor')}</span>
-          <em>
-            An applied end that stops at the carcass bottom leaves the kick returning across the
-            end of the run in carcass board
-          </em>
-        </div>
-        <div className="setting-input">
-          <select
-            value={(active.appliedEndToFloor ?? true) ? 'floor' : 'kick'}
-            onChange={(e) => onChange(active.id, { appliedEndToFloor: e.target.value === 'floor' })}
-          >
-            <option value="floor">Down to the floor, past the kick</option>
-            <option value="kick">Stops at the carcass bottom, on the plinth</option>
-          </select>
-        </div>
-      </div>
-
-      {CONSTRUCTION_FIELDS.map((f) => (
-        <NumberRow
-          key={String(f.key)}
-          label={labelForConstructionKey(f.key)}
-          hint={f.hint}
-          value={active[f.key] as number}
-          min={f.min}
-          max={f.max}
-          step={f.step}
-          onChange={(n) => onChange(active.id, { [f.key]: mm(n) } as Partial<ConstructionMethod>)}
-        />
+      {JOINERY_GROUPS.map((group) => (
+        <Section
+          key={group.id}
+          id={group.id}
+          title={group.title}
+          summary={groupSummary(group, active, standard)}
+          open={openGroups[group.id]}
+          onToggle={setGroupOpen}
+        >
+          {group.keys.map(rowFor)}
+        </Section>
       ))}
 
       {/*
         The same treatment the hardware figures get, and for the same reason: a number that is a
         reading rather than a measurement costs ten seconds with a tape if it says so, and a run
         of parts if it stays quiet. Both of these were written to be shown and never were.
+
+        **Outside every fold**, and that is the point of where it sits: the one list on this screen
+        saying a figure has not been checked at the bench must not be a click away.
       */}
       <div className="subhead">Not yet checked at the bench</div>
       <ul className="warnings">
-        {[...unconfirmedLadderFigures(active), ...unconfirmedAppliedEndFigures(active)].map(
+        {[
+          ...unconfirmedLadderFigures(active),
+          ...unconfirmedAppliedEndFigures(active),
+          ...unconfirmedRoutedCurveFigures(active),
+        ].map(
           (note) => (
             <li key={note}>{note}</li>
           ),
@@ -595,7 +703,6 @@ function BoardThicknessEditor({
 
   return (
     <>
-      <div className="subhead">What the boards really measure</div>
       {inUse.map((sheet) => (
         <NumberRow
           key={sheet.id}
@@ -663,8 +770,15 @@ function MaterialsEditor({
   onChange: (patch: Partial<ProjectDefaults>) => void;
   onChangeSheet: (id: string, patch: Partial<SheetMaterial>) => void;
 }) {
+  const [openGroups, setGroupOpen] = useOpenSections(readOpenSettingsSections);
   return (
     <>
+      <Section
+        id="materials:boards"
+        title="Boards for this job"
+        open={openGroups['materials:boards']}
+        onToggle={setGroupOpen}
+      >
       <SheetPicker
         label="Carcass"
         hint="Sides, bottoms, tops, shelves, rails"
@@ -717,8 +831,43 @@ function MaterialsEditor({
         These are the defaults for new cabinets. Any single cabinet can override them in the
         Inspector.
       </p>
+      </Section>
 
-      <BoardThicknessEditor library={library} sheetIds={sheetIds} onChange={onChangeSheet} />
+      {/*
+        Which way the bendy ply bends, and that it is a reading rather than a measurement.
+
+        Outside every fold and at the foot of the tab, the same placement the Joinery and Hardware
+        bench lists get — a figure nobody has checked is the one thing on a screen that must not be
+        a click away. It is here rather than in a group because it is about the boards as a set.
+      */}
+      {unconfirmedBendAxis(library).length > 0 && (
+        <>
+          <div className="subhead">Not yet checked at the bench</div>
+          <ul className="warnings">
+            {unconfirmedBendAxis(library).map((note) => (
+              <li key={note}>{note}</li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      {/*
+        The fold appears only when there is a board to measure — `BoardThicknessEditor` returns
+        null on a job that uses none, and a heading with nothing under it is worse than no
+        heading. Asked here rather than inside it for the same reason the Inspector asks about
+        hardware at the call site: the fold is the caller's to draw or leave out.
+      */}
+      {library.sheets.some((sheet) => sheetIds.includes(sheet.id)) && (
+        <Section
+          id="materials:thickness"
+          title="What the boards really measure"
+          summary={oversizeSummary(library, sheetIds)}
+          open={openGroups['materials:thickness']}
+          onToggle={setGroupOpen}
+        >
+          <BoardThicknessEditor library={library} sheetIds={sheetIds} onChange={onChangeSheet} />
+        </Section>
+      )}
     </>
   );
 }
@@ -804,6 +953,7 @@ function CostingEditor({
   settings: ProjectSettings;
   onChange: (patch: Partial<ProjectSettings>) => void;
 }) {
+  const [openGroups, setGroupOpen] = useOpenSections(readOpenSettingsSections);
   return (
     <>
       <div className="setting-row">
@@ -846,6 +996,12 @@ function CostingEditor({
         step={5}
         onChange={(n) => onChange({ marginPercent: n })}
       />
+      <Section
+        id="costing:sheet"
+        title="Cutting and offcuts"
+        open={openGroups['costing:sheet']}
+        onToggle={setGroupOpen}
+      >
       <NumberRow
         label="Saw kerf"
         hint="What the blade takes out on every cut. A router nest uses the cutter diameter."
@@ -875,6 +1031,15 @@ function CostingEditor({
         step={50}
         onChange={(n) => onChange({ nesting: { ...settings.nesting, usableOffcutMin: mm(n) } })}
       />
+      </Section>
+
+      <Section
+        id="costing:labour"
+        title="Labour"
+        summary={`$${settings.labour.ratePerHourExGst}/h`}
+        open={openGroups['costing:labour']}
+        onToggle={setGroupOpen}
+      >
       <NumberRow
         label="Labour rate"
         value={settings.labour.ratePerHourExGst}
@@ -910,7 +1075,14 @@ function CostingEditor({
         onChange={(n) => onChange({ labour: { ...settings.labour, minutesPerCabinet: n } })}
       />
 
-      <div className="subhead">Install</div>
+      </Section>
+
+      <Section
+        id="costing:install"
+        title="Install and delivery"
+        open={openGroups['costing:install']}
+        onToggle={setGroupOpen}
+      >
 
       <div className="setting-row">
         <div className="setting-label">
@@ -966,6 +1138,7 @@ function CostingEditor({
         step={25}
         onChange={(n) => onChange({ deliveryFeeExGst: n })}
       />
+      </Section>
     </>
   );
 }
@@ -1088,6 +1261,13 @@ export function SettingsModal({
           {section === 'construction' && (
             <ConstructionEditor
               constructions={source.constructions}
+              /*
+               * Editing the standards themselves has nothing to drift *from*, so no group reports
+               * a difference — which is right: on that tab the standard is what is on screen.
+               */
+              standardFor={(id) =>
+                editingStandards ? undefined : standards.constructions.find((c) => c.id === id)
+              }
               onChange={(id, patch) =>
                 editingStandards
                   ? onUpdateStandards({

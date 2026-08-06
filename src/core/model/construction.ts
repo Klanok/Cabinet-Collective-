@@ -21,6 +21,9 @@ import { type Mm, mm } from '../units.ts';
 
 export type ConstructionFamily = 'frameless-32' | 'face-frame';
 
+/** The two ways a shop builds a radiused corner — see `ConstructionMethod.cornerMethod`. */
+export type CornerMethod = 'wrapped' | 'routed';
+
 /**
  * How the back panel is housed.
  *
@@ -37,6 +40,49 @@ export interface ConstructionMethod {
   readonly family: ConstructionFamily;
 
   readonly backStyle: BackStyle;
+
+  /**
+   * Which of the two ways this shop builds a radiused corner — §5.7.
+   *
+   * The corner, the fixing strip, the wrap to the back and the square-notched shelf are the
+   * **same either way**. What changes is the curved piece itself, and therefore what covers the
+   * strip:
+   *
+   * - **`wrapped`** — formers, bendy-ply skins, and a finish laminate over them. The ply runs
+   *   over the 50mm strip and dies under the door edge, so the strip is never seen.
+   * - **`routed`** — **one** piece of the *door* board, pocket-routed on its rear face so it
+   *   bends, over the same formers. Nothing laps over the strip: the piece's leading edge is
+   *   **edge banded**, and that band is the finished edge.
+   *
+   * So the routed piece takes the **`door` material slot**, not `skin` — it is the same board as
+   * the fronts, bought for the same reason. That is why this needs no new material slot and no
+   * schema change, which is the opposite of bendy ply: bendy ply earned its own slot in v7
+   * because it is a different sheet bought for a different reason.
+   *
+   * Absent means `wrapped`, which is what every job cut before this existed.
+   */
+  readonly cornerMethod?: CornerMethod;
+  /**
+   * The **web** left when the rear of a routed curve is pocketed out — 2mm, the shop's own figure.
+   *
+   * *"It's a pocket route on the rear"*, and it is **one continuous pocket** rather than a run of
+   * kerfs: the whole curved section is cleared to a flat floor, so the piece bends on an unbroken
+   * band. That is what makes *"the formers will be hard up to that 2mm"* literally true — the
+   * former bears on a continuous surface, not on the tops of ribs.
+   *
+   * It decides three things, which is why it is the only routed figure there is:
+   *
+   * - **How deep the cut goes** — derived, `board − web`, so a thicker board deepens the cut
+   *   instead of eating the web. A shop thinks in what is left, not in how far down the cutter
+   *   went, so what is left is what is stored.
+   * - **Where the formers are cut to** — `r − web` over the arc, against `r − board` along the
+   *   flats that get screwed. See `outboardOverArc`; the difference is the step in the former.
+   * - **How long the blank is** — the piece bends about the middle of the web, so the developed
+   *   length is the arc at `r − web/2`.
+   *
+   * Read only when `cornerMethod` is `routed`.
+   */
+  readonly routedPocketResidual: Mm;
 
   /** Height of the toe kick a base cabinet stands on. */
   readonly kickHeight: Mm;
@@ -179,9 +225,15 @@ export interface ConstructionMethod {
    * Leave it out and every radiused cabinet finishes a millimetre proud, on the one face that has
    * to line up with the doors.
    *
-   * **Existing jobs and standards migrate to zero, not to 1mm.** A job already quoted was cut
-   * without the allowance and must keep cutting that way; adopting it is a deliberate edit per
-   * method.
+   * **This paragraph used to say the opposite of the code, and the correction is the useful
+   * part.** It read *"existing jobs and standards migrate to zero, not to 1mm — adopting it is a
+   * deliberate edit per method"*, which was true of v23 and stopped being true at **v36**:
+   * `withLaminatedCurves` sets every method that carried none to 1mm, because zeroing it in v23
+   * was the §5.14 fault — the bench saw bendy ply for months on curves it had laminated.
+   *
+   * So the deliberate edit runs the other way now. A shop that **veneers or paints** its curves
+   * sets this to zero itself, per method, under Settings → Joinery → Curves — a control that did
+   * not exist until §4.25 despite v36's own migration comment promising it.
    */
   readonly finishLaminate: Mm;
 
@@ -239,6 +291,16 @@ export const FRAMELESS_32: ConstructionMethod = {
   backStyle: 'applied',
   kickHeight: mm(150),
   kickSetback: mm(50),
+  /*
+   * Wrapped is what every job in this app has ever been cut as, so it is what ships. A shop that
+   * routes its corners says so once, per method — §5.7.
+   */
+  cornerMethod: 'wrapped',
+  /*
+   * The shop's own figure — *"the web will be 2mm"* — and the formers are cut hard up against it.
+   * It only bites on a `routed` corner.
+   */
+  routedPocketResidual: mm(2),
   ladderRailFloorGap: mm(10),
   ladderFaceScribeAllowance: mm(10),
   ladderFaceScribeEnd: 'floor',
@@ -521,3 +583,24 @@ export const horizontalDepth = (cabinetDepth: Mm, backThickness: Mm): Mm =>
 /** Front-to-back depth of a side panel — the one dimension the back style actually changes. */
 export const sideDepth = (c: ConstructionMethod, cabinetDepth: Mm, backThickness: Mm): Mm =>
   c.backStyle === 'applied' ? mm(cabinetDepth - backThickness) : cabinetDepth;
+
+/**
+ * The routed curve's two figures, and that they are readings rather than measurements.
+ *
+ * The shop said how the piece is made — *"it's a pocket route on the rear"* — and that is the
+ * fact this feature was built on. **The pitch and the residual are not that fact.** They are the
+ * ordinary range for pocket-routing a board round a tight radius, and together they decide the
+ * tightest radius the piece will actually take, so a job of curves is the wrong place to find
+ * out they were wrong.
+ *
+ * Reported only on a **routed** method, because on a wrapped one they are not read at all and a
+ * warning about a number nothing uses is the sort of noise that trains people to skip warnings.
+ */
+export const unconfirmedRoutedCurveFigures = (c: ConstructionMethod): readonly string[] =>
+  (c.cornerMethod ?? 'wrapped') !== 'routed'
+    ? []
+    : [
+        `Routed curves and their kicks are relieved to a ${c.routedPocketResidual}mm web, and ` +
+          'the blank is cut to the arc round the middle of it. That web is the shop\'s own ' +
+          'figure; what has not been checked is the tightest radius it will actually turn.',
+      ];

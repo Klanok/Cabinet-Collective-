@@ -117,6 +117,24 @@ export interface Panel {
    */
   readonly finishMaterialId?: string;
   /**
+   * Which way the **finish** runs, when there is one. Absent wherever `finishMaterialId` is.
+   *
+   * A second direction, because a laminated curve genuinely has two and they are not the same
+   * question:
+   *
+   * - **`grain`** is the *board's* constraint. On bendy ply it is the way the sheet bends, which
+   *   is a fact about the product and decides how the blank may be nested.
+   * - **`finishGrain`** is how the *decor* reads on the finished face. The laminate is hand-cut
+   *   and hand-trimmed off a separate sheet — *"I can cut it on the saw any way I want"* — so
+   *   nothing constrains it, and what it should do is match the doors either side of the curve.
+   *
+   * Conflating them is what the bench reported as *"I cannot rotate the laminate"*. The viewport
+   * was drawing the decor through the **substrate's nest placement**, so a walnut curve took its
+   * grain direction from wherever the bendy-ply blank happened to land on a bendy-ply sheet —
+   * turned by the nester for yield, and no business of the laminate at all. See `PanelMesh`.
+   */
+  readonly finishGrain?: GrainConstraint;
+  /**
    * Shape in part space, **flat and as cut** — always. A part that gets bent afterwards is
    * stored at the size it is cut to, which for a skin round a radius is its developed length.
    * How it then bends is `forming`, and nothing dimensional reads that. See model/forming.ts.

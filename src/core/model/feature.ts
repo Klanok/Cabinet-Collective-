@@ -51,6 +51,15 @@ export type FeaturePurpose =
   /** Machining that makes a front look like something — a shaker recess, a V-groove. */
   | 'front-style'
   /**
+   * Rear pockets that let a routed curve bend — §5.7, and the shop's own words: *"it's a
+   * pocket route on the rear"*.
+   *
+   * Its own purpose rather than 'other', because it is its own operation: a run of identical
+   * grooves at a pitch, cut with one bit to a depth measured from the far face, and CAM groups
+   * and tool-matches on exactly this.
+   */
+  | 'bend-relief'
+  /**
    * Put here by hand, on this job, on one named part — see `model/partFeature.ts`.
    *
    * Its own purpose rather than borrowing `service-hole` or `other`, because it is the one kind

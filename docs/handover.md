@@ -2719,6 +2719,339 @@ unaffected, which is the §4.23 question asked in advance for once.
 
 ---
 
+### 4.25 The Settings window groups, and a setting nobody could reach
+
+The other half of §5.11's *"any other user may struggle"*, and it was not the screen §4.24 expected
+to find. **The Settings window was never the mess the Inspector was** — it was already tabbed seven
+ways, nothing in it was clipped, and three of the seven tabs fitted on a laptop screen as they
+stood. Measured at 1280 × 720 before anything changed, in a 439px modal body:
+
+```
+Joinery          1474px — 3.4 screens, 26 settings in one flat list
+Hardware          872px — 2.0 screens
+Materials         744px — 1.7 screens
+Costing           742px — 1.7 screens
+Door styles / Standard sizes / Room     already fit
+```
+
+So the work was **grouping**, not shrinking, and the distinction matters: folding fixes a height,
+grouping fixes finding a thing. Joinery is now six groups in the order you build the cabinet —
+carcass and back, kick and plinth, fronts and reveals, shelves and system holes, curves, applied
+ends — and Hardware, Materials and Costing fold at seams the screen already had as headings.
+Every tab's map now fits its window at 1280 × 720 through 1920 × 1080.
+
+**A setting existed that nothing on screen could change, and the grouping is what found it.**
+`finishLaminate` has been on the construction method since §4.23. It has a label in
+`labelForConstructionKey`, the rule engine reads it, `substrateRadius` sizes the formers off it,
+costing charges the sheet against it, and it appears in `differencesFromStandards` when it drifts.
+**There was no control, on any screen, to change it.**
+
+Be precise about which gap that is, because the obvious reading is the wrong one. It is *not* that
+nobody could adopt the allowance: v23 zeroed it and **v36 set it back to 1mm on every method that
+had none**, wholesale, which is what §4.23's second half was. The gap runs the other way, and v36's
+own doc comment states it as though it were already true:
+
+> *"A shop that veneers or paints its curves still says so in one setting, and the carcass warning
+> names the field."*
+
+There was no such setting. A shop that does not laminate its curves was migrated to 1mm along with
+everybody else and had no way to say so — the field the warning named could not be reached. **The
+doc did not describe the app; it described the app somebody assumed existed.** It exists now, in
+the Curves group, and it moves in both directions.
+
+**The grouping is asserted total, not remembered.** `CONSTRUCTION_FIELDS` is a flat list, so a
+group written as "the keys I remembered" drops the next setting somebody adds — it would exist,
+drift, and have nowhere to be. That is §4.15's fault in a new place. `tests/joineryGroups.test.ts`
+asserts **every settings key on a `ConstructionMethod` is in exactly one group**, counted against
+the model itself rather than a second list: 30 keys, less `id`, `name` and `family`, is 27
+settings, and 27 are grouped. `finishLaminate` is what that assertion caught, and it is the
+argument for it.
+
+Verified against the DOM at **1280 × 720, 1366 × 768, 1600 × 900 and 1920 × 1080** — 17
+assertions, all passing:
+
+- **every tab's map fits its window, folded**, at every size
+- **nothing is clipped** — seven tabs, folded *and* with every fold open, in both scopes
+- **no text under 12px**, on every tab
+- a shut group **still says how far this job has drifted from the shop standards**, and only the
+  group that holds the change says it
+- the **"not yet checked at the bench" list is never inside a fold**, and neither is Hardware's
+  catalogue list
+- both panels **remember their own folds and neither clobbers the other** — one stored record, and
+  writes merge
+
+**Six deliberate mutations, each restoring the original mechanism**: Joinery rendered flat fails 1,
+a summary that stops rendering fails 1, drift counted over the whole method instead of the group
+fails 1, the bench warnings moved inside a fold fails 1, ignoring the stored folds fails 1, and
+removing the laminate control fails 1.
+
+**What a folded group says here is different from the Inspector's, on purpose.** The Inspector
+badges a departure from the *job default*; this screen badges a departure from the **shop
+standards**, because that is what the screen is for and it is already what the footer counts. A
+method the standards do not have at all badges nothing per group — it is one line in
+`differencesFromStandards`, by name, and counting all 27 keys as drift would drown the groups that
+genuinely moved.
+
+**Where to look:** `panels/joineryGroups.ts` for the six groups and the drift summary;
+`panels/settingsSections.ts` for every fold id in the modal, one defaults record, and the oversize
+board summary; `panels/Section.tsx` for why two panels can share one stored record. **No schema
+change** — v36 and standards v27 stand.
+
+---
+
+### 4.26 The laminate turns, and a skin stops being nested the wrong way round
+
+Two faults from one bench report — *"I cannot rotate the laminate even if I change the grain
+direction on the cabinet"* — and they are not the same fault. One is a picture. The other cuts
+parts that will not bend.
+
+**The laminate had no direction to rotate.** It is `Panel.finishMaterialId`, an appearance on the
+outer skin, deliberately not a second part (§5.0: *a dimension, not a part*). So the viewport drew
+it through the **substrate's** nest placement — the decor took its direction from wherever the
+bendy-ply blank happened to land on a bendy-ply sheet. The cabinet's grain control never reached
+it, because that control only touches `GRAIN_CHOICE_ROLES` and `skin` is not one.
+
+The shop settled what it should do instead: *"I just want the image to look correct — it needs to
+present accurately to the client, I can cut it on the saw any way I want."* So the laminate is
+unconstrained by any sheet and follows the cabinet, defaulting to **vertical** — up the curve,
+like the door beside it. That is `Panel.finishGrain`, a second direction on the panel, and it is
+its own field because a laminated curve genuinely has two: **`grain` is the board's constraint,
+`finishGrain` is how the decor reads.** Conflating them is what made the report unfixable without
+moving the nest.
+
+Measured out of the live scene per §7, on a Notaio Walnut curve 936mm developed × 720 high against
+a 3600 × 1800 repeat: vertical gives UV spans `0.52 × 0.20`, horizontal `0.40 × 0.26` — the two
+dimensions swapping which one runs along the decor's grain, which is 936/1800 and 720/3600 by
+hand. Before the fix both settings gave `0.52 × 0.20` and the UVs started at 0.52 rather than 0:
+the bendy-ply sheet position, drawn onto the laminate.
+
+**And then the thing nobody reported.** Checking why the grain control could not reach the skin
+turned up why it should not have been able to. Bendy ply ships `grain: 'none'` — honest, it is a
+substrate with no decor — and `none` is exactly what tells the nester a part may rotate freely.
+It does: on the first plain radiused end that was nested, **both skins came off the sheet
+`turned`**, and so did the curved kick. Bendy ply bends one way. The blank was the right size, off
+a sheet that will not go round the formers — §7's own fault, arriving as an orientation instead of
+a position.
+
+`materials.au.ts` had already called this out and declined to fix it: *"pretending it is a grain
+constraint would nest these the right way round by accident and the wrong way round the moment
+someone changed the nester."* Right, and it left the wrong answer shipping in the meantime. The
+material-model change that comment was waiting for is `SheetMaterial.bendAxis`, structural and
+beside `grain` rather than inside it, and only a part carrying `forming` is constrained by it — a
+flat part cut from bendy ply bends nowhere and keeps its yield.
+
+**Column is the shop's default** — *"generally column but sometimes barrel depending on the
+application"* — and this file's own long-standing note says column bends along the sheet's length.
+Both halves came from the shop and the record rather than from a derivation. **The word-to-axis
+mapping is still a reading**, so it is a per-board setting rather than a constant and it reports
+itself through `unconfirmedBendAxis` on the Materials tab: backwards is not a worse nest, it is a
+job of curves that will not bend, and the parts come off the saw the right size either way.
+
+Verified: 16 new assertions in Node plus 3 read out of the live 3D scene, and **six deliberate
+mutations** — ignoring the bend axis fails 2, applying it to flat parts fails 1, barrel instead of
+column fails 1, and a `finishGrain` that stops following the cabinet fails 2. Two of the new tests
+were written wrong and the code was right: a radiused end's **kick curves too**, so "the skins and
+nothing else" was the test's assumption, not the model's behaviour.
+
+**What did not change, and was asked about:** the laminate is still **not nested** — it is cut
+oversize by hand and trim-routed after the ply is bent, so it has no cut plan — and its **cost was
+already captured**, as a sheet count off area against the door decor's brand plus the hand labour,
+both on the Cost panel and in the terminal report.
+
+**Where to look:** `model/panel.ts` `finishGrain`; `rules/build.ts` `finishGrainFor`;
+`viewport/PanelMesh.tsx` for why a finished face ignores the substrate's placement;
+`model/material.ts` `bendAxis` and `unconfirmedBendAxis`; `nest/nest.ts` `orientationsFor`.
+**No schema change** — `bendAxis` is optional and absent on every flat board.
+
+---
+
+### 4.27 The routed corner, and a laminate allowance that never reached one unit
+
+§5.7, and it went almost exactly as that section said it would: *"what changes is the curved
+piece and its material slot; the corner, the strip, the wrap to the back and the square-notched
+shelf do not."* One part forks. Everything else is shared.
+
+**The shop answered the one thing §5.7 refused to guess.** It asked whether the routed piece is
+kerfed, machined from thicker stock, or something else, because *"the developed length only means
+something if the piece actually bends"*. The answer:
+
+> *"it's a pocket route on the rear"* — and, on whether the formers stay: *"yes, same formers"*.
+
+So it **does** bend, it is cut flat to a developed length like any other curved part, and the
+skeleton under it is unchanged. `ConstructionMethod.cornerMethod` picks the method per method:
+
+- **`wrapped`** — N plies over the formers, the outer one carrying a finish laminate. Ships,
+  because it is what every job in this app has ever been cut as.
+- **`routed`** — **one** piece of the *door* board, rear-pocketed so it bends over the same
+  formers, **leading edge banded**. That band is the finished edge.
+
+**No new material slot and no schema change**, which §5.7 predicted and which is the honest test
+of §4.4's decision to give bendy ply its own slot: the routed piece is the same board as the
+fronts bought for the same reason, so it takes `door` and nothing had to grow.
+
+**`outboardOfFormers` is the one predicate this feature turns on.** The formers are cut to the
+finished radius *less whatever sits outside them*, and that is now two different answers — a ply
+stack plus its laminate, or one door board. Three places need it and each used to work it out:
+the resolver, the "radius too small to turn" warning, and the null check that decides there is no
+corner at all. One function, for the reason §5.14 gives — *a curve cannot be dimensioned bare,
+drawn bare and charged laminated all at once*.
+
+**The rear pockets are real machining, not a note.** A run of `groove` features on the **B** face
+at the method's pitch, spanning the part's height, and **only over the arc** — the flat lead is the
+fixing strip and the flat tail runs down the end of the cabinet, and relieving either weakens a
+piece that is not being asked to bend. The depth is **derived**: the method stores what is *left*
+under a pocket, because that web is the thing that has to survive bending and a shop thinks in
+what is left, so a thicker door board deepens the cut instead of eating the web.
+
+**Costing needed no change at all, and that is the result worth reporting.** The curve laminate is
+charged off `role === 'skin' && finishMaterialId !== undefined` — §5.14's one predicate — and a
+routed curve is a skin with no finish, so it drops out of the count without `costing.ts` knowing
+this feature exists.
+
+#### The bug this uncovered: one unit never got §5.14's fix
+
+Wiring the method through the two places that resolve a corner made four radius tests fail, and
+**they were right to**. The **enclosed radiused end** resolves its own geometry rather than going
+through `cornerRadiusFor`, and it was never passing `finishLaminate` — so its outer skin carried a
+laminate, the quote charged a laminate sheet, and **the formers were cut as though there were
+none**. On a 560 unit the formers came out 544 where they should be 543, and the finished curve
+stood a millimetre proud of the doors beside it.
+
+That is the exact three-way disagreement `isLaminatedCurve` was written to make impossible,
+surviving in the one spec that did not ask it — §4.15's *"wired into some specs and not others"*,
+one more time. Fixed here because the fix is one argument; the tests carry the corrected figures
+longhand and say why they moved. **Formers are derived on every build and never stored, so no
+migration and no schema change** — the parts simply come out right from now on, and a curved unit
+re-cuts and re-prices by a millimetre's worth.
+
+#### Verified
+
+26 assertions plus the corrected radius suite, and **seventeen deliberate mutations**: subtracting
+the laminate on a routed curve fails 3, taking the piece off the skin slot fails 1, dropping the
+edge band fails 1, cutting the pockets *to* the residual instead of *from* it fails 1, running the
+pockets through the flat lead and tail fails 1, and giving the routed curve a finish laminate
+fails 2. On the kick, the formers and the cut length: putting the former a whole
+board back fails 5, unstepping it fails 1, developing the piece off the board instead of the web
+fails 2, running the relief through the screw-fixing flat fails 1, measuring the developed length
+off the ply fails 1, putting the kick back in bendy ply fails 1, and dropping the kick's relief
+fails 2. On the pocket itself: clearing the whole part fails 1, cutting *to* the web depth rather
+than down to it fails 1, and moving the relief to the decor face fails 1. Read back out of the running app, the same cabinet cuts:
+
+```
+wrapped   Skin layer 1   721.7 × 720   Bendy plywood 8mm    no band    grain free
+          Skin layer 2   734.3 × 720   Bendy plywood 8mm    no band    grain free
+routed    Curved front   723.3 × 720   Notaio Walnut 16mm   band W1    grain width
+```
+
+#### The kick, the formers, and the cut length — three answers from the bench
+
+The one question this shipped with was the kick. A test pinned the old behaviour and said out loud
+it was unasked; the shop answered, the test failed and pointed at itself, which is what that shape
+of test is for. Then the answer widened, and the widening is the important part:
+
+> *"the kick would be kerfed and have a developed length"*
+>
+> *"the web will be 2mm. the formers will be hard up to that 2mm. the route doesn't go full width,
+> it ends at the radius and the run goes minimum 50mm past to allow screw fixing. the area that
+> gets screw fixed is still full depth. so the formers are shaped to account for this offset in
+> depth on the radius face piece"*
+
+**The first cut of this feature had the formers a whole board back all the way round**, as a
+wrapped one is. They are not. Two numbers, not one, and 16mm apart on an 18mm board:
+
+```
+over the arc      hard up to the 2mm web       200 − 2  = 198
+along the flats   full board, and screwed to   200 − 18 = 182
+the step                                       16
+```
+
+So `outboardOfFormers` grew a companion, `outboardOverArc`, and a routed former is a **stepped**
+part rather than one offset of the finished shape. Read back off the model, in part space:
+
+```
+wrapped   (0,0) (50,0)~arc (233,183) (0,183)                       four vertices, one plane
+routed    (0,16) (50,16) (50,0)~arc (248,198) (232,198) (0,198)    six, stepping 16 twice
+```
+
+The flats sit 16 proud of the arc plane and drop at **x = 50** — exactly where the screw-fixing
+run ends — and the far end steps back the same 16 for the tail.
+
+**And the piece bends on the web, which made the model simpler rather than harder.** With the
+former hard against the web, everything between the pockets is a rigid segment hinging on a 2mm
+strip at radius 198. So it develops exactly as *a 2mm board wrapped at 198*, about its own middle,
+with no special k-factor at all — the neutral surface lands at `r − web/2` = 199 and the arc is
+312.6. The `kerfKFactor` the previous cut needed is gone: it expressed the same thing as a
+fraction of the whole board, which was only equivalent while the former was assumed to sit a whole
+board back.
+
+**Two faults in the cut length came out of this.** `wrapPart` measured **every** developed length
+off `ctx.ts`, the bendy ply, because until §5.7 every part it made was bendy ply — so a routed
+curve off an 18mm board was cut to the length an 8mm ply would need. And the bend datum was wrong,
+as above. On the shipped cabinet the blank went 723.3 → **739.0**.
+
+The kick follows the same rule: kerfed, from the **carcass** board a straight kick already comes
+from, banded on the same top edge, bending on its own 2mm web. Not the door board — nothing sees a
+kick.
+
+#### The relief is one pocket, and the pitch was a setting nobody could read
+
+The first cut of this built a **row of 6mm slots at 40mm centres** — a kerf pattern — and reported
+the spacing as an unconfirmed figure. The shop's reply was not about the number:
+
+> *"I'm not sure what 40mm pocket pitch means"*
+
+Put back as an either/or — a row of slots, or one cleared area — the answer settled it:
+
+> *"yeah one continuous pocket"*
+
+So the whole curved section is cleared to a flat floor leaving the web, and the piece bends on an
+unbroken band. **That is what makes *"the formers will be hard up to that 2mm"* literally true**:
+the former bears on a continuous surface rather than on the tops of ribs, which is the reading
+that should have been taken from that sentence the first time.
+
+It is a `pocket` rather than a run of `groove`s, and the model had already drawn the distinction —
+*a groove follows a line at a constant width; a pocket follows an area, and the tool has to clear
+the whole of it.* The pitch setting is **gone**, not left in at a default: a control the shop
+cannot read is worse than no control, and `joineryGroups`' total-coverage assertion caught the
+removal exactly as it caught the addition.
+
+**One figure is left, and it does three jobs**: the web decides the cut depth (`board − web`,
+derived), the former radius over the arc (`r − web`), and the length of the blank (the arc at
+`r − web/2`). It is the shop's own 2mm; what remains unchecked is the tightest radius it will
+actually turn, and the note now says which of those two is which rather than casting doubt on
+both.
+
+#### The two mutations that did not bite, and what they were hiding
+
+**Reverting the developed length to the ply thickness passed everything.** Every assertion derived
+the expected arc from the model and then checked it loosely, so the one number the fix was about —
+the cut length — was never pinned. What separates them is two boards: the arc does not move with
+the board at all, and the flat tail grows by exactly the board difference. So the blank grows 2mm
+and not a millimetre more; under the bug the arc shrinks while the tail grows and it comes out
+1mm shorter.
+
+**And the first assertion about the step checked that a former existed** — true of every radiused
+cabinet ever built. The shape is the claim, so the shape is what is read now. Its replacement then
+failed for a second reason worth keeping: taking the *minimum* y across the fixing strip returns
+the arc plane, because the tangent carries **both** vertices of the step. Read at the inner end
+instead.
+
+#### Still a question
+
+- **The web is the shop's own figure, 2mm. The pitch is not** — 40mm centres is a reading, and it
+  decides the tightest radius the piece will take. `unconfirmedRoutedCurveFigures` says so on the
+  Joinery tab.
+- **The pocket pitch and residual are readings**, 40mm centres leaving 4mm, and they decide the
+  tightest radius the piece will take. `unconfirmedRoutedCurveFigures` reports them on the Joinery
+  tab, and only on a routed method — a warning about a figure nothing reads is the noise that
+  trains people to skip warnings.
+
+**Where to look:** `rules/radius.ts` `outboardOfFormers`; `rules/parts.ts` `routedCurve` and
+`rearPockets`; `model/construction.ts` for the three new settings and why the residual is stored
+rather than the depth. `tests/routedCorner.test.ts` is the contract.
+
+---
+
 ## 5. Open items, in the order I'd do them
 
 **5.2 has shipped — see 4.6.** What is left of it is Hettich and a handful of gaps, listed below.
@@ -3262,7 +3595,13 @@ remains:
   top is hidden, but the two *ends* show at the end of a run. Left alone rather than guessing a
   convention.
 
-### 5.7 The routed corner — the second way the shop builds a radius
+### 5.7 The routed corner — **shipped, see 4.27**
+
+**Built.** The shop answered the one thing this section refused to guess — *"it's a pocket route
+on the rear"*, formers unchanged — and everything else here turned out to be exactly right,
+including that it needs no new material slot. What is left is two questions, both in §4.27: the
+**kick** is still bendy ply on a routed corner and nobody has been asked, and the pocket pitch and
+residual are readings rather than measurements.
 
 **4.5 is done, so this is unblocked.** It is the same corner by a different method, and the
 shared builders it wanted — `rules/radius.ts` for the plan geometry, `cornerFormers` and
@@ -3411,10 +3750,17 @@ one for showing a client, one for checking the build — and because both live i
 - **Nothing enforces a two- or three-stage limit.** `Cut.stage` is reported and the sample reaches
   16. A shop whose saw cannot do that needs the packer constrained rather than the number printed,
   and it is a real constraint to add — but nobody has said their saw has it.
-- **Bendy ply's barrel/column form still isn't recorded**, and now it matters more: it constrains
-  which way a skin may be turned on the sheet, which is exactly what `orientationsFor` decides. It
-  is *not* `GrainDirection` — see 5.1 — so the nester currently turns bendy ply freely. On a job
-  with a radius in it, check the sheet before cutting; the parts carry a note saying so.
+- ~~**Bendy ply's barrel/column form still isn't recorded.**~~ **Recorded — see §4.26**, and this
+  entry was right about every part of it, including that it is *not* `GrainDirection`.
+  `SheetMaterial.bendAxis` sits beside grain rather than inside it, `orientationsFor` takes it
+  ahead of grain, and only a part carrying `forming` is bound by it.
+
+  **What this entry understated is what "turns bendy ply freely" was costing.** Measured: on a
+  plain radiused end the nester turned **both skins and the curved kick** — not a risk, the
+  shipped behaviour on the first job anybody looked at. The note on the part told the operator to
+  check the sheet, which is not the same thing as not cutting it wrong: by the time anyone reads a
+  part note the cut plan has committed. **Column form ships as the default**, which is the shop's
+  answer; which sheet axis that word names is a reading and says so on the Materials tab.
 - **No labels or barcodes on the nest.** A part's position is on the CSV and on screen. A shop that
   wants a printed label per part is asking for a layout job rather than a nesting one.
 
@@ -3563,10 +3909,12 @@ it — not a duplicate to tidy away.
   height bug above, because the two were reported in one sentence and only one of them was ever
   about drawer fronts: the mechanism was in the shared field row and was clipping other panels
   too.
-- ~~**The UI is navigable but cluttered**~~ — **first pass done, see §4.24.** The user's words
-  were *"any other user may struggle"*. What is closed is the Inspector, the sheer size of the
-  thing, and every clipped control in the app; what has had no pass at all is the Settings modal's
-  own 1277 lines and the nine wrapping "+ cabinet type" buttons.
+- ~~**The UI is navigable but cluttered**~~ — **done, in two passes: §4.24 the Inspector, §4.25
+  the Settings window.** The user's words were *"any other user may struggle"*. Closed: every
+  panel's height, every clipped control in the app, and the type size throughout. **What is left
+  is one thing and it is small** — the nine "+ cabinet type" buttons above the cabinet list still
+  wrap onto three lines and take about 160px whether or not you are adding a cabinet. Not clipped,
+  not small, just clumsy.
 
 #### ~~Not reported, and a bigger risk than anything above~~ — done, see 4.17, and **this entry was wrong**
 
