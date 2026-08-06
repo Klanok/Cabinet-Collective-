@@ -600,9 +600,9 @@ export const AU_SHEET_MATERIALS: readonly SheetMaterial[] = [
    *
    * **Column is the shop's default** — *"generally column but sometimes barrel depending on the
    * application"* — so `length` is what ships, and it is a setting per board rather than a
-   * constant because the shop buys both. The word-to-axis mapping is this file's own long-standing
-   * reading and is **worth confirming once against a real sheet**: backwards is a whole job of
-   * curves cut the wrong way round, which is why `unconfirmedBendAxis` says so on screen.
+   * constant because the shop buys both. The word-to-axis mapping was this file's own reading
+   * and is now the shop's answer: *"you have it right on the column"*. Column bends **along the
+   * sheet's length**, confirmed, so the caution that stood on the Materials tab is gone.
    */
   {
     id: 'bendy-ply-3',

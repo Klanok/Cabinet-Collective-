@@ -93,10 +93,12 @@ export interface SheetMaterial {
    * what has to be laid: a skin is cut flat to its developed length and curls *along* that
    * length, so that length has to lie the way the board rolls.
    *
-   * **Not yet checked at the bench** — see `unconfirmedBendAxis`. The shop has said which *form*
-   * it buys (column, and barrel for some jobs); which sheet axis that word names is the part
-   * nobody has confirmed against a real sheet, and getting it backwards is a whole job of curves
-   * cut the wrong way round. So it is a setting rather than a constant, and it says so on screen.
+   * **Confirmed at the bench**: *"you have it right on the column"* — column form bends **along
+   * the sheet's length**, which is the reading this repo had shipped and had never had checked.
+   * Barrel is the other axis by definition. It stays a setting rather than a constant because
+   * the shop buys both forms, not because the mapping is in doubt; there is nothing left on a
+   * "not yet checked" list about it, and the caution that used to appear on the Materials tab is
+   * gone rather than left standing next to an answer.
    */
   readonly bendAxis?: 'length' | 'width';
   /**
@@ -386,27 +388,13 @@ export const smallestSheetFitting = (
   return candidates.reduce((a, b) => (a.length * a.width <= b.length * b.width ? a : b));
 };
 
-/**
- * Bendable boards whose bend axis is a reading rather than a measurement.
+/*
+ * `unconfirmedBendAxis` used to live here, reporting every bendable board as a reading nobody
+ * had checked. The shop checked it — *"you have it right on the column"* — so the reading is a
+ * measurement and the list is gone rather than kept returning nothing.
  *
- * The shop has said which *form* it buys — column, and barrel for some jobs. What nobody has
- * confirmed against a real sheet is which axis of the sheet the word names; this library's
- * long-standing note says column bends along the length, and that is what ships. It is one
- * sheet and five minutes to settle, and it is worth settling: **backwards is not a worse nest,
- * it is a job of curves that will not bend**, and the parts come off the saw the right size
- * either way.
- *
- * Reported for the same reason the Blum figures and the ladder scribe end are: a number that is
- * a reading rather than a measurement costs ten seconds with a tape if it says so, and a run of
- * parts if it stays quiet. Only boards that actually bend appear — a flat board has no axis to
- * be wrong about.
+ * Deleted rather than emptied on purpose. A function that always answers "no problems" and a
+ * screen block that never draws are §5.11's *safety net nothing renders* wearing the opposite
+ * face: the next reader finds a caution mechanism, assumes the bench question is still live,
+ * and asks it again. The answer is in `SheetMaterial.bendAxis` above, where the field is.
  */
-export const unconfirmedBendAxis = (library: MaterialLibrary): readonly string[] =>
-  library.sheets
-    .filter((sheet) => sheet.bendAxis !== undefined)
-    .map(
-      (sheet) =>
-        `${sheet.decor} is set to ${
-          sheet.bendAxis === 'length' ? 'column form — bending along the sheet length' : 'barrel form — bending across the sheet length'
-        }. Every curved skin is nested to suit it. Confirm against a real sheet before cutting a job of curves.`,
-    );

@@ -440,19 +440,138 @@ describe('what the change costs, and what it must not', () => {
   });
 });
 
-describe('the two figures nobody has checked', () => {
-  it('reports the web and what is unchecked about it on a routed method', () => {
-    const routed = jobWith('routed').constructions[0]!;
-    const notes = unconfirmedRoutedCurveFigures(routed);
+/*
+ * **How tight the web will actually turn — answered.**
+ *
+ * *"2mm web is tested to 200mm radius"*. The figure that used to be on the "not yet checked at
+ * the bench" list is now a rule, and the two halves of it are one measurement: at the tested web
+ * a radius can be compared, and at any other web there is nothing to compare against. Nothing
+ * here interpolates between them, and the last case below is the one that would fail first if
+ * somebody ever turned one data point into a formula.
+ */
+const radiusWarnings = (method: CornerMethod, radius: number, web?: number): string[] => {
+  const job = jobWith(method);
+  const project: Project =
+    web === undefined
+      ? job
+      : { ...job, constructions: job.constructions.map((c) => ({ ...c, routedPocketResidual: mm(web) })) };
+  const cabinet = createCabinet(
+    {
+      typeId: 'base',
+      name: 'B1',
+      width: mm(900),
+      height: mm(720),
+      depth: mm(560),
+      x: mm(0),
+      options: { radiusCorner: 'front-right', carcassRadius: mm(radius) },
+    },
+    project.defaults,
+    project.constructions,
+  );
+  return buildCabinet(cabinet, project).warnings.filter((w) => /tested figure|has been bent/.test(w));
+};
+
+describe('the tightest radius a 2mm web has been bent to', () => {
+  it('says so on a routed corner tighter than the tested figure', () => {
+    const notes = radiusWarnings('routed', 150);
     expect(notes.length).toBe(1);
-    // The web itself is the shop's figure. What nobody has checked is the tightest radius it
-    // will turn — so the note must say which is which rather than casting doubt on both.
+    // Both halves of the measurement in the sentence, because either alone is unusable at the
+    // bench: 200 without the web is a number about nothing, and the web without 200 is the
+    // paragraph this replaced.
+    expect(notes[0]).toMatch(/150mm radius/);
     expect(notes[0]).toMatch(/2mm web/);
-    expect(notes[0]).toMatch(/tightest radius/);
+    expect(notes[0]).toMatch(/200mm/);
   });
 
-  it('says nothing on a wrapped method, where neither number is read', () => {
-    // A warning about a figure nothing uses is the noise that trains people to skip warnings.
+  it('says nothing at the tested radius, or wider', () => {
+    expect(radiusWarnings('routed', 200)).toEqual([]);
+    expect(radiusWarnings('routed', 250)).toEqual([]);
+  });
+
+  /*
+   * The wrapped corner is a different material answering a different question — bendy ply, two
+   * plies of it, and its own long history. A shop reading "a 2mm web has not been bent tighter"
+   * on a corner with no web in it is being told something false about its own job.
+   */
+  it('never says it on a wrapped corner, however tight', () => {
+    expect(radiusWarnings('wrapped', 150)).toEqual([]);
+    expect(radiusWarnings('wrapped', 120)).toEqual([]);
+  });
+
+  /*
+   * The cabinet warning is silent at an untested web, and the Joinery tab is not. One warning per
+   * fault: at 3mm nobody knows what radius is safe, so quoting 200 at it would be inventing the
+   * measurement this pass exists to stop inventing.
+   */
+  it('compares nothing at a web the bench has not tested', () => {
+    expect(radiusWarnings('routed', 150, 3)).toEqual([]);
+    const notes = unconfirmedRoutedCurveFigures({
+      ...jobWith('routed').constructions[0]!,
+      routedPocketResidual: mm(3),
+    });
+    expect(notes.length).toBe(1);
+    expect(notes[0]).toMatch(/3mm web/);
+    expect(notes[0]).toMatch(/200mm/);
+  });
+});
+
+describe('what is left on the bench list', () => {
+  it('reports nothing on a routed method at the tested web', () => {
+    // It used to report one note here, saying the tightest radius was unchecked. It has been
+    // checked. An answered figure left on a "not yet checked" list is how a shop learns to skip
+    // the list — and this project has already shipped one of those.
+    expect(unconfirmedRoutedCurveFigures(jobWith('routed').constructions[0]!)).toEqual([]);
+  });
+
+  it('says nothing on a wrapped method, where the web is not read at all', () => {
     expect(unconfirmedRoutedCurveFigures(jobWith('wrapped').constructions[0]!)).toEqual([]);
+    expect(
+      unconfirmedRoutedCurveFigures({
+        ...jobWith('wrapped').constructions[0]!,
+        routedPocketResidual: mm(3),
+      }),
+    ).toEqual([]);
+  });
+});
+
+/*
+ * A routed corner has no laminate in it, and must not be told it is missing one.
+ *
+ * `finishLaminate` is not read on the routed path at all — `outboardOfFormers` ignores it, the
+ * costing charges no sheet for it, and the piece is the door board with a banded leading edge.
+ * The warning that names it was written when every corner was a wrap, and stayed true-looking
+ * afterwards: exactly the stale claim this codebase keeps finding, one method later.
+ */
+describe('the laminate warning belongs to the wrap', () => {
+  const laminateNotes = (method: CornerMethod, finishLaminate: number): string[] => {
+    const job = jobWith(method);
+    const project: Project = {
+      ...job,
+      constructions: job.constructions.map((c) => ({ ...c, finishLaminate: mm(finishLaminate) })),
+    };
+    const cabinet = createCabinet(
+      {
+        typeId: 'base',
+        name: 'B1',
+        width: mm(900),
+        height: mm(720),
+        depth: mm(560),
+        x: mm(0),
+        options: { radiusCorner: 'front-right', carcassRadius: mm(200) },
+      },
+      project.defaults,
+      project.constructions,
+    );
+    return buildCabinet(cabinet, project).warnings.filter((w) => /finish laminate/i.test(w));
+  };
+
+  it('tells a wrapped corner with no laminate that its substrate will show', () => {
+    expect(laminateNotes('wrapped', 0).length).toBe(1);
+    expect(laminateNotes('wrapped', 1)).toEqual([]);
+  });
+
+  it('says nothing to a routed corner, which is the door board either way', () => {
+    expect(laminateNotes('routed', 0)).toEqual([]);
+    expect(laminateNotes('routed', 1)).toEqual([]);
   });
 });

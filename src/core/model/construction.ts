@@ -80,6 +80,11 @@ export interface ConstructionMethod {
    * - **How long the blank is** — the piece bends about the middle of the web, so the developed
    *   length is the arc at `r − web/2`.
    *
+   * **How tight it will go is measured, not derived** — *"2mm web is tested to 200mm radius"*.
+   * That pair is `TESTED_WEB` / `TESTED_WEB_RADIUS`, and a cabinet asking for tighter than the
+   * tested radius is told so by name. Change this figure and the measurement no longer covers
+   * the method, which the Joinery tab says.
+   *
    * Read only when `cornerMethod` is `routed`.
    */
   readonly routedPocketResidual: Mm;
@@ -585,22 +590,43 @@ export const sideDepth = (c: ConstructionMethod, cabinetDepth: Mm, backThickness
   c.backStyle === 'applied' ? mm(cabinetDepth - backThickness) : cabinetDepth;
 
 /**
- * The routed curve's two figures, and that they are readings rather than measurements.
+ * The web the shop has actually bent, and the tightest radius it has been bent to.
  *
- * The shop said how the piece is made — *"it's a pocket route on the rear"* — and that is the
- * fact this feature was built on. **The pitch and the residual are not that fact.** They are the
- * ordinary range for pocket-routing a board round a tight radius, and together they decide the
- * tightest radius the piece will actually take, so a job of curves is the wrong place to find
- * out they were wrong.
+ * *"2mm web is tested to 200mm radius"* — a bench measurement, and the pair is the measurement.
+ * 200 is not a property of the web on its own and 2 is not a property of the radius on its own,
+ * so the two are one constant read together: at **this** web, **this** radius is proven, and
+ * tighter is nobody's knowledge yet.
  *
- * Reported only on a **routed** method, because on a wrapped one they are not read at all and a
- * warning about a number nothing uses is the sort of noise that trains people to skip warnings.
+ * **Deliberately not scaled to other webs.** A thinner web bends easier and a thicker one bends
+ * harder, and it would be one line to turn that into a formula — the sort of line this project
+ * has been burnt by before. One data point supports one statement. A method set to any other web
+ * is reported as uncovered rather than silently interpolated.
+ */
+export const TESTED_WEB = mm(2);
+/** The radius `TESTED_WEB` has been bent to, and no tighter. See `TESTED_WEB`. */
+export const TESTED_WEB_RADIUS = mm(200);
+
+/**
+ * The routed curve's one remaining unknown — and on the shipped figures there is none.
+ *
+ * This used to say the tightest radius a 2mm web will turn had not been checked. It has:
+ * **200mm**, from the bench, and the check moved to where it bites — `cornerRadiusProblems`
+ * measures a *cabinet's* radius against `TESTED_WEB_RADIUS` and says so on the job. A figure
+ * with an answer does not belong on a "not yet checked" list; that list is for figures nobody
+ * has an answer for, and leaving an answered one on it is how a shop learns to skip the list.
+ *
+ * What is left is the case the measurement does not cover: a method set to some **other** web.
+ * The tested pair is 2mm at 200mm radius, and nothing has been bent at 1.5 or at 3.
+ *
+ * Reported only on a **routed** method, because on a wrapped one the web is not read at all and
+ * a warning about a number nothing uses is the same noise in a different place.
  */
 export const unconfirmedRoutedCurveFigures = (c: ConstructionMethod): readonly string[] =>
-  (c.cornerMethod ?? 'wrapped') !== 'routed'
+  (c.cornerMethod ?? 'wrapped') !== 'routed' ||
+  Math.abs(c.routedPocketResidual - TESTED_WEB) < 0.001
     ? []
     : [
-        `Routed curves and their kicks are relieved to a ${c.routedPocketResidual}mm web, and ` +
-          'the blank is cut to the arc round the middle of it. That web is the shop\'s own ' +
-          'figure; what has not been checked is the tightest radius it will actually turn.',
+        `Routed curves here are relieved to a ${c.routedPocketResidual}mm web. The shop's tested ` +
+          `figure is a ${TESTED_WEB}mm web bent to ${TESTED_WEB_RADIUS}mm radius, so it does not ` +
+          'cover this one — bend a sample before running a job of curves on it.',
       ];
