@@ -3557,10 +3557,17 @@ one for showing a client, one for checking the build — and because both live i
 - **Nothing enforces a two- or three-stage limit.** `Cut.stage` is reported and the sample reaches
   16. A shop whose saw cannot do that needs the packer constrained rather than the number printed,
   and it is a real constraint to add — but nobody has said their saw has it.
-- **Bendy ply's barrel/column form still isn't recorded**, and now it matters more: it constrains
-  which way a skin may be turned on the sheet, which is exactly what `orientationsFor` decides. It
-  is *not* `GrainDirection` — see 5.1 — so the nester currently turns bendy ply freely. On a job
-  with a radius in it, check the sheet before cutting; the parts carry a note saying so.
+- ~~**Bendy ply's barrel/column form still isn't recorded.**~~ **Recorded — see §4.26**, and this
+  entry was right about every part of it, including that it is *not* `GrainDirection`.
+  `SheetMaterial.bendAxis` sits beside grain rather than inside it, `orientationsFor` takes it
+  ahead of grain, and only a part carrying `forming` is bound by it.
+
+  **What this entry understated is what "turns bendy ply freely" was costing.** Measured: on a
+  plain radiused end the nester turned **both skins and the curved kick** — not a risk, the
+  shipped behaviour on the first job anybody looked at. The note on the part told the operator to
+  check the sheet, which is not the same thing as not cutting it wrong: by the time anyone reads a
+  part note the cut plan has committed. **Column form ships as the default**, which is the shop's
+  answer; which sheet axis that word names is a reading and says so on the Materials tab.
 - **No labels or barcodes on the nest.** A part's position is on the CSV and on screen. A shop that
   wants a printed label per part is asking for a layout job rather than a nesting one.
 
