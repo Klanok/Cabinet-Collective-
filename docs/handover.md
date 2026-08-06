@@ -2842,10 +2842,11 @@ flat part cut from bendy ply bends nowhere and keeps its yield.
 
 **Column is the shop's default** — *"generally column but sometimes barrel depending on the
 application"* — and this file's own long-standing note says column bends along the sheet's length.
-Both halves came from the shop and the record rather than from a derivation. **The word-to-axis
-mapping is still a reading**, so it is a per-board setting rather than a constant and it reports
-itself through `unconfirmedBendAxis` on the Materials tab: backwards is not a worse nest, it is a
-job of curves that will not bend, and the parts come off the saw the right size either way.
+Both halves came from the shop and the record rather than from a derivation. The word-to-axis
+mapping shipped as a **reading**, reported on the Materials tab, and **the shop has since
+confirmed it**: *"you have it right on the column"* — see 4.28, where the caution was deleted
+rather than left standing beside an answer. It is still a per-board setting, because the shop buys
+both forms.
 
 Verified: 16 new assertions in Node plus 3 read out of the live 3D scene, and **six deliberate
 mutations** — ignoring the bend axis fails 2, applying it to flat parts fails 1, barrel instead of
@@ -3036,19 +3037,88 @@ failed for a second reason worth keeping: taking the *minimum* y across the fixi
 the arc plane, because the tangent carries **both** vertices of the step. Read at the inner end
 instead.
 
-#### Still a question
+#### What was still a question — answered in 4.28
 
-- **The web is the shop's own figure, 2mm. The pitch is not** — 40mm centres is a reading, and it
-  decides the tightest radius the piece will take. `unconfirmedRoutedCurveFigures` says so on the
-  Joinery tab.
-- **The pocket pitch and residual are readings**, 40mm centres leaving 4mm, and they decide the
-  tightest radius the piece will take. `unconfirmedRoutedCurveFigures` reports them on the Joinery
-  tab, and only on a routed method — a warning about a figure nothing reads is the noise that
-  trains people to skip warnings.
+This section shipped saying the tightest radius a 2mm web will turn was unchecked, and it said so
+on the Joinery tab. **It has been checked: 200mm.** See 4.28 for what that turned into. The two
+paragraphs that used to sit here also outlived their own feature — they still described a *pitch*
+setting and "40mm centres leaving 4mm" after the shop had replaced the kerf pattern with one
+continuous pocket, three screens above in this same section. Nine sessions of this lesson and it
+still happens inside the write-up that records it.
 
 **Where to look:** `rules/radius.ts` `outboardOfFormers`; `rules/parts.ts` `routedCurve` and
-`rearPockets`; `model/construction.ts` for the three new settings and why the residual is stored
-rather than the depth. `tests/routedCorner.test.ts` is the contract.
+`rearRelief`; `model/construction.ts` for the settings and why the residual is stored rather than
+the depth. `tests/routedCorner.test.ts` is the contract.
+
+---
+
+### 4.28 Two answers off the bench, and what an answer costs a caution list
+
+Two questions had been sitting on the "worth five minutes on scrap" list, one from 4.26 and one
+from 4.27. Both came back in a sentence each:
+
+> *"2mm web is tested to 200mm radius"*
+>
+> *"you have it right on the column"*
+
+Neither needed a design. What they needed was for the app to stop asking — and that is the part
+worth writing down, because an answered question left on a caution list is how a shop learns to
+skip caution lists.
+
+#### The tested pair is one measurement, and it is not a formula
+
+`TESTED_WEB` and `TESTED_WEB_RADIUS` live together in `model/construction.ts` and are read
+together. 200 is not a property of the web on its own and 2 is not a property of the radius on its
+own: what was measured is that **this** web took **that** radius.
+
+It would be one line to scale it — *a 3mm web must want 300* — and that line would be inventing a
+measurement, which is the exact move that produced this project's worst shipped feature. So the
+rule refuses. At the tested web `cornerRadiusProblems` compares radii and names both halves in the
+sentence; at any other web it says nothing at all, and `unconfirmedRoutedCurveFigures` reports on
+the Joinery tab that the shop's figure does not cover this method. **One warning per fault**: the
+job is wrong on the cabinet, the method is unproven in the settings.
+
+It is a warning and must stay one. *Nobody has bent it tighter* is a different statement from *it
+will not go tighter*, so a 150mm routed corner is still cut, nested and priced exactly as asked —
+what it earns is a sample off the saw before the job runs.
+
+The mutation that matters here is the formula: scale the tested radius by the web and the
+untested-web case fails immediately. The other three — the check never firing, the laminate gate
+reverted, the shipped board flipped to barrel — each fail their own assertion and nothing else.
+
+#### An answered caution is deleted, not emptied
+
+`unconfirmedBendAxis` is **gone**, along with the block it fed on the Materials tab. Leaving a
+function that always returns `[]` behind a screen block that never draws would be 5.11's *safety
+net nothing renders* wearing the opposite face: the next reader finds a caution mechanism, assumes
+the bench question is still live, and asks the shop a question it has already answered. The answer
+is now where the field is, in `SheetMaterial.bendAxis`'s own comment.
+
+The axis stays a **per-board setting**, and that is not a hedge — the shop buys column *and*
+barrel. What changed is that the mapping from the word to the sheet axis is no longer a reading.
+
+#### The bug the gating found
+
+A routed corner with the finish laminate turned off was being told *"the bendy ply is the finished
+face and the corner will show its substrate beside the doors"* — on a corner with no bendy ply in
+it. `finishLaminate` is not read on the routed path at all: `outboardOfFormers` ignores it, the
+costing charges no sheet for it, and the piece is the door board with a banded leading edge.
+
+The warning was **true of every corner on the day it was written**, and 5.7 made a second kind of
+corner. That is the shape to keep watching for — not a claim that was wrong, a claim that was
+right until the code grew a second case, with nothing to fail when it did.
+
+**Where to look:** `model/construction.ts` for the tested pair; `rules/parts.ts`
+`cornerRadiusProblems` for both the radius rule and the laminate gate; `tests/routedCorner.test.ts`
+and `tests/bendAxis.test.ts` for the contracts.
+
+Verified live as well as in the suite, per 7: nine assertions driven through the real Settings
+window and Inspector — the Materials tab read back with the caution gone *and* proved to have
+rendered something first, the web changed to 3mm and back with the Joinery list read each time,
+and the cabinet warning read out of the Inspector at 150, 200 and wrapped-at-150. Two of those are
+negative checks, which is why the same run has to produce the warning at least once: a selector
+pointed at the wrong panel passes every "says nothing" assertion in the file, and did, until it
+was made to find one.
 
 ---
 
@@ -3254,8 +3324,9 @@ remains are gaps rather than missing work, and none of them blocks anything.
   standards v19) because a curve already quoted was cut without it. It is a dimension, not a part —
   nothing is machined for it, and whether the laminate itself should be costed and ordered has not
   been asked.
-- **Bendy ply is sold barrel or column form** and the model still doesn't record which; the
-  wrap's note tells whoever cuts it to check the sheet. Same `SheetMaterial` field 5.1 wants.
+- **Bendy ply is sold barrel or column form** — recorded since 4.26 as `SheetMaterial.bendAxis`,
+  nested to suit, and confirmed at the bench in 4.28. This bullet said the model *"still doesn't
+  record which"* for two sessions after it did.
 - **Deferred, confirmed as much later:** a shelf cannot sensibly carry a bowed front *and* a
   rounded corner — two curves arguing over one edge. The app now says pick one.
 

@@ -1187,7 +1187,18 @@ export const wrapLayers = (ctx: RuleContext, rad: CornerRadius): PartInstance[] 
       finish: outer && laminated ? 'door' : undefined,
       note: (length) =>
         `Cut flat ${length.toFixed(1)} × ${ctx.H} and bend to ${Math.round(inner)}mm inside radius. ` +
-        'Check the sheet bends this way before cutting — bendy ply is sold barrel or column form.' +
+        /*
+         * This used to read *"check the sheet bends this way before cutting"*, which asked the
+         * operator to catch a fault the cut plan had already committed — §4.26 is the measurement
+         * that it did not work. The nest now lays the blank to the board's own bend axis, so the
+         * note points at the setting that decides it rather than at the sheet in his hands.
+         *
+         * It names no form on purpose: the axis is per board, this context carries thicknesses
+         * rather than the library, and a note hardcoding "column" would be wrong on the barrel
+         * board the shop also buys.
+         */
+        'This blank is nested to run the way its board bends — the form is set per board under ' +
+        'Settings → Materials. ' +
         (outer && laminated
           ? ` Laminate the outside face in the door decor, ${ctx.construction.finishLaminate}mm.`
           : ''),

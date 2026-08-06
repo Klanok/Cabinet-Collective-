@@ -11,7 +11,7 @@ transcript. Then read `docs/woodtron-dialect.md` before touching anything under 
 
 ## Where things stand
 
-`main` is green at **1166 tests**. Schema **v36**, shop standards **v27**. Every session's work
+`main` is green at **1172 tests**. Schema **v36**, shop standards **v27**. Every session's work
 lands on `main` through a pull request, so `git log main` is the honest answer to what has shipped —
 check it rather than trusting this paragraph, which is exactly the kind of sentence that goes stale.
 
@@ -37,22 +37,20 @@ the **reference spindle**; two holes 128mm apart means it is the **head origin**
 the multidrill head — a row bored on the borer measures the wrong machine. A part on its own settles
 nothing without the program that drilled it.
 
-## Two shop questions holding nothing up, but worth answering
+## The two that were on this list are answered — §4.28
 
-- **How tight a radius will a 2mm web actually turn?** The web is the shop's own figure and the
-  rear relief is **one continuous pocket** — both answered. What nobody has tried is the tightest
-  curve it will take before it cracks. Reported on the Joinery tab. §4.27 has the rest, including
-  that the formers are **stepped**, which the first cut of that feature had wrong by 16mm.
+Both came back off the bench in a sentence, and both are applied:
 
-## Also worth five minutes on scrap, and cheap to get wrong
-
-**Which way does a sheet of bendy ply bend?** The shop buys **column** by default and barrel for
-some jobs, and every curved skin is now nested to suit — §4.26. What nobody has confirmed against
-a real sheet is which axis of the sheet the word *column* names; this repo's own long-standing note
-says it bends **along the sheet's length**, and that is what ships. Backwards is not a worse nest,
-it is a job of curves that will not bend, and the parts come off the saw the right size either
-way. One sheet settles it. It is a per-board setting under **Settings → Materials**, and it says
-on that screen that it has not been checked.
+- **A 2mm web is tested to 200mm radius.** So a routed corner asked for tighter says so *on the
+  cabinet*, naming the web and the figure — a warning, not a refusal, because *nobody has bent it
+  tighter* is not *it will not go tighter*. **It is deliberately not scaled to other webs**: one
+  data point supports one statement, and a method set to any other web is reported as uncovered on
+  the Joinery tab instead. If you are ever tempted to turn that pair into a formula, read §4.28
+  first.
+- **Column bends along the sheet's length**, confirmed, which is what shipped. The Materials-tab
+  caution is **deleted** rather than left returning nothing — an answered question on a "not yet
+  checked" list is how a shop learns to skip the list. The axis is still a per-board setting,
+  because the shop buys both forms.
 
 ## Unblocked, in the order I would take them
 
@@ -113,6 +111,12 @@ construction method under Settings → Joinery → Curves. No new material slot 
 exactly as §5.7 predicted. It also uncovered a real bug — **the enclosed radiused end never got
 §5.14's laminate fix**, so its formers were cut a millimetre oversize and its curve finished proud
 of the doors. Fixed, and the radius tests carry the corrected figures.
+
+**§4.28 found the next one in the same place**: a routed corner with the laminate turned off was
+told *"the bendy ply is the finished face"* — on a corner with no bendy ply in it. The sentence was
+true of every corner the day it was written, and §5.7 made a second kind of corner. **That is the
+shape to watch for: not a claim that was wrong, a claim that was right until the code grew a
+second case, with nothing to fail when it did.**
 
 **The Settings half — §4.25.** Not the mess the Inspector was: already tabbed, nothing clipped,
 three of seven tabs already fitting. The work was **grouping** rather than shrinking — Joinery was
