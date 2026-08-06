@@ -24,6 +24,7 @@ import {
   type MaterialLibrary,
   type SheetMaterial,
   actualThicknessOf,
+  unconfirmedBendAxis,
   isOversize,
 } from '../../core/model/material.ts';
 import {
@@ -128,15 +129,13 @@ const CONSTRUCTION_FIELDS: {
     step: 5,
   },
   /*
-   * The laminate over a curve — a setting the model has demanded be editable since §4.23 and
-   * that nothing on screen offered.
+   * The laminate over a curve — a setting v36 promised the shop and never provided.
    *
-   * Its own doc comment reads *"adopting it is a deliberate edit per method"*, and the v36
-   * migration deliberately left every existing method at zero so a job already quoted keeps
-   * cutting the way it was quoted. Both are right, and together they described an action the
-   * shop had no way to perform: there was no control, on any screen, to make the deliberate
-   * edit with. The hint says which way is which, because zero and 1mm are both correct answers
-   * to different questions.
+   * v36's migration comment says *"a shop that veneers or paints its curves still says so in one
+   * setting, and the carcass warning names the field"*. There was no such setting: v23 zeroed the
+   * allowance, v36 set every method back to 1mm wholesale, and a shop that does **not** laminate
+   * had no way to say so. The hint gives both answers rather than one, because zero and 1mm are
+   * each right for a different shop.
    */
   {
     key: 'finishLaminate',
@@ -746,6 +745,12 @@ function MaterialsEditor({
   const [openGroups, setGroupOpen] = useOpenSections(readOpenSettingsSections);
   return (
     <>
+      <Section
+        id="materials:boards"
+        title="Boards for this job"
+        open={openGroups['materials:boards']}
+        onToggle={setGroupOpen}
+      >
       <SheetPicker
         label="Carcass"
         hint="Sides, bottoms, tops, shelves, rails"
@@ -798,6 +803,25 @@ function MaterialsEditor({
         These are the defaults for new cabinets. Any single cabinet can override them in the
         Inspector.
       </p>
+      </Section>
+
+      {/*
+        Which way the bendy ply bends, and that it is a reading rather than a measurement.
+
+        Outside every fold and at the foot of the tab, the same placement the Joinery and Hardware
+        bench lists get — a figure nobody has checked is the one thing on a screen that must not be
+        a click away. It is here rather than in a group because it is about the boards as a set.
+      */}
+      {unconfirmedBendAxis(library).length > 0 && (
+        <>
+          <div className="subhead">Not yet checked at the bench</div>
+          <ul className="warnings">
+            {unconfirmedBendAxis(library).map((note) => (
+              <li key={note}>{note}</li>
+            ))}
+          </ul>
+        </>
+      )}
 
       {/*
         The fold appears only when there is a board to measure — `BoardThicknessEditor` returns

@@ -140,17 +140,39 @@ export function PanelMesh({ panel, thickness, colour: boardColour, texture, text
     g.setAttribute('position', new BufferAttribute(mesh.positions, 3));
     g.setAttribute('normal', new BufferAttribute(mesh.normals, 3));
     if (displayTexture) {
+      /*
+       * **A finished face is not read off the board's nest, and this is the bench's
+       * "I cannot rotate the laminate".**
+       *
+       * `texturePlacement` maps a point on the blank to its real spot on the sheet the blank was
+       * nested from, which is exactly right for a part whose visible face *is* the board: two
+       * doors cut side by side share continuous grain because they really did.
+       *
+       * A laminated curve is not that. What you see is a **separate sheet**, hand-cut and
+       * hand-trimmed after the bendy ply is bent, and the shop cuts it whichever way it likes.
+       * Sampling it through the substrate's placement gave the decor its direction from wherever
+       * the ply blank landed — and the nester turns those freely for yield, so a walnut curve came
+       * out cross-grained beside its own doors and nothing on the cabinet would change it.
+       *
+       * So a part with a finish ignores the placement entirely and lays its decor by
+       * `finishGrain`, which the cabinet's own grain control sets. No sheet offset either: it is
+       * not from the numbered sheet the ply came off.
+       */
+      const laminated = panel.finishMaterialId !== undefined;
       const uv = new Float32Array(mesh.uvs.length);
       for (let i = 0; i < mesh.uvs.length; i += 2) {
         const localX = mesh.uvs[i]!;
         const localY = mesh.uvs[i + 1]!;
-        const grainAlongX = panel.grain !== 'width-along-grain';
-        const [sheetX, sheetY] = texturePlacement
-          ? pointOnSheet(localX, localY, texturePlacement)
+        const grainAlongX = laminated
+          ? panel.finishGrain !== 'width-along-grain'
+          : panel.grain !== 'width-along-grain';
+        const placement = laminated ? undefined : texturePlacement;
+        const [sheetX, sheetY] = placement
+          ? pointOnSheet(localX, localY, placement)
           : [grainAlongX ? localX : localY, grainAlongX ? localY : localX];
         // Separate purchased sheets should not all begin on the identical pixel of a swatch.
         // The deterministic offset keeps the view stable while representing another sheet.
-        const sheetOffset = texturePlacement ? (texturePlacement.sheetIndex - 1) * 0.371 : 0;
+        const sheetOffset = placement ? (placement.sheetIndex - 1) * 0.371 : 0;
         const u = displayTexture.grainAxis === 'u'
           ? sheetX / displayTexture.repeatLength + sheetOffset
           : sheetY / displayTexture.repeatWidth + sheetOffset;
@@ -164,7 +186,7 @@ export function PanelMesh({ panel, thickness, colour: boardColour, texture, text
     }
     g.setIndex(new BufferAttribute(mesh.indices, 1));
     return g;
-  }, [drawingProfile, panel.profile, panel.grain, bodyThickness, panel.forming, displayTexture, texturePlacement]);
+  }, [drawingProfile, panel.profile, panel.grain, panel.finishGrain, panel.finishMaterialId, bodyThickness, panel.forming, displayTexture, texturePlacement]);
 
   const matrix: Matrix4 = useMemo(() => panelMatrix(panel.placement), [panel.placement]);
 

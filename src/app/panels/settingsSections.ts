@@ -19,6 +19,7 @@ export type SettingsSectionId =
   | JoineryGroupId
   | 'hardware:runners'
   | 'hardware:hinges'
+  | 'materials:boards'
   | 'materials:thickness'
   | 'costing:sheet'
   | 'costing:labour'
@@ -34,6 +35,8 @@ export type SettingsSectionId =
 const OTHER_DEFAULTS = {
   'hardware:runners': false,
   'hardware:hinges': false,
+  // The boards a job cuts are the one thing on this tab somebody changes mid-job, so they open.
+  'materials:boards': true,
   'materials:thickness': false,
   'costing:sheet': false,
   'costing:labour': false,

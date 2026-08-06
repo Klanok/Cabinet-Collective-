@@ -179,9 +179,15 @@ export interface ConstructionMethod {
    * Leave it out and every radiused cabinet finishes a millimetre proud, on the one face that has
    * to line up with the doors.
    *
-   * **Existing jobs and standards migrate to zero, not to 1mm.** A job already quoted was cut
-   * without the allowance and must keep cutting that way; adopting it is a deliberate edit per
-   * method.
+   * **This paragraph used to say the opposite of the code, and the correction is the useful
+   * part.** It read *"existing jobs and standards migrate to zero, not to 1mm — adopting it is a
+   * deliberate edit per method"*, which was true of v23 and stopped being true at **v36**:
+   * `withLaminatedCurves` sets every method that carried none to 1mm, because zeroing it in v23
+   * was the §5.14 fault — the bench saw bendy ply for months on curves it had laminated.
+   *
+   * So the deliberate edit runs the other way now. A shop that **veneers or paints** its curves
+   * sets this to zero itself, per method, under Settings → Joinery → Curves — a control that did
+   * not exist until §4.25 despite v36's own migration comment promising it.
    */
   readonly finishLaminate: Mm;
 

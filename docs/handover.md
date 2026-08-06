@@ -2799,6 +2799,72 @@ change** — v36 and standards v27 stand.
 
 ---
 
+### 4.26 The laminate turns, and a skin stops being nested the wrong way round
+
+Two faults from one bench report — *"I cannot rotate the laminate even if I change the grain
+direction on the cabinet"* — and they are not the same fault. One is a picture. The other cuts
+parts that will not bend.
+
+**The laminate had no direction to rotate.** It is `Panel.finishMaterialId`, an appearance on the
+outer skin, deliberately not a second part (§5.0: *a dimension, not a part*). So the viewport drew
+it through the **substrate's** nest placement — the decor took its direction from wherever the
+bendy-ply blank happened to land on a bendy-ply sheet. The cabinet's grain control never reached
+it, because that control only touches `GRAIN_CHOICE_ROLES` and `skin` is not one.
+
+The shop settled what it should do instead: *"I just want the image to look correct — it needs to
+present accurately to the client, I can cut it on the saw any way I want."* So the laminate is
+unconstrained by any sheet and follows the cabinet, defaulting to **vertical** — up the curve,
+like the door beside it. That is `Panel.finishGrain`, a second direction on the panel, and it is
+its own field because a laminated curve genuinely has two: **`grain` is the board's constraint,
+`finishGrain` is how the decor reads.** Conflating them is what made the report unfixable without
+moving the nest.
+
+Measured out of the live scene per §7, on a Notaio Walnut curve 936mm developed × 720 high against
+a 3600 × 1800 repeat: vertical gives UV spans `0.52 × 0.20`, horizontal `0.40 × 0.26` — the two
+dimensions swapping which one runs along the decor's grain, which is 936/1800 and 720/3600 by
+hand. Before the fix both settings gave `0.52 × 0.20` and the UVs started at 0.52 rather than 0:
+the bendy-ply sheet position, drawn onto the laminate.
+
+**And then the thing nobody reported.** Checking why the grain control could not reach the skin
+turned up why it should not have been able to. Bendy ply ships `grain: 'none'` — honest, it is a
+substrate with no decor — and `none` is exactly what tells the nester a part may rotate freely.
+It does: on the first plain radiused end that was nested, **both skins came off the sheet
+`turned`**, and so did the curved kick. Bendy ply bends one way. The blank was the right size, off
+a sheet that will not go round the formers — §7's own fault, arriving as an orientation instead of
+a position.
+
+`materials.au.ts` had already called this out and declined to fix it: *"pretending it is a grain
+constraint would nest these the right way round by accident and the wrong way round the moment
+someone changed the nester."* Right, and it left the wrong answer shipping in the meantime. The
+material-model change that comment was waiting for is `SheetMaterial.bendAxis`, structural and
+beside `grain` rather than inside it, and only a part carrying `forming` is constrained by it — a
+flat part cut from bendy ply bends nowhere and keeps its yield.
+
+**Column is the shop's default** — *"generally column but sometimes barrel depending on the
+application"* — and this file's own long-standing note says column bends along the sheet's length.
+Both halves came from the shop and the record rather than from a derivation. **The word-to-axis
+mapping is still a reading**, so it is a per-board setting rather than a constant and it reports
+itself through `unconfirmedBendAxis` on the Materials tab: backwards is not a worse nest, it is a
+job of curves that will not bend, and the parts come off the saw the right size either way.
+
+Verified: 16 new assertions in Node plus 3 read out of the live 3D scene, and **six deliberate
+mutations** — ignoring the bend axis fails 2, applying it to flat parts fails 1, barrel instead of
+column fails 1, and a `finishGrain` that stops following the cabinet fails 2. Two of the new tests
+were written wrong and the code was right: a radiused end's **kick curves too**, so "the skins and
+nothing else" was the test's assumption, not the model's behaviour.
+
+**What did not change, and was asked about:** the laminate is still **not nested** — it is cut
+oversize by hand and trim-routed after the ply is bent, so it has no cut plan — and its **cost was
+already captured**, as a sheet count off area against the door decor's brand plus the hand labour,
+both on the Cost panel and in the terminal report.
+
+**Where to look:** `model/panel.ts` `finishGrain`; `rules/build.ts` `finishGrainFor`;
+`viewport/PanelMesh.tsx` for why a finished face ignores the substrate's placement;
+`model/material.ts` `bendAxis` and `unconfirmedBendAxis`; `nest/nest.ts` `orientationsFor`.
+**No schema change** — `bendAxis` is optional and absent on every flat board.
+
+---
+
 ## 5. Open items, in the order I'd do them
 
 **5.2 has shipped — see 4.6.** What is left of it is Hettich and a handful of gaps, listed below.

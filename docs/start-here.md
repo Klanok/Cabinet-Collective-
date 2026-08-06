@@ -11,7 +11,7 @@ transcript. Then read `docs/woodtron-dialect.md` before touching anything under 
 
 ## Where things stand
 
-`main` is green at **1124 tests**. Schema **v36**, shop standards **v27**. Every session's work
+`main` is green at **1140 tests**. Schema **v36**, shop standards **v27**. Every session's work
 lands on `main` through a pull request, so `git log main` is the honest answer to what has shipped —
 check it rather than trusting this paragraph, which is exactly the kind of sentence that goes stale.
 
@@ -36,6 +36,16 @@ spindle 1 (`B1`) and one firing spindle 5 (`B16`). One hole means a programmed c
 the **reference spindle**; two holes 128mm apart means it is the **head origin**. It has to come off
 the multidrill head — a row bored on the borer measures the wrong machine. A part on its own settles
 nothing without the program that drilled it.
+
+## Also worth five minutes on scrap, and cheap to get wrong
+
+**Which way does a sheet of bendy ply bend?** The shop buys **column** by default and barrel for
+some jobs, and every curved skin is now nested to suit — §4.26. What nobody has confirmed against
+a real sheet is which axis of the sheet the word *column* names; this repo's own long-standing note
+says it bends **along the sheet's length**, and that is what ships. Backwards is not a worse nest,
+it is a job of curves that will not bend, and the parts come off the saw the right size either
+way. One sheet settles it. It is a per-board setting under **Settings → Materials**, and it says
+on that screen that it has not been checked.
 
 ## Unblocked, in the order I would take them
 
@@ -76,13 +86,19 @@ worth knowing before you touch either: a shut section **always says what is set 
 is the only reason folding is safe, and the Joinery grouping is asserted **total** against the
 model — every setting on a construction method is in exactly one group, so a field added later
 fails the suite instead of vanishing off the screen. That assertion immediately found
-`finishLaminate`: a setting whose own doc comment said *"adopting it is a deliberate edit per
-method"*, with no control anywhere in the app to make the edit with.
+`finishLaminate`: v36 promised the shop that a curve it veneers or paints *"still says so in one
+setting"*, and there was no such setting — the field had no control anywhere in the app.
 
 **The Inspector half — §4.24.** One drawer bank was 2242px of controls in a 712px window; the whole
 of a cabinet now fits one screen folded, at four screen sizes. The reported "off-screen" drawer
 front input was never off-screen — a long label was eating the box, in a rule shared by every field
 in the app, so it was clipping other panels too.
+
+**The laminate on a curve turns with the cabinet's grain — §4.26**, and it never could before: it
+had no direction of its own, so the viewport drew the decor through the *bendy ply's* nest
+placement. Same investigation found that **bendy-ply skins were being nested turned** on a sheet
+that only bends one way. The laminate is still not nested and its cost was already captured —
+both were asked and both are answered there.
 
 **The Settings half — §4.25.** Not the mess the Inspector was: already tabbed, nothing clipped,
 three of seven tabs already fitting. The work was **grouping** rather than shrinking — Joinery was

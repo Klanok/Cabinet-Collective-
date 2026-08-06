@@ -65,7 +65,21 @@ export type { Cut, Orientation, PackStrategy, PackedSheet, Placement, Rect } fro
 export const orientationsFor = (
   part: GrainConstraint,
   board: GrainDirection,
+  /**
+   * The board's bend axis, and whether this part is one that gets bent.
+   *
+   * Checked **before** grain, because it is not a preference. A grain constraint keeps a job
+   * looking right; a bend constraint is the difference between a skin that goes round the
+   * formers and one that cracks. Only a part with `forming` on it cares — a flat part cut from
+   * bendy ply bends nowhere and may rotate as freely as any other.
+   */
+  bend?: { axis: SheetMaterial['bendAxis']; partIsFormed: boolean },
 ): readonly Orientation[] => {
+  if (bend?.partIsFormed && bend.axis) {
+    // The part is cut flat to its developed length and curls along that length, so its length
+    // has to lie the way the board rolls. One orientation, and no yield argument beats it.
+    return bend.axis === 'length' ? ['as-cut'] : ['turned'];
+  }
   if (board === 'none' || part === 'any') return ['as-cut', 'turned'];
   // The part's length runs along the board's grain when the two agree about which axis that is.
   const alongLength = (board === 'length') === (part === 'length-along-grain');
@@ -82,6 +96,14 @@ export interface NestPart {
   readonly length: Mm;
   readonly width: Mm;
   readonly grain: GrainConstraint;
+  /**
+   * True for a part that is **bent** after it is cut — a skin round a radius.
+   *
+   * Carried rather than re-derived, because the nest is the one place the board's bend axis and
+   * the part's need to bend meet, and neither record knows about the other. See
+   * `orientationsFor`.
+   */
+  readonly formed: boolean;
   /**
    * The bank this part is a drawer front of, and where it sits in it — bottom-first.
    *
@@ -175,6 +197,7 @@ export const nestParts = (project: Project): NestPart[] => {
         length,
         width,
         grain: panel.grain,
+        formed: panel.forming !== undefined,
         ...(panel.role === 'drawer-front'
           ? { bank: { id: panel.ownerId, order: frontIndex++ } }
           : {}),
@@ -224,7 +247,10 @@ const bankStacks = (
         id: p.panelId,
         length: p.length,
         width: p.width,
-        orientations: orientationsFor(p.grain, material.grain),
+        orientations: orientationsFor(p.grain, material.grain, {
+          axis: material.bendAxis,
+          partIsFormed: p.formed,
+        }),
       })),
       members,
     };
@@ -255,7 +281,10 @@ const bankStacks = (
       id,
       length: ordered[0]!.length,
       width: stacked,
-      orientations: orientationsFor(ordered[0]!.grain, material.grain),
+      orientations: orientationsFor(ordered[0]!.grain, material.grain, {
+        axis: material.bendAxis,
+        partIsFormed: ordered.some((p) => p.formed),
+      }),
       stack: ordered.map((f) => ({ id: f.panelId, size: f.width })),
     });
   }
@@ -265,7 +294,10 @@ const bankStacks = (
       id: p.panelId,
       length: p.length,
       width: p.width,
-      orientations: orientationsFor(p.grain, material.grain),
+      orientations: orientationsFor(p.grain, material.grain, {
+        axis: material.bendAxis,
+        partIsFormed: p.formed,
+      }),
     });
   }
   return { packable, members };

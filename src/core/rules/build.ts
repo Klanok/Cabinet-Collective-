@@ -228,6 +228,31 @@ const grainForShowPart = (
     : 'width-along-grain';
 };
 
+/**
+ * Which way the decor runs on a finished face — the laminate over a curve.
+ *
+ * Never `any`, and that is the difference from `grainForShowPart`. The board may be free to
+ * rotate; **the picture cannot be**, because a curve is drawn between the doors it has to match
+ * and "either way round" is not something a client can be shown. So this always resolves to a
+ * direction, and unset means **vertical** — the laminate runs up the curve like the door beside
+ * it, which is what a shop laminating a radiused end does without being asked.
+ *
+ * The part's own axes decide which constraint that is: a skin's length runs *around* the curve,
+ * so grain running up it is grain across its width. Same translation `grainForShowPart` does, and
+ * for the same reason — `length-along-grain` means opposite real-world things on two parts whose
+ * lengths run different ways.
+ */
+const finishGrainFor = (
+  instance: PartInstance,
+  want: 'vertical' | 'horizontal' | undefined,
+): GrainConstraint => {
+  const lengthRunsVertically =
+    instance.placement.u === '+Y' || instance.placement.u === '-Y';
+  return ((want ?? 'vertical') === 'vertical') === lengthRunsVertically
+    ? 'length-along-grain'
+    : 'width-along-grain';
+};
+
 const toPanel = (
   instance: PartInstance,
   ownerId: string,
@@ -236,6 +261,7 @@ const toPanel = (
   styleFeatures: StyledFront,
   boring: readonly PanelFeature[],
   grain: GrainConstraint,
+  finishGrain: GrainConstraint | undefined,
 ): Panel => ({
   id: panelId,
   ownerId,
@@ -244,6 +270,7 @@ const toPanel = (
   name: instance.name,
   materialId: materialFor(instance.material, materials),
   finishMaterialId: instance.finish ? materialFor(instance.finish, materials) : undefined,
+  finishGrain: instance.finish ? finishGrain : undefined,
   profile: instance.profile,
   placement: instance.placement,
   features: [...(instance.features ?? []), ...styleFeatures.features, ...boring],
@@ -451,6 +478,7 @@ export const buildCabinet = (cabinet: Cabinet, project: Project): BuiltCabinet =
       styled,
       boring.perInstance[i] ?? [],
       grainForShowPart(instance, merged.options.grainDirection),
+      instance.finish ? finishGrainFor(instance, merged.options.grainDirection) : undefined,
     );
     /*
      * **The board this one part is cut from, overriding its slot.** It lands on the finished panel
