@@ -623,10 +623,26 @@ export const kickPanel = (ctx: RuleContext): PartInstance[] => {
    * two share a centre, and the kick is the same arc a setback tighter. The compensation is gone
    * rather than re-tuned, which is the sign the datum was the thing that was wrong.
    */
+  /*
+   * **The kick turns the corner in whichever way the rest of the curve does** — §5.7's fork
+   * reaches here too, and the shop's words are the whole of it: *"the kick would be kerfed and
+   * have a developed length"*.
+   *
+   * So a routed corner's kick is the **straight kick, curved**: the same carcass board a square
+   * cabinet's kick is cut from, banded on the same top edge, pocket-routed on the rear so it
+   * takes the radius. It is *not* the door board — nothing sees a kick, and putting a decor
+   * board below the door line would buy a sheet of the dearest material in the job to hide it
+   * behind a plinth.
+   *
+   * A wrapped corner's kick stays bendy ply, unbanded, exactly as it was.
+   */
+  const routed = (c.cornerMethod ?? 'wrapped') === 'routed';
+  const board = routed ? ctx.t : ctx.ts;
   const finished = mm(rad.r - c.kickSetback);
-  const inner = mm(finished - ctx.ts);
+  const inner = mm(finished - board);
   if (inner <= 0) return [];
   const flatFront = mm(Math.abs(rad.tangentX - (rad.sign > 0 ? 0 : ctx.W)));
+  const k = routed ? kerfKFactor(ctx, board) : undefined;
 
   return [
     wrapPart(ctx, rad, {
@@ -637,10 +653,34 @@ export const kickPanel = (ctx: RuleContext): PartInstance[] => {
       trail: rad.tail,
       height: c.kickHeight,
       bottomY: mm(-c.kickHeight),
+      ...(routed
+        ? {
+            material: 'carcass' as const,
+            // The same edge a straight kick bands, for the same reason: the top is the only one
+            // anybody sees, under the door.
+            banding: ['+Y'] as BandingRule,
+            boardThickness: board,
+            kFactor: k,
+            features: rearPockets(ctx, {
+              lead: flatFront,
+              arc: developedLength(
+                cylindricalForming('x', inner, QUARTER_TURN, flatFront, k),
+                board,
+              ),
+              height: c.kickHeight,
+              board,
+            }),
+          }
+        : {}),
       note: (length) =>
-        `Bendy ply, cut flat ${length.toFixed(1)} × ${c.kickHeight} and bent to ` +
-        `${Math.round(inner)}mm inside radius — set back ${c.kickSetback} from the door face. ` +
-        'Needs blocking behind it.',
+        routed
+          ? `Carcass board, cut flat ${length.toFixed(1)} × ${c.kickHeight}. Pocket the rear at ` +
+            `${c.routedPocketPitch}mm centres leaving ${c.routedPocketResidual}mm, and bend to ` +
+            `${Math.round(inner)}mm inside radius — set back ${c.kickSetback} from the door ` +
+            'face. Band the top edge. Needs blocking behind it.'
+          : `Bendy ply, cut flat ${length.toFixed(1)} × ${c.kickHeight} and bent to ` +
+            `${Math.round(inner)}mm inside radius — set back ${c.kickSetback} from the door ` +
+            'face. Needs blocking behind it.',
     }),
   ];
 };
@@ -908,6 +948,27 @@ export interface WrapSpec {
   readonly banding?: BandingRule;
   /** The board's own grain constraint. `any` on ply; a decor board follows the cabinet. */
   readonly grain?: GrainConstraint;
+  /**
+   * The thickness of the board **this piece** is cut from. Defaults to the bendy ply, which is
+   * what every wrap was until §5.7.
+   *
+   * It has to be said rather than assumed, because it sets a **length**: the developed length is
+   * measured round the neutral surface, which sits inside the board. `wrapPart` read `ctx.ts`
+   * for every part it made, so a routed curve off a 16mm door board was cut to the length a
+   * 8mm ply would need — 6mm short round a 200 radius, on the one part that has to meet the
+   * doors either side of it.
+   */
+  readonly boardThickness?: Mm;
+  /**
+   * Where through the board the material neither stretches nor compresses, as a fraction of the
+   * thickness. Half way for a board that bends as one — see `DEFAULT_K_FACTOR`.
+   *
+   * **A kerfed part is not that.** Pocket the rear and the only continuous material left is the
+   * residual web at the decor face; everything between the pockets is a rigid segment hinging on
+   * it. So the length is measured round the **web**, not the middle of the board, and the two are
+   * a long way apart: on a 200 radius through a quarter turn they differ by 13mm.
+   */
+  readonly kFactor?: number;
   /** Machining carried on the blank — the rear pockets that let a routed curve bend. */
   readonly features?: readonly PanelFeature[];
   readonly note?: (length: Mm) => string;
@@ -932,8 +993,9 @@ export interface WrapSpec {
  * records the bend for the viewport and for nobody else.
  */
 export const wrapPart = (ctx: RuleContext, rad: CornerRadius, spec: WrapSpec): PartInstance => {
-  const forming = cylindricalForming('x', spec.innerRadius, QUARTER_TURN, spec.lead);
-  const length = mm(spec.lead + developedLength(forming, ctx.ts) + spec.trail);
+  const board = spec.boardThickness ?? ctx.ts;
+  const forming = cylindricalForming('x', spec.innerRadius, QUARTER_TURN, spec.lead, spec.kFactor);
+  const length = mm(spec.lead + developedLength(forming, board) + spec.trail);
   // The flat part starts at the far end of its lead-in, on the plane the bend is tangent to.
   const startX = mm(rad.tangentX - rad.sign * spec.lead);
   const z = mm(rad.tangentZ + spec.innerRadius);
@@ -988,6 +1050,30 @@ export const isLaminatedCurve = (construction: ConstructionMethod): boolean =>
  * with a placeholder colour and its own comment saying nothing is drawn from it.
  */
 /**
+ * Where a **kerfed** part bends, as a fraction of its thickness.
+ *
+ * A board that bends as one bends about its middle, which is what `DEFAULT_K_FACTOR` says and
+ * what every bendy-ply skin uses. Pocket the rear and that stops being true: the only continuous
+ * material left is the **residual web** at the decor face, and everything between the pockets is
+ * a rigid segment hinging on it. So the length is measured round the web.
+ *
+ * The web spans from `board − residual` to `board` through the thickness, so its middle sits
+ * `board − residual/2` in from the inside face — hence the fraction. Hand-worked on a 16mm door
+ * board with a 4mm web: (16 − 2) / 16 = 0.875, which puts the neutral surface 14mm out from the
+ * formers instead of 8. Round a 200 radius through a quarter turn that is **13mm** of blank, and
+ * cutting it at 0.5 makes the piece short on the one part that has to meet the doors either side.
+ *
+ * **This is a model of how a kerfed board bends, not a measurement of one.** It assumes the
+ * pockets close up completely — see `unconfirmedRoutedCurveFigures`, which reports it alongside
+ * the pitch and the residual, because all three decide the same number.
+ */
+export const kerfKFactor = (ctx: RuleContext, board: Mm): number => {
+  const residual = ctx.construction.routedPocketResidual;
+  if (board <= 0) return 0.5;
+  return Math.max(0, Math.min(1, (board - residual / 2) / board));
+};
+
+/**
  * How a routed curve's rear pockets fall — the shop's *"pocket route on the rear"*.
  *
  * A run of grooves across the back, on the **B face**, spanning the part's full height and
@@ -1003,11 +1089,11 @@ export const isLaminatedCurve = (construction: ConstructionMethod): boolean =>
  */
 export const rearPockets = (
   ctx: RuleContext,
-  spec: { lead: Mm; arc: Mm; height: Mm },
+  spec: { lead: Mm; arc: Mm; height: Mm; board: Mm },
 ): PanelFeature[] => {
   const pitch = ctx.construction.routedPocketPitch;
   const residual = ctx.construction.routedPocketResidual;
-  const depth = mm(ctx.td - residual);
+  const depth = mm(spec.board - residual);
   if (pitch <= 0 || depth <= 0 || spec.arc <= 0) return [];
 
   // Centred in the arc, so the run is symmetrical about the middle of the bend and a piece
@@ -1048,7 +1134,8 @@ export const rearPockets = (
 export const routedCurve = (ctx: RuleContext, rad: CornerRadius): PartInstance[] => {
   const inner = mm(rad.rSub);
   if (inner <= 0) return [];
-  const forming = cylindricalForming('x', inner, QUARTER_TURN, rad.strip);
+  const k = kerfKFactor(ctx, ctx.td);
+  const forming = cylindricalForming('x', inner, QUARTER_TURN, rad.strip, k);
   const arc = developedLength(forming, ctx.td);
   const wantVertical = (ctx.options.grainDirection ?? 'vertical') === 'vertical';
 
@@ -1062,13 +1149,15 @@ export const routedCurve = (ctx: RuleContext, rad: CornerRadius): PartInstance[]
       height: ctx.H,
       bottomY: mm(0),
       material: 'door',
+      boardThickness: ctx.td,
+      kFactor: k,
       // The leading edge — the one that dies at the door. It faces back along the part's own
       // length, which is `-X` on a right-hand corner and `+X` on a left-hand one.
       banding: [rad.sign > 0 ? '-X' : '+X'],
       // The piece's length runs *around* the curve, so grain up the curve is across its width —
       // the same translation `finishGrainFor` does, and opposite to what a door gets.
       grain: wantVertical ? 'width-along-grain' : 'length-along-grain',
-      features: rearPockets(ctx, { lead: rad.strip, arc, height: ctx.H }),
+      features: rearPockets(ctx, { lead: rad.strip, arc, height: ctx.H, board: ctx.td }),
       note: (length) =>
         `${ctx.construction.name}: routed curve. Cut flat ${length.toFixed(1)} × ${ctx.H} from ` +
         `the door board, pocket the rear at ${ctx.construction.routedPocketPitch}mm centres ` +

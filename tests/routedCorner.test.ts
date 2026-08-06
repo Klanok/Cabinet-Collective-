@@ -35,8 +35,10 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { createCabinet, createEmptyProject } from '../src/core/project/factory.ts';
 import { buildCabinet } from '../src/core/rules/build.ts';
 import { outboardOfFormers } from '../src/core/rules/radius.ts';
+import { kerfKFactor } from '../src/core/rules/parts.ts';
 import { unconfirmedRoutedCurveFigures } from '../src/core/model/construction.ts';
 import { costProject } from '../src/core/costing/costing.ts';
+import { actualThicknessOf } from '../src/core/model/material.ts';
 import { mm } from '../src/core/units.ts';
 import type { CornerMethod } from '../src/core/model/construction.ts';
 import type { Panel } from '../src/core/model/panel.ts';
@@ -121,22 +123,33 @@ describe('the curved piece', () => {
   });
 
   /*
-   * **The kick is still bendy ply, and that is not settled — it is unasked.**
+   * **The kick turns the corner the same way the front does.**
    *
-   * This assertion was first written as "nothing in the job is cut from bendy ply any more", and
-   * the kick failed it. The code is right and the assumption was mine: §5.7 specifies the curved
-   * *piece* and says nothing whatsoever about the kick, which also turns the corner and is also
-   * a bent part.
+   * This test was written the other way round first — pinning the kick in bendy ply and saying
+   * out loud that nobody had been asked — and it did its job: the shop answered, *"the kick
+   * would be kerfed and have a developed length"*, and this failed and pointed at itself.
    *
-   * It is pinned here rather than left drifting so that the day the shop answers, this test
-   * fails and says where to look — a curved kick in a board the shop may not even stock is
-   * exactly the kind of thing that goes unnoticed until it is on the cutlist.
+   * Kerfed means the same treatment as the curved front, so it is the **carcass** board a
+   * straight kick is already cut from, banded on the same top edge. Not the door board: nothing
+   * sees a kick, and a decor sheet bought to hide behind a plinth is the dearest board in the
+   * job spent on the one part nobody looks at.
    */
-  it('leaves the kick in bendy ply, which nobody has been asked about', () => {
+  it('kerfs the kick from the carcass board on a routed corner', () => {
     const { project, built } = curved('routed');
     const kick = built.panels.find((p) => p.role === 'kick' && p.forming !== undefined);
     expect(kick, 'a radiused base cabinet should have a curved kick').toBeDefined();
-    expect(kick!.materialId).toBe(project.defaults.skinMaterialId);
+    expect(kick!.materialId).toBe(project.defaults.carcassMaterialId);
+    expect(kick!.features.filter((f) => f.purpose === 'bend-relief').length).toBeGreaterThan(0);
+    // The same edge a straight kick bands — the only one anybody sees, under the door.
+    expect(Object.values(kick!.edgeBanding).filter(Boolean).length).toBe(1);
+  });
+
+  it('leaves a wrapped corner kick in bendy ply, unbanded, exactly as it was', () => {
+    const { project, built } = curved('wrapped');
+    const kick = built.panels.find((p) => p.role === 'kick' && p.forming !== undefined)!;
+    expect(kick.materialId).toBe(project.defaults.skinMaterialId);
+    expect(kick.features.filter((f) => f.purpose === 'bend-relief')).toEqual([]);
+    expect(Object.values(kick.edgeBanding).filter(Boolean)).toEqual([]);
   });
 
   /*
@@ -232,6 +245,127 @@ describe('the rear pockets — how the piece bends', () => {
   it('puts none on a wrapped curve, which bends because the ply is thin', () => {
     for (const layer of curvedParts(curved('wrapped').built.panels)) {
       expect(layer.features.filter((f) => f.purpose === 'bend-relief')).toEqual([]);
+    }
+  });
+});
+
+/*
+ * The length a kerfed piece is cut to — the one number a remake turns on.
+ *
+ * Two separate faults met here, and both were live in the first cut of this feature:
+ *
+ * 1. `wrapPart` measured **every** developed length off `ctx.ts`, the bendy ply, because until
+ *    §5.7 every part it made was bendy ply. A routed curve off a 16mm door board was therefore
+ *    cut to the length an 8mm ply would need.
+ * 2. A kerfed board does not bend about its middle. Pocket the rear and the only continuous
+ *    material is the residual web at the decor face; everything between the pockets is rigid and
+ *    hinges on it. So the length is measured round the **web**.
+ *
+ * Hand-worked, on the shipped 18mm door board with a 4mm web, a 200 radius and a 50mm strip:
+ *
+ *   inner radius (formers)  200 − 18 = 182
+ *   k-factor                (18 − 4/2) / 18 = 0.8889
+ *   neutral radius          182 + 0.8889 × 18 = 198    ( = 200 − 4/2, the middle of the web )
+ *   arc                     198 × π/2 = 311.02
+ *
+ * **The neutral radius is `r − residual/2` whatever the board is**, and the algebra says so:
+ * (r − td) + ((td − w/2)/td)·td = r − w/2. That is worth asserting rather than a number, because
+ * it is the property, and a test pinned to 198 on an 18mm board passes for the wrong reason the
+ * day somebody cuts curves from 16.
+ *
+ * Against the two wrong answers on that board: mid-board gives (182 + 9) × π/2 = 300.0, and the
+ * ply thickness — what `wrapPart` actually used — gives (182 + 4) × π/2 = 292.2. **19mm of blank
+ * between the right answer and the worst wrong one**, on the one part that has to meet the doors
+ * either side of it.
+ */
+describe('the length a kerfed piece is cut to', () => {
+  const kFor = (board: number) =>
+    kerfKFactor({ construction: { routedPocketResidual: mm(4) } } as never, mm(board));
+
+  it('measures round the web, not the middle of the board', () => {
+    expect(kFor(16)).toBeCloseTo((16 - 2) / 16, 6);
+    expect(kFor(18)).toBeCloseTo((18 - 2) / 18, 6);
+    // Mid-board is what a solid bend does, and it is the wrong answer for a kerfed one.
+    expect(kFor(18)).toBeGreaterThan(0.5);
+  });
+
+  it('puts the neutral surface half a web in from the finished face, whatever the board', () => {
+    const piece = byName(curved('routed').built.panels, 'Curved front');
+    const f = piece.forming!;
+    // The board is read back off the model rather than typed: the formers are cut to r − td, so
+    // td is 200 less the inner radius. Asserting the *property* — r − residual/2 — rather than
+    // 198 keeps this honest the day somebody cuts curves from a different board.
+    const board = 200 - f.innerRadius;
+    expect(f.innerRadius + f.kFactor * board).toBeCloseTo(200 - 4 / 2, 6);
+  });
+
+  it('cuts the blank to the arc round the web plus both flats', () => {
+    const piece = byName(curved('routed').built.panels, 'Curved front');
+    const [length] = size(piece);
+    const f = piece.forming!;
+    const board = 200 - f.innerRadius;
+    const arc = (f.innerRadius + f.kFactor * board) * (Math.PI / 2);
+    expect(arc).toBeCloseTo(198 * (Math.PI / 2), 6);
+    // 50mm strip + the arc + the tail down the end of the cabinet, and the tail is real.
+    expect(length - arc - 50).toBeGreaterThan(0);
+    // Decisively longer than either wrong answer: mid-board, or the bendy-ply thickness.
+    expect(arc).toBeGreaterThan((f.innerRadius + board / 2) * (Math.PI / 2));
+    expect(arc).toBeGreaterThan((f.innerRadius + 4) * (Math.PI / 2));
+  });
+
+  /*
+   * **The blank is the same length whatever the door board measures, and that is the test.**
+   *
+   * It follows from the algebra above — the neutral radius is `r − residual/2` however thick the
+   * board is — and it is the physical truth too: a kerfed piece hinges on the web just under the
+   * decor face, so the finished radius and the web decide the length. The board only decides how
+   * deep the pocket goes.
+   *
+   * **The whole blank is not board-independent, and the first cut of this test said it was.** The
+   * flat tail runs down the end of the cabinet from the substrate face, and a thicker board sets
+   * that face back — so the tail grows by exactly the board difference while the arc does not
+   * move at all. Measured: 739.02 on 16mm and 741.02 on 18mm, two millimetres apart.
+   *
+   * So the assertion is that the difference is **exactly** the board difference — every bit of it
+   * in the tail, none of it in the arc.
+   *
+   * This exists because a mutation said it had to. Reverting `wrapPart` to measure every part off
+   * the bendy-ply thickness — the bug this feature shipped with for an hour — passed every other
+   * assertion in this file, because they all derive the expected arc from the model rather than
+   * pinning the cut length. Under that bug the arc shrinks 3mm as the board thickens while the
+   * tail grows 2, so the blank comes out 1mm **shorter** instead of 2mm longer.
+   */
+  it('moves the blank by the board thickness and not a millimetre more', () => {
+    const lengthOn = (doorMaterialId: string) => {
+      const project = { ...jobWith('routed'), defaults: { ...base.defaults, doorMaterialId } };
+      const cabinet = createCabinet(
+        {
+          typeId: 'base',
+          name: 'B1',
+          width: mm(900),
+          height: mm(720),
+          depth: mm(560),
+          x: mm(0),
+          options: { radiusCorner: 'front-right', carcassRadius: mm(200) },
+        },
+        project.defaults,
+        project.constructions,
+      );
+      return size(byName(buildCabinet(cabinet, project).panels, 'Curved front'))[0];
+    };
+
+    const boards = base.materials.sheets.filter((sheet) => sheet.substrate !== 'plywood');
+    const thin = boards.find((sheet) => sheet.thickness === 16);
+    const thick = boards.find((sheet) => sheet.thickness === 18);
+    expect(thin, 'the library should carry a 16mm door board').toBeDefined();
+    expect(thick, 'the library should carry an 18mm door board').toBeDefined();
+    const grew = lengthOn(thick!.id) - lengthOn(thin!.id);
+    expect(grew).toBeCloseTo(actualThicknessOf(thick!) - actualThicknessOf(thin!), 6);
+  });
+
+  it('leaves a wrapped skin bending about its middle, as it always did', () => {
+    for (const layer of curvedParts(curved('wrapped').built.panels)) {
+      expect(layer.forming!.kFactor).toBeCloseTo(0.5, 6);
     }
   });
 });

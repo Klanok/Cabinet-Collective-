@@ -11,7 +11,7 @@ transcript. Then read `docs/woodtron-dialect.md` before touching anything under 
 
 ## Where things stand
 
-`main` is green at **1157 tests**. Schema **v36**, shop standards **v27**. Every session's work
+`main` is green at **1163 tests**. Schema **v36**, shop standards **v27**. Every session's work
 lands on `main` through a pull request, so `git log main` is the honest answer to what has shipped —
 check it rather than trusting this paragraph, which is exactly the kind of sentence that goes stale.
 
@@ -39,13 +39,11 @@ nothing without the program that drilled it.
 
 ## Two shop questions holding nothing up, but worth answering
 
-- **Does the kick get routed too?** §4.27 built the routed corner, and §5.7 specified the curved
-  *piece* and said nothing about the kick — which turns the same corner and is also a bent part.
-  It is still bendy ply on a routed corner. A test pins that and says it is unasked, so answering
-  it fails the test and points at itself. **Do not quietly change it.**
 - **The pocket pitch and the residual on a routed curve** — 40mm centres leaving 4mm ships, and
-  together they decide the tightest radius the piece will take. Reported on the Joinery tab as
-  not yet checked.
+  they decide **two** things: the tightest radius the piece will take, and where it bends, which
+  is what the blank is cut to. Reported on the Joinery tab as not yet checked. The kick question
+  that sat here is answered — *"the kick would be kerfed and have a developed length"* — and
+  §4.27 has what that changed.
 
 ## Also worth five minutes on scrap, and cheap to get wrong
 

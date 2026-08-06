@@ -603,7 +603,9 @@ export const unconfirmedRoutedCurveFigures = (c: ConstructionMethod): readonly s
   (c.cornerMethod ?? 'wrapped') !== 'routed'
     ? []
     : [
-        `Routed curves are pocketed at ${c.routedPocketPitch}mm centres leaving ` +
+        `Routed curves and their kicks are pocketed at ${c.routedPocketPitch}mm centres leaving ` +
           `${c.routedPocketResidual}mm of board. Neither figure has been checked against a curve ` +
-          'this shop has made, and together they decide the tightest radius the piece will take.',
+          'this shop has made. Together they decide the tightest radius the piece will take, and ' +
+          'the residual also sets where it bends — the blank is cut to the arc round the web, ' +
+          'which assumes the pockets close up completely.',
       ];
