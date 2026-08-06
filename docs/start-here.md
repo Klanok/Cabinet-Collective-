@@ -11,7 +11,7 @@ transcript. Then read `docs/woodtron-dialect.md` before touching anything under 
 
 ## Where things stand
 
-`main` is green at **1113 tests**. Schema **v36**, shop standards **v27**. Every session's work
+`main` is green at **1124 tests**. Schema **v36**, shop standards **v27**. Every session's work
 lands on `main` through a pull request, so `git log main` is the honest answer to what has shipped —
 check it rather than trusting this paragraph, which is exactly the kind of sentence that goes stale.
 
@@ -49,10 +49,11 @@ nothing without the program that drilled it.
    save*, because those are two different bugs. **The off-screen input reported with it is a
    separate, closed thing — §4.24** — so do not take a fresh report of one as evidence of the
    other.
-3. **The rest of the UI pass**, §5.11 — the Inspector is done, §4.24. What has had no pass is the
-   **Settings modal**, 1277 lines in one file, and the nine wrapping "+ cabinet type" buttons above
-   the list. Neither is clipped and neither is small; both are still cluttered. Worth agreeing a
-   definition of done before starting, the same way §4.24 did.
+3. **What is left of the UI pass**, §5.11 — and it is now one small thing. The Inspector is done
+   (§4.24) and the Settings window is done (§4.25). Left: the nine **"+ cabinet type" buttons**
+   above the cabinet list wrap onto three lines and hold about 160px whether or not you are adding
+   a cabinet. Not clipped, not small, just clumsy — and worth asking the shop how they actually
+   add cabinets before redesigning it.
 
 ## Waiting on the shop, and worth asking early
 
@@ -70,12 +71,23 @@ nothing without the program that drilled it.
 
 ## Closed recently — read before reopening any of it
 
-**The Inspector folds, and nothing in the app is clipped — §4.24.** One drawer bank was 2242px of
-controls in a 712px window; the whole of a cabinet now fits one screen folded, at four screen
-sizes. Two things there are worth knowing before you touch the panels: a shut section **still
-shows what is set inside it**, which is the only reason folding is safe, and the reported
-"off-screen" drawer front input was never off-screen — a long label was eating the box, in a rule
-shared by every field in the app.
+**The whole UI pass — §4.24 the Inspector, §4.25 the Settings window.** Two things there are
+worth knowing before you touch either: a shut section **always says what is set inside it**, which
+is the only reason folding is safe, and the Joinery grouping is asserted **total** against the
+model — every setting on a construction method is in exactly one group, so a field added later
+fails the suite instead of vanishing off the screen. That assertion immediately found
+`finishLaminate`: a setting whose own doc comment said *"adopting it is a deliberate edit per
+method"*, with no control anywhere in the app to make the edit with.
+
+**The Inspector half — §4.24.** One drawer bank was 2242px of controls in a 712px window; the whole
+of a cabinet now fits one screen folded, at four screen sizes. The reported "off-screen" drawer
+front input was never off-screen — a long label was eating the box, in a rule shared by every field
+in the app, so it was clipping other panels too.
+
+**The Settings half — §4.25.** Not the mess the Inspector was: already tabbed, nothing clipped,
+three of seven tabs already fitting. The work was **grouping** rather than shrinking — Joinery was
+26 settings in one flat list — and grouping is a different job from folding: one fixes a height,
+the other fixes finding a thing.
 
 Also: the custom cabinet (§5.13 item 3, model + Parts-list editor + per-part thickness), the sheet
 sizes in full (§5.13 item 7), both cushion meshes (`viewport/cushionMesh.ts`), the finish laminate
@@ -91,7 +103,7 @@ finish laminate        3600 × 1350 Polytec, 3600 × 1500 Laminex
 **Ply is the one that shrinks**, and it is the trap in the set: a rule remembered as *"the real sheet
 is bigger"* applied to ply cuts a part short.
 
-## The lesson that keeps repeating — eight sessions running
+## The lesson that keeps repeating — nine sessions running
 
 **A claim in this codebase goes stale and nothing fails when it does.** Sessions have caught stale
 open items, stale *fix* claims, a bug report reproducible with one grep, and **a migration's own doc
@@ -108,13 +120,20 @@ The eighth session found three more shapes of it, and they are the ones to watch
   laminate on a curve *and* zeroed the allowance on every existing job, so the bench saw bendy ply
   for months and reported it as never done. **Before writing "done", ask what a *saved* job does.**
 
-The ninth found a fourth shape, in the one place nobody thinks to look:
+The ninth found two more, and both are in places nobody thinks to look:
 
 - **A passing test whose stated reason is wrong.** §4.24 has an assertion about a deleted part
   being put back, with a comment explaining the mechanism it guards. The mechanism does not exist —
   the record it described is pruned elsewhere — and the test passed anyway, for a different reason
   than the one written above it. **Only the mutation found it**, which is the argument for running
   them: a green suite tells you the assertions hold, never that they hold for the reason you think.
+- **A doc comment describing an action the app does not allow.** `finishLaminate` says *"adopting
+  it is a deliberate edit per method"* and had no control, on any screen, to make that edit with —
+  see §4.25. Every part of it was individually right: the field, the label, the drift report, and
+  §4.23's migration deliberately leaving existing jobs at zero. Nobody checked that the sentence
+  telling the shop what to do described something the shop could do. **A claim about what the
+  *user* can do goes stale exactly like a claim about the code**, and the thing that found it was
+  a mapping asserted total rather than written from memory.
 
 **Check the code, not the paragraph.** The general form: a repair has to cover every chain that
 reads the field, not every field in one chain. And when you make a claim false, go and find it.

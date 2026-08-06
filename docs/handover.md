@@ -2719,6 +2719,76 @@ unaffected, which is the §4.23 question asked in advance for once.
 
 ---
 
+### 4.25 The Settings window groups, and a setting nobody could reach
+
+The other half of §5.11's *"any other user may struggle"*, and it was not the screen §4.24 expected
+to find. **The Settings window was never the mess the Inspector was** — it was already tabbed seven
+ways, nothing in it was clipped, and three of the seven tabs fitted on a laptop screen as they
+stood. Measured at 1280 × 720 before anything changed, in a 439px modal body:
+
+```
+Joinery          1474px — 3.4 screens, 26 settings in one flat list
+Hardware          872px — 2.0 screens
+Materials         744px — 1.7 screens
+Costing           742px — 1.7 screens
+Door styles / Standard sizes / Room     already fit
+```
+
+So the work was **grouping**, not shrinking, and the distinction matters: folding fixes a height,
+grouping fixes finding a thing. Joinery is now six groups in the order you build the cabinet —
+carcass and back, kick and plinth, fronts and reveals, shelves and system holes, curves, applied
+ends — and Hardware, Materials and Costing fold at seams the screen already had as headings.
+Every tab's map now fits its window at 1280 × 720 through 1920 × 1080.
+
+**A setting existed that nothing on screen could change, and the grouping is what found it.**
+`finishLaminate` has been on the construction method since §4.23. It has a label in
+`labelForConstructionKey`, it is read by the rule engine, it appears in
+`differencesFromStandards` when it drifts — and its own doc comment says *"adopting it is a
+deliberate edit per method"*. There was no control, on any screen, to make that edit with. §4.23
+deliberately migrated every existing method to zero so a job already quoted kept cutting the way
+it was quoted, which was right, and left the shop no way to ever adopt it, which was not. It has a
+control now, in the Curves group.
+
+**The grouping is asserted total, not remembered.** `CONSTRUCTION_FIELDS` is a flat list, so a
+group written as "the keys I remembered" drops the next setting somebody adds — it would exist,
+drift, and have nowhere to be. That is §4.15's fault in a new place. `tests/joineryGroups.test.ts`
+asserts **every settings key on a `ConstructionMethod` is in exactly one group**, counted against
+the model itself rather than a second list: 30 keys, less `id`, `name` and `family`, is 27
+settings, and 27 are grouped. `finishLaminate` is what that assertion caught, and it is the
+argument for it.
+
+Verified against the DOM at **1280 × 720, 1366 × 768, 1600 × 900 and 1920 × 1080** — 17
+assertions, all passing:
+
+- **every tab's map fits its window, folded**, at every size
+- **nothing is clipped** — seven tabs, folded *and* with every fold open, in both scopes
+- **no text under 12px**, on every tab
+- a shut group **still says how far this job has drifted from the shop standards**, and only the
+  group that holds the change says it
+- the **"not yet checked at the bench" list is never inside a fold**, and neither is Hardware's
+  catalogue list
+- both panels **remember their own folds and neither clobbers the other** — one stored record, and
+  writes merge
+
+**Six deliberate mutations, each restoring the original mechanism**: Joinery rendered flat fails 1,
+a summary that stops rendering fails 1, drift counted over the whole method instead of the group
+fails 1, the bench warnings moved inside a fold fails 1, ignoring the stored folds fails 1, and
+removing the laminate control fails 1.
+
+**What a folded group says here is different from the Inspector's, on purpose.** The Inspector
+badges a departure from the *job default*; this screen badges a departure from the **shop
+standards**, because that is what the screen is for and it is already what the footer counts. A
+method the standards do not have at all badges nothing per group — it is one line in
+`differencesFromStandards`, by name, and counting all 27 keys as drift would drown the groups that
+genuinely moved.
+
+**Where to look:** `panels/joineryGroups.ts` for the six groups and the drift summary;
+`panels/settingsSections.ts` for every fold id in the modal, one defaults record, and the oversize
+board summary; `panels/Section.tsx` for why two panels can share one stored record. **No schema
+change** — v36 and standards v27 stand.
+
+---
+
 ## 5. Open items, in the order I'd do them
 
 **5.2 has shipped — see 4.6.** What is left of it is Hettich and a handful of gaps, listed below.
@@ -3563,10 +3633,12 @@ it — not a duplicate to tidy away.
   height bug above, because the two were reported in one sentence and only one of them was ever
   about drawer fronts: the mechanism was in the shared field row and was clipping other panels
   too.
-- ~~**The UI is navigable but cluttered**~~ — **first pass done, see §4.24.** The user's words
-  were *"any other user may struggle"*. What is closed is the Inspector, the sheer size of the
-  thing, and every clipped control in the app; what has had no pass at all is the Settings modal's
-  own 1277 lines and the nine wrapping "+ cabinet type" buttons.
+- ~~**The UI is navigable but cluttered**~~ — **done, in two passes: §4.24 the Inspector, §4.25
+  the Settings window.** The user's words were *"any other user may struggle"*. Closed: every
+  panel's height, every clipped control in the app, and the type size throughout. **What is left
+  is one thing and it is small** — the nine "+ cabinet type" buttons above the cabinet list still
+  wrap onto three lines and take about 160px whether or not you are adding a cabinet. Not clipped,
+  not small, just clumsy.
 
 #### ~~Not reported, and a bigger risk than anything above~~ — done, see 4.17, and **this entry was wrong**
 
