@@ -15,7 +15,7 @@ import {
 } from '../model/construction.ts';
 import { type MaterialLibrary, actualThicknessOf, findSheet } from '../model/material.ts';
 import type { HardwareLibrary } from '../model/hardware.ts';
-import { type CornerRadius, resolveCornerRadius, substrateRadius } from './radius.ts';
+import { type CornerRadius, outboardOfFormers, resolveCornerRadius } from './radius.ts';
 import {
   type HardwareDefaultIds,
   type ResolvedHardware,
@@ -218,11 +218,24 @@ const resolveRadius = (
   const layers = options.skinLayers ?? 2;
   if (!corner || radius <= 0) return null;
   const finishLaminate = construction.finishLaminate ?? mm(0);
-  if (substrateRadius(mm(radius), layers, dims.ts, finishLaminate) <= 0) return null;
+  const cornerMethod = construction.cornerMethod ?? 'wrapped';
+  // A radius whose formers would come out at or below zero is not a corner at all. Asked
+  // through the same predicate the resolver uses, so a routed corner is judged on the board it
+  // is actually cut from rather than on a ply stack it does not have.
+  const outboard = outboardOfFormers({
+    cornerMethod,
+    layers,
+    ts: dims.ts,
+    td: dims.td,
+    finishLaminate,
+  });
+  if (radius - outboard <= 0) return null;
   return resolveCornerRadius({
     corner,
     radius: mm(radius),
     layers,
+    cornerMethod,
+    td: dims.td,
     W: dims.W,
     D: dims.D,
     t: dims.t,

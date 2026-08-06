@@ -25,15 +25,15 @@
  * A 560 radius quarter — the AU base depth — 720 high, 16mm formers, two layers of 8mm
  * bendy ply, formers no more than 300 apart.
  *
- *   former radius   560 − 2×8 = 544        (finished radius, less the skin that goes over it)
+ *   former radius   560 − 2×8 − 1 = 543    (finished radius, less the skin *and its laminate*)
  *   former span     H − t = 720 − 16 = 704
  *   former count    gaps = ceil(704 / (300 + 16)) = ceil(2.228) = 3, so 4 formers
  *   former heights  0, 234.667, 469.333, 704
  *   clear gap       704/3 − 16 = 218.667   (inside the 300 asked for)
- *   former area     π × 544² / 4 = 232427.591
+ *   former area     π × 543² / 4 = 231574.041
  *
- *   skin layer 1    inner 544, developed (544 + 4) × π/2 = 860.7964
- *   skin layer 2    inner 557, developed (557 + 1.5) × π/2 = 877.2897
+ *   skin layer 1    inner 543, developed (543 + 4) × π/2 = 859.2256
+ *   skin layer 2    inner 551, developed (551 + 4) × π/2 = 871.7920
  *   difference      8 × π/2 = 12.566371    — exactly one board thickness round a quarter turn
  *
  * That last line is the one that matters. Cut both layers the same and the outer one is 4.7mm
@@ -178,10 +178,21 @@ describe('the enclosed radiused end', () => {
   });
 
   it('cuts the formers under the skin, not to the finished radius', () => {
-    // 560 finished, less two 8mm layers, is 544. A former cut to 560 gives a curve standing
-    // 6mm proud of the run's front face — a step exactly where a hand lands.
+    /*
+     * 560 finished, less two 8mm layers **and the 1mm laminate over them**, is 543. A former cut
+     * to 560 gives a curve standing 17mm proud of the run's front face — a step exactly where a
+     * hand lands.
+     *
+     * **This read 544 until §4.27, and 544 was wrong.** The laminate allowance reached the
+     * radiused *base cabinet* when §5.14 fixed it there, and never reached this unit, because
+     * this is the one spec that resolves its own corner rather than going through
+     * `cornerRadiusFor`. So the outer skin carried a laminate, the quote charged a laminate
+     * sheet, and the formers were cut as though there were none — the exact three-way
+     * disagreement `isLaminatedCurve` was written to make impossible, surviving in the one place
+     * that did not ask it.
+     */
     const former = byName(end().built.panels, 'Former 1');
-    expect(size(former)).toEqual([mm(544), mm(544)]);
+    expect(size(former)).toEqual([mm(543), mm(543)]);
     expect(profileHasArcs(former.profile)).toBe(true);
   });
 
@@ -218,8 +229,8 @@ describe('the enclosed radiused end', () => {
     const second = byName(built.panels, 'Skin layer 2');
 
     // Flat rectangles, developed length × carcass height.
-    expect(panelExtent(first).length).toBeCloseTo(860.7964, 3);
-    expect(panelExtent(second).length).toBeCloseTo(873.3628, 3);
+    expect(panelExtent(first).length).toBeCloseTo(859.2256, 3);
+    expect(panelExtent(second).length).toBeCloseTo(871.7920, 3);
     expect(panelExtent(first).width).toBe(mm(720));
     expect(profileHasArcs(first.profile)).toBe(false);
   });
@@ -244,7 +255,7 @@ describe('the enclosed radiused end', () => {
     const ts = actualThicknessOf(findSheet(project.materials, skin.materialId));
     expect(skin.forming).toBeDefined();
     expect(skin.forming!.kind).toBe('cylindrical');
-    expect(skin.forming!.innerRadius).toBe(mm(544));
+    expect(skin.forming!.innerRadius).toBe(mm(543));
     expect(skin.forming!.sweep).toBeCloseTo(QUARTER, 9);
     expect(skin.forming!.axis).toBe('x');
     // And the two agree: the flat length is the developed length of that bend.
@@ -309,7 +320,7 @@ describe('the enclosed radiused end', () => {
 
   it('tells the person at the saw to check which way the sheet bends', () => {
     const note = byName(end().built.panels, 'Skin layer 1').note ?? '';
-    expect(note).toMatch(/bend to 544mm inside radius/);
+    expect(note).toMatch(/bend to 543mm inside radius/);
     expect(note).toMatch(/barrel or column form/);
   });
 });

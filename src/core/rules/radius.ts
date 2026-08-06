@@ -39,6 +39,7 @@
  */
 
 import { type Mm, mm } from '../units.ts';
+import type { CornerMethod } from '../model/construction.ts';
 import type { Vertex2 } from '../geom/arc.ts';
 import type { Profile2D } from '../geom/profile.ts';
 import { type PanelPlacement, placement } from '../geom/placement.ts';
@@ -207,6 +208,16 @@ export interface CornerRadiusInput {
    */
   readonly finishLaminate?: Mm;
   /**
+   * How this shop builds a radiused corner — see `ConstructionMethod.cornerMethod`.
+   *
+   * Optional for the same reason `finishLaminate` is: the two specs that resolve a corner
+   * without a full construction method in hand keep working, and absent means `wrapped`, which
+   * is what every job cut before §5.7 existed.
+   */
+  readonly cornerMethod?: CornerMethod;
+  /** The door board's real thickness — what a **routed** curve is cut from. */
+  readonly td?: Mm;
+  /**
    * The plane the curve has to **finish** in — the front face of a door, not the carcass.
    *
    * A radiused corner is the finish at that corner: there is no door over it, so the ply and its
@@ -317,13 +328,44 @@ export const substrateRadius = (
   finishLaminate: Mm = mm(0),
 ): Mm => mm(radius - (wrapLayerCount(layers) * ts + finishLaminate));
 
+/**
+ * Everything outboard of the formers — the one number both methods have to agree on.
+ *
+ * The formers are cut to the finished radius **less this**, the curved piece lands on the
+ * finished radius, and the 3D view draws it there. Three readings of one fact is exactly what
+ * §5.14 found when the former radius, the drawn decor and the charged sheet each decided for
+ * themselves whether a curve was laminated, so there is one function and everything asks it.
+ *
+ * - **wrapped** — the ply stack plus the laminate over it, which is what it has always been.
+ * - **routed** — one board of the *door* thickness, and nothing over it. The decor face **is**
+ *   the finish, so there is no laminate to allow for; allowing for one would put the formers a
+ *   millimetre small and the finished curve a millimetre shy of the doors beside it.
+ */
+export const outboardOfFormers = (input: {
+  readonly cornerMethod?: CornerMethod;
+  readonly layers: number;
+  readonly ts: Mm;
+  readonly td: Mm;
+  readonly finishLaminate?: Mm;
+}): Mm =>
+  input.cornerMethod === 'routed'
+    ? input.td
+    : mm(wrapLayerCount(input.layers) * input.ts + (input.finishLaminate ?? mm(0)));
+
 export const resolveCornerRadius = (input: CornerRadiusInput): CornerRadius => {
   const { corner, radius: r, W, D, t, tb, ts } = input;
   const finishLaminate = input.finishLaminate ?? mm(0);
   const layers = wrapLayerCount(input.layers);
-  // Everything outboard of the formers: the plies, and the finish laminate over them.
-  const skin = mm(layers * ts + finishLaminate);
-  const rSub = substrateRadius(r, layers, ts, finishLaminate);
+  // Everything outboard of the formers — the ply stack and its laminate, or the one routed
+  // board. One function, so the formers and the finished face cannot disagree.
+  const skin = outboardOfFormers({
+    cornerMethod: input.cornerMethod,
+    layers,
+    ts,
+    td: input.td ?? ts,
+    finishLaminate,
+  });
+  const rSub = mm(r - skin);
 
   const sign: 1 | -1 = corner === 'front-right' ? 1 : -1;
   /** Un-mirrored → real. Front-right is the frame everything is written in, so it is identity. */

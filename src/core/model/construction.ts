@@ -21,6 +21,9 @@ import { type Mm, mm } from '../units.ts';
 
 export type ConstructionFamily = 'frameless-32' | 'face-frame';
 
+/** The two ways a shop builds a radiused corner — see `ConstructionMethod.cornerMethod`. */
+export type CornerMethod = 'wrapped' | 'routed';
+
 /**
  * How the back panel is housed.
  *
@@ -37,6 +40,50 @@ export interface ConstructionMethod {
   readonly family: ConstructionFamily;
 
   readonly backStyle: BackStyle;
+
+  /**
+   * Which of the two ways this shop builds a radiused corner — §5.7.
+   *
+   * The corner, the fixing strip, the wrap to the back and the square-notched shelf are the
+   * **same either way**. What changes is the curved piece itself, and therefore what covers the
+   * strip:
+   *
+   * - **`wrapped`** — formers, bendy-ply skins, and a finish laminate over them. The ply runs
+   *   over the 50mm strip and dies under the door edge, so the strip is never seen.
+   * - **`routed`** — **one** piece of the *door* board, pocket-routed on its rear face so it
+   *   bends, over the same formers. Nothing laps over the strip: the piece's leading edge is
+   *   **edge banded**, and that band is the finished edge.
+   *
+   * So the routed piece takes the **`door` material slot**, not `skin` — it is the same board as
+   * the fronts, bought for the same reason. That is why this needs no new material slot and no
+   * schema change, which is the opposite of bendy ply: bendy ply earned its own slot in v7
+   * because it is a different sheet bought for a different reason.
+   *
+   * Absent means `wrapped`, which is what every job cut before this existed.
+   */
+  readonly cornerMethod?: CornerMethod;
+  /**
+   * Rear pocket spacing on a routed curve — centre to centre.
+   *
+   * The shop's words for how the piece bends: *"it's a pocket route on the rear"*. A run of
+   * pockets across the back thins the board to a web that will take the radius, and the pitch is
+   * how close together they are. Read only when `cornerMethod` is `routed`.
+   *
+   * **Not yet checked at the bench** — see `unconfirmedRoutedCurveFigures`. The pitch and the
+   * residual together decide the tightest radius the piece will take, and neither has been
+   * measured off a real one.
+   */
+  readonly routedPocketPitch: Mm;
+  /**
+   * What is left under a rear pocket — the web the curve actually bends on.
+   *
+   * Measured from the **decor face**, so it is the thickness of the material still there rather
+   * than the depth of the cut. Stated that way round on purpose: the web is the thing that has to
+   * survive bending, and a shop thinks in what is left, not in how deep the cutter went. The cut
+   * depth is `board − residual`, which is derived rather than stored so the two cannot disagree
+   * when the board changes.
+   */
+  readonly routedPocketResidual: Mm;
 
   /** Height of the toe kick a base cabinet stands on. */
   readonly kickHeight: Mm;
@@ -245,6 +292,18 @@ export const FRAMELESS_32: ConstructionMethod = {
   backStyle: 'applied',
   kickHeight: mm(150),
   kickSetback: mm(50),
+  /*
+   * Wrapped is what every job in this app has ever been cut as, so it is what ships. A shop that
+   * routes its corners says so once, per method — §5.7.
+   */
+  cornerMethod: 'wrapped',
+  /*
+   * A reading, and it says so — `unconfirmedRoutedCurveFigures`. 40mm pitch leaving a 4mm web is
+   * the ordinary range for pocket-routing an 18mm board round a tight radius, and neither number
+   * has been measured off one this shop has made. They only bite on a `routed` corner.
+   */
+  routedPocketPitch: mm(40),
+  routedPocketResidual: mm(4),
   ladderRailFloorGap: mm(10),
   ladderFaceScribeAllowance: mm(10),
   ladderFaceScribeEnd: 'floor',
@@ -527,3 +586,24 @@ export const horizontalDepth = (cabinetDepth: Mm, backThickness: Mm): Mm =>
 /** Front-to-back depth of a side panel — the one dimension the back style actually changes. */
 export const sideDepth = (c: ConstructionMethod, cabinetDepth: Mm, backThickness: Mm): Mm =>
   c.backStyle === 'applied' ? mm(cabinetDepth - backThickness) : cabinetDepth;
+
+/**
+ * The routed curve's two figures, and that they are readings rather than measurements.
+ *
+ * The shop said how the piece is made — *"it's a pocket route on the rear"* — and that is the
+ * fact this feature was built on. **The pitch and the residual are not that fact.** They are the
+ * ordinary range for pocket-routing a board round a tight radius, and together they decide the
+ * tightest radius the piece will actually take, so a job of curves is the wrong place to find
+ * out they were wrong.
+ *
+ * Reported only on a **routed** method, because on a wrapped one they are not read at all and a
+ * warning about a number nothing uses is the sort of noise that trains people to skip warnings.
+ */
+export const unconfirmedRoutedCurveFigures = (c: ConstructionMethod): readonly string[] =>
+  (c.cornerMethod ?? 'wrapped') !== 'routed'
+    ? []
+    : [
+        `Routed curves are pocketed at ${c.routedPocketPitch}mm centres leaving ` +
+          `${c.routedPocketResidual}mm of board. Neither figure has been checked against a curve ` +
+          'this shop has made, and together they decide the tightest radius the piece will take.',
+      ];

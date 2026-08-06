@@ -11,7 +11,7 @@ transcript. Then read `docs/woodtron-dialect.md` before touching anything under 
 
 ## Where things stand
 
-`main` is green at **1140 tests**. Schema **v36**, shop standards **v27**. Every session's work
+`main` is green at **1157 tests**. Schema **v36**, shop standards **v27**. Every session's work
 lands on `main` through a pull request, so `git log main` is the honest answer to what has shipped —
 check it rather than trusting this paragraph, which is exactly the kind of sentence that goes stale.
 
@@ -36,6 +36,16 @@ spindle 1 (`B1`) and one firing spindle 5 (`B16`). One hole means a programmed c
 the **reference spindle**; two holes 128mm apart means it is the **head origin**. It has to come off
 the multidrill head — a row bored on the borer measures the wrong machine. A part on its own settles
 nothing without the program that drilled it.
+
+## Two shop questions holding nothing up, but worth answering
+
+- **Does the kick get routed too?** §4.27 built the routed corner, and §5.7 specified the curved
+  *piece* and said nothing about the kick — which turns the same corner and is also a bent part.
+  It is still bendy ply on a routed corner. A test pins that and says it is unasked, so answering
+  it fails the test and points at itself. **Do not quietly change it.**
+- **The pocket pitch and the residual on a routed curve** — 40mm centres leaving 4mm ships, and
+  together they decide the tightest radius the piece will take. Reported on the Joinery tab as
+  not yet checked.
 
 ## Also worth five minutes on scrap, and cheap to get wrong
 
@@ -99,6 +109,13 @@ had no direction of its own, so the viewport drew the decor through the *bendy p
 placement. Same investigation found that **bendy-ply skins were being nested turned** on a sheet
 that only bends one way. The laminate is still not nested and its cost was already captured —
 both were asked and both are answered there.
+
+**The routed corner — §4.27.** The second way the shop builds a radius: one piece of the *door*
+board, rear-pocketed so it bends over the same formers, leading edge banded. Picked per
+construction method under Settings → Joinery → Curves. No new material slot and no schema change,
+exactly as §5.7 predicted. It also uncovered a real bug — **the enclosed radiused end never got
+§5.14's laminate fix**, so its formers were cut a millimetre oversize and its curve finished proud
+of the doors. Fixed, and the radius tests carry the corrected figures.
 
 **The Settings half — §4.25.** Not the mess the Inspector was: already tabbed, nothing clipped,
 three of seven tabs already fitting. The work was **grouping** rather than shrinking — Joinery was

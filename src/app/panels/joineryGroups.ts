@@ -110,7 +110,13 @@ export const JOINERY_GROUPS: readonly JoineryGroup[] = [
     id: 'joinery:curves',
     title: 'Curves',
     openByDefault: false,
-    keys: ['fixingStripWidth', 'finishLaminate'],
+    keys: [
+      'cornerMethod',
+      'fixingStripWidth',
+      'finishLaminate',
+      'routedPocketPitch',
+      'routedPocketResidual',
+    ],
   },
   {
     id: 'joinery:appliedEnds',

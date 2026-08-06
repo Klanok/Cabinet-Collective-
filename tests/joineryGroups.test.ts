@@ -61,10 +61,12 @@ describe('every setting has somewhere to be', () => {
   });
 
   it('covers the whole method, so the count cannot drift quietly', () => {
-    // Hand-worked: 30 keys on a construction method, less id, name and family, is 27 settings.
+    // Hand-worked: 33 keys on a construction method, less id, name and family, is 30 settings.
+    // It was 27 until §4.27 added `cornerMethod` and the two routed-pocket figures — and this
+    // assertion is what said so, which is the whole point of counting against the model.
     const grouped = JOINERY_GROUPS.flatMap((g) => g.keys).length;
-    expect(settingKeys.length).toBe(27);
-    expect(grouped).toBe(27);
+    expect(settingKeys.length).toBe(30);
+    expect(grouped).toBe(30);
   });
 
   it('gives finishLaminate a home, because v36 promised the shop a setting for it', () => {

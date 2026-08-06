@@ -18,6 +18,7 @@ import {
   type ConstructionMethod,
   unconfirmedAppliedEndFigures,
   unconfirmedLadderFigures,
+  unconfirmedRoutedCurveFigures,
 } from '../../core/model/construction.ts';
 import type { GstMode, Project, ProjectDefaults, ProjectSettings } from '../../core/model/project.ts';
 import {
@@ -142,6 +143,20 @@ const CONSTRUCTION_FIELDS: {
     hint: 'Thickness of the laminate laid over a bendy-ply curve by hand, so the finished face lands on the radius you asked for. Zero cuts the way jobs were quoted before this allowance existed; 1mm is the shop’s laminate',
     min: 0,
     max: 3,
+    step: 0.5,
+  },
+  {
+    key: 'routedPocketPitch',
+    hint: 'Routed corners only — centre to centre spacing of the rear pockets that let the curve bend',
+    min: 5,
+    max: 200,
+    step: 5,
+  },
+  {
+    key: 'routedPocketResidual',
+    hint: 'Routed corners only — how much board is left under each pocket. This is the web the curve bends on, so it is stated as what is left rather than how deep the cutter goes',
+    min: 0.5,
+    max: 12,
     step: 0.5,
   },
   { key: 'systemPitch', hint: 'System 32 hole spacing', min: 8, max: 64 },
@@ -510,6 +525,22 @@ function ConstructionEditor({
             }
           />
         );
+      case 'cornerMethod':
+        return (
+          <SelectRow
+            key={String(key)}
+            label={labelForConstructionKey(key)}
+            hint="Bendy ply and laminate over formers, or one piece of the door board pocket-routed on the rear to bend over them"
+            value={active.cornerMethod ?? 'wrapped'}
+            options={[
+              { id: 'wrapped', label: 'Bendy ply and laminate' },
+              { id: 'routed', label: 'Routed — door board, pocketed rear' },
+            ]}
+            onChange={(v) =>
+              onChange(active.id, { cornerMethod: v as ConstructionMethod['cornerMethod'] })
+            }
+          />
+        );
       case 'appliedEndToFloor':
         return (
           <SelectRow
@@ -578,7 +609,11 @@ function ConstructionEditor({
       */}
       <div className="subhead">Not yet checked at the bench</div>
       <ul className="warnings">
-        {[...unconfirmedLadderFigures(active), ...unconfirmedAppliedEndFigures(active)].map(
+        {[
+          ...unconfirmedLadderFigures(active),
+          ...unconfirmedAppliedEndFigures(active),
+          ...unconfirmedRoutedCurveFigures(active),
+        ].map(
           (note) => (
             <li key={note}>{note}</li>
           ),

@@ -2865,6 +2865,97 @@ both on the Cost panel and in the terminal report.
 
 ---
 
+### 4.27 The routed corner, and a laminate allowance that never reached one unit
+
+§5.7, and it went almost exactly as that section said it would: *"what changes is the curved
+piece and its material slot; the corner, the strip, the wrap to the back and the square-notched
+shelf do not."* One part forks. Everything else is shared.
+
+**The shop answered the one thing §5.7 refused to guess.** It asked whether the routed piece is
+kerfed, machined from thicker stock, or something else, because *"the developed length only means
+something if the piece actually bends"*. The answer:
+
+> *"it's a pocket route on the rear"* — and, on whether the formers stay: *"yes, same formers"*.
+
+So it **does** bend, it is cut flat to a developed length like any other curved part, and the
+skeleton under it is unchanged. `ConstructionMethod.cornerMethod` picks the method per method:
+
+- **`wrapped`** — N plies over the formers, the outer one carrying a finish laminate. Ships,
+  because it is what every job in this app has ever been cut as.
+- **`routed`** — **one** piece of the *door* board, rear-pocketed so it bends over the same
+  formers, **leading edge banded**. That band is the finished edge.
+
+**No new material slot and no schema change**, which §5.7 predicted and which is the honest test
+of §4.4's decision to give bendy ply its own slot: the routed piece is the same board as the
+fronts bought for the same reason, so it takes `door` and nothing had to grow.
+
+**`outboardOfFormers` is the one predicate this feature turns on.** The formers are cut to the
+finished radius *less whatever sits outside them*, and that is now two different answers — a ply
+stack plus its laminate, or one door board. Three places need it and each used to work it out:
+the resolver, the "radius too small to turn" warning, and the null check that decides there is no
+corner at all. One function, for the reason §5.14 gives — *a curve cannot be dimensioned bare,
+drawn bare and charged laminated all at once*.
+
+**The rear pockets are real machining, not a note.** A run of `groove` features on the **B** face
+at the method's pitch, spanning the part's height, and **only over the arc** — the flat lead is the
+fixing strip and the flat tail runs down the end of the cabinet, and relieving either weakens a
+piece that is not being asked to bend. The depth is **derived**: the method stores what is *left*
+under a pocket, because that web is the thing that has to survive bending and a shop thinks in
+what is left, so a thicker door board deepens the cut instead of eating the web.
+
+**Costing needed no change at all, and that is the result worth reporting.** The curve laminate is
+charged off `role === 'skin' && finishMaterialId !== undefined` — §5.14's one predicate — and a
+routed curve is a skin with no finish, so it drops out of the count without `costing.ts` knowing
+this feature exists.
+
+#### The bug this uncovered: one unit never got §5.14's fix
+
+Wiring the method through the two places that resolve a corner made four radius tests fail, and
+**they were right to**. The **enclosed radiused end** resolves its own geometry rather than going
+through `cornerRadiusFor`, and it was never passing `finishLaminate` — so its outer skin carried a
+laminate, the quote charged a laminate sheet, and **the formers were cut as though there were
+none**. On a 560 unit the formers came out 544 where they should be 543, and the finished curve
+stood a millimetre proud of the doors beside it.
+
+That is the exact three-way disagreement `isLaminatedCurve` was written to make impossible,
+surviving in the one spec that did not ask it — §4.15's *"wired into some specs and not others"*,
+one more time. Fixed here because the fix is one argument; the tests carry the corrected figures
+longhand and say why they moved. **Formers are derived on every build and never stored, so no
+migration and no schema change** — the parts simply come out right from now on, and a curved unit
+re-cuts and re-prices by a millimetre's worth.
+
+#### Verified
+
+17 new assertions plus the corrected radius suite, and **six deliberate mutations**: subtracting
+the laminate on a routed curve fails 3, taking the piece off the skin slot fails 1, dropping the
+edge band fails 1, cutting the pockets *to* the residual instead of *from* it fails 1, running the
+pockets through the flat lead and tail fails 1, and giving the routed curve a finish laminate
+fails 2. Read back out of the running app, the same cabinet cuts:
+
+```
+wrapped   Skin layer 1   721.7 × 720   Bendy plywood 8mm    no band    grain free
+          Skin layer 2   734.3 × 720   Bendy plywood 8mm    no band    grain free
+routed    Curved front   723.3 × 720   Notaio Walnut 16mm   band W1    grain width
+```
+
+#### Two things left, and both are questions rather than work
+
+- **The kick is still bendy ply on a routed corner.** It turns the same corner and is also a bent
+  part, and §5.7 says nothing about it. A test pins the current behaviour and says it is unasked,
+  so the day the shop answers, it fails and points at itself. **Do not quietly change it** — a
+  curved kick in a board the shop may not stock is exactly what goes unnoticed until it is on a
+  cutlist.
+- **The pocket pitch and residual are readings**, 40mm centres leaving 4mm, and they decide the
+  tightest radius the piece will take. `unconfirmedRoutedCurveFigures` reports them on the Joinery
+  tab, and only on a routed method — a warning about a figure nothing reads is the noise that
+  trains people to skip warnings.
+
+**Where to look:** `rules/radius.ts` `outboardOfFormers`; `rules/parts.ts` `routedCurve` and
+`rearPockets`; `model/construction.ts` for the three new settings and why the residual is stored
+rather than the depth. `tests/routedCorner.test.ts` is the contract.
+
+---
+
 ## 5. Open items, in the order I'd do them
 
 **5.2 has shipped — see 4.6.** What is left of it is Hettich and a handful of gaps, listed below.
@@ -3408,7 +3499,13 @@ remains:
   top is hidden, but the two *ends* show at the end of a run. Left alone rather than guessing a
   convention.
 
-### 5.7 The routed corner — the second way the shop builds a radius
+### 5.7 The routed corner — **shipped, see 4.27**
+
+**Built.** The shop answered the one thing this section refused to guess — *"it's a pocket route
+on the rear"*, formers unchanged — and everything else here turned out to be exactly right,
+including that it needs no new material slot. What is left is two questions, both in §4.27: the
+**kick** is still bendy ply on a routed corner and nobody has been asked, and the pocket pitch and
+residual are readings rather than measurements.
 
 **4.5 is done, so this is unblocked.** It is the same corner by a different method, and the
 shared builders it wanted — `rules/radius.ts` for the plan geometry, `cornerFormers` and
