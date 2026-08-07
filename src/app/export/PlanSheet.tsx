@@ -17,8 +17,10 @@ import type { Cabinet } from '../../core/model/cabinet.ts';
 import type { Wall } from '../../core/model/room.ts';
 import { wallInwardNormal } from '../../core/model/room.ts';
 import { cabinetFootprint } from '../../core/project/wallPlacement.ts';
-import type { Dimension, ElevationMarker, PlanSheetContent } from '../../core/export/planSheet.ts';
+import type { Dimension } from '../../core/export/dimension.ts';
+import type { ElevationMarker, PlanSheetContent } from '../../core/export/planSheet.ts';
 import { type DrawingScale, type Sheet, toPaper } from '../../core/export/sheet.ts';
+import { type TitleBlockInfo, SheetFurniture } from './sheetParts.tsx';
 
 /** Line weights and text heights, in paper millimetres — a drawing's real specification. */
 const WEIGHT = { wall: 0.5, cabinet: 0.35, overhead: 0.25, dim: 0.18, frame: 0.7 };
@@ -201,101 +203,6 @@ function Marker({ marker, ctx }: { marker: ElevationMarker; ctx: Ctx }) {
   );
 }
 
-export interface TitleBlockInfo {
-  readonly jobName: string;
-  readonly client: string;
-  readonly roomName: string;
-  readonly entity: string;
-  readonly date: string;
-  readonly sheetTitle: string;
-  readonly sheetNumber: string;
-  readonly scaleLabel: string;
-}
-
-function TitleBlock({ sheet, info }: { sheet: Sheet; info: TitleBlockInfo }) {
-  const top = sheet.height - sheet.margin - sheet.titleBlockHeight;
-  const left = sheet.margin;
-  const width = sheet.width - sheet.margin * 2;
-  const h = sheet.titleBlockHeight;
-  // Three columns: who it's for, what the sheet is, and how to read it.
-  const c1 = left + width * 0.42;
-  const c2 = left + width * 0.76;
-
-  const field = (x: number, y: number, label: string, value: string, big = false) => (
-    <g key={label + x + y}>
-      <text x={x + 2.5} y={y + 4.2} fontSize={2} fill="#666" letterSpacing={0.3}>
-        {label.toUpperCase()}
-      </text>
-      <text x={x + 2.5} y={y + (big ? 10.6 : 9.6)} fontSize={big ? TEXT.titleBig : TEXT.title} fill="#111" fontWeight={big ? 600 : 400}>
-        {value || '—'}
-      </text>
-    </g>
-  );
-
-  return (
-    <g>
-      <rect x={left} y={top} width={width} height={h} fill="none" stroke="#111" strokeWidth={WEIGHT.frame} />
-      <line x1={c1} y1={top} x2={c1} y2={top + h} stroke="#111" strokeWidth={WEIGHT.dim} />
-      <line x1={c2} y1={top} x2={c2} y2={top + h} stroke="#111" strokeWidth={WEIGHT.dim} />
-      <line x1={left} y1={top + h / 2} x2={width + left} y2={top + h / 2} stroke="#111" strokeWidth={WEIGHT.dim} />
-
-      {field(left, top, 'Client', info.client, true)}
-      {field(left, top + h / 2, 'Job', info.jobName)}
-      {field(c1, top, 'Drawing', info.sheetTitle, true)}
-      {field(c1, top + h / 2, 'Room', info.roomName)}
-      {field(c2, top, 'Scale', info.scaleLabel, true)}
-      {field(c2, top + h / 2, 'Date', info.date)}
-
-      <text x={left + width - 2.5} y={top + h - 2.5} fontSize={TEXT.title} textAnchor="end" fill="#111">
-        {info.sheetNumber}
-      </text>
-      <text x={c1 - 2.5} y={top + h - 2.5} fontSize={2.2} textAnchor="end" fill="#666">
-        {info.entity}
-      </text>
-    </g>
-  );
-}
-
-/**
- * A scale bar — the check a client can actually perform on the sheet.
- *
- * It is drawn from the same `DrawingScale` the geometry is, so it cannot disagree with the
- * drawing; and if a printer scales the page to fit, the bar shrinks with it and stays true while
- * the printed "1:50" silently stops being. That is the whole reason a drawing carries one.
- */
-function ScaleBar({ sheet, scale }: { sheet: Sheet; scale: DrawingScale }) {
-  // A round number of model metres that comes out a sensible length on paper.
-  const metres = scale.denominator >= 100 ? 5 : scale.denominator >= 40 ? 2 : 1;
-  const paperLength = (metres * 1000) / scale.denominator;
-  const x = sheet.margin + 2;
-  const y = sheet.height - sheet.margin - sheet.titleBlockHeight - 6;
-  const segments = 4;
-  const seg = paperLength / segments;
-
-  return (
-    <g>
-      {Array.from({ length: segments }, (_, i) => (
-        <rect
-          key={i}
-          x={x + i * seg}
-          y={y}
-          width={seg}
-          height={1.6}
-          fill={i % 2 === 0 ? '#111' : '#fff'}
-          stroke="#111"
-          strokeWidth={0.15}
-        />
-      ))}
-      <text x={x} y={y - 1} fontSize={2} fill="#111">
-        0
-      </text>
-      <text x={x + paperLength} y={y - 1} fontSize={2} textAnchor="middle" fill="#111">
-        {metres}m
-      </text>
-    </g>
-  );
-}
-
 export function PlanSheet({
   content,
   sheet,
@@ -329,15 +236,6 @@ export function PlanSheet({
       xmlns="http://www.w3.org/2000/svg"
     >
       <rect x={0} y={0} width={sheet.width} height={sheet.height} fill="#fff" />
-      <rect
-        x={sheet.margin}
-        y={sheet.margin}
-        width={sheet.width - sheet.margin * 2}
-        height={sheet.height - sheet.margin * 2}
-        fill="none"
-        stroke="#111"
-        strokeWidth={WEIGHT.frame}
-      />
 
       <g fontFamily="'Helvetica Neue', Arial, sans-serif">
         {content.room.walls.map((wall) => (
@@ -361,8 +259,7 @@ export function PlanSheet({
           <Marker key={marker.key} marker={marker} ctx={ctx} />
         ))}
 
-        <ScaleBar sheet={sheet} scale={scale} />
-        <TitleBlock sheet={sheet} info={info} />
+        <SheetFurniture sheet={sheet} scale={scale} info={info} />
       </g>
     </svg>
   );

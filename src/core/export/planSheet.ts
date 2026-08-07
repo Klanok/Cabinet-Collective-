@@ -26,31 +26,7 @@ import {
   wallLength,
 } from '../model/room.ts';
 import { cabinetFootprint, wallAnchorOf } from '../project/wallPlacement.ts';
-
-/**
- * A dimension: two points, and the figure that goes between them.
- *
- * `value` is carried explicitly rather than derived from `a` and `b` **on purpose**. They should
- * agree, and `dimensionIsHonest` asserts that they do — but the value's source of truth is the
- * model, and giving it its own field is what makes the check possible at all. A dimension that
- * computed its own figure from its own endpoints could never be caught being wrong.
- */
-export interface Dimension {
-  readonly a: Vec2;
-  readonly b: Vec2;
-  /** Unit vector the dimension line is held off the measured edge along. */
-  readonly offset: Vec2;
-  /** How far off, in model millimetres, so it clears the drawing at any scale. */
-  readonly distance: Mm;
-  /** The figure, read from the model. */
-  readonly value: Mm;
-  /** What the run of dimensions is measuring — for styling and for tests. */
-  readonly kind: 'overall' | 'wall' | 'cabinet';
-}
-
-/** Does a dimension's stated figure match the points it is drawn between? */
-export const dimensionIsHonest = (d: Dimension, tolerance: Mm = mm(0.5)): boolean =>
-  Math.abs(Math.hypot(d.b.x - d.a.x, d.b.y - d.a.y) - d.value) <= tolerance;
+import type { Dimension } from './dimension.ts';
 
 /**
  * A marker on the plan pointing at the wall an elevation is taken of — the "A" in a circle with

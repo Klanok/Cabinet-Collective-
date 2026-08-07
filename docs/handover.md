@@ -3350,15 +3350,101 @@ look at the job rather than to "fix" the count.
 
 #### What is left of the shop's ask
 
-Elevations (one per wall face, per the shop), sections, and a 3D view with a finishes schedule.
-Two things this session settled that they should be built on: **a run is not a wall** —
-`runs.ts` breaks a run at a tall cabinet because a tall unit carries no benchtop, so a wall with a
-pantry in it is two benchtop runs and one elevation — and the sheet plumbing, the scale ladder and
-the dimension type are all sheet-agnostic already.
+Sections, and a 3D view with a finishes schedule. **Elevations are §4.31.**
 
 **Where to look:** `core/export/sheet.ts` for paper and scale, `core/export/planSheet.ts` for what
 is on the sheet and every figure on it, `app/export/` for the drawing and the print path, and the
 `@media print` block at the end of `styles.css`. `tests/drawings.test.ts` is the contract.
+
+---
+
+### 4.31 Elevations — one per wall, and the failure that looks completely plausible
+
+The second sheet in the pack: a wall seen square-on, one per wall face, lettered to match the
+floor plan's markers. Built on §4.30's plumbing, which is why it is a section and not a project.
+
+#### The projection, and why it is derived rather than guessed
+
+An elevation is two numbers per point: **u** along the wall from its start corner, **v** above the
+floor. The one that can be silently wrong is `u`'s *direction*, because getting it backwards
+**mirrors the drawing** — and a mirrored kitchen is entirely plausible. Every unit is the right
+size, every dimension reads correctly, the client signs it, and the sink is at the wrong end. It
+is this codebase's oldest failure — right part, wrong place — in its most convincing dress.
+
+So it is derived twice and the two are made to agree. A viewer stands in the room looking along
+`−n` with world +Y up, so their right hand is `f × up = (n.y, −n.x)`; and `wallInwardNormal` is
+the left normal of the wall's direction, `n = (−d.y, d.x)`, which gives `right = d`. **The
+viewer's right is the wall's own direction of travel**, so `u` is exactly the `along` that
+`wallAnchorOf` already reports and nothing needs flipping. Independently: `placeAgainstWall` uses
+`yawAgainstWall`, which maps a cabinet's local +X onto `d` — and a cabinet's parts are laid out
+with local x running left to right as you face it. Two derivations, one answer.
+
+That is asserted on both a wall running east and one running west, and again on the **rendered
+page** — the live check reads the cabinet codes out of the SVG in paper-x order, because a sign
+error in the renderer would mirror the sheet while every model assertion stayed green.
+
+#### What is drawn is what is built
+
+The items are the **real panels the rule engine produced**, projected — not a re-derivation of
+where a door ought to be. A drawer bank whose fronts were set by hand draws the fronts it will be
+cut to, and §4.29's bank draws as it now builds. Re-deriving the front layout here would be a
+second place deciding it.
+
+#### Three things the live check found that the suite could not
+
+The model tests were green and the first elevation of the sample kitchen was still wrong in three
+ways, all of them invisible from the model side:
+
+- **No benchtop.** That job's top is **bought-in stone**, so `buildRunUnits` produces no panels
+  for it — nobody in this shop cuts a stone top, it is templated on site. Right for a cutlist,
+  wrong for an elevation: the bench is the line a client's eye goes to first. Drawn as the slab
+  that arrives on the truck, which is what the viewport already does with it.
+- **No kick.** That job stands its runs on **ladder bases**, so the kick face is a *run unit's*
+  panel and not a cabinet's, and a loop over cabinet panels alone left a band of daylight under
+  every unit. Same board, same job, different owner — **an elevation cares what you see, not who
+  owns it.**
+- **An unexplained hole** where the dishwasher is. An appliance space produces no parts, which is
+  correct, and leaves a gap that reads as a mistake. Drawn as the dashed, labelled opening it is.
+
+**The shape to take from this: "no parts" and "nothing to draw" are different questions, and the
+model can only answer the first.** Every one of the three was a thing the job genuinely has and
+the parts list genuinely does not.
+
+#### A real bug the assertions caught, once they were pointed at the right thing
+
+`panelBox` projected a panel's **z = 0 face**, which is fine for a board standing up — its
+thickness runs into the elevation and contributes nothing to the outline — and wrong for a board
+lying **flat**. A benchtop's face is horizontal, so one face projects to a *line* and the whole
+18mm band vanishes. Now both faces, with the thickness read off the board it is cut from.
+
+Worth noting how it was found: a mutation survived. Replacing the bench-height dimension with a
+hardcoded 900 changed nothing, because no test built a benchtop at all — the guarded branch never
+ran. Writing the test that closed that gap is what surfaced the flat-panel bug. **A mutation that
+survives is not always a weak assertion; sometimes it is a missing one.**
+
+#### Known, deliberate, and the shop's call
+
+**The kick face draws 10mm below the floor line.** It is cut 10mm over-height to be scribed on
+site — `ladderFaceScribeEnd` — so the board really is 160mm on a 150mm plinth, and the drawing is
+faithfully reporting it. At 1:20 that is half a millimetre of paper. It is **not** silently
+clipped, because quietly altering geometry to make a drawing look tidier is how a drawing stops
+being a measurement. Whether a *client* sheet should show a fitting allowance at all is a
+question for the shop, and it is one setting either way.
+
+#### Each sheet is scaled on its own
+
+A 4.2m plan and a 3.6m elevation do not want the same scale. Each sheet fits itself from the same
+ladder and prints its own figure in its own title block, which is the normal convention on a set
+of drawings — and the live check therefore asserts scale honesty **per sheet** rather than once.
+Across the three-sheet pack, worst error 0.0000 paper mm, three pages, vector text.
+
+The title block and scale bar moved into `app/export/sheetParts.tsx` when the second sheet
+arrived. A title block copied twice is a title block that gets fixed once, and the way that fails
+is a sheet claiming 1:20 beside one claiming 1:25.
+
+**Where to look:** `core/export/elevation.ts` for the projection and what goes on the sheet,
+`app/export/ElevationSheet.tsx` for the drawing — it is the one place in the pack that inverts an
+axis, because v runs up and SVG's y runs down. `tests/drawings.test.ts` is the contract.
 
 ---
 
