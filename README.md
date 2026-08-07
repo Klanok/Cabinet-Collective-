@@ -497,10 +497,10 @@ having something other than memory re-checking it.
 | — | Door styles — shaker and V-groove as machining, saved and costed | **done**; toolpaths in 4 |
 | — | Curved parts — arc-capable profiles, radiused shelving, radiused ends | **done** |
 | — | A rounded corner on a base, wall or tall cabinet — bendy ply and formers | **done** |
-| — | The same corner routed from door board instead of wrapped in ply | not started |
+| — | The same corner routed from door board instead of wrapped in ply | **done** — see handover §4.27 |
 | 2 | Hardware/joinery rules — MERIVOBOX boxes, CLIP top boring, System 32, hardware BOM, CSV export | **done** |
 | — | Hettich as the second hardware brand | not started |
-| — | PDF export (CSV is done; print from the browser meanwhile) | not started |
+| — | A client drawing pack as PDF — floor plan, elevations, sections, overview and finishes | **done** — printed from the browser, vector, see handover §4.30–§4.33 |
 | — | Cabinets butting up against each other on a drag, not just against walls | **done** |
 | — | Decor colours in the 3D view, so a walnut door doesn't render as white melamine | **done** |
 | — | Benchtops as their own unit, rather than derived from the cabinets under them | **done** |
@@ -513,7 +513,7 @@ having something other than memory re-checking it.
 | — | A lid stay for the banquette lift-up | not started — no such part in the hardware library yet |
 | — | Grain direction — a cabinet's fronts and a standalone panel, chosen as the room sees it | **done** |
 | — | Per-edge banding on a standalone panel | not started |
-| — | Fabric, foam and upholstery labour on the quote | not started |
+| — | Fabric, foam and upholstery labour on the quote | **done** — a bought-in charge per lineal metre, its own line rather than in `sheetCost`, see handover §4.19 |
 | — | A wireframe view, for seeing the construction and checking a joint | **done** |
 | — | Wall openings — bulkheads, windows, out-of-square walls and scribes | not started |
 | 3 | Guillotine nesting — real sheets, an ordered cut sequence, offcuts, whole-sheet costing | **done** |
