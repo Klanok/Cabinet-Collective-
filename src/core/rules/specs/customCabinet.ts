@@ -19,7 +19,6 @@
  */
 
 import { mm } from '../../units.ts';
-import { equalDrawerFronts } from '../../model/cabinet.ts';
 import type { CabinetSpec, PartInstance } from '../spec.ts';
 import type { RuleContext } from '../context.ts';
 import {
@@ -33,6 +32,7 @@ import {
   kickPanel,
   leftSide,
   lidPanel,
+  resolveDrawerFronts,
   rightSide,
   stretcher,
   topPanel,
@@ -55,16 +55,9 @@ const topParts = (ctx: RuleContext): PartInstance[] => {
 const frontParts = (ctx: RuleContext): PartInstance[] => {
   const drawerCount = ctx.options.drawerCount ?? 0;
   if (drawerCount > 0) {
-    const explicit = ctx.options.drawerFrontHeights;
-    const heights =
-      explicit && explicit.length > 0
-        ? [...explicit]
-        : equalDrawerFronts(
-            mm(ctx.H - ctx.construction.revealTop - ctx.construction.revealBottom),
-            drawerCount,
-            ctx.construction.gapBetweenDrawers,
-          );
-    return drawerFronts(ctx, heights);
+    // Second-hand copy of the drawer bank's own resolver until §5.11 was diagnosed, which is why
+    // a custom carcass overflowed its fronts in exactly the same way. One resolver now.
+    return drawerFronts(ctx, resolveDrawerFronts(ctx, drawerCount).heights);
   }
   return doors(ctx, (ctx.options.doorCount ?? 0) as 0 | 1 | 2);
 };

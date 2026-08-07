@@ -913,4 +913,22 @@ describe('drawer front heights, set individually', () => {
     const built = bank({ drawerFrontHeights: [mm(60), mm(300)] });
     expect(backHeights(built)).toEqual([184]);
   });
+
+  it('names the height a short front was built at, not the one it was asked for', () => {
+    /*
+     * The third chain §5.11's repair had to cover, and the one that had no test at all: this
+     * warning read the stored option straight. On a bank fitted back into its carcass that is a
+     * height nothing on screen has, so it sent somebody looking for a 60mm front that came out
+     * at 37.
+     *
+     * 700 + 60 is 760 of front in 714 of opening, and the 46mm excess comes off both fronts
+     * equally — 23 each, the same rule the Inspector follows when one front is raised by hand.
+     * Equal rather than proportional is a choice: one rule for both paths, and "everything came
+     * down by the same amount" is the sentence the bench gets told.
+     */
+    const built = bank({ drawerFrontHeights: [mm(700), mm(60)] });
+    expect(frontHeights(built)).toEqual([677, 37]);
+    expect(built.warnings.join(' ')).toMatch(/Drawer front 2 is 37mm, which is too short/);
+    expect(built.warnings.join(' ')).not.toMatch(/is 60mm, which is too short/);
+  });
 });

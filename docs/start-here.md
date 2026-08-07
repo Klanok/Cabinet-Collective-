@@ -11,7 +11,7 @@ transcript. Then read `docs/woodtron-dialect.md` before touching anything under 
 
 ## Where things stand
 
-`main` is green at **1172 tests**. Schema **v36**, shop standards **v27**. Every session's work
+`main` is green at **1184 tests**. Schema **v36**, shop standards **v27**. Every session's work
 lands on `main` through a pull request, so `git log main` is the honest answer to what has shipped —
 check it rather than trusting this paragraph, which is exactly the kind of sentence that goes stale.
 
@@ -65,12 +65,7 @@ left here is what the answers turned into — read it before asking either again
    Nest tab names the part and says the sheet it is charged is a floor, and the nest CSV marks it
    `NOT NESTED`. §4.8's own write-up said so the whole time. The one place it *is* silent is the
    terminal report. Corrected 4.28; the missing thing was never the warning, it is the split.
-2. **A drawer front's height can change the cabinet's height**, §5.11 — reported, never reproduced.
-   The useful detail when it is reported again is whether the height moves *as you type* or *on
-   save*, because those are two different bugs. **The off-screen input reported with it is a
-   separate, closed thing — §4.24** — so do not take a fresh report of one as evidence of the
-   other.
-3. **What is left of the UI pass**, §5.11 — and it is now one small thing. The Inspector is done
+2. **What is left of the UI pass**, §5.11 — and it is now one small thing. The Inspector is done
    (§4.24) and the Settings window is done (§4.25). Left: the **"+ cabinet type" buttons** above
    the cabinet list. Measured again this session rather than repeated: **nine buttons, three lines,
    160px at every screen size** — which is 24% of the left column at 1280 × 720 and 16% at
@@ -96,6 +91,18 @@ left here is what the answers turned into — read it before asking either again
   on a machine.**
 
 ## Closed recently — read before reopening any of it
+
+**The drawer front that ran past the carcass — §4.29**, which is §5.11's ten-session-old *"a
+drawer front's height can change the cabinet's height"*, reproduced at last off one sentence from
+the bench: *"it now just runs the front higher than the cabinet bounds"*. **The cabinet's height
+never changed** — the stack of fronts grew out the top of a carcass that had not moved, and from
+the bench the two look the same. Raising one front now lowers the others, shared equally, so a
+bank always fills its opening. **Read §4.29 before touching drawer fronts**, for three things:
+the resolution lived in three chains and two of them were wrong; the fit is at *build* time so
+saved jobs come out right without a migration; and the old warning said *"will not fit"* about
+fronts the app then went ahead and built, which is how a bench comes to report the cabinet
+instead of the fronts. The open question in that entry is answered too — it moves **as you type**,
+because `NumberField` writes on every keystroke and there is no save.
 
 **The whole UI pass — §4.24 the Inspector, §4.25 the Settings window.** Two things there are
 worth knowing before you touch either: a shut section **always says what is set inside it**, which
@@ -195,6 +202,20 @@ it was written:
   wanted thing was always the **split**. This is the second time an open item has been wrong about
   the app rather than about shipped work — §4.17 is the first — and it is worse than a stale fix
   claim, because it sends the next session to build something that exists.
+
+The eleventh found two more, and both are in §4.29:
+
+- **A bug report that is right about what you see and wrong about what moved.** *"Changing a
+  drawer front's height changes the cabinet's height"* went ten sessions unreproduced because
+  nobody could see how a front could move a carcass — and it cannot. The fronts grew out of the
+  top of a carcass that never moved, which from the bench looks identical. **A report describes a
+  symptom, and the symptom is evidence about the screen rather than about the model.** One
+  follow-up sentence from the shop settled it; ten sessions of guessing had not.
+- **A test that passes because it never ran.** The new assertion that a drawer box follows its
+  built front was written `if (box) expect(…)` against a part name that does not exist, so it was
+  green and empty. **Only the mutation found it** — the same thing §4.24 found, in the same file,
+  written by the session that had just finished reading the warning about it. `if (x) expect(…)`
+  is the shape: an assertion that opts out of running is an assertion that always passes.
 
 **Check the code, not the paragraph.** The general form: a repair has to cover every chain that
 reads the field, not every field in one chain. And when you make a claim false, go and find it.

@@ -8,9 +8,11 @@ import {
   type Cabinet,
   type CabinetEnd,
   type CabinetOptions,
+  MIN_DRAWER_FRONT,
   hasAppliedEnd,
   isRadiused,
   radiusDefaultOptions,
+  setDrawerFrontHeight,
 } from '../../core/model/cabinet.ts';
 import { panelExtent } from '../../core/model/panel.ts';
 import { actualThicknessOf, findSheet } from '../../core/model/material.ts';
@@ -38,6 +40,12 @@ import { AU_UPHOLSTERY_MATERIALS } from '../../core/library/upholstery.au.ts';
  * list, because a bank is either sharing the opening equally or it is not — a half-explicit list
  * would leave the rest to a rule that no longer knows how much room is left.
  *
+ * **Raising one front lowers the others** — `setDrawerFrontHeight`, and it is the whole of §5.11.
+ * This used to write the new height and leave its neighbours alone, so the stack grew past the top
+ * of the carcass and the top front finished in mid-air above the box. It moves *as you type*,
+ * which is what made it read from the bench as the cabinet changing height: `NumberField` writes on
+ * every keystroke, so `400` over `237` rebuilds the bank three times on the way through.
+ *
  * The box height each front can carry is shown beside it, because that is the consequence somebody
  * is changing the heights *for*: a 300mm front takes a much deeper box than a 150mm one, and until
  * the number is on screen the trade is invisible.
@@ -58,9 +66,14 @@ function DrawerFrontHeights({
 
   const explicit = (cabinet.options.drawerFrontHeights?.length ?? 0) > 0;
   const system = built.hardware.runnerSystem;
+  const alone = fronts.length < 2;
+  // The tallest any one front can be: the whole stack, less a minimum for each of the others.
+  const ceiling =
+    fronts.reduce((a, b) => a + b, 0) - MIN_DRAWER_FRONT * (fronts.length - 1);
   const setOne = (i: number, value: number) => {
-    const next = fronts.map((h, j) => mm(j === i ? Math.max(20, Math.round(value)) : h));
-    onUpdateOptions(cabinet.id, { drawerFrontHeights: next });
+    onUpdateOptions(cabinet.id, {
+      drawerFrontHeights: setDrawerFrontHeight(fronts.map(mm), i, mm(value)),
+    });
   };
 
   return (
@@ -73,19 +86,26 @@ function DrawerFrontHeights({
             key={i}
             label={`Front ${i + 1}${i === 0 ? ' (bottom)' : ''} — ${box ? box.name : 'no box fits'}`}
             value={height}
-            min={20}
-            max={1200}
+            min={MIN_DRAWER_FRONT}
+            max={ceiling}
             step={5}
+            disabled={alone}
             onChange={(n) => setOne(i, n)}
           />
         );
       })}
-      {explicit ? (
+      {alone ? (
+        <p className="note subtle">
+          One drawer, so the front fills the opening — there is nothing to trade its height
+          against. Add a drawer to set heights by hand.
+        </p>
+      ) : explicit ? (
         <>
           <p className="note subtle">
-            Set by hand. Each drawer gets the tallest box its own front will carry, so a mixed bank
-            is not held down to its shortest front. A cabinet that names its own box height keeps
-            it.
+            Set by hand. The fronts always fill the opening, so raising one lowers the others,
+            shared equally between them. Each drawer gets the tallest box its own front will carry,
+            so a mixed bank is not held down to its shortest front. A cabinet that names its own box
+            height keeps it.
           </p>
           <button
             className="btn full"
@@ -96,8 +116,9 @@ function DrawerFrontHeights({
         </>
       ) : (
         <p className="note subtle">
-          Sharing the opening equally. Change any one and the bank keeps these heights from then
-          on, and each drawer takes the deepest box its front allows.
+          Sharing the opening equally. Change any one and the others give way to make room for it,
+          the bank keeps these heights from then on, and each drawer takes the deepest box its
+          front allows.
         </p>
       )}
     </>
@@ -156,6 +177,7 @@ function NumberField({
   max,
   step = 1,
   suffix = 'mm',
+  disabled = false,
   onChange,
 }: {
   label: string;
@@ -164,6 +186,7 @@ function NumberField({
   max?: number;
   step?: number;
   suffix?: string;
+  disabled?: boolean;
   onChange: (n: number) => void;
 }) {
   return (
@@ -176,6 +199,7 @@ function NumberField({
           min={min}
           max={max}
           step={step}
+          disabled={disabled}
           onChange={(e) => {
             const n = Number(e.target.value);
             if (Number.isFinite(n)) onChange(n);

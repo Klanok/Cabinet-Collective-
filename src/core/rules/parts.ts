@@ -19,6 +19,7 @@ import {
 import { placement } from '../geom/placement.ts';
 import { type SignedAxis, v2, v3 } from '../geom/vec.ts';
 import { cylindricalForming, developedLength } from '../model/forming.ts';
+import { type DrawerFrontFit, resolveDrawerFrontHeights } from '../model/cabinet.ts';
 import type { GrainConstraint, PanelRole } from '../model/panel.ts';
 import {
   TESTED_WEB,
@@ -534,6 +535,31 @@ export const pairTooNarrowProblem = (ctx: RuleContext): string[] => {
       `${ctx.W}mm cabinet — too narrow for a pair. Use one door.`,
   ];
 };
+
+/**
+ * The clear height a bank's fronts share — the carcass less a reveal top and bottom.
+ *
+ * Named because three callers need it and a bank whose fronts are laid out against one figure and
+ * checked against another is a bank that reports a fault it does not have.
+ */
+export const drawerFrontOpening = (ctx: RuleContext): Mm =>
+  mm(ctx.H - ctx.construction.revealTop - ctx.construction.revealBottom);
+
+/**
+ * What this bank's fronts actually come out as: explicit where the shop has set them, an equal
+ * split where it has not, and fitted to the carcass either way.
+ *
+ * The arithmetic is `model/cabinet.ts`; this is the one place that reads it off a `RuleContext`,
+ * so a spec cannot grow its own copy — which is exactly what the drawer-bank and custom specs had
+ * done before §5.11 was diagnosed.
+ */
+export const resolveDrawerFronts = (ctx: RuleContext, count: number): DrawerFrontFit =>
+  resolveDrawerFrontHeights(
+    ctx.options.drawerFrontHeights,
+    count,
+    drawerFrontOpening(ctx),
+    ctx.construction.gapBetweenDrawers,
+  );
 
 /**
  * Where each drawer front sits, bottom-first: the cabinet-space y of its bottom edge, and its
