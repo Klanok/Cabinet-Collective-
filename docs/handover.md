@@ -3443,8 +3443,82 @@ arrived. A title block copied twice is a title block that gets fixed once, and t
 is a sheet claiming 1:20 beside one claiming 1:25.
 
 **Where to look:** `core/export/elevation.ts` for the projection and what goes on the sheet,
-`app/export/ElevationSheet.tsx` for the drawing — it is the one place in the pack that inverts an
-axis, because v runs up and SVG's y runs down. `tests/drawings.test.ts` is the contract.
+`app/export/ElevationSheet.tsx` for the drawing — it inverts the vertical, because v runs up and
+SVG's y runs down. `tests/drawings.test.ts` is the contract.
+
+---
+
+### 4.32 Sections — and making "relevant" a thing the model can answer
+
+The third sheet type. An elevation says how wide and where along the wall; a **section** says the
+things it physically cannot — how deep, how far the top overhangs, how far the kick is set back,
+how much clear air there is between the bench and the cupboard over it. On a client drawing it is
+the sheet that answers *"will my kettle fit under there"*.
+
+#### The judgement, written down because it is one
+
+The shop asked for "sections that are relevant", and **relevant is not a thing the model can be
+asked**. Guessing at it silently is exactly how the quarter-disc corner seat happened. So this
+takes the trade's own answer — *typical sections* — and makes it objective:
+
+> **one section per cabinet type the job contains**, cut through the example of that type whose
+> plane crosses the most parts.
+
+Two properties make that defensible rather than arbitrary. It is **complete**: a job with a
+banquette gets a banquette section without anybody remembering to ask, so a new cabinet type
+cannot quietly go undrawn. And *crosses the most parts* picks the **most informative** example —
+on a normal kitchen a base unit with a cupboard over it and a top on it, rather than whichever
+base happens to be first in the job, which might be the one at the end of the run with nothing
+above it.
+
+**If the shop wants cuts somewhere specific, that is a different rule and a small one.** It is
+stated in `section.ts`'s header so nobody has to re-derive it from the output.
+
+#### No mirroring hazard here, and why
+
+An elevation's horizontal is defined by where a *viewer stands*, which is what makes §4.31's
+mirror so easy to get wrong. A section's is not: **s** is measured along the wall's inward normal,
+which the wall itself defines. The wall is drawn at the left — a choice, fixed rather than
+derived, so every section in a pack reads the same way round.
+
+#### A section named after a cabinet has to contain that cabinet
+
+The first pack came out with a sheet titled **"Section 4 — Typical appliance space"** showing a
+wall, a benchtop and nothing else. An appliance space produces no parts, so the plane through one
+still finds the top bridging it — a real plane through a real job, and not a drawing of anything.
+Now a candidate is only taken if the cut finds a part **belonging to the cabinet the sheet is
+named after**.
+
+Worth keeping as a shape: §4.31's lesson was *"no parts" and "nothing to draw" are different
+questions* — a bought-in top and a ladder base's kick are things the job has and the parts list
+has not. This is the same sentence read the other way: **a plane can find plenty and still be a
+section of nothing.** Both come from the same place, which is that the parts list is not the job.
+
+#### What is drawn
+
+Only boards the plane passes **through**, filled solid — the convention every set of joinery
+drawings uses, so the eye reads the thickness of what is being made. Deliberately *not* everything
+visible beyond the cut: that turns a readable typical detail into a picture of the inside of a
+cupboard. A drawer bank's section comes out showing its boxes' bottoms and backs stacked inside
+the carcass, which is the useful thing about it.
+
+Dimensions: depth from the wall face along the bottom, and up the left the bench height and — only
+when something is actually above it — **the clear gap between the bench and the underside of the
+cupboard**, which is the figure a client asks about before any other on the sheet. A dimension to
+nothing is worse than no dimension, so it is not drawn when there is nothing over the bench.
+
+#### Verified
+
+Six-sheet pack on the sample kitchen — plan, two elevations, three sections (base, drawer bank,
+wall). Every sheet at the scale its own title block claims, worst error **0.0000 paper mm**,
+nothing off any sheet, six pages, vector text. Five mutations run and each killed the assertion
+meant for it: a cut plane loose enough to catch a cabinet's own sides, `s` measured along the wall
+instead of out from it, taking the first example rather than the richest, the splashback gap
+measured from the floor instead of the bench, and dropping the must-contain-its-own-cabinet rule.
+
+**Where to look:** `core/export/section.ts` — its header states the judgement in full;
+`core/export/panelGeometry.ts` for the world-space projection elevations and sections share;
+`app/export/SectionSheet.tsx` for the drawing. `tests/drawings.test.ts` is the contract.
 
 ---
 

@@ -44,12 +44,12 @@ import { v3 } from '../geom/vec.ts';
 import type { Panel } from '../model/panel.ts';
 import type { Project } from '../model/project.ts';
 import { type Room, type Wall, wallDirection, wallLength } from '../model/room.ts';
-import { partToWorld } from '../geom/placement.ts';
-import { panelExtent } from '../model/panel.ts';
+import type { CabinetPlacement } from '../geom/placement.ts';
+import { panelSolidCorners } from './panelGeometry.ts';
 import { benchtopDepth, benchtopLength } from '../model/benchtop.ts';
 import { findBenchtopMaterial } from '../model/material.ts';
 import { yawCosSin } from '../geom/placement.ts';
-import { type MaterialLibrary, actualThicknessOf, findSheet } from '../model/material.ts';
+import type { MaterialLibrary } from '../model/material.ts';
 import { buildProject } from '../rules/build.ts';
 import { buildRunUnits } from '../rules/runUnits.ts';
 import { wallAnchorOf } from '../project/wallPlacement.ts';
@@ -111,29 +111,6 @@ const TOP_ROLES = new Set(['benchtop', 'benchtop-upstand', 'benchtop-waterfall']
  */
 const RUN_UNIT_ROLES = new Set([...TOP_ROLES, 'kick']);
 
-/**
- * A panel's eight **solid** corners in world space — both faces, not one.
- *
- * Part space is x along the length, y across the width, z through the thickness. Taking only the
- * z = 0 face is enough for a board standing up, because its thickness runs *into* the elevation
- * and contributes nothing to the outline. It is wrong for a board lying **flat**: a benchtop's
- * face is horizontal, so one face projects to a line and the whole 18mm band disappears. Both
- * faces, and the thickness comes from the board it is actually cut from.
- */
-const panelSolidCorners = (
-  cabinetPlacement: Parameters<typeof partToWorld>[0],
-  panel: Panel,
-  materials: MaterialLibrary,
-) => {
-  const { length, width } = panelExtent(panel);
-  const t = actualThicknessOf(findSheet(materials, panel.materialId));
-  return [0, t].flatMap((z) =>
-    [v3(0, 0, z), v3(length, 0, z), v3(length, width, z), v3(0, width, z)].map((p) =>
-      partToWorld(cabinetPlacement, panel.placement, p),
-    ),
-  );
-};
-
 /** World point → this wall's elevation coordinates. */
 const project = (wall: Wall, p: { x: number; y: number; z: number }): { u: number; v: number } => {
   const d = wallDirection(wall);
@@ -146,7 +123,7 @@ const project = (wall: Wall, p: { x: number; y: number; z: number }): { u: numbe
 /** The (u, v) box a panel occupies on this wall's elevation. */
 const panelBox = (
   wall: Wall,
-  cabinetPlacement: Parameters<typeof partToWorld>[0],
+  cabinetPlacement: CabinetPlacement,
   panel: Panel,
   materials: MaterialLibrary,
 ) => {

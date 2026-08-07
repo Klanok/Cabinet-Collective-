@@ -35,6 +35,8 @@ import {
 import { dimensionIsHonest } from '../src/core/export/dimension.ts';
 import { elevationMarkers, planSheetContent } from '../src/core/export/planSheet.ts';
 import { elevationOfWall, elevationsFor } from '../src/core/export/elevation.ts';
+import { sectionsFor } from '../src/core/export/section.ts';
+import type { Cabinet } from '../src/core/model/cabinet.ts';
 import { createCabinet, createEmptyProject, resetIdCounter } from '../src/core/project/factory.ts';
 import { startPlan, appendWall, closePlan, setWallLength } from '../src/core/project/plan.ts';
 import { generateBenchtops } from '../src/core/project/generate.ts';
@@ -513,5 +515,175 @@ describe('elevation height dimensions', () => {
     const heights = elev.dimensions.filter((d) => d.kind === 'height');
     // 150 + 800 + 18.
     expect(Math.round(heights[0]!.value)).toBe(968);
+  });
+});
+
+/*
+ * ── Sections ───────────────────────────────────────────────────────────────
+ *
+ * A section exists to say the things an elevation physically cannot: how deep, how far the top
+ * overhangs, how much clear air there is under the cupboard. So these assert **depth and the
+ * vertical stack**, and that the cut really is a cut — a plane that caught a cabinet's own side
+ * panels would be a plane running outside it, and the drawing would look plausible and be a
+ * section of the wrong thing.
+ */
+describe('sections', () => {
+  const onWall = (p: Project, typeId: 'base' | 'wall', along: number, name: string): Cabinet => {
+    const wall = p.room.walls[0]!;
+    const cabinet = createCabinet(
+      { typeId, name, width: mm(900), x: mm(0) },
+      p.defaults,
+      p.constructions,
+    );
+    return {
+      ...cabinet,
+      placement:
+        placeAgainstWall(
+          p.room,
+          { wallId: wall.id, along: mm(along), offset: mm(0) },
+          cabinet.placement.anchor.y,
+        ) ?? cabinet.placement,
+    };
+  };
+
+  it('cuts through the boards the plane crosses, and not through the sides', () => {
+    let p = rectRoom(4000, 3000);
+    p = { ...p, cabinets: [onWall(p, 'base', 0, 'B1 Sink')] };
+    const [section] = sectionsFor(p);
+    expect(section).toBeDefined();
+
+    const roles = new Set(section!.items.filter((i) => i.kind === 'cut').map((i) => i.role));
+    // Cut through the middle of a base unit: its floor, its back and its rails are all crossed.
+    expect(roles.has('bottom')).toBe(true);
+    expect(roles.has('back')).toBe(true);
+    // Its own sides are either side of the plane — a section that caught them would be a plane
+    // running outside the cabinet, and the drawing would be of the wrong thing entirely.
+    expect(roles.has('side')).toBe(false);
+  });
+
+  it('measures depth from the wall face', () => {
+    let p = rectRoom(4000, 3000);
+    p = { ...p, cabinets: [onWall(p, 'base', 0, 'B1 Sink')] };
+    const [section] = sectionsFor(p);
+    const depth = section!.dimensions.find((d) => d.kind === 'cabinet')!;
+    // The job's base cabinets are 560 deep, and the front stands proud of the carcass.
+    expect(Math.round(depth.value)).toBeGreaterThanOrEqual(560);
+    expect(Math.round(depth.value)).toBeLessThan(620);
+    for (const d of section!.dimensions) expect(dimensionIsHonest(d)).toBe(true);
+  });
+
+  it('gives the clear gap between the bench and the cupboard over it', () => {
+    let p = rectRoom(4000, 3000);
+    p = {
+      ...p,
+      cabinets: [onWall(p, 'base', 0, 'B1 Sink'), onWall(p, 'wall', 0, 'W1 Over')],
+    };
+    p = { ...p, benchtops: [...generateBenchtops(p, 'shopmade-hmr-mdf-18')] };
+    const sections = sectionsFor(p);
+    const base = sections.find((s) => s.typeId === 'base')!;
+
+    const tops = base.items.filter((i) => i.kind === 'benchtop');
+    expect(tops.length).toBeGreaterThan(0);
+    const benchTop = Math.max(...tops.map((t) => t.v1));
+    const above = base.items.filter((i) => i.kind === 'cut' && i.v0 > benchTop + 1);
+    expect(above.length).toBeGreaterThan(0);
+
+    const underside = Math.min(...above.map((i) => i.v0));
+    const gap = base.dimensions.find(
+      (d) => Math.abs(d.value - (underside - benchTop)) < 0.5 && d.a.y > 1,
+    );
+    expect(gap).toBeDefined();
+    // Bench at 888, wall units mounted at 1500 — 612mm of splashback.
+    expect(Math.round(gap!.value)).toBe(Math.round(underside - benchTop));
+    expect(dimensionIsHonest(gap!)).toBe(true);
+  });
+
+  it('draws one section per cabinet type in the job, and no more', () => {
+    let p = rectRoom(4000, 3000);
+    p = {
+      ...p,
+      cabinets: [
+        onWall(p, 'base', 0, 'B1'),
+        onWall(p, 'base', 1000, 'B2'),
+        onWall(p, 'base', 2000, 'B3'),
+        onWall(p, 'wall', 0, 'W1'),
+      ],
+    };
+    const sections = sectionsFor(p);
+    // Three base units share one typical section; the wall unit gets its own.
+    expect(sections.map((s) => s.typeId).sort()).toEqual(['base', 'wall']);
+    expect(sections.map((s) => s.key)).toEqual(['1', '2']);
+  });
+
+  it('cuts through the example that shows the most', () => {
+    // B1 has a cupboard over it and B2 does not, so B1 is the informative one — regardless of
+    // which happens to come first in the job.
+    let p = rectRoom(4000, 3000);
+    const b1 = onWall(p, 'base', 0, 'B1 Under');
+    const b2 = onWall(p, 'base', 2000, 'B2 Alone');
+    const w1 = onWall(p, 'wall', 0, 'W1 Over');
+    p = { ...p, cabinets: [b2, b1, w1] }; // B2 deliberately first
+    const base = sectionsFor(p).find((s) => s.typeId === 'base')!;
+    expect(base.cabinetId).toBe(b1.id);
+  });
+
+  it('puts the wall at the left, with the room in front of it', () => {
+    let p = rectRoom(4000, 3000);
+    p = { ...p, cabinets: [onWall(p, 'base', 0, 'B1')] };
+    const [section] = sectionsFor(p);
+    const wall = section!.items.find((i) => i.kind === 'wallBody')!;
+    // The wall body lies behind the face, so it is the only thing at negative s.
+    expect(wall.s1).toBe(0);
+    expect(wall.s0).toBeLessThan(0);
+    for (const i of section!.items.filter((x) => x.kind !== 'wallBody')) {
+      expect(i.s1).toBeGreaterThan(0);
+    }
+  });
+
+  it('has nothing to cut on a job with no cabinets on walls', () => {
+    expect(sectionsFor(rectRoom(4000, 3000))).toEqual([]);
+  });
+});
+
+/*
+ * A section named after a cabinet has to contain that cabinet.
+ *
+ * An appliance space produces no parts, so a plane through one still finds the benchtop bridging
+ * it — and the first pack drew a sheet titled "Typical appliance space" showing a wall, a top and
+ * nothing else. A real plane through a real job, and not a drawing of anything.
+ */
+describe('a section is of the thing it is named after', () => {
+  it('does not draw a section of a cabinet that has no parts', () => {
+    let p = rectRoom(4000, 3000);
+    const wall = p.room.walls[0]!;
+    const place = (c: Cabinet, along: number) => ({
+      ...c,
+      placement:
+        placeAgainstWall(
+          p.room,
+          { wallId: wall.id, along: mm(along), offset: mm(0) },
+          c.placement.anchor.y,
+        ) ?? c.placement,
+    });
+    const base = createCabinet(
+      { typeId: 'base', name: 'B1', width: mm(900), x: mm(0) },
+      p.defaults,
+      p.constructions,
+    );
+    const dishwasher = createCabinet(
+      { typeId: 'appliance', name: 'DW Dishwasher', width: mm(600), x: mm(0) },
+      p.defaults,
+      p.constructions,
+    );
+    p = { ...p, cabinets: [place(base, 0), place(dishwasher, 900)] };
+    p = { ...p, benchtops: [...generateBenchtops(p, 'shopmade-hmr-mdf-18')] };
+
+    const sections = sectionsFor(p);
+    // The base gets one. The appliance space does not, even though a top bridges it.
+    expect(sections.map((s) => s.typeId)).toEqual(['base']);
+    // And every section drawn contains a part of the cabinet it is named after.
+    for (const section of sections) {
+      expect(section.items.some((i) => i.ownerId === section.cabinetId)).toBe(true);
+    }
   });
 });

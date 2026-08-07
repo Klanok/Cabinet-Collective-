@@ -26,6 +26,7 @@ import { useMemo, useState } from 'react';
 import type { Project } from '../../core/model/project.ts';
 import { planSheetContent } from '../../core/export/planSheet.ts';
 import { elevationsFor } from '../../core/export/elevation.ts';
+import { sectionsFor } from '../../core/export/section.ts';
 import {
   A2,
   A3,
@@ -38,6 +39,7 @@ import {
 } from '../../core/export/sheet.ts';
 import { PlanSheet } from './PlanSheet.tsx';
 import { ElevationSheet } from './ElevationSheet.tsx';
+import { SectionSheet } from './SectionSheet.tsx';
 import type { TitleBlockInfo } from './sheetParts.tsx';
 
 const PAPERS: { id: string; paper: PaperSize }[] = [
@@ -65,6 +67,8 @@ export function ExportView({ project }: { project: Project }) {
     [project, content.markers],
   );
 
+  const sections = useMemo(() => sectionsFor(project), [project]);
+
   const planScale = useMemo(
     () => fitScale({ width: content.width, height: content.height }, sheet.frame),
     [content, sheet],
@@ -77,10 +81,11 @@ export function ExportView({ project }: { project: Project }) {
     entity: project.settings.entityName,
     date: drawingDate(project.updatedAt || project.createdAt),
   };
+  const total = 1 + elevations.length + sections.length;
   const info = (title: string, n: number, scale: DrawingScale | null): TitleBlockInfo => ({
     ...base,
     sheetTitle: title,
-    sheetNumber: `Sheet ${n} of ${1 + elevations.length}`,
+    sheetNumber: `Sheet ${n} of ${total}`,
     scaleLabel: scale ? `${scale.label} @ ${paper.name}` : '—',
   });
 
@@ -90,10 +95,16 @@ export function ExportView({ project }: { project: Project }) {
     scale: fitScale({ width: elevation.width, height: elevation.height }, sheet.frame),
   }));
 
+  const sectionSheets = sections.map((section) => ({
+    section,
+    scale: fitScale({ width: section.width, height: section.height }, sheet.frame),
+  }));
+
   const hasPlan = project.room.walls.length > 0;
   const tooBig = [
     ...(hasPlan && !planScale ? ['the floor plan'] : []),
     ...elevationSheets.filter((e) => !e.scale).map((e) => `elevation ${e.elevation.key}`),
+    ...sectionSheets.filter((e) => !e.scale).map((e) => `section ${e.section.key}`),
   ];
 
   return (
@@ -129,8 +140,14 @@ export function ExportView({ project }: { project: Project }) {
           </button>
           <span className="note subtle">
             {hasPlan
-              ? `${1 + elevations.length} sheet${elevations.length ? 's' : ''} — floor plan${
-                  elevations.length ? ` and elevation${elevations.length > 1 ? 's' : ''} ${elevations.map((e) => e.key).join(', ')}` : ''
+              ? `${total} sheet${total > 1 ? 's' : ''} — floor plan${
+                  elevations.length
+                    ? `, elevation${elevations.length > 1 ? 's' : ''} ${elevations.map((e) => e.key).join(', ')}`
+                    : ''
+                }${
+                  sections.length
+                    ? `, section${sections.length > 1 ? 's' : ''} ${sections.map((e) => e.key).join(', ')}`
+                    : ''
                 }`
               : 'nothing to draw yet'}
           </span>
@@ -184,6 +201,21 @@ export function ExportView({ project }: { project: Project }) {
                 sheet={sheet}
                 scale={scale}
                 info={info(`Elevation ${elevation.key} — ${elevation.wallName}`, i + 2, scale)}
+              />
+            ) : null,
+          )}
+          {sectionSheets.map(({ section, scale }, i) =>
+            scale ? (
+              <SectionSheet
+                key={section.key}
+                section={section}
+                sheet={sheet}
+                scale={scale}
+                info={info(
+                  `Section ${section.key} — ${section.title}`,
+                  i + 2 + elevations.length,
+                  scale,
+                )}
               />
             ) : null,
           )}

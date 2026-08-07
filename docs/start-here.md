@@ -11,7 +11,7 @@ transcript. Then read `docs/woodtron-dialect.md` before touching anything under 
 
 ## Where things stand
 
-`main` is green at **1211 tests**. Schema **v36**, shop standards **v27**. Every session's work
+`main` is green at **1219 tests**. Schema **v36**, shop standards **v27**. Every session's work
 lands on `main` through a pull request, so `git log main` is the honest answer to what has shipped —
 check it rather than trusting this paragraph, which is exactly the kind of sentence that goes stale.
 
@@ -55,20 +55,27 @@ left here is what the answers turned into — read it before asking either again
 
 ## Unblocked, in the order I would take them
 
-1. **The rest of the client drawing pack — §4.30 and §4.31.** The shop asked for floor plans,
-   elevations and sections as a PDF to send a client. **The floor plan and the elevations are
-   built**, one elevation per wall face, lettered to match the plan's markers. Left: **sections**,
-   and a **3D view with a finishes schedule**. Read §4.30 for the two rules every sheet is built
-   on — the scale must be one a rule can be laid on, and a dimension's figure comes off the model
-   and never off the drawn geometry — and §4.31 for the lesson that will bite a section too:
-   **"no parts" and "nothing to draw" are different questions.** A bought-in top, a ladder base's
-   kick and an appliance opening are all things the job has and the parts list has not, and all
-   three were missing from the first elevation while every model test stayed green.
+1. **The last sheet of the client drawing pack — §4.30, §4.31, §4.32.** The shop asked for floor
+   plans, elevations and sections as a PDF to send a client. **Three of the four are built**: the
+   floor plan, one elevation per wall face, and one typical section per cabinet type. Left: a
+   **3D view with a finishes schedule**, which is the sheet clients look at first.
 
-   One thing open and it is the shop's: **the kick draws 10mm below the floor line**, because the
-   face is genuinely cut 10mm over to be scribed on site. Honest, half a millimetre on paper at
-   1:20, deliberately not clipped — but whether a *client* sheet should show a fitting allowance
-   is a question nobody has asked yet.
+   Read §4.30 for the two rules every sheet is built on — the scale must be one a rule can be
+   laid on, and a dimension's figure comes off the model and never off the drawn geometry. Then
+   §4.31 and §4.32 for the pair of lessons that will bite the next sheet too, because they are the
+   same sentence read both ways: **"no parts" and "nothing to draw" are different questions**, and
+   **a plane can find plenty and still be a drawing of nothing.** A bought-in top, a ladder base's
+   kick and an appliance opening are all things the job has and the parts list has not; a section
+   through an appliance space finds a benchtop and is a section of nothing. Both come from the
+   parts list not being the job.
+
+   **Two questions for the shop, both small and neither asked yet:**
+   - **The kick draws 10mm below the floor line**, because the face is genuinely cut 10mm over to
+     be scribed on site. Honest, half a millimetre on paper at 1:20, deliberately not clipped —
+     but should a *client* sheet show a fitting allowance at all?
+   - **Sections are cut one per cabinet type, through the example that shows the most.** That is
+     the trade's *typical section* made objective, and it is stated at the top of `section.ts`.
+     If the shop wants cuts somewhere specific, it is a different rule and a small one.
 2. **A part too big for its sheet cannot be split**, §5.13 item 6 — the last of that list. Wanted:
    an option to split it. **Design questions before code**, and they are the shop's to answer:
    where the split may fall, whether the halves get a joining detail or are simply two parts, and
@@ -106,7 +113,7 @@ left here is what the answers turned into — read it before asking either again
 
 ## Closed recently — read before reopening any of it
 
-**The client drawing pack — §4.30 the floor plan, §4.31 the elevations.** A **Drawings** view
+**The client drawing pack — §4.30 the floor plan, §4.31 the elevations, §4.32 the sections.** A **Drawings** view
 beside 3D / Wireframe / Plan, printing a vector multi-page A3 through the browser's Save as PDF.
 The rule the whole thing rests on: **paper is a measuring instrument**, so the scale is chosen
 from a ladder of real scales and a sheet refuses rather than inventing one that fits, and a
