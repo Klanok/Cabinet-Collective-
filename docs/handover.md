@@ -2861,7 +2861,8 @@ both on the Cost panel and in the terminal report.
 
 **Where to look:** `model/panel.ts` `finishGrain`; `rules/build.ts` `finishGrainFor`;
 `viewport/PanelMesh.tsx` for why a finished face ignores the substrate's placement;
-`model/material.ts` `bendAxis` and `unconfirmedBendAxis`; `nest/nest.ts` `orientationsFor`.
+`model/material.ts` `bendAxis` — and the `unconfirmedBendAxis` beside it until 4.28 deleted it, the
+shop having confirmed the axis; `nest/nest.ts` `orientationsFor`.
 **No schema change** — `bendAxis` is optional and absent on every flat board.
 
 ---
@@ -3108,6 +3109,25 @@ The warning was **true of every corner on the day it was written**, and 5.7 made
 corner. That is the shape to keep watching for — not a claim that was wrong, a claim that was
 right until the code grew a second case, with nothing to fail when it did.
 
+#### And the open list is a claim about the app, like any other
+
+Preparing these docs for the next session meant checking every claim in `start-here.md` against the
+code rather than re-reading it. One did not survive: **"a part too big for its sheet is silently
+not nested"**, carried in three places, is not silent. `NestPanel` names the part, says no sheet of
+that material will hold it, and says the whole sheet it is charged is a floor rather than a figure;
+`cutlist/export.ts` marks it `NOT NESTED`; and §4.8's own write-up says both. The only place it is
+genuinely silent is the terminal report.
+
+The item itself stands — the wanted thing is the **split**, and that is still a design question for
+the shop. What was wrong was the sentence recruiting the next session to build a warning that has
+been there since §4.8. **An unbuilt item is a claim about the app like any other**, and this is the
+second one caught being wrong about it rather than about shipped work; §4.17 is the first.
+
+The other claims held, and two were re-measured rather than repeated: the sheet footprints trace to
+the library as written, and the *"+ cabinet type"* buttons are **nine on three lines at 160px**,
+identically at 1280 × 720, 1366 × 768 and 1920 × 1080 — 24% of the left column on the smallest
+screen and 16% on the largest, which is the figure that makes it worth doing.
+
 **Where to look:** `model/construction.ts` for the tested pair; `rules/parts.ts`
 `cornerRadiusProblems` for both the radius rule and the laminate gate; `tests/routedCorner.test.ts`
 and `tests/bendAxis.test.ts` for the contracts.
@@ -3165,9 +3185,10 @@ them on the borer.
 
 **Unblocked, in the order I would take them:**
 
-- **A part too big for its sheet is silently not nested**, §5.13 item 6. Design questions before
-  code, and it is closer to a benchtop's `joins` than to a nesting tweak. **It is the only item on
-  either August list still open.**
+- **A part too big for its sheet cannot be split**, §5.13 item 6. Design questions before code, and
+  it is closer to a benchtop's `joins` than to a nesting tweak. **It is the only item on either
+  August list still open.** This bullet read *"silently not nested"* until 4.28 checked it: the
+  Nest tab names the part, the CSV marks it `NOT NESTED`, and §4.8 said so all along.
 - ~~**Sheet sizes, the tail of §5.13 item 7.**~~ **Closed in full.** The wait was for a published
   range, and suppliers publish the **nominal** — so the figure this file kept asking for was never
   coming, while the shop's own rule had been on the table twice: *"the sizes are not to be trusted …
@@ -3668,11 +3689,15 @@ remains:
 
 ### 5.7 The routed corner — **shipped, see 4.27**
 
-**Built.** The shop answered the one thing this section refused to guess — *"it's a pocket route
-on the rear"*, formers unchanged — and everything else here turned out to be exactly right,
-including that it needs no new material slot. What is left is two questions, both in §4.27: the
-**kick** is still bendy ply on a routed corner and nobody has been asked, and the pocket pitch and
-residual are readings rather than measurements.
+**Built, and nothing is left open on it.** The shop answered the one thing this section refused to
+guess — *"it's a pocket route on the rear"*, formers unchanged — and everything else here turned
+out to be exactly right, including that it needs no new material slot.
+
+The three questions this paragraph used to carry have all since been answered by the shop, and each
+changed the parts: the **kick** is kerfed carcass board with a developed length, not bendy ply; the
+relief is **one continuous pocket** rather than a pitched run of kerfs, so the pitch setting is
+gone; and a **2mm web is tested to 200mm radius**, which is now a rule on the cabinet rather than a
+caution on a settings tab. See 4.27 for the first two and 4.28 for the third.
 
 **4.5 is done, so this is unblocked.** It is the same corner by a different method, and the
 shared builders it wanted — `rules/radius.ts` for the plan geometry, `cornerFormers` and
@@ -4367,10 +4392,17 @@ below the overcut.
 
    Every file is a **Woodtron**; only the Z datum is confirmed for the KDT, by the shop directly.
 
-6. **A part too big for its sheet is silently not nested.** Wanted: an option to **split** it.
-   Design questions before code: where the split may fall, whether the halves get a joining detail
-   or are simply two parts, and what the cutlist calls them. A split part is two parts and a join,
-   which makes it closer to a benchtop's `joins` than to a nesting tweak.
+6. **A part too big for its sheet cannot be split.** Wanted: an option to **split** it. Design
+   questions before code: where the split may fall, whether the halves get a joining detail or are
+   simply two parts, and what the cutlist calls them. A split part is two parts and a join, which
+   makes it closer to a benchtop's `joins` than to a nesting tweak.
+
+   **This entry said "silently not nested" for two lists running, and it was not silent.**
+   `NestPanel` names the part, says no sheet of that material will hold it, and says the sheet it
+   is charged is a floor rather than a figure; `cutlist/export.ts` marks it `NOT NESTED`; §4.8's
+   own write-up records both. The one place it *is* silent is the terminal report. The wanted thing
+   was never the warning — checked in 4.28, and it is the second open item found overstating its
+   own fault (the first is the §4.17 correction at the head of 5.11).
 
 7. **Sheet sizes are wrong — 2400 × 1200 is the usable area, not the sheet.** **Half done.**
 

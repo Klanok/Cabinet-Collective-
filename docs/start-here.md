@@ -37,9 +37,10 @@ the **reference spindle**; two holes 128mm apart means it is the **head origin**
 the multidrill head — a row bored on the borer measures the wrong machine. A part on its own settles
 nothing without the program that drilled it.
 
-## The two that were on this list are answered — §4.28
+## Two shop questions came back, and both are applied — §4.28
 
-Both came back off the bench in a sentence, and both are applied:
+This section used to hold them open. Both were answered off the bench in a sentence, so what is
+left here is what the answers turned into — read it before asking either again:
 
 - **A 2mm web is tested to 200mm radius.** So a routed corner asked for tighter says so *on the
   cabinet*, naming the web and the figure — a warning, not a refusal, because *nobody has bent it
@@ -54,27 +55,37 @@ Both came back off the bench in a sentence, and both are applied:
 
 ## Unblocked, in the order I would take them
 
-1. **A part too big for its sheet is silently not nested**, §5.13 item 6 — the last of that list.
-   Wanted: an option to split it. **Design questions before code**, and they are the shop's to
-   answer: where the split may fall, whether the halves get a joining detail or are simply two
-   parts, and what the cutlist calls them. A split part is two parts and a join, which puts it
-   closer to a benchtop's `joins` than to a nesting tweak.
+1. **A part too big for its sheet cannot be split**, §5.13 item 6 — the last of that list. Wanted:
+   an option to split it. **Design questions before code**, and they are the shop's to answer:
+   where the split may fall, whether the halves get a joining detail or are simply two parts, and
+   what the cutlist calls them. A split part is two parts and a join, which puts it closer to a
+   benchtop's `joins` than to a nesting tweak.
+
+   **This item said "silently not nested" in three places and it was wrong in all three** — the
+   Nest tab names the part and says the sheet it is charged is a floor, and the nest CSV marks it
+   `NOT NESTED`. §4.8's own write-up said so the whole time. The one place it *is* silent is the
+   terminal report. Corrected 4.28; the missing thing was never the warning, it is the split.
 2. **A drawer front's height can change the cabinet's height**, §5.11 — reported, never reproduced.
    The useful detail when it is reported again is whether the height moves *as you type* or *on
    save*, because those are two different bugs. **The off-screen input reported with it is a
    separate, closed thing — §4.24** — so do not take a fresh report of one as evidence of the
    other.
 3. **What is left of the UI pass**, §5.11 — and it is now one small thing. The Inspector is done
-   (§4.24) and the Settings window is done (§4.25). Left: the nine **"+ cabinet type" buttons**
-   above the cabinet list wrap onto three lines and hold about 160px whether or not you are adding
-   a cabinet. Not clipped, not small, just clumsy — and worth asking the shop how they actually
-   add cabinets before redesigning it.
+   (§4.24) and the Settings window is done (§4.25). Left: the **"+ cabinet type" buttons** above
+   the cabinet list. Measured again this session rather than repeated: **nine buttons, three lines,
+   160px at every screen size** — which is 24% of the left column at 1280 × 720 and 16% at
+   1920 × 1080, so it costs most on the smallest screen and it costs it whether or not you are
+   adding a cabinet. Not clipped, not small, just clumsy — and worth asking the shop how they
+   actually add cabinets before redesigning it.
 
 ## Waiting on the shop, and worth asking early
 
-- **Does a client ever pick a *contrasting* finish laminate?** Today the curve is finished in the
-  door decor, hardcoded as `finish: 'door'` in the part rules. If a laminate can differ from the
-  doors it is a field on the construction method, not a derivation.
+- **Does a client ever pick a *contrasting* finish laminate?** Today a wrapped curve is finished in
+  the door decor, hardcoded as `finish: 'door'` in `wrapLayers`. If a laminate can differ from the
+  doors it is a field on the construction method, not a derivation. **It is a question about the
+  wrapped corner only** — a routed one *is* the door board (§4.27), so a contrasting curve there
+  would be a different board, not a different laminate, and that is a second question worth asking
+  in the same breath.
 - **Should a *housed* back follow a deleted end?** The shipped back laps over the carcass, so it is
   full width by definition and correctly does not move. Housed into the sides it would follow the
   opening like the top does.
@@ -137,7 +148,7 @@ finish laminate        3600 × 1350 Polytec, 3600 × 1500 Laminex
 **Ply is the one that shrinks**, and it is the trap in the set: a rule remembered as *"the real sheet
 is bigger"* applied to ply cuts a part short.
 
-## The lesson that keeps repeating — nine sessions running
+## The lesson that keeps repeating — ten sessions running
 
 **A claim in this codebase goes stale and nothing fails when it does.** Sessions have caught stale
 open items, stale *fix* claims, a bug report reproducible with one grep, and **a migration's own doc
@@ -170,8 +181,24 @@ The ninth found two more, and both are in places nobody thinks to look:
   like a claim about the code**, and what found it was a mapping asserted total rather than written
   from memory.
 
+The tenth found two more, and they are the two hardest to see because neither was ever wrong when
+it was written:
+
+- **A claim that was right until the code grew a second case.** The warning telling a shop its
+  curve would show bare bendy ply was true of every corner the day it shipped. §5.7 added a corner
+  with no bendy ply in it, and the warning kept firing — nothing failed, because nothing checks
+  that a sentence still describes every case it fires on. **Adding a second kind of a thing means
+  auditing what the app already says about the first kind.**
+- **An open item that overstates its own fault.** *"A part too big for its sheet is silently not
+  nested"* was carried in three places, and it is not silent: the Nest tab names the part and says
+  the sheet it charges is a floor, the CSV marks it `NOT NESTED`, and §4.8 recorded both. The
+  wanted thing was always the **split**. This is the second time an open item has been wrong about
+  the app rather than about shipped work — §4.17 is the first — and it is worse than a stale fix
+  claim, because it sends the next session to build something that exists.
+
 **Check the code, not the paragraph.** The general form: a repair has to cover every chain that
 reads the field, not every field in one chain. And when you make a claim false, go and find it.
+**That applies to the open list too** — an unbuilt item is a claim about the app like any other.
 
 ## How to work
 
