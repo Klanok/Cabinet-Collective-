@@ -67,11 +67,16 @@ left here is what the answers turned into — read it before asking either again
    terminal report. Corrected 4.28; the missing thing was never the warning, it is the split.
 2. **What is left of the UI pass**, §5.11 — and it is now one small thing. The Inspector is done
    (§4.24) and the Settings window is done (§4.25). Left: the **"+ cabinet type" buttons** above
-   the cabinet list. Measured again this session rather than repeated: **nine buttons, three lines,
-   160px at every screen size** — which is 24% of the left column at 1280 × 720 and 16% at
-   1920 × 1080, so it costs most on the smallest screen and it costs it whether or not you are
-   adding a cabinet. Not clipped, not small, just clumsy — and worth asking the shop how they
-   actually add cabinets before redesigning it.
+   the cabinet list. **Re-measured at the last handover rather than repeated, and the figures
+   hold**: nine buttons, three lines, **160px at every screen size** — 24% of the left column at
+   1280 × 720, 19% at 1600 × 900, 16% at 1920 × 1080. So it costs most on the smallest screen, and
+   it costs it whether or not you are adding a cabinet. Not clipped, not small, just clumsy — and
+   worth asking the shop how they actually add cabinets before redesigning it.
+3. **The app's own header still says "Phase 2".** `App.tsx` subtitles the app *"Phase 2 — carcasses,
+   drawer boxes, Blum hardware and drilling"*, and Phase 3's nesting shipped long ago, as has the
+   drawing pack. **Found by the handover audit, deliberately not fixed** — it is a line of
+   user-facing copy and what it should say now is the shop's call, not a session's. One line in
+   `App.tsx` when somebody decides.
 
 ## Waiting on the shop, and worth asking early
 
@@ -246,9 +251,33 @@ The eleventh found two more, and both are in §4.29:
   written by the session that had just finished reading the warning about it. `if (x) expect(…)`
   is the shape: an assertion that opts out of running is an assertion that always passes.
 
+The twelfth found three more, and the interesting thing is **where**: not in the code, and not in
+the open list, but in the *records of finished work* — the one place nobody re-reads because it is
+about the past.
+
+- **A "what is left" list that outlived its code by about an hour.** §4.30 finished by naming what
+  the drawing pack still needed: sections, and a 3D view. Both were built in the same session, and
+  the paragraph sat there describing a job that was done. It is left visible in §4.30 with a note,
+  because a file whose whole subject is stale claims should show one happening to itself.
+- **Two verification records that read as current.** §4.31 said *"across the three-sheet pack"* and
+  §4.32 said *"six-sheet pack"* — each true when written, and each now reading like a statement
+  about an app that has seven. **A record of what was measured needs a date on it, or it becomes a
+  claim about now.** Both are re-worded as *"the pack as it stood then"*.
+- **Three rows of the README's status table were wrong in the safe direction** — `not started`
+  against work that had shipped: the routed corner (§4.27), upholstery on the quote (§4.19), and
+  the PDF export itself. Nobody had noticed because a stale `not started` never breaks anything;
+  it just quietly offers the next session a job that is finished. **§4.17's lesson was that an open
+  *item* goes stale. This is that one row lower: an open *status* goes stale too.**
+
 **Check the code, not the paragraph.** The general form: a repair has to cover every chain that
 reads the field, not every field in one chain. And when you make a claim false, go and find it.
-**That applies to the open list too** — an unbuilt item is a claim about the app like any other.
+**That applies to the open list too** — an unbuilt item is a claim about the app like any other,
+and so is a row in a table saying something has not been done.
+
+**And check the finished list, not only the open one.** Three of this pass's findings were in
+write-ups of *completed* work. A session reads the open items looking for a job and reads the
+closed ones looking for context, so nobody audits the closed ones — which is exactly what makes
+them the safest place for a false sentence to live. The handover pass is where they get read.
 
 ## How to work
 

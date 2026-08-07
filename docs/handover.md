@@ -3348,9 +3348,15 @@ the running app and watching a second marker appear. The unit tests already asse
 markers; **the live check was the one that could have been misread**, and the answer was to go and
 look at the job rather than to "fix" the count.
 
-#### What is left of the shop's ask
+#### What is left of the shop's ask — nothing, and this paragraph is why the list is checked
 
-Sections, and a 3D view with a finishes schedule. **Elevations are §4.31.**
+**All four sheet types are built**: this one, elevations (§4.31), sections (§4.32) and the
+overview with its finishes schedule (§4.33).
+
+This paragraph used to read *"Sections, and a 3D view with a finishes schedule"*, and it was true
+for about an hour. It is left visible rather than quietly overwritten because it is the file's own
+lesson happening to the file: **a claim that was right when it was written and is not checked
+again.** The handover pass caught it, which is what the handover pass is for.
 
 **Where to look:** `core/export/sheet.ts` for paper and scale, `core/export/planSheet.ts` for what
 is on the sheet and every figure on it, `app/export/` for the drawing and the print path, and the
@@ -3436,7 +3442,8 @@ question for the shop, and it is one setting either way.
 A 4.2m plan and a 3.6m elevation do not want the same scale. Each sheet fits itself from the same
 ladder and prints its own figure in its own title block, which is the normal convention on a set
 of drawings — and the live check therefore asserts scale honesty **per sheet** rather than once.
-Across the three-sheet pack, worst error 0.0000 paper mm, three pages, vector text.
+Across the pack as it stood then — three sheets — worst error 0.0000 paper mm, three pages,
+vector text. It is seven sheets now; §4.32 and §4.33 re-measured the whole set as each was added.
 
 The title block and scale bar moved into `app/export/sheetParts.tsx` when the second sheet
 arrived. A title block copied twice is a title block that gets fixed once, and the way that fails
@@ -3509,9 +3516,10 @@ nothing is worse than no dimension, so it is not drawn when there is nothing ove
 
 #### Verified
 
-Six-sheet pack on the sample kitchen — plan, two elevations, three sections (base, drawer bank,
-wall). Every sheet at the scale its own title block claims, worst error **0.0000 paper mm**,
-nothing off any sheet, six pages, vector text. Five mutations run and each killed the assertion
+The pack as it stood then — six sheets on the sample kitchen: plan, two elevations, three
+sections (base, drawer bank, wall). Every sheet at the scale its own title block claims, worst
+error **0.0000 paper mm**, nothing off any sheet, six pages, vector text. §4.33 adds the overview
+and re-measures all seven. Five mutations run and each killed the assertion
 meant for it: a cut plane loose enough to catch a cabinet's own sides, `s` measured along the wall
 instead of out from it, taking the first example rather than the richest, the splashback gap
 measured from the floor instead of the bench, and dropping the must-contain-its-own-cabinet rule.
