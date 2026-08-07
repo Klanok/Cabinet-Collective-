@@ -1653,3 +1653,19 @@ tbody td {
     break-after: auto;
   }
 }
+
+/*
+ * The pack's own 3D canvas.
+ *
+ * It has to be **rendered** — WebGL draws nothing into a `display: none` element, and a zero-sized
+ * one captures a zero-sized image — so it is moved off-screen rather than hidden. Its output
+ * reaches the sheet as a data URL, never as this element, so it is never printed.
+ */
+.view-capture {
+  position: absolute;
+  left: -20000px;
+  top: 0;
+  width: 1400px;
+  height: 900px;
+  pointer-events: none;
+}

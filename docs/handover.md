@@ -3522,6 +3522,78 @@ measured from the floor instead of the bench, and dropping the must-contain-its-
 
 ---
 
+### 4.33 The overview sheet — the pack's one picture, and the one sheet with no scale on it
+
+The last of the shop's four. Sheet 1: a **rendered view of the kitchen** over a **finishes
+schedule**. The sheet a client opens first and measures nothing on.
+
+#### The one sheet with no scale, deliberately
+
+A perspective view has no single scale, so putting one in its title block would be exactly the lie
+the rest of the pack exists to prevent — a figure inviting a measurement the drawing cannot
+honour. It says **"Not to scale"**, and `SheetFurniture` takes its `scale` as optional so this
+sheet gets **no scale bar** either. A measuring aid over a drawing that cannot be measured is
+worse than none.
+
+#### Why the pack renders its own canvas
+
+The Drawings view replaces the 3D viewport, so by the time somebody presses Print the viewport's
+canvas is unmounted and there is nothing to grab. Reaching for it would have worked exactly as
+long as the user happened to visit 3D first — the kind of thing that passes every test and fails
+on the bench. So the pack mounts its **own** canvas off-screen, drawing the *same* `Scene` the
+viewport does rather than a second simplified rendering, and captures it to a data URL.
+
+`preserveDrawingBuffer` is required or `toDataURL` returns blank, which is why the viewport itself
+does not ask for it. Off-screen rather than `display: none`: **WebGL draws nothing into a hidden
+element**, and a zero-sized one captures a zero-sized image.
+
+#### Two guards, because a bad picture is worse than no picture
+
+A blank or single-colour capture prints as a grey rectangle that reads as a fault in whatever
+opened the PDF. So `isCaptureBlank` samples the decoded pixels and, if nothing varies, the sheet
+draws a dashed placeholder saying the view is still rendering instead. The capture also waits a
+dozen frames, because textures load asynchronously and frame one of a job with decors on it is a
+grey kitchen.
+
+#### The defect the live check found, and it would have shipped
+
+The first overview sheet came out with the **viewport's dark background** behind the kitchen —
+`#1b1d21`, plus a `#3a3e45` floor and `#6a6f78` walls. Correct for a dark-themed app, and on a
+printed client sheet a near-black A3 rectangle covering half the page: wrong for a drawing, and a
+cartridge's worth of toner. The room shell now takes its colours as a parameter (`ROOM_COLOURS`)
+and the pack asks for the paper set. Measured rather than eyeballed — mean luminance went from a
+dark slab to **210/255 with 0% of the render dark**.
+
+**And a caution about how that was nearly mis-diagnosed.** After the fix the measurement said 210
+and the screenshot still looked black, which read as the change not taking. It had: the screenshot
+was **stale**, because the check was being run through `| head -9` and node was dying on EPIPE
+before it reached the code that writes the images. The number was current and the picture was old.
+A picture is the wrong thing to verify against — and it is also the wrong thing to *doubt a
+measurement* with.
+
+#### The schedule lists what the job uses, not what the library offers
+
+Every line is gathered from the parts and units the rule engine produced. A schedule read off the
+material library would be right the day it was written and wrong the first time somebody overrode
+a sink base — and a client would be quoted a kitchen in a decor that is not in it. So a
+per-cabinet override lands on the schedule automatically, which is the case a hand-written list
+always gets wrong, and there is an assertion for exactly that.
+
+Benchtops come off the stored units rather than off panels, because a bought-in top has no panels
+— §4.31 and §4.32's lesson arriving a third time, on the one sheet a client reads to find out what
+their benchtop is. Hardware comes off `ResolvedHardware`, so a cabinet that names its own runner
+is scheduled for the runner it was quoted and bored for.
+
+One small thing worth keeping: `EdgeBanding` is **per edge**, so a front is counted once per
+distinct band it wears rather than once per banded edge. Counting edges reports a plain door as
+four, and a mutation proves it.
+
+**Where to look:** `core/export/finishes.ts` for the schedule, `app/export/ViewCapture.tsx` for
+the render and its guards, `app/export/OverviewSheet.tsx` for the sheet. `ROOM_COLOURS` and
+`PAPER_BACKGROUND` are in `viewport/RoomShell.tsx` and `viewport/Viewport3D.tsx`.
+
+---
+
 ## 5. Open items, in the order I'd do them
 
 **5.2 has shipped — see 4.6.** What is left of it is Hettich and a handful of gaps, listed below.

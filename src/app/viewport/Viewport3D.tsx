@@ -252,7 +252,17 @@ function GhostTops({ project, wireframe }: { project: Project; wireframe: boolea
   );
 }
 
-function Scene({
+/**
+ * Colour behind the scene.
+ *
+ * The app's own dark ground, and **white for the drawing pack** — a printed client sheet with the
+ * viewport's `#1b1d21` behind the kitchen is a black A3 rectangle, which is both wrong for a
+ * drawing and a cartridge's worth of toner. See `ViewCapture`.
+ */
+export const SCENE_BACKGROUND = '#1b1d21';
+export const PAPER_BACKGROUND = '#ffffff';
+
+export function Scene({
   built,
   project,
   selectedCabinetId,
@@ -260,7 +270,8 @@ function Scene({
   showWalls,
   wireframe,
   onMoveCabinet,
-}: Props) {
+  background = SCENE_BACKGROUND,
+}: Props & { background?: string }) {
   const texturePlacements = useMemo(
     () => sheetTexturePlacements(nestProject(project)),
     [project],
@@ -329,8 +340,11 @@ function Scene({
 
   return (
     <>
-      <color attach="background" args={['#1b1d21']} />
-      <hemisphereLight intensity={0.75} groundColor="#33373d" />
+      <color attach="background" args={[background]} />
+      <hemisphereLight
+        intensity={background === PAPER_BACKGROUND ? 1.05 : 0.75}
+        groundColor={background === PAPER_BACKGROUND ? '#d9d6d0' : '#33373d'}
+      />
       <directionalLight
         position={[4, 6, 5]}
         intensity={1.5}
@@ -341,7 +355,11 @@ function Scene({
 
       <Suspense fallback={null}>
         <group scale={MM_TO_SCENE}>
-          <RoomShell room={project.room} showWalls={showWalls} />
+          <RoomShell
+            room={project.room}
+            showWalls={showWalls}
+            palette={background === PAPER_BACKGROUND ? 'paper' : 'screen'}
+          />
           <RunUnits project={project} wireframe={wireframe} texturePlacements={texturePlacements} />
           <GhostTops project={project} wireframe={wireframe} />
           {built.map((b) => (

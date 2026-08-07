@@ -114,14 +114,21 @@ function ScaleBar({ sheet, scale }: { sheet: Sheet; scale: DrawingScale }) {
   );
 }
 
-/** Border, scale bar and title block — everything on a sheet that is not the drawing. */
+/**
+ * Border, scale bar and title block — everything on a sheet that is not the drawing.
+ *
+ * `scale` is **optional**, and the case it is omitted for is the overview sheet: a perspective
+ * view has no single scale, so it gets no bar. Drawing one would be the pack's own lie — a
+ * measuring aid over a drawing that cannot honour a measurement. Its title block says *Not to
+ * scale* instead, which is what a set of drawings puts on a perspective.
+ */
 export function SheetFurniture({
   sheet,
   scale,
   info,
 }: {
   sheet: Sheet;
-  scale: DrawingScale;
+  scale?: DrawingScale;
   info: TitleBlockInfo;
 }) {
   return (
@@ -135,7 +142,7 @@ export function SheetFurniture({
         stroke="#111"
         strokeWidth={WEIGHT.frame}
       />
-      <ScaleBar sheet={sheet} scale={scale} />
+      {scale && <ScaleBar sheet={sheet} scale={scale} />}
       <TitleBlock sheet={sheet} info={info} />
     </>
   );

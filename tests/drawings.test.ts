@@ -36,6 +36,7 @@ import { dimensionIsHonest } from '../src/core/export/dimension.ts';
 import { elevationMarkers, planSheetContent } from '../src/core/export/planSheet.ts';
 import { elevationOfWall, elevationsFor } from '../src/core/export/elevation.ts';
 import { sectionsFor } from '../src/core/export/section.ts';
+import { finishesSchedule } from '../src/core/export/finishes.ts';
 import type { Cabinet } from '../src/core/model/cabinet.ts';
 import { createCabinet, createEmptyProject, resetIdCounter } from '../src/core/project/factory.ts';
 import { startPlan, appendWall, closePlan, setWallLength } from '../src/core/project/plan.ts';
@@ -685,5 +686,117 @@ describe('a section is of the thing it is named after', () => {
     for (const section of sections) {
       expect(section.items.some((i) => i.ownerId === section.cabinetId)).toBe(true);
     }
+  });
+});
+
+/*
+ * ── The finishes schedule ──────────────────────────────────────────────────
+ *
+ * The claim this sheet makes is that it lists what the job **uses**. A schedule read off the
+ * material library instead would be right the day it was written and wrong the first time
+ * somebody overrode a sink base — and a client would be quoted a kitchen in a decor that is not
+ * in it. So these assert against overrides and against the parts actually built.
+ */
+describe('finishes schedule', () => {
+  const kitchen = (): Project => {
+    let p = rectRoom(4000, 3000);
+    const wall = p.room.walls[0]!;
+    const place = (c: Cabinet, along: number) => ({
+      ...c,
+      placement:
+        placeAgainstWall(
+          p.room,
+          { wallId: wall.id, along: mm(along), offset: mm(0) },
+          c.placement.anchor.y,
+        ) ?? c.placement,
+    });
+    const base = createCabinet(
+      { typeId: 'base', name: 'B1 Sink', width: mm(900), x: mm(0) },
+      p.defaults,
+      p.constructions,
+    );
+    const bank = createCabinet(
+      { typeId: 'drawer-bank', name: 'D1 Pots', width: mm(600), x: mm(0) },
+      p.defaults,
+      p.constructions,
+    );
+    p = { ...p, cabinets: [place(base, 0), place(bank, 900)] };
+    return { ...p, benchtops: [...generateBenchtops(p, 'shopmade-hmr-mdf-18')] };
+  };
+
+  it('names the fronts, the carcass, the benchtop and the hardware', () => {
+    const lines = finishesSchedule(kitchen());
+    const items = new Set(lines.map((l) => l.what));
+    expect(items.has('Doors and drawer fronts')).toBe(true);
+    expect(items.has('Carcasses')).toBe(true);
+    expect(items.has('Benchtop')).toBe(true);
+    expect(items.has('Drawer runners')).toBe(true);
+    // Every line says what it is for, so nothing on the schedule is unattributable.
+    for (const line of lines) expect(line.usedFor).not.toBe('');
+  });
+
+  it('lists a bought-in benchtop, which has no parts at all', () => {
+    // The §4.31 trap, on the one sheet a client reads to find out what their benchtop is.
+    let p = rectRoom(4000, 3000);
+    const wall = p.room.walls[0]!;
+    const base = createCabinet(
+      { typeId: 'base', name: 'B1', width: mm(900), x: mm(0) },
+      p.defaults,
+      p.constructions,
+    );
+    p = {
+      ...p,
+      cabinets: [
+        {
+          ...base,
+          placement:
+            placeAgainstWall(
+              p.room,
+              { wallId: wall.id, along: mm(0), offset: mm(0) },
+              base.placement.anchor.y,
+            ) ?? base.placement,
+        },
+      ],
+    };
+    p = { ...p, benchtops: [...generateBenchtops(p, 'stone-quartz-20')] };
+    const bench = finishesSchedule(p).find((l) => l.what === 'Benchtop');
+    expect(bench).toBeDefined();
+    expect(bench!.detail).toMatch(/supplied and templated/);
+  });
+
+  it('follows a per-cabinet override rather than the job default', () => {
+    // The case a hand-written schedule always gets wrong.
+    const p = kitchen();
+    const other = p.materials.sheets.find(
+      (s) => s.id !== p.defaults.doorMaterialId && s.decor !== undefined,
+    )!;
+    const overridden: Project = {
+      ...p,
+      cabinets: p.cabinets.map((c, i) =>
+        i === 0 ? { ...c, materials: { ...c.materials, door: other.id } } : c,
+      ),
+    };
+
+    const before = finishesSchedule(p).filter((l) => l.what === 'Doors and drawer fronts');
+    const after = finishesSchedule(overridden).filter((l) => l.what === 'Doors and drawer fronts');
+    // One decor became two, and the overridden one is named.
+    expect(after.length).toBeGreaterThan(before.length);
+    expect(after.some((l) => l.specification.includes(other.decor))).toBe(true);
+  });
+
+  it('counts a front once per band it wears, not once per banded edge', () => {
+    // A door banded all round is one door, not four.
+    const lines = finishesSchedule(kitchen());
+    const fronts = lines.find((l) => l.what === 'Doors and drawer fronts')!;
+    const edging = lines.find((l) => l.what === 'Edging');
+    if (!edging) return;
+    const frontCount = Number(fronts.usedFor.split(' ')[0]);
+    const edgedCount = Number(edging.usedFor.split(' ')[0]);
+    expect(edgedCount).toBeLessThanOrEqual(frontCount);
+  });
+
+  it('has nothing to schedule for an empty job', () => {
+    // A table of headings with nothing under them is a sheet that looks like a fault.
+    expect(finishesSchedule(createEmptyProject('Empty'))).toEqual([]);
   });
 });

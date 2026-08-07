@@ -11,7 +11,7 @@ transcript. Then read `docs/woodtron-dialect.md` before touching anything under 
 
 ## Where things stand
 
-`main` is green at **1219 tests**. Schema **v36**, shop standards **v27**. Every session's work
+`main` is green at **1224 tests**. Schema **v36**, shop standards **v27**. Every session's work
 lands on `main` through a pull request, so `git log main` is the honest answer to what has shipped —
 check it rather than trusting this paragraph, which is exactly the kind of sentence that goes stale.
 
@@ -55,28 +55,7 @@ left here is what the answers turned into — read it before asking either again
 
 ## Unblocked, in the order I would take them
 
-1. **The last sheet of the client drawing pack — §4.30, §4.31, §4.32.** The shop asked for floor
-   plans, elevations and sections as a PDF to send a client. **Three of the four are built**: the
-   floor plan, one elevation per wall face, and one typical section per cabinet type. Left: a
-   **3D view with a finishes schedule**, which is the sheet clients look at first.
-
-   Read §4.30 for the two rules every sheet is built on — the scale must be one a rule can be
-   laid on, and a dimension's figure comes off the model and never off the drawn geometry. Then
-   §4.31 and §4.32 for the pair of lessons that will bite the next sheet too, because they are the
-   same sentence read both ways: **"no parts" and "nothing to draw" are different questions**, and
-   **a plane can find plenty and still be a drawing of nothing.** A bought-in top, a ladder base's
-   kick and an appliance opening are all things the job has and the parts list has not; a section
-   through an appliance space finds a benchtop and is a section of nothing. Both come from the
-   parts list not being the job.
-
-   **Two questions for the shop, both small and neither asked yet:**
-   - **The kick draws 10mm below the floor line**, because the face is genuinely cut 10mm over to
-     be scribed on site. Honest, half a millimetre on paper at 1:20, deliberately not clipped —
-     but should a *client* sheet show a fitting allowance at all?
-   - **Sections are cut one per cabinet type, through the example that shows the most.** That is
-     the trade's *typical section* made objective, and it is stated at the top of `section.ts`.
-     If the shop wants cuts somewhere specific, it is a different rule and a small one.
-2. **A part too big for its sheet cannot be split**, §5.13 item 6 — the last of that list. Wanted:
+1. **A part too big for its sheet cannot be split**, §5.13 item 6 — the last of that list. Wanted:
    an option to split it. **Design questions before code**, and they are the shop's to answer:
    where the split may fall, whether the halves get a joining detail or are simply two parts, and
    what the cutlist calls them. A split part is two parts and a join, which puts it closer to a
@@ -86,7 +65,7 @@ left here is what the answers turned into — read it before asking either again
    Nest tab names the part and says the sheet it is charged is a floor, and the nest CSV marks it
    `NOT NESTED`. §4.8's own write-up said so the whole time. The one place it *is* silent is the
    terminal report. Corrected 4.28; the missing thing was never the warning, it is the split.
-3. **What is left of the UI pass**, §5.11 — and it is now one small thing. The Inspector is done
+2. **What is left of the UI pass**, §5.11 — and it is now one small thing. The Inspector is done
    (§4.24) and the Settings window is done (§4.25). Left: the **"+ cabinet type" buttons** above
    the cabinet list. Measured again this session rather than repeated: **nine buttons, three lines,
    160px at every screen size** — which is 24% of the left column at 1280 × 720 and 16% at
@@ -113,13 +92,27 @@ left here is what the answers turned into — read it before asking either again
 
 ## Closed recently — read before reopening any of it
 
-**The client drawing pack — §4.30 the floor plan, §4.31 the elevations, §4.32 the sections.** A **Drawings** view
+**The client drawing pack — all four sheet types, §4.30 to §4.33.** The shop asked for floor
+plans, elevations and sections as a PDF to send a client, and it is built: an **overview** sheet
+with a rendered view and a finishes schedule, the **floor plan**, one **elevation** per wall face,
+and one typical **section** per cabinet type. A **Drawings** view
 beside 3D / Wireframe / Plan, printing a vector multi-page A3 through the browser's Save as PDF.
 The rule the whole thing rests on: **paper is a measuring instrument**, so the scale is chosen
 from a ladder of real scales and a sheet refuses rather than inventing one that fits, and a
 dimension's figure comes off the model and never off the geometry that was drawn. Each sheet is
 scaled on its own, so scale honesty is asserted per sheet — measured out of the rendered SVG,
 worst error 0.0000 paper mm across the pack.
+
+**Three questions for the shop, all small and none asked yet:**
+
+- **The kick draws 10mm below the floor line**, because the face is genuinely cut 10mm over to be
+  scribed on site. Honest, half a millimetre on paper at 1:20, deliberately not clipped — but
+  should a *client* sheet show a fitting allowance at all?
+- **Sections are cut one per cabinet type, through the example that shows the most** — the trade's
+  *typical section* made objective, stated at the top of `section.ts`. If the shop wants cuts
+  somewhere specific, that is a different rule and a small one.
+- **The overview's render is the app's own 3D view on a white room.** Whether a client should get
+  a plain rendering or something dressed up is a taste question nobody has put to them.
 
 **Read §4.31 before drawing anything else**, for the failure it was built to avoid and the one it
 still found. A mirrored elevation is *completely plausible* — right sizes, right dimensions, sink

@@ -23,10 +23,12 @@
  */
 
 import { useMemo, useState } from 'react';
+import { buildProject } from '../../core/rules/build.ts';
 import type { Project } from '../../core/model/project.ts';
 import { planSheetContent } from '../../core/export/planSheet.ts';
 import { elevationsFor } from '../../core/export/elevation.ts';
 import { sectionsFor } from '../../core/export/section.ts';
+import { finishesSchedule } from '../../core/export/finishes.ts';
 import {
   A2,
   A3,
@@ -40,6 +42,8 @@ import {
 import { PlanSheet } from './PlanSheet.tsx';
 import { ElevationSheet } from './ElevationSheet.tsx';
 import { SectionSheet } from './SectionSheet.tsx';
+import { OverviewSheet } from './OverviewSheet.tsx';
+import { ViewCapture } from './ViewCapture.tsx';
 import type { TitleBlockInfo } from './sheetParts.tsx';
 
 const PAPERS: { id: string; paper: PaperSize }[] = [
@@ -68,6 +72,9 @@ export function ExportView({ project }: { project: Project }) {
   );
 
   const sections = useMemo(() => sectionsFor(project), [project]);
+  const finishes = useMemo(() => finishesSchedule(project), [project]);
+  const built = useMemo(() => buildProject(project), [project]);
+  const [viewImage, setViewImage] = useState<string | null>(null);
 
   const planScale = useMemo(
     () => fitScale({ width: content.width, height: content.height }, sheet.frame),
@@ -81,7 +88,7 @@ export function ExportView({ project }: { project: Project }) {
     entity: project.settings.entityName,
     date: drawingDate(project.updatedAt || project.createdAt),
   };
-  const total = 1 + elevations.length + sections.length;
+  const total = 2 + elevations.length + sections.length;
   const info = (title: string, n: number, scale: DrawingScale | null): TitleBlockInfo => ({
     ...base,
     sheetTitle: title,
@@ -183,14 +190,27 @@ export function ExportView({ project }: { project: Project }) {
         </p>
       )}
 
+      {/*
+        The pack's own 3D canvas, rendering off-sheet so the overview has a picture to carry.
+        The viewport is unmounted while the Drawings view is open, so there is nothing else left
+        to grab — see `ViewCapture`.
+      */}
+      {hasPlan && <ViewCapture project={project} built={built} onCapture={setViewImage} />}
+
       {hasPlan && (
         <div className="sheet-stack">
+          <OverviewSheet
+            imageUrl={viewImage}
+            lines={finishes}
+            sheet={sheet}
+            info={{ ...info('Overview and finishes', 1, null), scaleLabel: 'Not to scale' }}
+          />
           {planScale && (
             <PlanSheet
               content={content}
               sheet={sheet}
               scale={planScale}
-              info={info('Floor plan', 1, planScale)}
+              info={info('Floor plan', 2, planScale)}
             />
           )}
           {elevationSheets.map(({ elevation, scale }, i) =>
@@ -200,7 +220,7 @@ export function ExportView({ project }: { project: Project }) {
                 elevation={elevation}
                 sheet={sheet}
                 scale={scale}
-                info={info(`Elevation ${elevation.key} — ${elevation.wallName}`, i + 2, scale)}
+                info={info(`Elevation ${elevation.key} — ${elevation.wallName}`, i + 3, scale)}
               />
             ) : null,
           )}
@@ -213,7 +233,7 @@ export function ExportView({ project }: { project: Project }) {
                 scale={scale}
                 info={info(
                   `Section ${section.key} — ${section.title}`,
-                  i + 2 + elevations.length,
+                  i + 3 + elevations.length,
                   scale,
                 )}
               />
