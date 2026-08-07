@@ -3262,6 +3262,106 @@ warning. `tests/wallAndDrawer.test.ts` is the contract, with the other two chain
 
 ---
 
+### 4.30 Drawings for a client — the floor plan sheet, and why the scale is the whole job
+
+The shop asked for **an export that presents floor plans, elevations and sections as a PDF to
+send a client**. This is the first sheet of that, built end to end on purpose: title block,
+dimensions, scale, print, checked on paper. Elevations and sections follow onto rails this
+proved rather than three half-built drawings.
+
+#### The thing that makes a drawing different from every other screen in this app
+
+**Paper is a measuring instrument.** Everything else here is read: a cutlist is read, a quote is
+read, the Nest tab is looked at. A drawing is *measured* — a client puts a rule on a sheet marked
+1:50 and takes a number off it. So a drawing at 1:52 because that is what happened to fit the
+frame is not slightly out; it is a sheet that lies, and it lies most convincingly to the person
+least able to check it.
+
+That is why `core/export/sheet.ts` picks the scale from a **ladder of real scales** and returns
+`null` rather than computing one that fits. A kitchen that will not go on A3 at 1, 2, 5, 10, 20,
+25, 50, 100 or 200 needs bigger paper, and saying so is the useful answer. The label and the
+transform both come off one `DrawingScale` object, so there is no second place for them to
+disagree — `scale.paperPerMm` is exposed rather than left for a caller to work out as
+`1 / denominator`, precisely so two pieces of code cannot derive it differently.
+
+**The same rule one level down: a dimension's figure comes from the model, never from the
+geometry that was drawn.** `Dimension.value` is a field rather than `hypot(a, b)`, and
+`dimensionIsHonest` asserts the two agree. A dimension that computed its own figure from its own
+endpoints could never be caught being wrong, because a fault in the drawing would move the number
+with it and they would agree all the way to the client. This is §7's lesson stated as a data
+structure.
+
+#### Two kinds of millimetre, and they are never mixed
+
+The model speaks in **model millimetres**; the sheet speaks in **paper millimetres**. The SVG's
+user units are paper mm and its `viewBox` is the sheet, so `strokeWidth={0.25}` is a quarter of a
+millimetre on the finished page at any scale and `fontSize={2.4}` is 2.4mm of text — which is how
+a drawing is actually specified. Model millimetres reach the page only through `toPaper`.
+
+#### It prints rather than downloading a file
+
+No backend, and the app runs from a ZIP, so the PDF is made in the browser. Going through the
+browser's own **Save as PDF** keeps the drawing vector — verified: the printed A3 carries `/Font`
+and its text is selectable, so a client zooming in on a dimension gets type and not pixels. A
+bundled `jsPDF` + `svg2pdf` would buy a one-click download for about a megabyte and would need its
+text checked sheet by sheet. Print was the shop's call and the PDF proves it was the right one.
+
+The Drawings view sits beside 3D / Wireframe / Plan rather than in the right-hand tab strip. A
+sheet is a **view**, not a table, and an A3 landscape page does not go in a sidebar.
+
+#### What the sheet carries
+
+Room and walls to their real thicknesses, cabinet footprints with the door face drawn heavy —
+which is what tells you which way it opens — wall units dashed over the base run, cabinet codes
+off the front of each name, three tiers of dimension (each cabinet, each wall, and the overall
+extents), lettered elevation markers, a scale bar and the title block.
+
+**The markers are lettered walking the walls, not walking the cabinets.** Wall order goes
+clockwise on screen (see `PlanView`), so A, B, C run round the room the way somebody standing in
+it would number them — rather than in whatever order the cabinets happen to sit in the job. Only
+walls that carry something get one: **a marker pointing at a sheet that does not exist is the same
+broken promise as a stale claim in this file.**
+
+The scale bar is not decoration. If a printer scales the page to fit, the bar shrinks with the
+drawing and stays true while the printed "1:20" silently stops being. That is the one check a
+client can actually perform, which is why the Drawings tab tells them to set margins to None and
+scaling to 100% rather than leaving it to be guessed.
+
+#### Verified on paper, per §7 — and it found two things
+
+Driven through the running app and **measured out of the rendered SVG**, not looked at: twelve
+dimensions on the sample kitchen, each one's drawn length in paper millimetres against its printed
+figure ÷ 20. Worst error **0.0000mm**. Then printed, and the PDF checked for page size, page
+count and vector text.
+
+- **Every PDF came out two pages.** An inline SVG sits on a text baseline and carries the line's
+  descender space under it, so an exactly-A3 sheet laid out about 3.5px taller than an A3 page and
+  spilled a blank second sheet. `display: block` on `.sheet`. **A blank page is the kind of fault
+  a screenshot cannot show you** — the drawing looked perfect.
+- **The view switch floated over the Print button.** Found in the screenshot, which is the thing
+  screenshots *are* for.
+
+**One assumption checked rather than believed:** the sheet drew one elevation marker on the sample
+kitchen and that looked like a bug. It is not — all nine of its cabinets are at yaw 0, so it is a
+single-wall galley and one marker is correct. Proved by swinging three units onto the East wall in
+the running app and watching a second marker appear. The unit tests already asserted two and three
+markers; **the live check was the one that could have been misread**, and the answer was to go and
+look at the job rather than to "fix" the count.
+
+#### What is left of the shop's ask
+
+Elevations (one per wall face, per the shop), sections, and a 3D view with a finishes schedule.
+Two things this session settled that they should be built on: **a run is not a wall** —
+`runs.ts` breaks a run at a tall cabinet because a tall unit carries no benchtop, so a wall with a
+pantry in it is two benchtop runs and one elevation — and the sheet plumbing, the scale ladder and
+the dimension type are all sheet-agnostic already.
+
+**Where to look:** `core/export/sheet.ts` for paper and scale, `core/export/planSheet.ts` for what
+is on the sheet and every figure on it, `app/export/` for the drawing and the print path, and the
+`@media print` block at the end of `styles.css`. `tests/drawings.test.ts` is the contract.
+
+---
+
 ## 5. Open items, in the order I'd do them
 
 **5.2 has shipped — see 4.6.** What is left of it is Hettich and a handful of gaps, listed below.

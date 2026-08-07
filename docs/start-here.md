@@ -11,7 +11,7 @@ transcript. Then read `docs/woodtron-dialect.md` before touching anything under 
 
 ## Where things stand
 
-`main` is green at **1184 tests**. Schema **v36**, shop standards **v27**. Every session's work
+`main` is green at **1201 tests**. Schema **v36**, shop standards **v27**. Every session's work
 lands on `main` through a pull request, so `git log main` is the honest answer to what has shipped —
 check it rather than trusting this paragraph, which is exactly the kind of sentence that goes stale.
 
@@ -55,7 +55,16 @@ left here is what the answers turned into — read it before asking either again
 
 ## Unblocked, in the order I would take them
 
-1. **A part too big for its sheet cannot be split**, §5.13 item 6 — the last of that list. Wanted:
+1. **The rest of the client drawing pack — §4.30.** The shop asked for floor plans, elevations
+   and sections as a PDF to send a client. **The floor plan sheet is built and the pipeline is
+   proved** — paper, scale ladder, dimensions, title block, print to a vector A3. Left: elevations
+   (**one per wall face**, which is the shop's answer, not one per run), sections, and a 3D view
+   with a finishes schedule. Read §4.30 first for the two rules the sheets are built on — the
+   scale must be one a rule can be laid on, and a dimension's figure comes off the model and never
+   off the drawn geometry — and for the trap in the model: **a run is not a wall.** `runs.ts`
+   breaks a run at a tall cabinet, so a wall with a pantry in it is two benchtop runs and one
+   elevation.
+2. **A part too big for its sheet cannot be split**, §5.13 item 6 — the last of that list. Wanted:
    an option to split it. **Design questions before code**, and they are the shop's to answer:
    where the split may fall, whether the halves get a joining detail or are simply two parts, and
    what the cutlist calls them. A split part is two parts and a join, which puts it closer to a
@@ -65,7 +74,7 @@ left here is what the answers turned into — read it before asking either again
    Nest tab names the part and says the sheet it is charged is a floor, and the nest CSV marks it
    `NOT NESTED`. §4.8's own write-up said so the whole time. The one place it *is* silent is the
    terminal report. Corrected 4.28; the missing thing was never the warning, it is the split.
-2. **What is left of the UI pass**, §5.11 — and it is now one small thing. The Inspector is done
+3. **What is left of the UI pass**, §5.11 — and it is now one small thing. The Inspector is done
    (§4.24) and the Settings window is done (§4.25). Left: the **"+ cabinet type" buttons** above
    the cabinet list. Measured again this session rather than repeated: **nine buttons, three lines,
    160px at every screen size** — which is 24% of the left column at 1280 × 720 and 16% at
@@ -91,6 +100,14 @@ left here is what the answers turned into — read it before asking either again
   on a machine.**
 
 ## Closed recently — read before reopening any of it
+
+**The client drawing pack, first sheet — §4.30.** A **Drawings** view beside 3D / Wireframe /
+Plan, printing a vector A3 through the browser's Save as PDF. The rule the whole thing rests on:
+**paper is a measuring instrument**, so the scale is chosen from a ladder of real scales and the
+sheet refuses rather than inventing one that fits, and a dimension's figure comes off the model
+and never off the geometry that was drawn. Verified by measuring twelve dimensions out of the
+rendered SVG against figure ÷ scale — worst error 0.0000mm — and by checking the printed PDF's
+page size, page count and that its text is vector.
 
 **The drawer front that ran past the carcass — §4.29**, which is §5.11's ten-session-old *"a
 drawer front's height can change the cabinet's height"*, reproduced at last off one sentence from
