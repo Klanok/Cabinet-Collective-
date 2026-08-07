@@ -25,7 +25,6 @@ import {
   type MaterialLibrary,
   type SheetMaterial,
   actualThicknessOf,
-  unconfirmedBendAxis,
   isOversize,
 } from '../../core/model/material.ts';
 import {
@@ -834,22 +833,11 @@ function MaterialsEditor({
       </Section>
 
       {/*
-        Which way the bendy ply bends, and that it is a reading rather than a measurement.
-
-        Outside every fold and at the foot of the tab, the same placement the Joinery and Hardware
-        bench lists get — a figure nobody has checked is the one thing on a screen that must not be
-        a click away. It is here rather than in a group because it is about the boards as a set.
+        A "Not yet checked at the bench" list stood here, saying nobody had confirmed which axis
+        of a sheet the word *column* names. The shop confirmed it — column bends along the sheet's
+        length — so the list is gone, not left drawing an empty heading. The bend axis is still a
+        per-board setting, because the shop buys both forms; it is simply no longer in doubt.
       */}
-      {unconfirmedBendAxis(library).length > 0 && (
-        <>
-          <div className="subhead">Not yet checked at the bench</div>
-          <ul className="warnings">
-            {unconfirmedBendAxis(library).map((note) => (
-              <li key={note}>{note}</li>
-            ))}
-          </ul>
-        </>
-      )}
 
       {/*
         The fold appears only when there is a board to measure — `BoardThicknessEditor` returns

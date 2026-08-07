@@ -20,7 +20,11 @@ import { placement } from '../geom/placement.ts';
 import { type SignedAxis, v2, v3 } from '../geom/vec.ts';
 import { cylindricalForming, developedLength } from '../model/forming.ts';
 import type { GrainConstraint, PanelRole } from '../model/panel.ts';
-import type { ConstructionMethod } from '../model/construction.ts';
+import {
+  TESTED_WEB,
+  TESTED_WEB_RADIUS,
+  type ConstructionMethod,
+} from '../model/construction.ts';
 import type { PanelFeature } from '../model/feature.ts';
 import type { RuleContext } from './context.ts';
 import {
@@ -1183,7 +1187,18 @@ export const wrapLayers = (ctx: RuleContext, rad: CornerRadius): PartInstance[] 
       finish: outer && laminated ? 'door' : undefined,
       note: (length) =>
         `Cut flat ${length.toFixed(1)} × ${ctx.H} and bend to ${Math.round(inner)}mm inside radius. ` +
-        'Check the sheet bends this way before cutting — bendy ply is sold barrel or column form.' +
+        /*
+         * This used to read *"check the sheet bends this way before cutting"*, which asked the
+         * operator to catch a fault the cut plan had already committed — §4.26 is the measurement
+         * that it did not work. The nest now lays the blank to the board's own bend axis, so the
+         * note points at the setting that decides it rather than at the sheet in his hands.
+         *
+         * It names no form on purpose: the axis is per board, this context carries thicknesses
+         * rather than the library, and a note hardcoding "column" would be wrong on the barrel
+         * board the shop also buys.
+         */
+        'This blank is nested to run the way its board bends — the form is set per board under ' +
+        'Settings → Materials. ' +
         (outer && laminated
           ? ` Laminate the outside face in the door decor, ${ctx.construction.finishLaminate}mm.`
           : ''),
@@ -1291,6 +1306,29 @@ export const cornerRadiusProblems = (ctx: RuleContext, spec: CabinetSpec): strin
         `and the curved piece is fixed to that strip — this method asks for ${stripAsked}mm.`,
     );
   }
+  /*
+   * **A radius tighter than the shop has ever bent this web.**
+   *
+   * The bench figure is a pair — *"2mm web is tested to 200mm radius"* — so this reads both
+   * halves and refuses to interpolate between them. At the tested web it compares radii; at any
+   * other web there is no tested radius to compare against, and the Joinery tab says *that*
+   * instead. Splitting it this way keeps one warning per fault: the job is wrong here, the
+   * method is unproven there.
+   *
+   * Not an error, and it must not become one. Nobody has bent it tighter, which is a different
+   * statement from it not going tighter — the cabinet is built, cut and quoted exactly as asked,
+   * and what it earns is a sample off the saw before the job runs.
+   */
+  if ((ctx.construction.cornerMethod ?? 'wrapped') === 'routed') {
+    const web = ctx.construction.routedPocketResidual;
+    if (Math.abs(web - TESTED_WEB) < 0.001 && rad.r < TESTED_WEB_RADIUS - 0.5) {
+      problems.push(
+        `A ${Math.round(rad.r)}mm radius is tighter than a ${TESTED_WEB}mm web has been bent — ` +
+          `${TESTED_WEB_RADIUS}mm is the shop's tested figure and nothing has been proven under ` +
+          'it. It will be cut and priced as asked; bend a sample before running the job.',
+      );
+    }
+  }
   if ((ctx.options.shelfBow ?? 0) > 0 && (ctx.options.shelfCount ?? 0) > 0) {
     problems.push(
       'A shelf cannot carry a bowed front and a rounded corner at once — two curves arguing ' +
@@ -1312,8 +1350,15 @@ export const cornerRadiusProblems = (ctx: RuleContext, spec: CabinetSpec): strin
    *
    * Not an error: a shop that veneers or paints its curves has a perfectly good bare wrap, which is
    * why it says what it will look like rather than what to do about it.
+   *
+   * **A wrapped corner only.** §5.7's routed curve is the door board itself with a banded leading
+   * edge — there is no substrate to show and no laminate in the build, so `finishLaminate` is not
+   * read on that path at all (see `outboardOfFormers`). Left ungated, a routed method with the
+   * laminate turned off was told its bendy ply would show beside the doors, on a corner with no
+   * bendy ply in it. That is the shape of stale claim this project keeps finding: the sentence was
+   * true of every corner when it was written, and §5.7 made a second kind of corner.
    */
-  if (!isLaminatedCurve(ctx.construction)) {
+  if ((ctx.construction.cornerMethod ?? 'wrapped') === 'wrapped' && !isLaminatedCurve(ctx.construction)) {
     problems.push(
       'This curve has no finish laminate on it, so the bendy ply is the finished face and the ' +
         'corner will show its substrate beside the doors. Set "Finish laminate over a curve" ' +

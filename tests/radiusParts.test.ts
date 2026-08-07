@@ -318,9 +318,17 @@ describe('the enclosed radiused end', () => {
     expect(skins[0]!.length).not.toBe(skins[1]!.length);
   });
 
-  it('tells the person at the saw to check which way the sheet bends', () => {
+  /*
+   * The note used to tell the person at the saw to check which way the sheet bends. §4.26 is the
+   * measurement that this did not work: the blanks were already nested turned, on a sheet that
+   * will not go that way, before anybody read the note. The cut plan lays them to suit now, so
+   * the note says what was assumed and where the assumption is set instead of asking for a check
+   * that comes too late to change anything.
+   */
+  it('says which setting decided the way this blank was laid', () => {
     const note = byName(end().built.panels, 'Skin layer 1').note ?? '';
     expect(note).toMatch(/bend to 543mm inside radius/);
-    expect(note).toMatch(/barrel or column form/);
+    expect(note).toMatch(/nested to run the way its board bends/);
+    expect(note).toMatch(/Settings → Materials/);
   });
 });

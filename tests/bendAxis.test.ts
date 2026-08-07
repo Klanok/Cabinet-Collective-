@@ -24,15 +24,15 @@
  * Only a part with `forming` on it is constrained. A flat part cut from bendy ply bends nowhere.
  *
  * Reference figures, from the shop: **column form is the default** — *"generally column but
- * sometimes barrel depending on the application"* — and this library's own long-standing note
- * says column bends along the sheet's length. So a skin's length must lie along the sheet length:
- * `as-cut`, never `turned`.
+ * sometimes barrel depending on the application"* — and column bends **along the sheet's length**,
+ * which was this library's own long-standing reading until the shop confirmed it: *"you have it
+ * right on the column"*. So a skin's length must lie along the sheet length: `as-cut`, never
+ * `turned`.
  */
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createCabinet, createEmptyProject } from '../src/core/project/factory.ts';
 import { nestParts, nestProject, orientationsFor } from '../src/core/nest/nest.ts';
-import { unconfirmedBendAxis } from '../src/core/model/material.ts';
 import { mm } from '../src/core/units.ts';
 import type { Project } from '../src/core/model/project.ts';
 
@@ -153,20 +153,31 @@ describe('a real curved cabinet', () => {
   });
 });
 
-describe('the reading says it is a reading', () => {
-  it('reports every bendable board as not yet checked at the bench', () => {
-    const notes = unconfirmedBendAxis(project.materials);
-    expect(notes.length).toBeGreaterThan(0);
-    // Named, and in the shop's own words, so it can be checked against a sheet rather than a
-    // field name — the same standard the Blum figures and the ladder scribe end are held to.
-    expect(notes.every((n) => /column form|barrel form/.test(n))).toBe(true);
-    expect(notes.some((n) => /Bendy plywood/.test(n))).toBe(true);
+/*
+ * **The reading became a measurement** — *"you have it right on the column"*.
+ *
+ * What was in doubt was never whether the shop buys column; it was which axis of the sheet that
+ * word names. It names the **length**, confirmed at the bench, so the caution that used to stand
+ * on the Materials tab is gone and this describes what ships instead of what to go and check.
+ *
+ * The assertion is on the shipped library rather than on a hand-built sheet, because the fault it
+ * guards is a board being added later with the axis flipped: every bendable board in the library
+ * bends along its length, and a barrel board is a deliberate per-board edit the shop makes.
+ */
+describe('which way the shipped boards bend', () => {
+  it('sets every bendable board to column form — along the sheet length', () => {
+    const bendable = project.materials.sheets.filter((s) => s.bendAxis !== undefined);
+    expect(bendable.length).toBeGreaterThan(0);
+    for (const sheet of bendable) {
+      expect(sheet.bendAxis, `${sheet.decor} is not column form`).toBe('length');
+    }
   });
 
-  it('says nothing about boards that do not bend', () => {
-    const flat = project.materials.sheets.filter((s) => s.bendAxis === undefined);
+  it('leaves every board that does not bend without an axis at all', () => {
+    // A flat board has no axis to be wrong about, and giving it one would hand the nester a
+    // constraint on parts that never get formed.
+    const flat = project.materials.sheets.filter((s) => !s.decor.includes('Bendy'));
     expect(flat.length).toBeGreaterThan(0);
-    const notes = unconfirmedBendAxis({ ...project.materials, sheets: flat });
-    expect(notes).toEqual([]);
+    for (const sheet of flat) expect(sheet.bendAxis).toBeUndefined();
   });
 });
