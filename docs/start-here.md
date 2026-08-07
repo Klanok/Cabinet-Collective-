@@ -11,7 +11,7 @@ transcript. Then read `docs/woodtron-dialect.md` before touching anything under 
 
 ## Where things stand
 
-`main` is green at **1184 tests**. Schema **v36**, shop standards **v27**. Every session's work
+`main` is green at **1224 tests**. Schema **v36**, shop standards **v27**. Every session's work
 lands on `main` through a pull request, so `git log main` is the honest answer to what has shipped —
 check it rather than trusting this paragraph, which is exactly the kind of sentence that goes stale.
 
@@ -91,6 +91,35 @@ left here is what the answers turned into — read it before asking either again
   on a machine.**
 
 ## Closed recently — read before reopening any of it
+
+**The client drawing pack — all four sheet types, §4.30 to §4.33.** The shop asked for floor
+plans, elevations and sections as a PDF to send a client, and it is built: an **overview** sheet
+with a rendered view and a finishes schedule, the **floor plan**, one **elevation** per wall face,
+and one typical **section** per cabinet type. A **Drawings** view
+beside 3D / Wireframe / Plan, printing a vector multi-page A3 through the browser's Save as PDF.
+The rule the whole thing rests on: **paper is a measuring instrument**, so the scale is chosen
+from a ladder of real scales and a sheet refuses rather than inventing one that fits, and a
+dimension's figure comes off the model and never off the geometry that was drawn. Each sheet is
+scaled on its own, so scale honesty is asserted per sheet — measured out of the rendered SVG,
+worst error 0.0000 paper mm across the pack.
+
+**Three questions for the shop, all small and none asked yet:**
+
+- **The kick draws 10mm below the floor line**, because the face is genuinely cut 10mm over to be
+  scribed on site. Honest, half a millimetre on paper at 1:20, deliberately not clipped — but
+  should a *client* sheet show a fitting allowance at all?
+- **Sections are cut one per cabinet type, through the example that shows the most** — the trade's
+  *typical section* made objective, stated at the top of `section.ts`. If the shop wants cuts
+  somewhere specific, that is a different rule and a small one.
+- **The overview's render is the app's own 3D view on a white room.** Whether a client should get
+  a plain rendering or something dressed up is a taste question nobody has put to them.
+
+**Read §4.31 before drawing anything else**, for the failure it was built to avoid and the one it
+still found. A mirrored elevation is *completely plausible* — right sizes, right dimensions, sink
+at the wrong end — so the horizontal direction is derived twice and checked on the page as well as
+in the model. And three things were missing from the first elevation with every model test green,
+because **"no parts" and "nothing to draw" are different questions**: a bought-in benchtop, a
+ladder base's kick, and an appliance opening.
 
 **The drawer front that ran past the carcass — §4.29**, which is §5.11's ten-session-old *"a
 drawer front's height can change the cabinet's height"*, reproduced at last off one sentence from

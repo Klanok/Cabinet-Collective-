@@ -44,7 +44,21 @@ const placeWall = (wall: Wall): WallPlacement | null => {
   };
 };
 
-function WallMesh({ wall }: { wall: Wall }) {
+/**
+ * The room's own colours, in the app and on paper.
+ *
+ * The app is dark-themed and its room reads well against that. Printed on a client sheet the same
+ * colours are a dark grey slab covering most of the page — wrong for a drawing, and a cartridge's
+ * worth of toner. So the shell takes its colours as a parameter rather than owning one set.
+ */
+export const ROOM_COLOURS = {
+  screen: { wall: '#6a6f78', floor: '#3a3e45' },
+  paper: { wall: '#e9e7e2', floor: '#dbd7cf' },
+} as const;
+
+export type RoomPalette = keyof typeof ROOM_COLOURS;
+
+function WallMesh({ wall, palette }: { wall: Wall; palette: RoomPalette }) {
   const placement = useMemo(() => placeWall(wall), [wall]);
   if (!placement) return null;
 
@@ -55,7 +69,7 @@ function WallMesh({ wall }: { wall: Wall }) {
       receiveShadow
     >
       <planeGeometry args={[placement.length, wall.height]} />
-      <meshStandardMaterial color="#6a6f78" roughness={0.95} side={FrontSide} />
+      <meshStandardMaterial color={ROOM_COLOURS[palette].wall} roughness={0.95} side={FrontSide} />
     </mesh>
   );
 }
@@ -70,7 +84,7 @@ function WallMesh({ wall }: { wall: Wall }) {
  * The outline is a plan-space ring of (X, Z) points. Rotating the shape by +90° about X sends
  * its own (x, y) to world (x, z), so the ring goes straight in with no flipping.
  */
-function Floor({ room }: { room: Room }) {
+function Floor({ room, palette }: { room: Room; palette: RoomPalette }) {
   const geometry = useMemo(() => {
     const ring = roomOutline(room);
     if (ring.length < 3) return null;
@@ -85,16 +99,25 @@ function Floor({ room }: { room: Room }) {
 
   return (
     <mesh geometry={geometry} rotation={[Math.PI / 2, 0, 0]} receiveShadow>
-      <meshStandardMaterial color="#3a3e45" roughness={1} side={DoubleSide} />
+      <meshStandardMaterial color={ROOM_COLOURS[palette].floor} roughness={1} side={DoubleSide} />
     </mesh>
   );
 }
 
-export function RoomShell({ room, showWalls }: { room: Room; showWalls: boolean }) {
+export function RoomShell({
+  room,
+  showWalls,
+  palette = 'screen',
+}: {
+  room: Room;
+  showWalls: boolean;
+  palette?: RoomPalette;
+}) {
   return (
     <group>
-      <Floor room={room} />
-      {showWalls && room.walls.map((wall) => <WallMesh key={wall.id} wall={wall} />)}
+      <Floor room={room} palette={palette} />
+      {showWalls &&
+        room.walls.map((wall) => <WallMesh key={wall.id} wall={wall} palette={palette} />)}
     </group>
   );
 }

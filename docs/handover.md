@@ -3262,6 +3262,338 @@ warning. `tests/wallAndDrawer.test.ts` is the contract, with the other two chain
 
 ---
 
+### 4.30 Drawings for a client — the floor plan sheet, and why the scale is the whole job
+
+The shop asked for **an export that presents floor plans, elevations and sections as a PDF to
+send a client**. This is the first sheet of that, built end to end on purpose: title block,
+dimensions, scale, print, checked on paper. Elevations and sections follow onto rails this
+proved rather than three half-built drawings.
+
+#### The thing that makes a drawing different from every other screen in this app
+
+**Paper is a measuring instrument.** Everything else here is read: a cutlist is read, a quote is
+read, the Nest tab is looked at. A drawing is *measured* — a client puts a rule on a sheet marked
+1:50 and takes a number off it. So a drawing at 1:52 because that is what happened to fit the
+frame is not slightly out; it is a sheet that lies, and it lies most convincingly to the person
+least able to check it.
+
+That is why `core/export/sheet.ts` picks the scale from a **ladder of real scales** and returns
+`null` rather than computing one that fits. A kitchen that will not go on A3 at 1, 2, 5, 10, 20,
+25, 50, 100 or 200 needs bigger paper, and saying so is the useful answer. The label and the
+transform both come off one `DrawingScale` object, so there is no second place for them to
+disagree — `scale.paperPerMm` is exposed rather than left for a caller to work out as
+`1 / denominator`, precisely so two pieces of code cannot derive it differently.
+
+**The same rule one level down: a dimension's figure comes from the model, never from the
+geometry that was drawn.** `Dimension.value` is a field rather than `hypot(a, b)`, and
+`dimensionIsHonest` asserts the two agree. A dimension that computed its own figure from its own
+endpoints could never be caught being wrong, because a fault in the drawing would move the number
+with it and they would agree all the way to the client. This is §7's lesson stated as a data
+structure.
+
+#### Two kinds of millimetre, and they are never mixed
+
+The model speaks in **model millimetres**; the sheet speaks in **paper millimetres**. The SVG's
+user units are paper mm and its `viewBox` is the sheet, so `strokeWidth={0.25}` is a quarter of a
+millimetre on the finished page at any scale and `fontSize={2.4}` is 2.4mm of text — which is how
+a drawing is actually specified. Model millimetres reach the page only through `toPaper`.
+
+#### It prints rather than downloading a file
+
+No backend, and the app runs from a ZIP, so the PDF is made in the browser. Going through the
+browser's own **Save as PDF** keeps the drawing vector — verified: the printed A3 carries `/Font`
+and its text is selectable, so a client zooming in on a dimension gets type and not pixels. A
+bundled `jsPDF` + `svg2pdf` would buy a one-click download for about a megabyte and would need its
+text checked sheet by sheet. Print was the shop's call and the PDF proves it was the right one.
+
+The Drawings view sits beside 3D / Wireframe / Plan rather than in the right-hand tab strip. A
+sheet is a **view**, not a table, and an A3 landscape page does not go in a sidebar.
+
+#### What the sheet carries
+
+Room and walls to their real thicknesses, cabinet footprints with the door face drawn heavy —
+which is what tells you which way it opens — wall units dashed over the base run, cabinet codes
+off the front of each name, three tiers of dimension (each cabinet, each wall, and the overall
+extents), lettered elevation markers, a scale bar and the title block.
+
+**The markers are lettered walking the walls, not walking the cabinets.** Wall order goes
+clockwise on screen (see `PlanView`), so A, B, C run round the room the way somebody standing in
+it would number them — rather than in whatever order the cabinets happen to sit in the job. Only
+walls that carry something get one: **a marker pointing at a sheet that does not exist is the same
+broken promise as a stale claim in this file.**
+
+The scale bar is not decoration. If a printer scales the page to fit, the bar shrinks with the
+drawing and stays true while the printed "1:20" silently stops being. That is the one check a
+client can actually perform, which is why the Drawings tab tells them to set margins to None and
+scaling to 100% rather than leaving it to be guessed.
+
+#### Verified on paper, per §7 — and it found two things
+
+Driven through the running app and **measured out of the rendered SVG**, not looked at: twelve
+dimensions on the sample kitchen, each one's drawn length in paper millimetres against its printed
+figure ÷ 20. Worst error **0.0000mm**. Then printed, and the PDF checked for page size, page
+count and vector text.
+
+- **Every PDF came out two pages.** An inline SVG sits on a text baseline and carries the line's
+  descender space under it, so an exactly-A3 sheet laid out about 3.5px taller than an A3 page and
+  spilled a blank second sheet. `display: block` on `.sheet`. **A blank page is the kind of fault
+  a screenshot cannot show you** — the drawing looked perfect.
+- **The view switch floated over the Print button.** Found in the screenshot, which is the thing
+  screenshots *are* for.
+
+**One assumption checked rather than believed:** the sheet drew one elevation marker on the sample
+kitchen and that looked like a bug. It is not — all nine of its cabinets are at yaw 0, so it is a
+single-wall galley and one marker is correct. Proved by swinging three units onto the East wall in
+the running app and watching a second marker appear. The unit tests already asserted two and three
+markers; **the live check was the one that could have been misread**, and the answer was to go and
+look at the job rather than to "fix" the count.
+
+#### What is left of the shop's ask
+
+Sections, and a 3D view with a finishes schedule. **Elevations are §4.31.**
+
+**Where to look:** `core/export/sheet.ts` for paper and scale, `core/export/planSheet.ts` for what
+is on the sheet and every figure on it, `app/export/` for the drawing and the print path, and the
+`@media print` block at the end of `styles.css`. `tests/drawings.test.ts` is the contract.
+
+---
+
+### 4.31 Elevations — one per wall, and the failure that looks completely plausible
+
+The second sheet in the pack: a wall seen square-on, one per wall face, lettered to match the
+floor plan's markers. Built on §4.30's plumbing, which is why it is a section and not a project.
+
+#### The projection, and why it is derived rather than guessed
+
+An elevation is two numbers per point: **u** along the wall from its start corner, **v** above the
+floor. The one that can be silently wrong is `u`'s *direction*, because getting it backwards
+**mirrors the drawing** — and a mirrored kitchen is entirely plausible. Every unit is the right
+size, every dimension reads correctly, the client signs it, and the sink is at the wrong end. It
+is this codebase's oldest failure — right part, wrong place — in its most convincing dress.
+
+So it is derived twice and the two are made to agree. A viewer stands in the room looking along
+`−n` with world +Y up, so their right hand is `f × up = (n.y, −n.x)`; and `wallInwardNormal` is
+the left normal of the wall's direction, `n = (−d.y, d.x)`, which gives `right = d`. **The
+viewer's right is the wall's own direction of travel**, so `u` is exactly the `along` that
+`wallAnchorOf` already reports and nothing needs flipping. Independently: `placeAgainstWall` uses
+`yawAgainstWall`, which maps a cabinet's local +X onto `d` — and a cabinet's parts are laid out
+with local x running left to right as you face it. Two derivations, one answer.
+
+That is asserted on both a wall running east and one running west, and again on the **rendered
+page** — the live check reads the cabinet codes out of the SVG in paper-x order, because a sign
+error in the renderer would mirror the sheet while every model assertion stayed green.
+
+#### What is drawn is what is built
+
+The items are the **real panels the rule engine produced**, projected — not a re-derivation of
+where a door ought to be. A drawer bank whose fronts were set by hand draws the fronts it will be
+cut to, and §4.29's bank draws as it now builds. Re-deriving the front layout here would be a
+second place deciding it.
+
+#### Three things the live check found that the suite could not
+
+The model tests were green and the first elevation of the sample kitchen was still wrong in three
+ways, all of them invisible from the model side:
+
+- **No benchtop.** That job's top is **bought-in stone**, so `buildRunUnits` produces no panels
+  for it — nobody in this shop cuts a stone top, it is templated on site. Right for a cutlist,
+  wrong for an elevation: the bench is the line a client's eye goes to first. Drawn as the slab
+  that arrives on the truck, which is what the viewport already does with it.
+- **No kick.** That job stands its runs on **ladder bases**, so the kick face is a *run unit's*
+  panel and not a cabinet's, and a loop over cabinet panels alone left a band of daylight under
+  every unit. Same board, same job, different owner — **an elevation cares what you see, not who
+  owns it.**
+- **An unexplained hole** where the dishwasher is. An appliance space produces no parts, which is
+  correct, and leaves a gap that reads as a mistake. Drawn as the dashed, labelled opening it is.
+
+**The shape to take from this: "no parts" and "nothing to draw" are different questions, and the
+model can only answer the first.** Every one of the three was a thing the job genuinely has and
+the parts list genuinely does not.
+
+#### A real bug the assertions caught, once they were pointed at the right thing
+
+`panelBox` projected a panel's **z = 0 face**, which is fine for a board standing up — its
+thickness runs into the elevation and contributes nothing to the outline — and wrong for a board
+lying **flat**. A benchtop's face is horizontal, so one face projects to a *line* and the whole
+18mm band vanishes. Now both faces, with the thickness read off the board it is cut from.
+
+Worth noting how it was found: a mutation survived. Replacing the bench-height dimension with a
+hardcoded 900 changed nothing, because no test built a benchtop at all — the guarded branch never
+ran. Writing the test that closed that gap is what surfaced the flat-panel bug. **A mutation that
+survives is not always a weak assertion; sometimes it is a missing one.**
+
+#### Known, deliberate, and the shop's call
+
+**The kick face draws 10mm below the floor line.** It is cut 10mm over-height to be scribed on
+site — `ladderFaceScribeEnd` — so the board really is 160mm on a 150mm plinth, and the drawing is
+faithfully reporting it. At 1:20 that is half a millimetre of paper. It is **not** silently
+clipped, because quietly altering geometry to make a drawing look tidier is how a drawing stops
+being a measurement. Whether a *client* sheet should show a fitting allowance at all is a
+question for the shop, and it is one setting either way.
+
+#### Each sheet is scaled on its own
+
+A 4.2m plan and a 3.6m elevation do not want the same scale. Each sheet fits itself from the same
+ladder and prints its own figure in its own title block, which is the normal convention on a set
+of drawings — and the live check therefore asserts scale honesty **per sheet** rather than once.
+Across the three-sheet pack, worst error 0.0000 paper mm, three pages, vector text.
+
+The title block and scale bar moved into `app/export/sheetParts.tsx` when the second sheet
+arrived. A title block copied twice is a title block that gets fixed once, and the way that fails
+is a sheet claiming 1:20 beside one claiming 1:25.
+
+**Where to look:** `core/export/elevation.ts` for the projection and what goes on the sheet,
+`app/export/ElevationSheet.tsx` for the drawing — it inverts the vertical, because v runs up and
+SVG's y runs down. `tests/drawings.test.ts` is the contract.
+
+---
+
+### 4.32 Sections — and making "relevant" a thing the model can answer
+
+The third sheet type. An elevation says how wide and where along the wall; a **section** says the
+things it physically cannot — how deep, how far the top overhangs, how far the kick is set back,
+how much clear air there is between the bench and the cupboard over it. On a client drawing it is
+the sheet that answers *"will my kettle fit under there"*.
+
+#### The judgement, written down because it is one
+
+The shop asked for "sections that are relevant", and **relevant is not a thing the model can be
+asked**. Guessing at it silently is exactly how the quarter-disc corner seat happened. So this
+takes the trade's own answer — *typical sections* — and makes it objective:
+
+> **one section per cabinet type the job contains**, cut through the example of that type whose
+> plane crosses the most parts.
+
+Two properties make that defensible rather than arbitrary. It is **complete**: a job with a
+banquette gets a banquette section without anybody remembering to ask, so a new cabinet type
+cannot quietly go undrawn. And *crosses the most parts* picks the **most informative** example —
+on a normal kitchen a base unit with a cupboard over it and a top on it, rather than whichever
+base happens to be first in the job, which might be the one at the end of the run with nothing
+above it.
+
+**If the shop wants cuts somewhere specific, that is a different rule and a small one.** It is
+stated in `section.ts`'s header so nobody has to re-derive it from the output.
+
+#### No mirroring hazard here, and why
+
+An elevation's horizontal is defined by where a *viewer stands*, which is what makes §4.31's
+mirror so easy to get wrong. A section's is not: **s** is measured along the wall's inward normal,
+which the wall itself defines. The wall is drawn at the left — a choice, fixed rather than
+derived, so every section in a pack reads the same way round.
+
+#### A section named after a cabinet has to contain that cabinet
+
+The first pack came out with a sheet titled **"Section 4 — Typical appliance space"** showing a
+wall, a benchtop and nothing else. An appliance space produces no parts, so the plane through one
+still finds the top bridging it — a real plane through a real job, and not a drawing of anything.
+Now a candidate is only taken if the cut finds a part **belonging to the cabinet the sheet is
+named after**.
+
+Worth keeping as a shape: §4.31's lesson was *"no parts" and "nothing to draw" are different
+questions* — a bought-in top and a ladder base's kick are things the job has and the parts list
+has not. This is the same sentence read the other way: **a plane can find plenty and still be a
+section of nothing.** Both come from the same place, which is that the parts list is not the job.
+
+#### What is drawn
+
+Only boards the plane passes **through**, filled solid — the convention every set of joinery
+drawings uses, so the eye reads the thickness of what is being made. Deliberately *not* everything
+visible beyond the cut: that turns a readable typical detail into a picture of the inside of a
+cupboard. A drawer bank's section comes out showing its boxes' bottoms and backs stacked inside
+the carcass, which is the useful thing about it.
+
+Dimensions: depth from the wall face along the bottom, and up the left the bench height and — only
+when something is actually above it — **the clear gap between the bench and the underside of the
+cupboard**, which is the figure a client asks about before any other on the sheet. A dimension to
+nothing is worse than no dimension, so it is not drawn when there is nothing over the bench.
+
+#### Verified
+
+Six-sheet pack on the sample kitchen — plan, two elevations, three sections (base, drawer bank,
+wall). Every sheet at the scale its own title block claims, worst error **0.0000 paper mm**,
+nothing off any sheet, six pages, vector text. Five mutations run and each killed the assertion
+meant for it: a cut plane loose enough to catch a cabinet's own sides, `s` measured along the wall
+instead of out from it, taking the first example rather than the richest, the splashback gap
+measured from the floor instead of the bench, and dropping the must-contain-its-own-cabinet rule.
+
+**Where to look:** `core/export/section.ts` — its header states the judgement in full;
+`core/export/panelGeometry.ts` for the world-space projection elevations and sections share;
+`app/export/SectionSheet.tsx` for the drawing. `tests/drawings.test.ts` is the contract.
+
+---
+
+### 4.33 The overview sheet — the pack's one picture, and the one sheet with no scale on it
+
+The last of the shop's four. Sheet 1: a **rendered view of the kitchen** over a **finishes
+schedule**. The sheet a client opens first and measures nothing on.
+
+#### The one sheet with no scale, deliberately
+
+A perspective view has no single scale, so putting one in its title block would be exactly the lie
+the rest of the pack exists to prevent — a figure inviting a measurement the drawing cannot
+honour. It says **"Not to scale"**, and `SheetFurniture` takes its `scale` as optional so this
+sheet gets **no scale bar** either. A measuring aid over a drawing that cannot be measured is
+worse than none.
+
+#### Why the pack renders its own canvas
+
+The Drawings view replaces the 3D viewport, so by the time somebody presses Print the viewport's
+canvas is unmounted and there is nothing to grab. Reaching for it would have worked exactly as
+long as the user happened to visit 3D first — the kind of thing that passes every test and fails
+on the bench. So the pack mounts its **own** canvas off-screen, drawing the *same* `Scene` the
+viewport does rather than a second simplified rendering, and captures it to a data URL.
+
+`preserveDrawingBuffer` is required or `toDataURL` returns blank, which is why the viewport itself
+does not ask for it. Off-screen rather than `display: none`: **WebGL draws nothing into a hidden
+element**, and a zero-sized one captures a zero-sized image.
+
+#### Two guards, because a bad picture is worse than no picture
+
+A blank or single-colour capture prints as a grey rectangle that reads as a fault in whatever
+opened the PDF. So `isCaptureBlank` samples the decoded pixels and, if nothing varies, the sheet
+draws a dashed placeholder saying the view is still rendering instead. The capture also waits a
+dozen frames, because textures load asynchronously and frame one of a job with decors on it is a
+grey kitchen.
+
+#### The defect the live check found, and it would have shipped
+
+The first overview sheet came out with the **viewport's dark background** behind the kitchen —
+`#1b1d21`, plus a `#3a3e45` floor and `#6a6f78` walls. Correct for a dark-themed app, and on a
+printed client sheet a near-black A3 rectangle covering half the page: wrong for a drawing, and a
+cartridge's worth of toner. The room shell now takes its colours as a parameter (`ROOM_COLOURS`)
+and the pack asks for the paper set. Measured rather than eyeballed — mean luminance went from a
+dark slab to **210/255 with 0% of the render dark**.
+
+**And a caution about how that was nearly mis-diagnosed.** After the fix the measurement said 210
+and the screenshot still looked black, which read as the change not taking. It had: the screenshot
+was **stale**, because the check was being run through `| head -9` and node was dying on EPIPE
+before it reached the code that writes the images. The number was current and the picture was old.
+A picture is the wrong thing to verify against — and it is also the wrong thing to *doubt a
+measurement* with.
+
+#### The schedule lists what the job uses, not what the library offers
+
+Every line is gathered from the parts and units the rule engine produced. A schedule read off the
+material library would be right the day it was written and wrong the first time somebody overrode
+a sink base — and a client would be quoted a kitchen in a decor that is not in it. So a
+per-cabinet override lands on the schedule automatically, which is the case a hand-written list
+always gets wrong, and there is an assertion for exactly that.
+
+Benchtops come off the stored units rather than off panels, because a bought-in top has no panels
+— §4.31 and §4.32's lesson arriving a third time, on the one sheet a client reads to find out what
+their benchtop is. Hardware comes off `ResolvedHardware`, so a cabinet that names its own runner
+is scheduled for the runner it was quoted and bored for.
+
+One small thing worth keeping: `EdgeBanding` is **per edge**, so a front is counted once per
+distinct band it wears rather than once per banded edge. Counting edges reports a plain door as
+four, and a mutation proves it.
+
+**Where to look:** `core/export/finishes.ts` for the schedule, `app/export/ViewCapture.tsx` for
+the render and its guards, `app/export/OverviewSheet.tsx` for the sheet. `ROOM_COLOURS` and
+`PAPER_BACKGROUND` are in `viewport/RoomShell.tsx` and `viewport/Viewport3D.tsx`.
+
+---
+
 ## 5. Open items, in the order I'd do them
 
 **5.2 has shipped — see 4.6.** What is left of it is Hettich and a handful of gaps, listed below.

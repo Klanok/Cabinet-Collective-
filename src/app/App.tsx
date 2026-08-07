@@ -24,11 +24,12 @@ import { HardwarePanel } from './panels/HardwarePanel.tsx';
 import { BenchtopPanel } from './panels/BenchtopPanel.tsx';
 import { SettingsModal } from './panels/SettingsModal.tsx';
 import { PlanView } from './plan/PlanView.tsx';
+import { ExportView } from './export/ExportView.tsx';
 import { exportProjectFile, importProjectFile } from './store/persistence.ts';
 import { useAsk } from './panels/ask.tsx';
 
 type Tab = 'cutlist' | 'nest' | 'hardware' | 'tops' | 'cost';
-type View = '3d' | 'wireframe' | 'plan';
+type View = '3d' | 'wireframe' | 'plan' | 'drawings';
 
 export default function App() {
   const project = useProjectStore((s) => s.project);
@@ -281,7 +282,9 @@ export default function App() {
         </aside>
 
         <main className="viewport">
-          {view !== 'plan' ? (
+          {view === 'drawings' ? (
+            <ExportView project={project} />
+          ) : view !== 'plan' ? (
             <Viewport3D
               built={built}
               project={project}
@@ -300,7 +303,7 @@ export default function App() {
             />
           )}
 
-          <div className="viewport-controls">
+          <div className="viewport-controls no-print">
             <div className="seg view-seg">
               <button
                 className={`seg-btn${view === '3d' ? ' is-active' : ''}`}
@@ -319,6 +322,12 @@ export default function App() {
                 onClick={() => setView('plan')}
               >
                 Plan
+              </button>
+              <button
+                className={`seg-btn${view === 'drawings' ? ' is-active' : ''}`}
+                onClick={() => setView('drawings')}
+              >
+                Drawings
               </button>
             </div>
             {view !== 'plan' && (

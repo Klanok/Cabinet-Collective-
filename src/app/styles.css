@@ -1519,3 +1519,153 @@ tbody td {
   font-size: 30px;
   pointer-events: none;
 }
+
+/* ── Drawings, and printing them ─────────────────────────────────────────── */
+
+/*
+ * The sheet is laid out in **paper millimetres** all the way through: the SVG carries
+ * width/height in `mm`, its viewBox is the sheet, and `@page` sets the same paper. Nothing
+ * scales between the model and the page, which is what lets the title block claim a scale.
+ *
+ * On screen the sheet is shrunk to fit the panel with a transform. That is display only — it
+ * never reaches the printer, because `@media print` throws it away.
+ */
+/*
+ * The 3D/Plan/Drawings switch floats over the top-right of the viewport, so the sheet's own
+ * controls have to start below it rather than under it. Left as a reserved strip rather than
+ * moving the switch: the switch belongs where it is on every other view, and a control that
+ * jumps around when you change tabs is worse than one that costs 44px here.
+ */
+.export {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  background: var(--bg);
+  padding: 16px;
+  padding-top: 54px;
+}
+
+.export-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.export-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.export-controls .field.inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  width: auto;
+}
+
+.export-controls .field.inline > span {
+  width: auto;
+  white-space: nowrap;
+}
+
+.sheet-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+/*
+ * Paper is paper — white, and squared off, whatever the app's theme is doing.
+ *
+ * `display: block` is not cosmetic. An inline SVG sits on a text baseline and carries the
+ * line's descender space under it, which made an exactly-A3 sheet lay out about 3.5px taller
+ * than an A3 page and spill a blank second sheet out of every PDF.
+ */
+.sheet {
+  display: block;
+  background: #fff;
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.45);
+  max-width: 100%;
+  height: auto;
+}
+
+@media print {
+  /*
+   * `size` here and the paper picked in the dialog have to agree. The app says which to choose
+   * on the Drawings tab rather than leaving somebody to guess, because a mismatch is the one
+   * failure that silently rescales the drawing and makes its stated scale a lie.
+   */
+  @page {
+    size: A3 landscape;
+    margin: 0;
+  }
+
+  /* Everything that is app rather than drawing. */
+  .no-print,
+  .sidebar,
+  .topbar,
+  .tabs,
+  .viewport-controls,
+  .export-bar,
+  .issue-bar {
+    display: none !important;
+  }
+
+  html,
+  body,
+  #root,
+  .app,
+  .layout,
+  .viewport,
+  .export {
+    position: static !important;
+    display: block !important;
+    overflow: visible !important;
+    background: #fff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    width: auto !important;
+    inset: auto !important;
+  }
+
+  .sheet-stack {
+    display: block;
+    gap: 0;
+    line-height: 0;
+  }
+
+  /* One sheet, one page. */
+  .sheet {
+    box-shadow: none;
+    max-width: none;
+    page-break-after: always;
+    break-after: page;
+  }
+
+  .sheet:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+}
+
+/*
+ * The pack's own 3D canvas.
+ *
+ * It has to be **rendered** — WebGL draws nothing into a `display: none` element, and a zero-sized
+ * one captures a zero-sized image — so it is moved off-screen rather than hidden. Its output
+ * reaches the sheet as a data URL, never as this element, so it is never printed.
+ */
+.view-capture {
+  position: absolute;
+  left: -20000px;
+  top: 0;
+  width: 1400px;
+  height: 900px;
+  pointer-events: none;
+}
