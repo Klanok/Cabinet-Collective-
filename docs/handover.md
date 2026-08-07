@@ -3142,6 +3142,126 @@ was made to find one.
 
 ---
 
+### 4.29 The drawer front that runs past the carcass — §5.11 reproduced, and the report was right about the wrong thing
+
+The entry sat in 5.11 unreproduced for ten sessions as *"changing a drawer front's height can
+change the cabinet's height"*. A second report settled it in a sentence — *"it now just runs the
+front higher than the cabinet bounds"* — and that sentence is the whole diagnosis. **The cabinet's
+height never changed.** `cabinetBounds` reads `cabinet.height` and nothing else; what grew was the
+stack of fronts, out of the top of a carcass that had not moved. From the bench those look
+identical, which is why the original wording survived so long: it described what you see, and what
+you see is a drawer front where the benchtop should be.
+
+**And the question this entry held open is answered: it moves *as you type*.** There is no save.
+`NumberField` writes on every keystroke, so typing `400` over `237` rebuilds the bank three times
+on the way through — at 4, at 40, at 400. Ten sessions of *"as you type or on save, because those
+are two different bugs"* could have been closed by reading one component.
+
+#### What it was
+
+Raise one front in the Inspector and `setOne` wrote the new height and **left its neighbours
+alone**. On the shipped 720mm bank that is 237 + 237 + 237 filling the opening exactly; ask for
+600 on the bottom one and the stack becomes 600 + 237 + 237, which is 1083mm of front and gaps in
+714mm of opening. The top front finished 420mm above the carcass. Measured in the running scene,
+not inferred:
+
+```
+carcass top 870mm        front 2:  753 → 930    60mm proud
+                         front 3:  933 → 1110  240mm proud
+                         front 4: 1113 → 1290  420mm proud
+```
+
+It **warned** the whole time — *"Drawer fronts total 1083mm but the carcass is only 720mm — fronts
+will not fit"* — and then built the parts anyway. That is worth naming, because it is the same
+shape as §4.28's open item that overstated its own fault, turned inside out: a warning that
+describes a refusal the app does not make is as misleading as no warning at all. The bench reads
+*will not fit*, looks at the screen, sees the fronts fitted onto a cabinet that is now the wrong
+height, and reports the cabinet.
+
+#### What was built
+
+**The fronts always fill the opening, so raising one lowers the others**, shared equally between
+them — the shop's answer, asked before any code. Capping what can be typed was the obvious-looking
+alternative and it does not work: an equal split already fills the opening exactly, so every front
+is already at its ceiling and the control would be dead in the only state it is ever opened in.
+That is written into `setDrawerFrontHeight`'s doc comment so nobody re-derives it.
+
+`shaveEqually` iterates rather than dividing once, because a front that lands on the 20mm floor
+stops paying and its share has to fall on the fronts still standing. `growEqually` gives its odd
+millimetres to the **top** fronts, the opposite hand to `equalDrawerFronts` — deliberately, so
+that it exactly undoes a shave and raising a front then putting it back leaves the bank you
+started with rather than one a millimetre out.
+
+**The fit is in the resolver, not only in the Inspector**, and that is the §4.23 lesson applied
+rather than re-learned. A job saved before this fix still holds its overflowing list, and so does
+a hand-edited file and a saved cabinet type; fitting at the point of *building* is what makes
+those come out right with no migration. Checked, not assumed — a job planted in local storage with
+`[600, 400, 400, 400]` on a 720mm carcass reopens at `[327, 127, 127, 127]`, inside the box, and
+says so on the Inspector.
+
+#### Three chains read these heights and only one of them was right
+
+This is §5.11's own lesson — *a repair has to cover every chain that reads the field* — and the
+field had **three**:
+
+- `specs/drawerBank.ts` resolved them for the fronts and the boxes.
+- `specs/customCabinet.ts` carried a **second-hand copy** of that resolver, so a custom carcass
+  overflowed in exactly the same way and no test looked.
+- `rules/hardware.ts` read `ctx.options.drawerFrontHeights` **raw** — the stored list, not the
+  built one. On a fitted bank those are different numbers, so its *"too short for any box"*
+  warning named a height nothing on screen had: it would send somebody looking for a 60mm front
+  that came out at 37.
+
+One resolver now — `resolveDrawerFrontHeights` in `model/cabinet.ts`, reached through
+`resolveDrawerFronts` in `rules/parts.ts` — and each of the three has a test that fails if it
+grows its own copy back.
+
+**The warning was rewritten rather than deleted.** It no longer says *will not fit*, because they
+now do; it says what was asked for and what it got — *"Drawer fronts were set to 1800mm of front
+in a 720mm carcass. They have been brought back to fit — 327, 127, 127, 127mm, bottom first"* —
+and there is an assertion that the old phrase is absent. A warning left in place after the thing
+it describes has been dealt with is a safety net pointing at nothing, which this file has already
+catalogued twice.
+
+Where a bank genuinely cannot be built at any height — more drawers than 20mm and a 3mm gap will
+fit, which on a 720mm carcass is 32 — it says that instead, with the figure it would need and the
+instruction to use fewer drawers.
+
+**One choice worth flagging because it was a choice.** The reduction is shared **equally in
+millimetres**, not proportionally, on both paths. So a stored `[700, 60]` fitted into 714mm comes
+out `[677, 37]` — the short front pays the same 23mm the tall one does, which distorts a
+deliberately lopsided bank more than a proportional share would. Equal was picked for one reason:
+it is the same rule the Inspector follows when a front is raised by hand, and *"everything came
+down by the same amount"* is a sentence the bench can be told. If the shop ever says the shape of
+a bank should be preserved instead, it is one function.
+
+#### Verified live, per §7
+
+Both states driven through the real app and read back out of the 3D scene — the fronts identified
+by the translucency `PanelMesh` gives a door or a drawer front, since nothing in the graph is
+named. **One trap in doing it, and it is the §7 lesson again:** the first version took its carcass
+reference from *"the tallest opaque board"*, and a drawer box follows the front it is screwed to —
+so on an overflowing bank the reference climbed with the thing being measured and the overhang
+read 20mm instead of 420. Anchored to the side panels, which cannot move. A measurement whose
+datum moves with the fault is a measurement that reports the fault as small.
+
+Four mutations run, each killing the assertion meant to catch it: the resolver handing an explicit
+list back untouched (the original mechanism — six assertions), `setOne` leaving its neighbours
+alone (the original Inspector mechanism — three), the reduction taken off one front instead of
+shared (seven), and `growEqually` giving its odd millimetre to the bottom (one — the round trip).
+**One assertion passed a mutation and was rewritten**: the check that a drawer box follows its
+built front was written as `if (box) expect(…)` against a part name that does not exist — `Drawer
+bottom` is not numbered — so it was vacuous and green. That is §4.24's passing-test-with-the-wrong-
+reason in the same file it was first found in, three sessions later, written by the session that
+had just read the warning about it.
+
+**Where to look:** `model/cabinet.ts` for the arithmetic and the reasoning; `rules/parts.ts`
+`resolveDrawerFronts` for the one ctx-level resolver; `specs/drawerBank.ts` for the rewritten
+warning. `tests/wallAndDrawer.test.ts` is the contract, with the other two chains asserted in
+`tests/customAndSaved.test.ts` and `tests/hardware.test.ts`.
+
+---
+
 ## 5. Open items, in the order I'd do them
 
 **5.2 has shipped — see 4.6.** What is left of it is Hettich and a handful of gaps, listed below.
@@ -3994,9 +4114,12 @@ it — not a duplicate to tidy away.
   shared-texture fault had already been fixed; what was left was a ref on the **mesh** where the
   **geometry** is the thing R3F replaces, so a rebuilt cushion kept raw millimetre UVs. Removing and
   re-adding the cabinet "fixed" it because remounting is the only thing that re-fires a mesh ref.
-- **Changing a drawer front's height can change the cabinet's height.** Still not reproduced; the
-  useful detail when it is reported again is whether the height moves *as you type* or *on save*,
-  because those are two different bugs.
+- ~~**Changing a drawer front's height can change the cabinet's height.**~~ **Reproduced and
+  fixed — see §4.29, and the report was describing something the cabinet's height never did.**
+  Reported a second time as *"it now just runs the front higher than the cabinet bounds"*, which
+  is the whole diagnosis: the carcass never moved, the **stack of fronts** grew past the top of
+  it. The open question here — *as you type* or *on save* — is answered too, and the answer is
+  that there is no save: `NumberField` writes on every keystroke.
 
   ~~**and the input for the bottom front is partly off-screen**~~ — **that half is fixed, see
   §4.24, and it was not off-screen.** It was *squashed*: `.field` let the label take whatever it

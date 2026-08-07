@@ -6,7 +6,7 @@
  * geometry from before someone changed a thickness.
  */
 
-import type { Mm } from '../units.ts';
+import { type Mm, mm } from '../units.ts';
 import type { CabinetPlacement } from '../geom/placement.ts';
 import type { CustomFeature } from './partFeature.ts';
 import type { PartOverride } from './partOverride.ts';
@@ -380,4 +380,168 @@ export const equalDrawerFronts = (opening: Mm, count: number, gap: Mm): Mm[] => 
   // and where a millimetre of rounding is least visible.
   fronts[0] = usable - each * (count - 1);
   return fronts;
+};
+
+/**
+ * The shortest front the app will cut. One exported number rather than a `20` in the rule engine
+ * and another in the Inspector, which is how the two come to disagree.
+ *
+ * It is a floor on the *drawing*, not a claim about hardware: whether a box fits behind a front
+ * this short is `tallestSideHeightFor`'s answer, and `hardwareProblems` says so by name.
+ */
+export const MIN_DRAWER_FRONT: Mm = mm(20);
+
+/**
+ * A stack of drawer fronts, fitted to the opening it is in.
+ *
+ * `overflow` and `short` are what the *asking* list wanted and could not have — kept rather than
+ * thrown away, because the only useful thing to say to the bench is what it asked for against
+ * what it got.
+ */
+export interface DrawerFrontFit {
+  /** Bottom-first, and always a stack that fits. */
+  readonly heights: readonly Mm[];
+  /** Millimetres the asked-for stack stood proud of its opening. Zero on a bank that fits. */
+  readonly overflow: Mm;
+  /** Of that overflow, what could not be taken off — every front was down to the minimum. */
+  readonly short: Mm;
+}
+
+/**
+ * Take `amount` mm off a set of fronts, shared as equally as whole millimetres allow, with no
+ * front going below `MIN_DRAWER_FRONT`.
+ *
+ * Iterative rather than one division because a front that lands on the floor stops paying, and
+ * its share has to fall to the fronts still standing. One pass would silently come up short.
+ */
+const shaveEqually = (
+  heights: readonly Mm[],
+  amount: number,
+): { heights: Mm[]; short: number } => {
+  const out = heights.map((h) => Math.round(h));
+  let left = Math.max(0, Math.round(amount));
+
+  while (left > 0) {
+    const open = out.filter((h) => h > MIN_DRAWER_FRONT).length;
+    if (open === 0) break;
+
+    const each = Math.floor(left / open);
+    if (each === 0) {
+      // Fewer millimetres left than there are fronts to take them from. Taken from the top down,
+      // so the bottom front — the one `equalDrawerFronts` hands its remainder to — keeps the odd
+      // millimetre instead of paying for it at both ends.
+      for (let i = out.length - 1; i >= 0 && left > 0; i--) {
+        const h = out[i];
+        if (h === undefined || h <= MIN_DRAWER_FRONT) continue;
+        out[i] = h - 1;
+        left -= 1;
+      }
+      continue;
+    }
+
+    let taken = 0;
+    for (let i = 0; i < out.length; i++) {
+      const h = out[i];
+      if (h === undefined || h <= MIN_DRAWER_FRONT) continue;
+      const take = Math.min(each, h - MIN_DRAWER_FRONT);
+      out[i] = h - take;
+      taken += take;
+    }
+    if (taken === 0) break;
+    left -= taken;
+  }
+  return { heights: out.map(mm), short: left };
+};
+
+/**
+ * Give `amount` mm back to a set of fronts, equally.
+ *
+ * The odd millimetres go to the **top** fronts, which is where `shaveEqually` takes its residual
+ * from — deliberately, so that this exactly undoes that. Raise a front, think better of it, and
+ * put it back, and the bank is the bank you started with rather than one a millimetre out. Note
+ * this is the opposite hand to `equalDrawerFronts`, which gives its remainder to the bottom: that
+ * is a fresh split with nothing to undo, and matching it here would cost the round trip.
+ */
+const growEqually = (heights: readonly Mm[], amount: number): Mm[] => {
+  if (heights.length === 0) return [];
+  const add = Math.max(0, Math.round(amount));
+  const each = Math.floor(add / heights.length);
+  const odd = add - each * heights.length;
+  return heights.map((h, i) =>
+    mm(Math.round(h) + each + (i >= heights.length - odd ? 1 : 0)),
+  );
+};
+
+/**
+ * Set one front's height and let the others give way, keeping the stack's total where it was.
+ *
+ * **A bank's fronts fill the front of the box.** There is no such thing as a drawer bank whose
+ * fronts add up to more than the carcass they are on, so raising one front has to take the
+ * millimetres from somewhere, and the shop's answer is that the others share it: raise the bottom
+ * of three 237s to 400 and the two above it come back to 155 each.
+ *
+ * Capping what can be typed instead was the obvious-looking alternative and it does not work. An
+ * equal split already fills the opening exactly, so every front is already at its ceiling and the
+ * control would be dead in the only state it is ever opened in.
+ *
+ * A single front is returned untouched: it *is* the opening, and there is nothing to trade against.
+ */
+export const setDrawerFrontHeight = (
+  heights: readonly Mm[],
+  index: number,
+  wanted: Mm,
+): Mm[] => {
+  const current = heights.map((h) => Math.round(h));
+  const was = current[index];
+  if (was === undefined || current.length < 2) return current.map(mm);
+
+  const total = current.reduce((a, b) => a + b, 0);
+  // The tallest this front can be is the whole stack less a minimum for each of the others.
+  const ceiling = total - MIN_DRAWER_FRONT * (current.length - 1);
+  const granted = Math.max(MIN_DRAWER_FRONT, Math.min(Math.round(wanted), ceiling));
+  const diff = granted - was;
+  if (diff === 0) return current.map(mm);
+
+  const rest = current.filter((_, i) => i !== index).map(mm);
+  const moved = diff > 0 ? shaveEqually(rest, diff).heights : growEqually(rest, -diff);
+
+  let k = 0;
+  return current.map((h, i) => (i === index ? mm(granted) : (moved[k++] ?? mm(h))));
+};
+
+/**
+ * The heights a bank actually builds: the explicit list where there is one, an equal split where
+ * there is not, and **in both cases a stack that fits its opening**.
+ *
+ * One function because three chains read these heights — the fronts, the boxes screwed to them,
+ * and `hardwareProblems` naming a front too short to carry anything. Two of the three used to work
+ * it out for themselves and the third read the stored option raw, which is the shape §5.11 warns
+ * about: a repair has to cover every chain that reads the field.
+ *
+ * **The fit is here rather than only in the Inspector on purpose.** A job saved before the
+ * Inspector rebalanced its fronts still holds the overflowing list, and so does a hand-edited
+ * file and a saved cabinet type. Fitting at the point of *building* is what makes those come out
+ * right without a migration — the stored list is the shop's request, and this is what the carcass
+ * can give it.
+ */
+export const resolveDrawerFrontHeights = (
+  explicit: readonly Mm[] | undefined,
+  count: number,
+  opening: Mm,
+  gap: Mm,
+): DrawerFrontFit => {
+  const none = { overflow: mm(0), short: mm(0) };
+  if (!explicit || explicit.length === 0) {
+    return { heights: equalDrawerFronts(opening, count, gap), ...none };
+  }
+
+  const usable = opening - gap * (explicit.length - 1);
+  const asked = explicit.reduce((a, b) => a + b, 0);
+  const excess = asked - usable;
+  // Half a millimetre of slack, the same tolerance the carcass checks use. A bank that fits is
+  // returned exactly as it was stored rather than rounded, so nothing already correct moves.
+  if (excess <= 0.5) return { heights: [...explicit], ...none };
+
+  const { heights, short } = shaveEqually(explicit, excess);
+  return { heights, overflow: mm(excess), short: mm(short) };
 };

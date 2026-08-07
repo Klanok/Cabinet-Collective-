@@ -13,7 +13,7 @@
  */
 
 import { type Mm, mm } from '../units.ts';
-import type { CabinetOptions } from '../model/cabinet.ts';
+import { type CabinetOptions, resolveDrawerFrontHeights } from '../model/cabinet.ts';
 import {
   type DrawerRunnerSystem,
   type DrawerSideHeight,
@@ -201,7 +201,22 @@ export const hardwareProblems = (ctx: RuleContext): string[] => {
    * auto-sizes. Reported per front and by name, because "one of your drawers has no box" is not
    * something anybody should have to find by counting parts.
    */
-  const explicitHeights = ctx.options.drawerFrontHeights ?? [];
+  /*
+   * Read off the **built** heights, not the stored option. A bank whose fronts were set taller
+   * than its carcass is fitted before anything is laid out, so the stored list and the fronts on
+   * screen are two different numbers — and naming the one nobody can see is how a warning sends
+   * somebody to look for a 400mm front that came out at 155.
+   */
+  const stored = ctx.options.drawerFrontHeights ?? [];
+  const explicitHeights =
+    stored.length > 0
+      ? resolveDrawerFrontHeights(
+          stored,
+          stored.length,
+          mm(ctx.H - ctx.construction.revealTop - ctx.construction.revealBottom),
+          ctx.construction.gapBetweenDrawers,
+        ).heights
+      : [];
   if (explicitHeights.length > 0 && !ctx.hardware.runner?.sideHeightWasChosen) {
     explicitHeights.forEach((height, i) => {
       if (tallestSideHeightFor(hw.runnerSystem, height) === null) {

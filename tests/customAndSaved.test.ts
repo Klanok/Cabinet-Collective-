@@ -172,6 +172,24 @@ describe('the custom carcass takes rails or a full top', () => {
     expect(namesOf(panels).filter((n) => n.startsWith('Drawer front'))).toHaveLength(3);
   });
 
+  it('fits explicit drawer fronts to the carcass, as a drawer bank does', () => {
+    /*
+     * §5.11 reached here too. This spec carried its own copy of the bank's height resolver, so a
+     * custom carcass with fronts set past its own height ran them out the top in exactly the same
+     * way — and nothing said so, because the assertion was on the bank. One resolver now, and this
+     * is the test that says the custom spec is using it.
+     */
+    const { panels } = custom({
+      topStyle: 'rails',
+      shelfCount: 0,
+      drawerCount: 2,
+      drawerFrontHeights: [mm(400), mm(400)],
+    });
+    const top = byName(panels, 'Drawer front 2');
+    expect(occupies(top, project).y[1]).toBeLessThanOrEqual(720);
+    expect(size(top)[1]).toBe(357);
+  });
+
   it('refuses doors and drawers on the same cabinet', () => {
     const { warnings } = custom({ doorCount: 2, drawerCount: 2 });
     expect(warnings.join(' ')).toMatch(/both doors and drawer fronts/);

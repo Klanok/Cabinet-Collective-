@@ -8,8 +8,8 @@
  * which is why they waited, rather than being guessed at against a runner nobody had chosen.
  */
 
-import { type Mm, mm } from '../../units.ts';
-import { equalDrawerFronts } from '../../model/cabinet.ts';
+import { mm } from '../../units.ts';
+import { MIN_DRAWER_FRONT, type DrawerFrontFit } from '../../model/cabinet.ts';
 import type { CabinetSpec } from '../spec.ts';
 import type { RuleContext } from '../context.ts';
 import { drawerBoxes } from '../drawerBox.ts';
@@ -20,24 +20,26 @@ import {
   drawerFronts,
   kickPanel,
   leftSide,
+  resolveDrawerFronts,
   rightSide,
   stretcher,
 } from '../parts.ts';
 
-/**
- * Front heights for the bank, bottom-first.
- *
- * Explicit heights win. Otherwise the available front height — the carcass less a reveal top
- * and bottom — is split equally between the drawers, less a gap between each.
- */
-export const resolveFrontHeights = (ctx: RuleContext): Mm[] => {
-  const explicit = ctx.options.drawerFrontHeights;
-  if (explicit && explicit.length > 0) return [...explicit];
+/** How many drawers a bank has when nobody has said. */
+const DEFAULT_DRAWER_COUNT = 4;
 
-  const count = ctx.options.drawerCount ?? 4;
-  const opening = mm(ctx.H - ctx.construction.revealTop - ctx.construction.revealBottom);
-  return equalDrawerFronts(opening, count, ctx.construction.gapBetweenDrawers);
-};
+/**
+ * Front heights for the bank, bottom-first — explicit where they are set, an equal split where
+ * they are not, and **fitted to the carcass either way**.
+ *
+ * It used to hand back an explicit list untouched, and that is what §5.11 was: raise one front in
+ * the Inspector and the stack simply grew, so the top front finished above the top of the box —
+ * on a 720mm bank, 160mm of drawer front sailing past the carcass with the carcass itself never
+ * moving. It warned and built the parts anyway. Now the fit is the resolver's job, so no chain
+ * that reads these heights can lay out a bank that could not be made.
+ */
+export const resolveFrontHeights = (ctx: RuleContext): DrawerFrontFit =>
+  resolveDrawerFronts(ctx, ctx.options.drawerCount ?? DEFAULT_DRAWER_COUNT);
 
 export const DRAWER_BANK_SPEC: CabinetSpec = {
   typeId: 'drawer-bank',
@@ -66,18 +68,33 @@ export const DRAWER_BANK_SPEC: CabinetSpec = {
     const problems: string[] = [];
     const heights = ctx.options.drawerFrontHeights;
     if (heights && heights.length > 0) {
-      const gaps = ctx.construction.gapBetweenDrawers * (heights.length - 1);
-      const used =
-        heights.reduce((a, b) => a + b, 0) +
-        gaps +
-        ctx.construction.revealTop +
-        ctx.construction.revealBottom;
-      if (used > ctx.H + 0.5) {
+      /*
+       * The fronts no longer overflow — they are fitted before anything is laid out — so what is
+       * left to say is that the shop asked for more than the box had, and what it got instead.
+       * The old wording, *"fronts will not fit"*, described a bank the app then went ahead and
+       * built; a warning about something that has already been dealt with has to say so, or the
+       * bench goes looking for a fault that is not on screen.
+       */
+      const fit = resolveFrontHeights(ctx);
+      if (fit.short > 0.5) {
+        const floor = MIN_DRAWER_FRONT * heights.length +
+          ctx.construction.gapBetweenDrawers * (heights.length - 1) +
+          ctx.construction.revealTop +
+          ctx.construction.revealBottom;
         problems.push(
-          `Drawer fronts total ${used}mm but the carcass is only ${ctx.H}mm — fronts will not fit.`,
+          `${heights.length} drawer fronts will not fit a ${Math.round(ctx.H)}mm carcass even at ` +
+            `the ${MIN_DRAWER_FRONT}mm minimum — that needs ${Math.round(floor)}mm. Use fewer ` +
+            `drawers.`,
+        );
+      } else if (fit.overflow > 0.5) {
+        const asked = heights.reduce((a, b) => a + b, 0);
+        problems.push(
+          `Drawer fronts were set to ${Math.round(asked)}mm of front in a ${Math.round(ctx.H)}mm ` +
+            `carcass. They have been brought back to fit — ` +
+            `${fit.heights.map((h) => Math.round(h)).join(', ')}mm, bottom first.`,
         );
       }
-    } else if ((ctx.options.drawerCount ?? 4) < 1) {
+    } else if ((ctx.options.drawerCount ?? DEFAULT_DRAWER_COUNT) < 1) {
       problems.push('A drawer bank needs at least one drawer.');
     }
     if (ctx.options.doorCount) {
@@ -98,10 +115,10 @@ export const DRAWER_BANK_SPEC: CabinetSpec = {
       ],
     },
     { key: 'back', produce: backPanel },
-    { key: 'fronts', produce: (ctx) => drawerFronts(ctx, resolveFrontHeights(ctx)) },
+    { key: 'fronts', produce: (ctx) => drawerFronts(ctx, resolveFrontHeights(ctx).heights) },
     // The same heights feed both, so a box and the front it is screwed to cannot disagree about
     // where the drawer is.
-    { key: 'boxes', produce: (ctx) => drawerBoxes(ctx, resolveFrontHeights(ctx)) },
+    { key: 'boxes', produce: (ctx) => drawerBoxes(ctx, resolveFrontHeights(ctx).heights) },
     {
       key: 'kick',
       produce: (ctx) => (ctx.options.hasKick === false ? [] : kickPanel(ctx)),
